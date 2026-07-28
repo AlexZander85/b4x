@@ -1,0 +1,46 @@
+[
+  {
+    "id": "youtube-api-first-flow",
+    "product": "api",
+    "domain": "youtubei.googleapis.com",
+    "transport": "tcp",
+    "first_verdict": "partial",
+    "later_clear_sni": true,
+    "quic_to_tcp_fallback": false,
+    "ech_outer_client_hello": false,
+    "payload_status": "sanitized-metadata-only"
+  },
+  {
+    "id": "youtube-ui-first-flow",
+    "product": "ui",
+    "domain": "www.youtube.com",
+    "transport": "tcp",
+    "first_verdict": "partial",
+    "later_clear_sni": true,
+    "quic_to_tcp_fallback": false,
+    "ech_outer_client_hello": false,
+    "payload_status": "sanitized-metadata-only"
+  },
+  {
+    "id": "googlevideo-cdn-a",
+    "product": "video",
+    "domain": "r1---sn-4g5e6nzz.googlevideo.com",
+    "transport": "quic",
+    "first_verdict": "dns-scoped",
+    "later_clear_sni": false,
+    "quic_to_tcp_fallback": true,
+    "ech_outer_client_hello": false,
+    "payload_status": "sanitized-metadata-only"
+  },
+  {
+    "id": "googlevideo-cdn-b",
+    "product": "video",
+    "domain": "r2---sn-4g5e6nzz.googlevideo.com",
+    "transport": "tcp",
+    "first_verdict": "ech-fallback",
+    "later_clear_sni": false,
+    "quic_to_tcp_fallback": false,
+    "ech_outer_client_hello": true,
+    "payload_status": "sanitized-metadata-only"
+  }
+]
