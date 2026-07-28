@@ -15,6 +15,7 @@ func (api *API) RegisterObservabilityAPI() {
 	api.mux.HandleFunc("/api/diagnostics/issue-bundle", api.handleIssueBundle)
 	api.mux.HandleFunc("/api/observability/metrics", api.handleObservabilityMetrics)
 	api.RegisterFailureInboxAPI()
+	api.RegisterClientHelloLabAPI()
 }
 
 // @Summary Export a privacy-safe issue bundle

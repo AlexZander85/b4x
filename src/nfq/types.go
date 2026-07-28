@@ -7,6 +7,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/dhcp"
+	"github.com/daniellavrushin/b4/lab"
 	"github.com/daniellavrushin/b4/sock"
 	"github.com/florianl/go-nfqueue"
 )
@@ -56,4 +57,43 @@ type Worker struct {
 	dnsHints         *classifier.HostHintStore
 	tcpReassembly    *classifier.TCPReassemblyStore
 	tcpHold          *TCPHoldStore
+	clientHelloSink  atomic.Pointer[clientHelloSinkHolder]
+}
+
+type clientHelloSinkHolder struct {
+	sink lab.SegmentSink
+}
+
+// SetClientHelloSink attaches an observe-only laboratory bridge. A full sink
+// is handled as diagnostic loss by the sink implementation and never delays
+// packet processing or changes the production verdict.
+func (w *Worker) SetClientHelloSink(sink lab.SegmentSink) {
+	if w == nil {
+		return
+	}
+	if sink == nil {
+		w.clientHelloSink.Store(nil)
+		return
+	}
+	w.clientHelloSink.Store(&clientHelloSinkHolder{sink: sink})
+}
+
+func (w *Worker) getClientHelloSink() lab.SegmentSink {
+	if w == nil {
+		return nil
+	}
+	holder := w.clientHelloSink.Load()
+	if holder == nil {
+		return nil
+	}
+	return holder.sink
+}
+
+func (p *Pool) SetClientHelloSink(sink lab.SegmentSink) {
+	if p == nil {
+		return
+	}
+	for _, worker := range p.Workers {
+		worker.SetClientHelloSink(sink)
+	}
 }

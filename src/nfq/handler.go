@@ -15,6 +15,7 @@ import (
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discord"
+	"github.com/daniellavrushin/b4/lab"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
 	"github.com/daniellavrushin/b4/quic"
@@ -211,6 +212,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	var reassemblyResult classifier.TCPReassemblyResult
 	if sequence, ok := tcpPacketSequence(tcp); ok {
 		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
+		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
 	}
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
@@ -616,6 +618,28 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 
 	return vc.accept()
+}
+
+func (w *Worker) submitClientHelloSegment(pkt *pktInfo, sequence uint32, sport, dport uint16, flags byte, payload []byte) {
+	sink := w.getClientHelloSink()
+	if sink == nil || pkt == nil || dport != 443 {
+		return
+	}
+	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
+	if !ok {
+		return
+	}
+	_ = sink.Submit(lab.CaptureSegment{
+		At:       time.Now(),
+		Client:   client,
+		SrcIP:    netIPToAddr(pkt.src),
+		DstIP:    netIPToAddr(pkt.dst),
+		SrcPort:  sport,
+		DstPort:  dport,
+		Sequence: sequence,
+		Flags:    flags,
+		Payload:  payload,
+	})
 }
 
 func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Config, matcher *sni.SuffixSet, matched bool, set *config.SetConfig, st *config.SetConfig) int {

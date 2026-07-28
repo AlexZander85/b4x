@@ -381,6 +381,24 @@ func (s *TCPReassemblyStore) Lookup(key FlowKey) (TCPReassemblyResult, bool) {
 	return s.resultLocked(entry, status, "lookup"), true
 }
 
+// ClientHelloBytes returns a bounded copy of the contiguous ClientHello
+// prefix for a completed flow. It is intended for diagnostics/lab hashing;
+// callers must not retain the returned bytes longer than necessary. The
+// reassembler remains the single owner of segment ordering and overlap rules.
+func (s *TCPReassemblyStore) ClientHelloBytes(key FlowKey) ([]byte, bool) {
+	if s == nil {
+		return nil, false
+	}
+	key = key.Normalize()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.flows[key]
+	if !ok || !entry.metadata.Complete {
+		return nil, false
+	}
+	return append([]byte(nil), entry.ranges.Contiguous(0, s.config.MaxClientHello)...), true
+}
+
 func (s *TCPReassemblyStore) Len() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()

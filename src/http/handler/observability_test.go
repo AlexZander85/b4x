@@ -10,6 +10,7 @@ import (
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/diagnostics"
+	"github.com/daniellavrushin/b4/lab"
 	"net/netip"
 	"time"
 )
@@ -89,5 +90,24 @@ func TestHandleFailureCandidatesReturnsBoundedPassiveInbox(t *testing.T) {
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/diagnostics/failures?limit=1", nil))
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "classifier_ambiguous") {
 		t.Fatalf("failure inbox endpoint returned %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandleClientHelloProfilesIsReadOnlyAndRedacted(t *testing.T) {
+	catalog := lab.NewMemoryRetention(4)
+	if err := catalog.Store(lab.ClientHelloProfile{ID: "profile-1", HelloHash: "hash", PrivacySafe: true}); err != nil {
+		t.Fatal(err)
+	}
+	old := clientHelloCatalog.Load()
+	SetClientHelloCatalog(catalog)
+	defer SetClientHelloCatalog(old)
+	api := &API{}
+	mux := http.NewServeMux()
+	api.mux = mux
+	api.RegisterObservabilityAPI()
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/lab/clienthello", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "profile-1") || !strings.Contains(rec.Body.String(), "privacy_safe") {
+		t.Fatalf("clienthello catalog endpoint returned %d: %s", rec.Code, rec.Body.String())
 	}
 }
