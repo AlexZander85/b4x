@@ -174,6 +174,31 @@ type CompiledArtifact struct {
 
 func (a CompiledArtifact) Bytes() []byte { return append([]byte(nil), a.bytes...) }
 
+// Validate checks a compiled artifact without requiring the original source
+// bytes. It is the boundary used by later strategy planners: the artifact is
+// still inactive, hash-consistent and reparsable by the production TLS
+// metadata parser.
+func (a CompiledArtifact) Validate() error {
+	if a.Profile.Active || a.Profile.ID == "" || a.Profile.SourceArtifactID == "" || len(a.bytes) == 0 || a.Profile.Size != len(a.bytes) {
+		return ErrCompiledInvalid
+	}
+	if err := validateCompileMode(a.Profile.Mode); err != nil {
+		return err
+	}
+	sum := sha256.Sum256(a.bytes)
+	if a.Profile.SHA256 != hex.EncodeToString(sum[:]) {
+		return ErrCompiledInvalid
+	}
+	metadata := sni.ParseTLSClientHelloMetadata(a.bytes)
+	if !metadata.Complete || metadata.ParseError != "" || metadata.SNI == "" {
+		return ErrCompiledInvalid
+	}
+	if a.Profile.TLSVersion != 0 && a.Profile.TLSVersion != metadata.MaxVersion {
+		return ErrCompiledInvalid
+	}
+	return nil
+}
+
 func CompileFakeProfile(request CompileRequest) (CompiledArtifact, error) {
 	if err := request.Source.Validate(); err != nil {
 		return CompiledArtifact{}, err
