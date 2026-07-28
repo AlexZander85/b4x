@@ -83,3 +83,55 @@ func TestRuntimeGenerationLifecycle(t *testing.T) {
 		t.Fatalf("runtime update did not create a new generation: %q", updated.RuntimeGeneration)
 	}
 }
+
+func TestClassifierV23RuntimeDefaultsAndSafety(t *testing.T) {
+	cfg := NewConfig()
+	cfg.System.Classifier.Runtime = ClassifierRuntimeConfig{}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate defaults: %v", err)
+	}
+	r := cfg.System.Classifier.Runtime
+	if cfg.System.Classifier.APIVersion != ClassifierAPIV23 {
+		t.Fatalf("api version = %q", cfg.System.Classifier.APIVersion)
+	}
+	if r.Confidence.Destructive <= r.Confidence.Mutate || r.Confidence.Mutate <= r.Confidence.Classify {
+		t.Fatalf("unsafe confidence ordering: %+v", r.Confidence)
+	}
+	if !r.HoldReplay.ReleaseOnPressure || !r.Discovery.NoAutomaticApply || !r.Rollout.RequireReadiness {
+		t.Fatalf("fail-open/manual rollout defaults were not preserved: %+v %+v %+v", r.HoldReplay, r.Discovery, r.Rollout)
+	}
+	if r.Capture.ProcessedMark&(1<<27) == 0 || r.Capture.ProcessedMarkMask != 1<<27 {
+		t.Fatalf("processed mark contract not derived: %#x/%#x", r.Capture.ProcessedMark, r.Capture.ProcessedMarkMask)
+	}
+	if r.Privacy.IncludeRawInExport || r.Privacy.AutomaticRawUpload {
+		t.Fatal("raw export/upload must be disabled by default")
+	}
+}
+
+func TestClassifierV23RejectsUnsafeRuntimeConfig(t *testing.T) {
+	tests := []struct {
+		name string
+		edit func(*ClassifierConfig)
+	}{
+		{"threshold order", func(c *ClassifierConfig) { c.Runtime.Confidence.Mutate = 90; c.Runtime.Confidence.Destructive = 80 }},
+		{"hold pressure", func(c *ClassifierConfig) { c.Runtime.HoldReplay.ReleaseOnPressure = false }},
+		{"automatic discovery apply", func(c *ClassifierConfig) { c.Runtime.Discovery.NoAutomaticApply = false }},
+		{"automatic raw upload", func(c *ClassifierConfig) { c.Runtime.Privacy.AutomaticRawUpload = true }},
+		{"ungated optional strategy", func(c *ClassifierConfig) { c.Runtime.Strategies.ControlledRST = true }},
+		{"proxy without isolation", func(c *ClassifierConfig) {
+			c.Flags.ProxyFallbackEnabled = true
+			c.Runtime.Fallback.Enabled = true
+			c.Runtime.Fallback.Policy = FallbackProxy
+			c.Runtime.Fallback.ProxyRouteID = "socks"
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := NewConfig()
+			tc.edit(&cfg.System.Classifier)
+			if err := cfg.Validate(); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}

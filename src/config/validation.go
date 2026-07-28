@@ -342,6 +342,9 @@ func (c *Config) validateClassifierConfig(v *validator) {
 	if classifier.SchemaVersion == 0 {
 		classifier.SchemaVersion = defaults.SchemaVersion
 	}
+	if classifier.APIVersion == "" {
+		classifier.APIVersion = defaults.APIVersion
+	}
 	if classifier.DomainOnlyMode == "" {
 		classifier.DomainOnlyMode = defaults.DomainOnlyMode
 	}
@@ -356,6 +359,9 @@ func (c *Config) validateClassifierConfig(v *validator) {
 		}
 	}
 
+	if classifier.APIVersion != ClassifierAPIV23 {
+		v.addf("system.classifier.api_version", "unsupported_api", map[string]any{"supported": ClassifierAPIV23}, "unsupported classifier API version %q", classifier.APIVersion)
+	}
 	if classifier.SchemaVersion != ClassifierSchemaV23 {
 		v.addf("system.classifier.schema_version", "unsupported_schema", map[string]any{"supported": ClassifierSchemaV23}, "unsupported classifier schema version %d", classifier.SchemaVersion)
 	}
@@ -374,6 +380,7 @@ func (c *Config) validateClassifierConfig(v *validator) {
 	default:
 		v.addf("system.classifier.flags.tcp_hold_replay_mode", "unsupported_mode", map[string]any{"supported": []string{HoldReplayOff, HoldReplayObserve, HoldReplayAuto, HoldReplayDebug}}, "unsupported TCP hold/replay mode %q", classifier.Flags.TCPHoldReplayMode)
 	}
+	c.validateClassifierRuntimeConfig(v)
 }
 
 func (c *Config) checkPortCollisions(v *validator) {

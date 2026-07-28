@@ -108,14 +108,18 @@ type ClassifierFeatureFlags struct {
 }
 
 type ClassifierConfig struct {
-	SchemaVersion  int                    `json:"schema_version"`
-	DomainOnlyMode string                 `json:"domain_only_mode"`
-	Flags          ClassifierFeatureFlags `json:"flags"`
+	SchemaVersion  int                     `json:"schema_version"`
+	APIVersion     string                  `json:"api_version"`
+	DomainOnlyMode string                  `json:"domain_only_mode"`
+	Flags          ClassifierFeatureFlags  `json:"flags"`
+	Runtime        ClassifierRuntimeConfig `json:"runtime"`
 }
 
 var DefaultClassifierConfig = ClassifierConfig{
 	SchemaVersion:  ClassifierSchemaV23,
+	APIVersion:     ClassifierAPIV23,
 	DomainOnlyMode: DomainOnlyLegacy,
+	Runtime:        DefaultClassifierRuntimeConfig,
 	Flags: ClassifierFeatureFlags{
 		TCPReassemblyMode: ReassemblyOff,
 		TCPHoldReplayMode: HoldReplayOff,

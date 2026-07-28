@@ -15,7 +15,7 @@ import (
 type MigrationFunc func(*Config, map[string]interface{}) error
 
 const (
-	CurrentConfigVersion = 51
+	CurrentConfigVersion = 52
 	MinSupportedVersion  = 0
 )
 
@@ -27,6 +27,24 @@ var migrationRegistry = map[int]MigrationFunc{
 	46: migrateV46to47,
 	48: migrateV48to49,
 	49: migrateV49to50,
+	51: migrateV51to52,
+}
+
+func migrateV51to52(c *Config, _ map[string]interface{}) error {
+	log.Tracef("Migration v51->v52: adding classifier v2.3 backend control groups")
+	if c.System.Classifier.SchemaVersion == 0 {
+		c.System.Classifier.SchemaVersion = ClassifierSchemaV23
+	}
+	if c.System.Classifier.APIVersion == "" {
+		c.System.Classifier.APIVersion = ClassifierAPIV23
+	}
+	if c.System.Classifier.DomainOnlyMode == "" {
+		c.System.Classifier.DomainOnlyMode = DomainOnlyLegacy
+	}
+	if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {
+		c.System.Classifier.Runtime = DefaultClassifierRuntimeConfig
+	}
+	return nil
 }
 
 func migrateV49to50(c *Config, raw map[string]interface{}) error {

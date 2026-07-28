@@ -245,3 +245,24 @@ func TestApplyMigrations(t *testing.T) {
 		})
 	})
 }
+
+func TestMigrateV51to52AddsClassifierControlPlane(t *testing.T) {
+	cfg := NewConfig()
+	cfg.System.Classifier = ClassifierConfig{
+		SchemaVersion:  ClassifierSchemaV23,
+		DomainOnlyMode: DomainScopedHints,
+		Flags:          ClassifierFeatureFlags{ClassifierV2Enabled: true},
+	}
+	if err := migrateV51to52(&cfg, nil); err != nil {
+		t.Fatalf("migrateV51to52: %v", err)
+	}
+	if cfg.System.Classifier.APIVersion != ClassifierAPIV23 {
+		t.Fatalf("api version = %q", cfg.System.Classifier.APIVersion)
+	}
+	if cfg.System.Classifier.DomainOnlyMode != DomainScopedHints || !cfg.System.Classifier.Flags.ClassifierV2Enabled {
+		t.Fatal("migration changed existing classifier compatibility settings")
+	}
+	if cfg.System.Classifier.Runtime.Hints.MaxEntries == 0 || !cfg.System.Classifier.Runtime.Discovery.NoAutomaticApply {
+		t.Fatalf("runtime defaults missing: %+v", cfg.System.Classifier.Runtime)
+	}
+}
