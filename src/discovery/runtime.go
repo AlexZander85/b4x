@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -8,7 +9,6 @@ import (
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/nfq"
-	"github.com/daniellavrushin/b4/tables"
 )
 
 var ErrDiscoveryAlreadyRunning = errors.New("discovery is already running")
@@ -19,6 +19,7 @@ type poolStopper interface {
 
 type runtimeState struct {
 	pool              poolStopper
+	sandbox           *SandboxHandle
 	clearRules        func()
 	discoveryStartNum int
 	discoveryThreads  int
@@ -62,6 +63,9 @@ func (m *Runtime) Start(cfg *config.Config) (*StartResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if cfg == nil {
+		return nil, errors.New("discovery config is nil")
+	}
 	if m.state != nil {
 		return nil, ErrDiscoveryAlreadyRunning
 	}
@@ -81,30 +85,41 @@ func (m *Runtime) Start(cfg *config.Config) (*StartResult, error) {
 	log.Infof("Discovery queue range: main=%d-%d discovery=%d-%d", mainStart, mainStart+mainThreads-1, discoveryStart, discoveryEnd)
 	log.Infof("Discovery marks: main_injected=0x%x discovery_flow=0x%x discovery_injected=0x%x", cfg.MainInjectedMark(), flowMark, injectedMark)
 
-	if err := tables.ApplyDiscoverySteeringRules(cfg, flowMark, injectedMark, discoveryStart, discoveryThreads); err != nil {
-		return nil, fmt.Errorf("failed to apply discovery steering rules: %w", err)
+	runtimeCfg := cfg.Clone()
+	backend := newRuntimeSandboxBackend(*runtimeCfg)
+	leaseStore := SandboxLeaseStore(NewMemorySandboxLeaseStore(8))
+	if cfg.ConfigPath != "" {
+		leaseStore = &FileSandboxLeaseStore{Path: cfg.ConfigPath + ".discovery-sandboxes.json", Max: 8}
+	}
+	sandboxManager := NewSandboxManager(SandboxManagerConfig{Backend: backend, Leases: leaseStore, MaxActive: 1})
+	if report, err := sandboxManager.Reconcile(context.Background()); err != nil {
+		return nil, fmt.Errorf("reconcile discovery sandboxes: %w", err)
+	} else if len(report.Errors) > 0 {
+		return nil, fmt.Errorf("stale discovery sandbox cleanup incomplete: %s", report.Errors[0])
 	}
 
-	discoveryCfg := cfg.Clone()
-	discoveryCfg.Queue.StartNum = discoveryStart
-	discoveryCfg.Queue.Threads = discoveryThreads
-	discoveryCfg.Queue.Mark = injectedMark
-	discoveryCfg.Queue.IsDiscovery = true
-	discoveryCfg.System.Tables.SkipSetup = true
-
-	for _, set := range discoveryCfg.Sets {
-		set.DNS = config.DNSConfig{}
+	spec := SandboxSpec{
+		ID:               "discovery-runtime",
+		Mode:             SandboxBaselineProduction,
+		QueueStart:       uint16(discoveryStart),
+		QueueThreads:     uint16(discoveryThreads),
+		FlowMark:         uint32(flowMark),
+		ProcessedMark:    uint32(injectedMark),
+		ConfigGeneration: cfg.RuntimeGeneration,
+		ExcludeCandidate: true,
 	}
-
-	pool := nfq.NewPool(discoveryCfg)
-	if err := pool.Start(); err != nil {
-		tables.ClearDiscoverySteeringRules(cfg, flowMark, injectedMark)
-		return nil, fmt.Errorf("failed to start discovery pool: %w", err)
+	sandbox, err := sandboxManager.Acquire(context.Background(), spec)
+	if err != nil {
+		return nil, fmt.Errorf("start isolated discovery sandbox: %w", err)
 	}
-
+	pool := backend.Pool()
+	if pool == nil {
+		_ = sandbox.Close(context.Background())
+		return nil, errors.New("discovery sandbox backend started without NFQUEUE pool")
+	}
 	m.state = &runtimeState{
 		pool:              pool,
-		clearRules:        func() { tables.ClearDiscoverySteeringRules(cfg, flowMark, injectedMark) },
+		sandbox:           sandbox,
 		discoveryStartNum: discoveryStart,
 		discoveryThreads:  discoveryThreads,
 		discoveryFlowMark: flowMark,
@@ -193,9 +208,15 @@ func (m *Runtime) Stop(suiteID string) {
 
 	state.wg.Wait()
 
-	state.pool.Stop()
-	if state.clearRules != nil {
-		state.clearRules()
+	if state.sandbox != nil {
+		if err := state.sandbox.Close(context.Background()); err != nil {
+			log.Errorf("Discovery sandbox cleanup failed: %v", err)
+		}
+	} else {
+		state.pool.Stop()
+		if state.clearRules != nil {
+			state.clearRules()
+		}
 	}
 	log.Infof("Discovery runtime stopped: queue=%d-%d", state.discoveryStartNum, state.discoveryStartNum+state.discoveryThreads-1)
 
