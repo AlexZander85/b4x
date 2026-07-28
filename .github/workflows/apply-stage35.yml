@@ -1,0 +1,55 @@
+name: Apply Stage 35 connector patch
+
+on:
+  push:
+    branches:
+      - agent/stage35-connector-upload
+
+permissions:
+  contents: write
+
+concurrency:
+  group: stage35-connector-upload
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TARGET_BRANCH: agent/classifier-v2.3-capture-envelope
+      UPLOAD_BRANCH: agent/stage35-connector-upload
+      EXPECTED_PARENT: 513beb6b00f0cd9c06f44d8774c96a5984f78d41
+      EXPECTED_MESSAGE: feat(ui): add classifier diagnostics discovery lab and rollout workflows
+    steps:
+      - name: Apply verified patch and fast-forward target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git clone --depth=1 --branch "${UPLOAD_BRANCH}" --single-branch "${remote}" uploader
+          test "$(sha256sum uploader/.github/stage35.patch.gz.b64 | cut -d' ' -f1)" = "68a29c18d580468a32f14b0d7921ab9683cfbb94a592b14733efb9f68dac18d7"
+          base64 -d uploader/.github/stage35.patch.gz.b64 | gzip -d > /tmp/stage35.patch
+          test "$(sha256sum /tmp/stage35.patch | cut -d' ' -f1)" = "39b340e610f2b418926a9fe5ab67a43bb73b73566474c0b1b00da827bb12990c"
+          git clone --branch "${TARGET_BRANCH}" --single-branch "${remote}" target
+          cd target
+          test "$(git rev-parse HEAD)" = "${EXPECTED_PARENT}"
+          git config user.name "B4 coding agent"
+          git config user.email "344792@gmail.com"
+          git am /tmp/stage35.patch
+          test "$(git log -1 --pretty=%s)" = "${EXPECTED_MESSAGE}"
+          test "$(git diff --name-only HEAD^ HEAD | wc -l)" -eq 11
+          test "$(git hash-object src/http/ui/package.json)" = "ffae89a2736df9cb81e42f8bd9b50c985738108e"
+          test "$(git hash-object src/http/ui/scripts/validate-classifier-ui.mjs)" = "93b5e8bd49d44a03c12d24487dcac78b79a41f1c"
+          test "$(git hash-object src/http/ui/src/App.tsx)" = "e377775b5fb3a041d386ea8ec20ae14b5fe448e2"
+          test "$(git hash-object src/http/ui/src/api/classifier.ts)" = "39525be7b3d634744837afc0558e89c20a549d48"
+          test "$(git hash-object src/http/ui/src/barrels/classifier.ts)" = "5557715a53cc3cb28583502c29555c32eda1f536"
+          test "$(git hash-object src/http/ui/src/components/classifier/Page.tsx)" = "73fa831a4c09f16e6332abdf1d44f20baae4bb29"
+          test "$(git hash-object src/http/ui/src/i18n/classifier.en.json)" = "50c503b47a8a068660392b6d1d4e4d71aa1bb436"
+          test "$(git hash-object src/http/ui/src/i18n/classifier.ru.json)" = "4bbda80d7ef2d842236c20ad1bebd1820a26b94d"
+          test "$(git hash-object src/http/ui/src/i18n/index.ts)" = "d863bc30bd3a54ef6927c30c5f49e48b7bb2a274"
+          test "$(git hash-object src/http/ui/src/models/classifier.ts)" = "520bb8389fb0352073bd2b572901073d4205a26e"
+          test "$(git hash-object src/http/ui/tsconfig.json)" = "ab95bf604c9d237dc51bac6ec1ea727f98e1dfba"
+          git push origin "HEAD:refs/heads/${TARGET_BRANCH}"
+          git push origin ":refs/heads/${UPLOAD_BRANCH}"
