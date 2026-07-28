@@ -10,8 +10,11 @@ import (
 type Technique string
 
 const (
-	TechniqueMultiSplit    Technique = "multisplit"
-	TechniqueMultiDisorder Technique = "multidisorder"
+	TechniqueMultiSplit     Technique = "multisplit"
+	TechniqueMultiDisorder  Technique = "multidisorder"
+	TechniqueFakeSplit      Technique = "fakedsplit"
+	TechniqueFakeDisorder   Technique = "fakeddisorder"
+	TechniqueTLSRecordSplit Technique = "tls-record-split"
 )
 
 type SegmentOrder string
