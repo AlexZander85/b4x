@@ -59,70 +59,16 @@ func contains(s string, char byte) bool {
 // ParseTLSClientHelloSNI extracts the SNI and max supported TLS version from a TLS ClientHello.
 // Returns (sni, maxTLSVersion, ok). maxTLSVersion uses TLS wire format: 0x0303=TLS1.2, 0x0304=TLS1.3.
 func ParseTLSClientHelloSNI(b []byte) (string, uint16, bool) {
-	i := 0
-	for i+5 <= len(b) {
-		if b[i] != 0x16 {
-			i++
-			continue
+	metadata := ParseTLSClientHelloMetadata(b)
+	if !metadata.Complete || metadata.SNI == "" {
+		if metadata.ECHPresent {
+			log.Tracef("TLS: ECH present, no clear SNI")
+		} else if metadata.ParseError == "" {
+			log.Tracef("TLS: ClientHello incomplete or SNI missing")
 		}
-
-		// Parse TLS record length
-		recLen := int(b[i+3])<<8 | int(b[i+4])
-		if recLen <= 0 {
-			i++
-			continue
-		}
-
-		if i+5+recLen > len(b) {
-			recLen = len(b) - i - 5
-			if recLen <= 0 {
-				i++
-				continue
-			}
-		}
-
-		rec := b[i+5 : i+5+recLen]
-		if len(rec) < 4 {
-			i++
-			continue
-		}
-
-		// Check if this is ClientHello (0x01)
-		if rec[0] == 0x01 {
-			// Parse handshake length (3 bytes)
-			hl := int(rec[1])<<16 | int(rec[2])<<8 | int(rec[3])
-			if 4+hl > len(rec) {
-				// Truncated handshake, try to parse what we have
-				hl = len(rec) - 4
-				if hl <= 0 {
-					i++
-					continue
-				}
-			}
-
-			ch := rec[4 : 4+hl]
-			sni, hasECH, _, tlsVer := parseTLSClientHelloMeta(ch)
-			if sni == "" {
-				if hasECH {
-					log.Tracef("TLS: ECH present, no clear SNI")
-				} else {
-					log.Tracef("TLS: SNI missing")
-				}
-				i++
-				continue
-			}
-
-			if !validateSNI(sni) {
-				log.Tracef("TLS: Invalid SNI extracted: %q", sni)
-				i++
-				continue
-			}
-
-			return sni, tlsVer, true
-		}
-		i += 5 + recLen
+		return "", 0, false
 	}
-	return "", 0, false
+	return metadata.SNI, metadata.MaxVersion, true
 }
 
 func ParseTLSClientHelloBodySNI(ch []byte) (string, bool) {
