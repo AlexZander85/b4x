@@ -672,8 +672,12 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 				matchedQUIC = true
 				set = sniSet
 				sniTarget = sniSet.Name
-				matcher.LearnIPToDomain(pkt.dst, host, sniSet)
-				registerLearnedRoute(cfg, sniSet, pkt.dst)
+				if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
+					w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
+				} else {
+					matcher.LearnIPToDomain(pkt.dst, host, sniSet)
+					registerLearnedRoute(cfg, sniSet, pkt.dst)
+				}
 			}
 		}
 	}

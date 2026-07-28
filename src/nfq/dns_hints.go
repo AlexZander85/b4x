@@ -56,7 +56,7 @@ func (w *Worker) observeDNSResponse(cfg *config.Config, payload []byte, clientIP
 }
 
 func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dport uint16, protocol uint8) (*config.SetConfig, bool) {
-	if cfg == nil || !cfg.System.Classifier.Flags.ScopedDNSHintsEnabled || w.dnsHints == nil {
+	if !scopedClassifierEvidenceEnabled(cfg) || w.dnsHints == nil {
 		return nil, false
 	}
 	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
@@ -99,6 +99,10 @@ func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dpo
 		return nil, false
 	}
 	return set, true
+}
+
+func scopedClassifierEvidenceEnabled(cfg *config.Config) bool {
+	return cfg != nil && (cfg.System.Classifier.Flags.ScopedDNSHintsEnabled || cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled)
 }
 
 func dnsClientKey(ip net.IP, mac string) (classifier.ClientKey, bool) {
