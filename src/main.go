@@ -108,6 +108,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 		cfg.SaveToFile(cfg.ConfigPath)
 	}
 	cfg.ApplyCLIOverrides(cmd, &cliOverrides)
+	cfg.EnsureRuntimeGeneration()
 
 	if cfg.System.Timezone != "" {
 		config.ApplyTimezone(cfg.System.Timezone)

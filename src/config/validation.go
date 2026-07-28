@@ -62,6 +62,10 @@ func (v *validator) result() error {
 
 func (c *Config) Validate() error {
 	v := &validator{}
+	c.validateClassifierConfig(v)
+	if v.hasErrors() {
+		return v.result()
+	}
 	c.System.WebServer.IsEnabled = c.System.WebServer.Port > 0 && c.System.WebServer.Port <= 65535
 
 	hasCert := c.System.WebServer.TLSCert != ""
@@ -330,6 +334,32 @@ func (c *Config) Validate() error {
 	c.BuildSetPortRanges()
 
 	return v.result()
+}
+
+func (c *Config) validateClassifierConfig(v *validator) {
+	classifier := &c.System.Classifier
+	defaults := DefaultClassifierConfig
+	if classifier.SchemaVersion == 0 {
+		classifier.SchemaVersion = defaults.SchemaVersion
+	}
+	if classifier.DomainOnlyMode == "" {
+		classifier.DomainOnlyMode = defaults.DomainOnlyMode
+	}
+	if classifier.Flags.TCPReassemblyMode == "" {
+		classifier.Flags.TCPReassemblyMode = defaults.Flags.TCPReassemblyMode
+	}
+
+	if classifier.SchemaVersion != ClassifierSchemaV23 {
+		v.addf("system.classifier.schema_version", "unsupported_schema", map[string]any{"supported": ClassifierSchemaV23}, "unsupported classifier schema version %d", classifier.SchemaVersion)
+	}
+	if classifier.DomainOnlyMode != DomainOnlyLegacy {
+		v.addf("system.classifier.domain_only_mode", "unsupported_mode", map[string]any{"supported": []string{DomainOnlyLegacy}}, "unsupported DomainOnly mode %q", classifier.DomainOnlyMode)
+	}
+	switch classifier.Flags.TCPReassemblyMode {
+	case ReassemblyOff, ReassemblyObserve:
+	default:
+		v.addf("system.classifier.flags.tcp_reassembly_mode", "unsupported_mode", map[string]any{"supported": []string{ReassemblyOff, ReassemblyObserve}}, "unsupported TCP reassembly mode %q", classifier.Flags.TCPReassemblyMode)
+	}
 }
 
 func (c *Config) checkPortCollisions(v *validator) {

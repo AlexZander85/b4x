@@ -12,6 +12,7 @@ import (
 	"github.com/daniellavrushin/b4/geodat"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/tlsgen"
+	"github.com/google/uuid"
 )
 
 func (c *Config) SaveToFile(path string) error {
@@ -709,6 +710,7 @@ func (c *Config) Clone() *Config {
 	var clone Config
 	_ = json.Unmarshal(data, &clone)
 	clone.ConfigPath = c.ConfigPath
+	clone.RuntimeGeneration = c.RuntimeGeneration
 
 	for _, set := range clone.Sets {
 		for _, origSet := range c.Sets {
@@ -725,6 +727,14 @@ func (c *Config) Clone() *Config {
 
 	clone.Validate()
 	return &clone
+}
+
+// CloneForRuntimeUpdate creates a configuration snapshot with a new immutable
+// generation. Callers may prepare and validate it before publishing it.
+func (c *Config) CloneForRuntimeUpdate() *Config {
+	clone := c.Clone()
+	clone.RuntimeGeneration = uuid.NewString()
+	return clone
 }
 
 func safeCapturePath(configDir, name string) (string, error) {

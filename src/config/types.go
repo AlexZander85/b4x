@@ -70,6 +70,46 @@ type ApiConfig struct {
 	IPInfoToken string `json:"ipinfo_token"`
 }
 
+const (
+	ClassifierSchemaV23 = 1
+	DomainOnlyLegacy    = "legacy"
+	ReassemblyOff       = "off"
+	ReassemblyObserve   = "observe"
+)
+
+// ClassifierFeatureFlags are compatibility-gated switches. All defaults are
+// deliberately passive until the corresponding Core/Productization gate is
+// complete.
+type ClassifierFeatureFlags struct {
+	ClassifierV2Enabled       bool   `json:"classifier_v2_enabled"`
+	ScopedDNSHintsEnabled     bool   `json:"scoped_dns_hints_enabled"`
+	QUICToTCPHandoffEnabled   bool   `json:"quic_tcp_handoff_enabled"`
+	TCPFSMEnabled             bool   `json:"tcp_fsm_enabled"`
+	CaptureEnvelopeEnabled    bool   `json:"capture_envelope_enabled"`
+	TCPReassemblyMode         string `json:"tcp_reassembly_mode"`
+	AutoHoldReplayEnabled     bool   `json:"auto_hold_replay_enabled"`
+	ActionPlannerV2Enabled    bool   `json:"action_planner_v2_enabled"`
+	DiscoveryV23Enabled       bool   `json:"discovery_v23_enabled"`
+	ClientHelloLabEnabled     bool   `json:"clienthello_lab_enabled"`
+	FailureInboxEnabled       bool   `json:"failure_inbox_enabled"`
+	TransactionalApplyEnabled bool   `json:"transactional_apply_enabled"`
+	ProxyFallbackEnabled      bool   `json:"proxy_fallback_enabled"`
+}
+
+type ClassifierConfig struct {
+	SchemaVersion  int                    `json:"schema_version"`
+	DomainOnlyMode string                 `json:"domain_only_mode"`
+	Flags          ClassifierFeatureFlags `json:"flags"`
+}
+
+var DefaultClassifierConfig = ClassifierConfig{
+	SchemaVersion:  ClassifierSchemaV23,
+	DomainOnlyMode: DomainOnlyLegacy,
+	Flags: ClassifierFeatureFlags{
+		TCPReassemblyMode: ReassemblyOff,
+	},
+}
+
 type QueueConfig struct {
 	Mode              string         `json:"mode"`
 	StartNum          int            `json:"start_num"`
@@ -246,6 +286,7 @@ type TargetsConfig struct {
 }
 
 type SystemConfig struct {
+	Classifier  ClassifierConfig    `json:"classifier"`
 	Tables      TablesConfig        `json:"tables"`
 	Logging     Logging             `json:"logging"`
 	WebServer   WebServerConfig     `json:"web_server"`

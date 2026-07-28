@@ -3,11 +3,15 @@ package config
 import (
 	"github.com/daniellavrushin/b4/geodat"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/google/uuid"
 )
 
 type Config struct {
 	Version    int    `json:"version"`
 	ConfigPath string `json:"-"`
+	// RuntimeGeneration is process-local and never persisted. It identifies the
+	// immutable config snapshot used by long-lived runtime state.
+	RuntimeGeneration string `json:"-"`
 
 	Queue  QueueConfig  `json:"queue"`
 	System SystemConfig `json:"system"`
@@ -205,6 +209,7 @@ var DefaultConfig = Config{
 	Sets: []*SetConfig{},
 
 	System: SystemConfig{
+		Classifier: DefaultClassifierConfig,
 		Geo: geodat.GeoDatConfig{
 			GeoSitePath: "",
 			GeoIpPath:   "",
@@ -316,4 +321,13 @@ func NewConfig() Config {
 	cfg.Sets = []*SetConfig{}
 
 	return cfg
+}
+
+// EnsureRuntimeGeneration assigns the active process snapshot a stable ID.
+// It is intentionally not serialized into user configuration.
+func (c *Config) EnsureRuntimeGeneration() string {
+	if c.RuntimeGeneration == "" {
+		c.RuntimeGeneration = uuid.NewString()
+	}
+	return c.RuntimeGeneration
 }
