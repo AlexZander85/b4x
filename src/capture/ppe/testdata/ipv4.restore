@@ -1,0 +1,12 @@
+*mangle
+:B4_PPE_PRE - [0:0]
+:B4_PPE_FWD - [0:0]
+-F B4_PPE_PRE
+-F B4_PPE_FWD
+-A PREROUTING -m comment --comment b4:ppe:v1:jump:pre -j B4_PPE_PRE
+-A FORWARD -m comment --comment b4:ppe:v1:jump:fwd -j B4_PPE_FWD
+-A B4_PPE_PRE -m set --match-set b4_managed src -p tcp -m multiport --dports 80,443,8443 -m connskip --connskip 30 -m comment --comment b4:ppe:v1:tcp -j PPE
+-A B4_PPE_PRE -m set --match-set b4_managed src -p udp -m multiport --dports 443 -m connskip --connskip 30 -m comment --comment b4:ppe:v1:quic -j PPE
+-A B4_PPE_FWD -m set --match-set b4_managed src -p tcp -m multiport --dports 80,443,8443 -m connskip --connskip 30 -m comment --comment b4:ppe:v1:tcp -j PPE
+-A B4_PPE_FWD -m set --match-set b4_managed src -p udp -m multiport --dports 443 -m connskip --connskip 30 -m comment --comment b4:ppe:v1:quic -j PPE
+COMMIT

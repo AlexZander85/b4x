@@ -3,6 +3,23 @@ package config
 const ClassifierAPIV23 = "b4.classifier.v2.3"
 
 const (
+	OffloadPolicyDetect        = "detect"
+	OffloadPolicyExclude       = "exclude"
+	OffloadPolicyDisableGlobal = "disable-global"
+
+	PPEFamilyAuto = "auto"
+	PPEFamilyOn   = "on"
+	PPEFamilyOff  = "off"
+
+	PPESourceManagedDevices = "managed-devices"
+	PPESourceAllForwarded   = "all-forwarded"
+
+	PPESelfTestStartupAndChange = "startup-and-change"
+	PPESelfTestManual           = "manual"
+	PPESelfTestOff              = "off"
+)
+
+const (
 	PrivacyTelemetryRedacted = "redacted"
 	PrivacyTelemetryLocal    = "local"
 	PrivacyTelemetryOff      = "off"
@@ -57,18 +74,39 @@ type HintStoreRuntimeConfig struct {
 }
 
 type CaptureRuntimeConfig struct {
-	OutgoingPacketLimit  uint32 `json:"outgoing_packet_limit"`
-	IncomingPacketLimit  uint32 `json:"incoming_packet_limit"`
-	AlwaysQueueSynAck    bool   `json:"always_queue_syn_ack"`
-	AlwaysQueueFIN       bool   `json:"always_queue_fin"`
-	AlwaysQueueRST       bool   `json:"always_queue_rst"`
-	AlwaysQueueQUIC      bool   `json:"always_queue_quic_initial"`
-	ProcessedMark        uint32 `json:"processed_mark"`
-	ProcessedMarkMask    uint32 `json:"processed_mark_mask"`
-	QueueBypass          bool   `json:"queue_bypass"`
-	CandidateQueueOffset int    `json:"candidate_queue_offset"`
-	ReadinessTimeoutMS   int    `json:"readiness_timeout_ms"`
-	OffloadSelfCheck     bool   `json:"offload_self_check"`
+	OffloadPolicy        string           `json:"offload_policy"`
+	PPE                  PPEOffloadConfig `json:"ppe"`
+	OutgoingPacketLimit  uint32           `json:"outgoing_packet_limit"`
+	IncomingPacketLimit  uint32           `json:"incoming_packet_limit"`
+	AlwaysQueueSynAck    bool             `json:"always_queue_syn_ack"`
+	AlwaysQueueFIN       bool             `json:"always_queue_fin"`
+	AlwaysQueueRST       bool             `json:"always_queue_rst"`
+	AlwaysQueueQUIC      bool             `json:"always_queue_quic_initial"`
+	ProcessedMark        uint32           `json:"processed_mark"`
+	ProcessedMarkMask    uint32           `json:"processed_mark_mask"`
+	QueueBypass          bool             `json:"queue_bypass"`
+	CandidateQueueOffset int              `json:"candidate_queue_offset"`
+	ReadinessTimeoutMS   int              `json:"readiness_timeout_ms"`
+	OffloadSelfCheck     bool             `json:"offload_self_check"`
+}
+
+type PPEOffloadConfig struct {
+	TCPEnabled          bool              `json:"tcp_enabled"`
+	QUICEnabled         bool              `json:"quic_enabled"`
+	TCPPorts            []uint16          `json:"tcp_ports"`
+	UDPPorts            []uint16          `json:"udp_ports"`
+	ConnskipPackets     int               `json:"connskip_packets"`
+	IPv4                string            `json:"ipv4"`
+	IPv6                string            `json:"ipv6"`
+	SourceScope         string            `json:"source_scope"`
+	ReassertIntervalSec int               `json:"reassert_interval_sec"`
+	SelfTest            PPESelfTestConfig `json:"self_test"`
+}
+
+type PPESelfTestConfig struct {
+	Mode               string `json:"mode"`
+	ControlledEndpoint string `json:"controlled_endpoint"`
+	TimeoutMS          int    `json:"timeout_ms"`
 }
 
 type ReassemblyRuntimeConfig struct {
@@ -195,7 +233,7 @@ var DefaultClassifierRuntimeConfig = ClassifierRuntimeConfig{
 	ClientIdentity: ClientIdentityRuntimeConfig{MaxEntries: 4096, TTLSeconds: 300, AllowIPOnly: true, LateARPEnrichment: true},
 	Confidence:     ConfidenceRuntimeConfig{Classify: 55, Mutate: 75, Destructive: 85, ProxyFallback: 35},
 	Hints:          HintStoreRuntimeConfig{MaxEntries: 4096, MaxEntriesPerClient: 64, MaxCandidatesPerKey: 8, MaxBytesPerClient: 64 * 1024, DNSMaxTTLSeconds: 300, QUICTTLSeconds: 60, LearnedTTLSeconds: 60},
-	Capture:        CaptureRuntimeConfig{OutgoingPacketLimit: 20, IncomingPacketLimit: 20, AlwaysQueueSynAck: true, AlwaysQueueFIN: true, AlwaysQueueRST: true, AlwaysQueueQUIC: true, ProcessedMarkMask: 1 << 27, QueueBypass: true, CandidateQueueOffset: 1, ReadinessTimeoutMS: 3000, OffloadSelfCheck: true},
+	Capture:        CaptureRuntimeConfig{OffloadPolicy: OffloadPolicyDetect, PPE: PPEOffloadConfig{TCPEnabled: true, QUICEnabled: true, TCPPorts: []uint16{80, 443, 2053, 2083, 2087, 2096, 8443}, UDPPorts: []uint16{443}, ConnskipPackets: 30, IPv4: PPEFamilyAuto, IPv6: PPEFamilyAuto, SourceScope: PPESourceManagedDevices, ReassertIntervalSec: 55, SelfTest: PPESelfTestConfig{Mode: PPESelfTestStartupAndChange, TimeoutMS: 5000}}, OutgoingPacketLimit: 20, IncomingPacketLimit: 20, AlwaysQueueSynAck: true, AlwaysQueueFIN: true, AlwaysQueueRST: true, AlwaysQueueQUIC: true, ProcessedMarkMask: 1 << 27, QueueBypass: true, CandidateQueueOffset: 1, ReadinessTimeoutMS: 3000, OffloadSelfCheck: true},
 	Reassembly:     ReassemblyRuntimeConfig{MaxFlows: 1024, MaxBytesPerFlow: 32 * 1024, MaxBytesTotal: 4 * 1024 * 1024, MaxSegments: 64, MaxClientHello: 32 * 1024, TimeoutMS: 5000},
 	HoldReplay:     HoldReplayRuntimeConfig{MaxFlows: 256, MaxPacketsPerFlow: 8, MaxBytesTotal: 64 * 1024, TimeoutMS: 750, ReleaseOnPressure: true},
 	Actions:        ActionBudgetRuntimeConfig{MaxWritesPerHello: 16, MaxFakeBytes: 64 * 1024, MaxAmplification: 4},
