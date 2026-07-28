@@ -85,6 +85,12 @@ class FieldValidationTests(unittest.TestCase):
             "aarch64",
             system_info={"service_manager": "entware", "os": "linux", "arch": "arm64"},
             version_info={"commit": "deadbeef"},
+            runtime_control={
+                "enabled": True,
+                "active": {"id": "active-1", "config_hash": "cfg-1", "validation": {"valid": True}},
+                "pending": None,
+                "last_good": {"generation_hash": "active-1", "config_hash": "cfg-1"},
+            },
         )
         self.assertEqual("pass", result["status"])
         self.assertTrue(all(item["status"] == "pass" for item in result["gates"].values()))
@@ -102,6 +108,12 @@ class FieldValidationTests(unittest.TestCase):
             "arm64",
             system_info={"service_manager": "entware", "os": "linux", "arch": "arm64"},
             version_info={"commit": "deadbeef"},
+            runtime_control={
+                "enabled": True,
+                "active": {"id": "active-1", "config_hash": "cfg-1", "validation": {"valid": True}},
+                "pending": None,
+                "last_good": {"generation_hash": "active-1", "config_hash": "cfg-1"},
+            },
         )
         self.assertEqual("blocked", result["status"])
 
@@ -131,6 +143,32 @@ class FieldValidationTests(unittest.TestCase):
         self.assertTrue(any("actions_per_logical" in reason for reason in result["reasons"]))
         self.assertTrue(any("cross-client" in reason for reason in result["reasons"]))
 
+    def test_preflight_blocks_missing_or_pending_runtime_control(self):
+        base = dict(
+            config={"runtime_generation": "gen-1"},
+            bundle={"queue": {"ready": True, "owner_verified": True, "incoming_progress_visible": True, "processed_mark_verified": True, "offload_suspected": False}},
+            watchdog={"enabled": False},
+            discovery=None,
+            confirmations={"target_identity_confirmed": True, "other_youtube_clients_idle": True, "clean_restart_confirmed": True},
+            detected_architecture="arm64",
+            system_info={"service_manager": "entware", "os": "linux", "arch": "arm64"},
+            version_info={"commit": "deadbeef"},
+        )
+        missing = fv.evaluate_preflight(self.run, errors={"runtime_control": "HTTP 404"}, **base)
+        self.assertEqual("blocked", missing["status"])
+        pending = fv.evaluate_preflight(
+            self.run,
+            runtime_control={
+                "enabled": True,
+                "active": {"id": "active-1", "config_hash": "cfg-1", "validation": {"valid": True}},
+                "pending": {"generation": {"id": "candidate-1"}},
+                "last_good": {"generation_hash": "active-1", "config_hash": "cfg-1"},
+            },
+            **base,
+        )
+        self.assertEqual("fail", pending["status"])
+        self.assertEqual("fail", pending["gates"]["runtime_no_pending"]["status"])
+
     def test_privacy_sanitizer_excludes_raw_and_hashes_identifiers(self):
         value = fv.sanitize({
             "client_id": "phone-one",
@@ -154,6 +192,7 @@ class FieldValidationTests(unittest.TestCase):
             "/api/system/info": {"service_manager": "entware", "os": "linux", "arch": "arm64"},
             "/api/version": {"commit": "deadbeef", "version": "test"},
             "/api/system/diagnostics": {"data": {"system": {"kernel": "5.10-test"}, "firewall": {"capture_envelope": {"queue_ready": True, "owner_verified": True, "incoming_progress_visible": True, "processed_mark_verified": True, "flow_offload_bypass_suspected": False, "queue_drop": 0, "user_drop": 0, "status": "ready"}}}},
+            "/api/v2/runtime-control/status": {"enabled": True, "active": {"id": "active-1", "config_hash": "cfg-1", "validation": {"valid": True}}, "pending": None, "last_good": {"generation_hash": "active-1", "config_hash": "cfg-1"}},
         }
 
         class Handler(BaseHTTPRequestHandler):

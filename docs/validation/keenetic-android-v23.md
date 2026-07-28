@@ -14,6 +14,8 @@ This status is intentional: workstation fixtures cannot establish NFQUEUE owners
 - Clean B4 restart.
 - Queue owner, processed mark and offload self-check all pass.
 - Deployed commit and immutable config generation recorded.
+- `/api/v2/runtime-control/status` available, enabled, with a validated active generation and committed last-good manifest.
+- No pending runtime candidate before the controlled run.
 - Positive CPU, memory, body and throughput budgets selected for the target model.
 
 ## Target scenarios

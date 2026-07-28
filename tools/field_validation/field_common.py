@@ -40,6 +40,11 @@ PREFLIGHT_GATES = (
     "known_generation",
     "architecture_known",
     "resource_budgets_defined",
+    "runtime_control_available",
+    "transactional_apply_enabled",
+    "runtime_active_valid",
+    "runtime_no_pending",
+    "runtime_last_good_available",
 )
 SENSITIVE_KEY_PARTS = ("client", "flow_id", "source_ip", "source_mac", "destination_ip", "router_url")
 FORBIDDEN_KEY_PARTS = ("raw_packet", "packet_bytes", "payload_bytes", "clienthello_bytes", "raw_capture")
@@ -221,6 +226,7 @@ def evaluate_preflight(
     errors: dict[str, str] | None = None,
     system_info: dict[str, Any] | None = None,
     version_info: dict[str, Any] | None = None,
+    runtime_control: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     errors = errors or {}
     gates: dict[str, Any] = {}
@@ -301,6 +307,49 @@ def evaluate_preflight(
 
     budget_ok = budgets_defined(run.get("budgets", {}))
     gates["resource_budgets_defined"] = gate("pass" if budget_ok else "blocked", "resource/body/throughput budgets defined" if budget_ok else "set positive CPU, memory, body and throughput budgets")
+
+    if "runtime_control" in errors:
+        for name in (
+            "runtime_control_available",
+            "transactional_apply_enabled",
+            "runtime_active_valid",
+            "runtime_no_pending",
+            "runtime_last_good_available",
+        ):
+            gates[name] = gate("blocked", errors["runtime_control"])
+    else:
+        status = runtime_control if isinstance(runtime_control, dict) else {}
+        available = bool(status)
+        gates["runtime_control_available"] = gate(
+            "pass" if available else "blocked",
+            "transactional runtime-control endpoint available" if available else "runtime-control status is unavailable",
+        )
+        enabled = bool(status.get("enabled"))
+        gates["transactional_apply_enabled"] = gate(
+            "pass" if enabled else "fail" if available else "blocked",
+            "transactional runtime apply enabled" if enabled else "transactional runtime apply is disabled",
+        )
+        active = status.get("active") if isinstance(status.get("active"), dict) else {}
+        validation = active.get("validation") if isinstance(active.get("validation"), dict) else {}
+        active_valid = bool(active.get("id") and active.get("config_hash") and validation.get("valid"))
+        gates["runtime_active_valid"] = gate(
+            "pass" if active_valid else "fail" if available else "blocked",
+            "active transactional generation is validated" if active_valid else "active transactional generation metadata is missing or invalid",
+            {"id": active.get("id"), "config_hash": active.get("config_hash"), "validation": validation},
+        )
+        pending = status.get("pending")
+        gates["runtime_no_pending"] = gate(
+            "pass" if pending is None and available else "fail" if available else "blocked",
+            "no pending runtime candidate" if pending is None and available else "a runtime candidate is already pending",
+            pending if pending is not None else None,
+        )
+        last_good = status.get("last_good") if isinstance(status.get("last_good"), dict) else {}
+        last_good_ok = bool(last_good.get("generation_hash") and last_good.get("config_hash"))
+        gates["runtime_last_good_available"] = gate(
+            "pass" if last_good_ok else "fail" if available else "blocked",
+            "last-good manifest available" if last_good_ok else "last-good manifest is unavailable",
+            {"generation_hash": last_good.get("generation_hash"), "config_hash": last_good.get("config_hash")},
+        )
 
     statuses = {entry["status"] for entry in gates.values()}
     status = "fail" if "fail" in statuses else "blocked" if "blocked" in statuses else "pass"

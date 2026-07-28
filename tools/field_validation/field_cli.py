@@ -31,7 +31,6 @@ from field_evaluation import (
     markdown_report,
 )
 
-
 def save_run(path: Path, run: dict[str, Any]) -> None:
     run["updated_at"] = now_utc()
     write_json(path, run)
@@ -70,6 +69,7 @@ def command_preflight(args: argparse.Namespace) -> int:
         ("/api/system/info", "system"),
         ("/api/version", "version"),
         ("/api/system/diagnostics", "diagnostics"),
+        ("/api/v2/runtime-control/status", "runtime_control"),
     ):
         fetch_optional(client, endpoint, name, values, errors)
 
@@ -96,7 +96,11 @@ def command_preflight(args: argparse.Namespace) -> int:
         "other_youtube_clients_idle": args.other_clients_idle,
         "clean_restart_confirmed": args.clean_restart_confirmed,
     }
-    preflight = evaluate_preflight(run, values.get("config"), bundle, values.get("watchdog"), values.get("discovery"), confirmations, detected_arch, errors, values.get("system"), values.get("version"))
+    preflight = evaluate_preflight(
+        run, values.get("config"), bundle, values.get("watchdog"), values.get("discovery"),
+        confirmations, detected_arch, errors, values.get("system"), values.get("version"),
+        values.get("runtime_control"),
+    )
     config_runtime = ((values.get("config") or {}).get("config") or {}).get("runtime") or {}
     preflight["snapshot"] = {
         "api_version": (values.get("config") or {}).get("api_version"),
@@ -108,6 +112,7 @@ def command_preflight(args: argparse.Namespace) -> int:
         "kernel": ((diagnostics_data.get("system") or {}).get("kernel")),
         "service_manager": ((values.get("system") or {}).get("service_manager")),
         "deployed_commit": ((values.get("version") or {}).get("commit")),
+        "runtime_control": sanitize(values.get("runtime_control") or {}),
         "errors": sanitize(errors),
     }
     run["preflight"] = preflight
