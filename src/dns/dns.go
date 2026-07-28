@@ -3,6 +3,9 @@ package dns
 import (
 	"encoding/binary"
 	"net"
+	"time"
+
+	"github.com/daniellavrushin/b4/classifier"
 )
 
 func ParseQueryDomain(payload []byte) (string, bool) {
@@ -76,61 +79,17 @@ func BuildServfailResponse(query []byte) []byte {
 }
 
 func ParseResponseIPs(payload []byte) []net.IP {
-	if len(payload) < 12 {
+	observation, err := ParseStructuredResponse(payload, classifier.ClientKey{}, "", time.Time{})
+	if err != nil {
 		return nil
 	}
-	qdCount := int(binary.BigEndian.Uint16(payload[4:6]))
-	anCount := int(binary.BigEndian.Uint16(payload[6:8]))
-	if anCount == 0 {
-		return nil
+	ips := make([]net.IP, 0, len(observation.Answers))
+	for _, answer := range observation.Answers {
+		if !answer.IP.IsValid() {
+			continue
+		}
+		ips = append(ips, net.IP(answer.IP.AsSlice()))
 	}
-
-	offset := 12
-	for i := 0; i < qdCount; i++ {
-		next, ok := skipDNSName(payload, offset)
-		if !ok || next+4 > len(payload) {
-			return nil
-		}
-		offset = next + 4 // QTYPE + QCLASS
-	}
-
-	ips := make([]net.IP, 0, anCount)
-	for i := 0; i < anCount; i++ {
-		next, ok := skipDNSName(payload, offset)
-		if !ok || next+10 > len(payload) {
-			break
-		}
-		offset = next
-
-		typ := binary.BigEndian.Uint16(payload[offset : offset+2])
-		offset += 2 // TYPE
-		offset += 2 // CLASS
-		offset += 4 // TTL
-
-		rdLen := int(binary.BigEndian.Uint16(payload[offset : offset+2]))
-		offset += 2
-		if offset+rdLen > len(payload) {
-			break
-		}
-
-		switch typ {
-		case 1: // A
-			if rdLen == 4 {
-				ip := make(net.IP, 4)
-				copy(ip, payload[offset:offset+4])
-				ips = append(ips, ip)
-			}
-		case 28: // AAAA
-			if rdLen == 16 {
-				ip := make(net.IP, 16)
-				copy(ip, payload[offset:offset+16])
-				ips = append(ips, ip)
-			}
-		}
-
-		offset += rdLen
-	}
-
 	return ips
 }
 
