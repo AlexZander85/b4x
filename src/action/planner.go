@@ -18,6 +18,7 @@ type PlannedWrite struct {
 	Sequence    uint32
 	Payload     []byte
 	Delay       time.Duration
+	Order       int
 }
 
 type PlanInput struct {
@@ -39,6 +40,7 @@ type PlanInput struct {
 type ActionPlan struct {
 	Valid                bool
 	DryRun               bool
+	StrategyID           string
 	ProcessedMark        uint32
 	HostMarkersAvailable bool
 	Writes               []PlannedWrite
@@ -96,7 +98,7 @@ func Plan(input PlanInput) (ActionPlan, error) {
 			}
 			sequence := input.BaseSequence + uint32(start)
 			payload := append([]byte(nil), input.Payload[start:chunkEnd]...)
-			plan.Writes = append(plan.Writes, PlannedWrite{StreamStart: start, StreamEnd: chunkEnd, Sequence: sequence, Payload: payload})
+			plan.Writes = append(plan.Writes, PlannedWrite{StreamStart: start, StreamEnd: chunkEnd, Sequence: sequence, Payload: payload, Order: len(plan.Writes)})
 			plan.TotalBytes += len(payload)
 			start = chunkEnd
 		}
