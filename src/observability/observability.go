@@ -44,6 +44,9 @@ const (
 	MetricFailureCandidateObserved   = "failure_candidate_observed_total"
 	MetricFailureCandidateExpired    = "failure_candidate_expired_total"
 	MetricFailureCandidateRejected   = "failure_candidate_rejected_total"
+	MetricFallbackDecision           = "fallback_route_decisions_total"
+	MetricFallbackHealth             = "fallback_route_health_total"
+	MetricFallbackCooldown           = "fallback_route_cooldown_total"
 )
 
 type MetricSample struct {
