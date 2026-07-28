@@ -6,6 +6,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/sni"
@@ -68,6 +69,18 @@ func (w *Worker) logReassemblyResult(result classifier.TCPReassemblyResult) {
 		observability.Default().Metrics.Inc(observability.MetricTCPReassemblyCompleted, map[string]string{"reason": "clienthello"}, 1)
 	case classifier.ReassemblyAborted:
 		observability.Default().Metrics.Inc(observability.MetricTCPReassemblyAborted, map[string]string{"reason": sanitizeReassemblyReason(result.Reason)}, 1)
+		destinationIP, destinationPort := result.Key.DstIP, result.Key.DstPort
+		if result.Key.Client.SourceIP.IsValid() && result.Key.SrcIP != result.Key.Client.SourceIP {
+			destinationIP, destinationPort = result.Key.SrcIP, result.Key.SrcPort
+		}
+		_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+			Signal:          diagnostics.SignalReassemblyAbort,
+			Client:          result.Key.Client,
+			DestinationIP:   destinationIP,
+			DestinationPort: destinationPort,
+			Protocol:        6,
+			Reason:          result.Reason,
+		})
 	}
 	observability.Default().Trace.Record(observability.TraceEvent{
 		ClientID: fmt.Sprintf("%v", result.Key.Client),

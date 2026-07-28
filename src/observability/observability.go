@@ -41,6 +41,9 @@ const (
 	MetricDiscoveryShadowProbe       = "discovery_shadow_probe_total"
 	MetricDiscoveryCandidatePromote  = "discovery_candidate_promoted_total"
 	MetricDiscoveryCandidateRollback = "discovery_candidate_rollback_total"
+	MetricFailureCandidateObserved   = "failure_candidate_observed_total"
+	MetricFailureCandidateExpired    = "failure_candidate_expired_total"
+	MetricFailureCandidateRejected   = "failure_candidate_rejected_total"
 )
 
 type MetricSample struct {

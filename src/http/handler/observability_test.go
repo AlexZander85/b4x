@@ -7,7 +7,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
+	"net/netip"
+	"time"
 )
 
 func TestHandleIssueBundleIsRedactedAndIncludesCaptureStatus(t *testing.T) {
@@ -57,5 +61,33 @@ func TestHandleObservabilityMetricsMethod(t *testing.T) {
 	mux.ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", rec.Code)
+	}
+}
+
+func TestHandleFailureCandidatesReturnsBoundedPassiveInbox(t *testing.T) {
+	inbox := diagnostics.NewFailureInbox(diagnostics.InboxConfig{}, nil)
+	client := classifier.ClientKey{L3Family: 4, SourceIP: netip.MustParseAddr("192.0.2.81")}
+	_, err := inbox.Observe(diagnostics.FailureObservation{
+		Signal:          diagnostics.SignalClassifierAmbiguous,
+		Client:          client,
+		DestinationIP:   netip.MustParseAddr("203.0.113.81"),
+		DestinationPort: 443,
+		Protocol:        6,
+		ObservedAt:      time.Now(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := failureInbox.Load()
+	SetFailureInbox(inbox)
+	defer SetFailureInbox(old)
+	api := &API{}
+	mux := http.NewServeMux()
+	api.mux = mux
+	api.RegisterObservabilityAPI()
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/diagnostics/failures?limit=1", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "classifier_ambiguous") {
+		t.Fatalf("failure inbox endpoint returned %d: %s", rec.Code, rec.Body.String())
 	}
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 )
 
 const quicTCPHandoffTTL = 90 * time.Second
@@ -35,7 +36,7 @@ func (w *Worker) observeQUICHandoffAt(cfg *config.Config, pkt *pktInfo, destinat
 		if protocol == 6 && !set.MatchesTCPDPort(destinationPort) {
 			continue
 		}
-		_ = w.dnsHints.Observe(classifier.Evidence{
+		evidence := classifier.Evidence{
 			Source:          classifier.EvidenceQUICSNI,
 			Client:          client,
 			DestinationIP:   netIPToAddr(pkt.dst),
@@ -50,6 +51,8 @@ func (w *Worker) observeQUICHandoffAt(cfg *config.Config, pkt *pktInfo, destinat
 			ExpiresAt:       now.Add(quicTCPHandoffTTL),
 			ConfigGen:       dnsHintConfigGeneration(cfg),
 			Reason:          "source-scoped QUIC SNI with TCP fallback mirror",
-		})
+		}
+		_ = w.dnsHints.Observe(evidence)
+		diagnostics.Default().UpdateEvidence(client, evidence.DestinationIP, destinationPort, protocol, []classifier.Evidence{evidence})
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/observability"
 )
@@ -205,6 +206,18 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 		Reason:         "NFQ packet decision integration",
 	})
 	traceNFQDecision(decision, set, strategy)
+	if decision.Phase == classifier.PhaseAmbiguous {
+		if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
+			_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+				Signal:          diagnostics.SignalClassifierAmbiguous,
+				Client:          client,
+				DestinationIP:   netIPToAddr(pkt.dst),
+				DestinationPort: port,
+				Protocol:        proto,
+				Reason:          decision.Reason,
+			})
+		}
+	}
 	if classifierDomainOnlyMode(cfg) == classifier.DomainDisabled || !set.Targets.DomainOnly {
 		return true
 	}

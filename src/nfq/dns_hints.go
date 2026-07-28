@@ -9,6 +9,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/dns"
 	"github.com/daniellavrushin/b4/sni"
 )
@@ -53,6 +54,15 @@ func (w *Worker) observeDNSResponse(cfg *config.Config, payload []byte, clientIP
 	})
 	correlator := dns.NewDNSHintCorrelator(w.dnsHints, resolver)
 	_, _ = correlator.ObserveResponse(observation, sourceDevice, dnsHintConfigGeneration(cfg))
+	for _, answer := range observation.Answers {
+		if !answer.IP.IsValid() {
+			continue
+		}
+		for _, protocol := range []uint8{6, 17} {
+			hints := w.dnsHints.Lookup(client, answer.IP, protocol)
+			diagnostics.Default().UpdateEvidence(client, answer.IP, 443, protocol, hints)
+		}
+	}
 }
 
 func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dport uint16, protocol uint8) (*config.SetConfig, bool) {
