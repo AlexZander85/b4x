@@ -334,3 +334,105 @@ export function deriveFlowDiagnostics(trace: TraceEvent[]): FlowDiagnostic[] {
     })
     .sort((a, b) => Date.parse(b.lastSeen) - Date.parse(a.lastSeen));
 }
+
+export interface RuntimeGenerationMeta {
+  id: string;
+  config_hash: string;
+  schema_version: number;
+  strategy_ids?: string[];
+  set_ids?: string[];
+  created_at: string;
+}
+
+export interface RuntimeReadiness {
+  ready: boolean;
+  checked_at: string;
+  reason?: string;
+  queue_drops?: number;
+  user_drops?: number;
+}
+
+export interface RuntimeCanarySpec {
+  client_group: string;
+  set_id: string;
+  protocol: "tcp" | "udp";
+  new_flow_percent: number;
+  duration: number;
+  min_samples: number;
+  stop_conditions: {
+    max_failures?: number;
+    max_failure_rate?: number;
+    stop_on_queue_drops?: boolean;
+    stop_on_capture_incomplete?: boolean;
+  };
+}
+
+export interface RuntimeCanaryOutcome {
+  passed: boolean;
+  flows_started?: number;
+  samples: number;
+  incoming_progress?: number;
+  incomplete_flows?: number;
+  failures: number;
+  failure_rate: number;
+  queue_drops?: number;
+  capture_incomplete?: boolean;
+  stop_reason?: string;
+  started_at: string;
+  completed_at: string;
+}
+
+export interface RuntimePendingGeneration {
+  generation: RuntimeGenerationMeta;
+  readiness: RuntimeReadiness;
+  canary_spec: RuntimeCanarySpec;
+  canary?: RuntimeCanaryOutcome;
+  canary_complete: boolean;
+  prepared_at: string;
+}
+
+export interface RuntimeHistoryEntry {
+  action: string;
+  generation: string;
+  reason?: string;
+  success: boolean;
+  at: string;
+  canary?: RuntimeCanaryOutcome;
+}
+
+export interface RuntimeLastGood {
+  generation_hash: string;
+  config_hash: string;
+  b4_version: string;
+  timestamp: string;
+  set_ids?: string[];
+  strategy_ids?: string[];
+  canary_outcome: RuntimeCanaryOutcome;
+}
+
+export interface RuntimeControlStatus {
+  enabled: boolean;
+  active?: RuntimeGenerationMeta;
+  pending?: RuntimePendingGeneration;
+  last_good?: RuntimeLastGood;
+  history?: RuntimeHistoryEntry[];
+}
+
+export interface RuntimePrepareRequest {
+  candidate: {
+    classifier?: ClassifierConfig;
+    sets?: unknown[];
+  };
+  canary: {
+    client_group: string;
+    set_id: string;
+    protocol: "tcp" | "udp";
+    new_flow_percent: number;
+    duration_seconds: number;
+    min_samples: number;
+    max_failures: number;
+    max_failure_rate: number;
+    stop_on_queue_drops: boolean;
+    stop_on_capture_incomplete: boolean;
+  };
+}

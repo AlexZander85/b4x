@@ -24,6 +24,8 @@ type Pool struct {
 	stopCleanup chan struct{}
 	state       *runtimeState
 	tunSrc      *tunSrcResolver
+	canary      *CanaryMonitor
+	candidate   bool
 }
 
 type PacketInfo struct {
@@ -57,6 +59,8 @@ type Worker struct {
 	dnsHints         *classifier.HostHintStore
 	tcpReassembly    *classifier.TCPReassemblyStore
 	tcpHold          *TCPHoldStore
+	canary           *CanaryMonitor
+	candidateSet     atomic.Value // string; target set for candidate accounting
 	clientHelloSink  atomic.Pointer[clientHelloSinkHolder]
 }
 

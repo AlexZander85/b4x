@@ -108,7 +108,7 @@ export function ClassifierPage() {
       {tab === 3 && <DiscoveryPanel current={discoveryCurrentQuery.data} history={discoveryHistoryQuery.data} bundle={bundleQuery.data} />}
       {tab === 4 && <FailureInboxPanel candidates={failuresQuery.data?.candidates ?? []} onExport={() => void exportIssueBundle()} />}
       {tab === 5 && <ClientHelloPanel profiles={profilesQuery.data?.profiles ?? []} advanced={advanced} onRawExport={() => setPrivacyDialog(true)} />}
-      {tab === 6 && <RolloutPanel config={configQuery.data} bundle={bundleQuery.data} onPrepare={() => void exportConfig(false)} />}
+      {tab === 6 && <RolloutPanel config={configQuery.data} bundle={bundleQuery.data} />}
 
       <Dialog open={privacyDialog} onClose={() => setPrivacyDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t("classifier.privacy.title")}</DialogTitle>

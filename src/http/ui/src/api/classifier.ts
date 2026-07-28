@@ -1,10 +1,13 @@
-import { apiGet } from "./apiClient";
+import { apiGet, apiPost } from "./apiClient";
 import type {
   ClassifierConfigEnvelope,
   ClientHelloProfilesResponse,
   FailureCandidatesResponse,
   IssueBundle,
   MetricsSnapshot,
+  RuntimeCanaryOutcome,
+  RuntimeControlStatus,
+  RuntimePrepareRequest,
 } from "@models/classifier";
 import type { DiscoverySuite, HistoryEntry } from "@b4.discovery";
 
@@ -23,6 +26,18 @@ export const classifierApi = {
     apiGet<DiscoverySuite | null>("/api/discovery/current"),
   discoveryHistory: () =>
     apiGet<HistoryEntry[]>("/api/discovery/history"),
+  runtimeStatus: () =>
+    apiGet<RuntimeControlStatus>("/api/v2/runtime-control/status"),
+  runtimePrepare: (request: RuntimePrepareRequest) =>
+    apiPost("/api/v2/runtime-control/prepare", request),
+  runtimeCanary: () =>
+    apiPost<RuntimeCanaryOutcome>("/api/v2/runtime-control/canary"),
+  runtimePromote: () =>
+    apiPost("/api/v2/runtime-control/promote"),
+  runtimeAbort: (reason: string) =>
+    apiPost("/api/v2/runtime-control/abort", { reason }),
+  runtimeRollback: (reason: string) =>
+    apiPost("/api/v2/runtime-control/rollback", { reason }),
   exportConfig: async (includeRaw = false, confirmRaw = false) => {
     const query = new URLSearchParams();
     if (includeRaw) query.set("include_raw", "true");

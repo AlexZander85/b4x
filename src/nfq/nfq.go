@@ -68,7 +68,7 @@ func (w *Worker) Start() error {
 		return err
 	}
 	w.sock = s
-	cs, err := sock.NewSenderWithMark(int(mark) | engine.ClientMark)
+	cs, err := sock.NewSenderWithMark(int(capture.ProcessedMarkFor(mark)) | engine.ClientMark)
 	if err != nil {
 		s.Close()
 		return err

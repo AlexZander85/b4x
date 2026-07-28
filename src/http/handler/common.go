@@ -190,6 +190,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterDebugApi()
 	api.RegisterObservabilityAPI()
 	api.RegisterClassifierV23API()
+	api.RegisterRuntimeControlAPI()
 }
 
 func sendResponse(w http.ResponseWriter, response interface{}) {

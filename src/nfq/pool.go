@@ -58,6 +58,14 @@ func (p *Pool) UpdateTUNSourceWAN(wanIP string) {
 }
 
 func NewPool(cfg *config.Config) *Pool {
+	return newPool(cfg, false)
+}
+
+func NewCandidatePool(cfg *config.Config) *Pool {
+	return newPool(cfg, true)
+}
+
+func newPool(cfg *config.Config, candidate bool) *Pool {
 	threads := cfg.Queue.Threads
 	start := uint16(cfg.Queue.StartNum)
 	if threads < 1 {
@@ -66,6 +74,10 @@ func NewPool(cfg *config.Config) *Pool {
 
 	matcher := buildMatcher(cfg)
 	hintStore := classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil)
+	var canary *CanaryMonitor
+	if candidate {
+		canary = NewCanaryMonitor(0, 0)
+	}
 
 	dhcpMgr := dhcp.NewManager()
 
@@ -79,10 +91,12 @@ func NewPool(cfg *config.Config) *Pool {
 		w.connTracker = state.connState
 		w.destState = state.destState
 		w.dnsHints = hintStore
+		w.canary = canary
+		w.candidateSet.Store("")
 		ws = append(ws, w)
 	}
 
-	pool := &Pool{Workers: ws, Dhcp: dhcpMgr, stopCleanup: make(chan struct{}), state: state}
+	pool := &Pool{Workers: ws, Dhcp: dhcpMgr, stopCleanup: make(chan struct{}), state: state, canary: canary, candidate: candidate}
 
 	dhcpMgr.OnUpdate(func(ipToMAC map[string]string) {
 		for _, w := range pool.Workers {
@@ -130,9 +144,37 @@ func NewPool(cfg *config.Config) *Pool {
 	return pool
 }
 
+func (p *Pool) SetCanarySetID(setID string) {
+	if p == nil || !p.candidate {
+		return
+	}
+	for _, worker := range p.Workers {
+		worker.candidateSet.Store(setID)
+	}
+}
+
+func (p *Pool) ResetCanary() {
+	if p != nil && p.canary != nil {
+		p.canary.Reset()
+	}
+}
+
+func (p *Pool) CanarySnapshot() CanarySnapshot {
+	if p == nil || p.canary == nil {
+		return CanarySnapshot{CapturedAt: time.Now()}
+	}
+	return p.canary.Snapshot(time.Now())
+}
+
 func (p *Pool) Start() error {
 	for _, w := range p.Workers {
-		if err := w.Start(); err != nil {
+		var err error
+		if p.candidate {
+			err = w.StartCandidate()
+		} else {
+			err = w.Start()
+		}
+		if err != nil {
 			for _, x := range p.Workers {
 				x.Stop()
 			}

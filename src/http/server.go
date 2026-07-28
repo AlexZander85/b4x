@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/tls"
 	"embed"
 	"fmt"
@@ -47,11 +48,15 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 	registerWebSocketEndpoints(mux)
 
 	api := registerAPIEndpoints(mux, cfgPtr)
+	if err := api.InitializeRuntimeControl(handler.Version + " (" + handler.Commit + ")"); err != nil {
+		return nil, nil, fmt.Errorf("initialize runtime control: %w", err)
+	}
 	registerAuthEndpoints(mux, cfgPtr)
 
 	handler.RegisterSpa(mux, uiDist)
 
 	var httpHandler stdhttp.Handler = mux
+	httpHandler = runtimeControlMutationGuard(api, httpHandler)
 	httpHandler = authMiddleware(cfgPtr, httpHandler)
 	httpHandler = cors(httpHandler)
 
@@ -95,6 +100,13 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 		ReadHeaderTimeout: 5 * time.Second,
 		ErrorLog:          stdlog.New(errLogFilter{w: os.Stderr}, "", stdlog.LstdFlags),
 	}
+	srv.RegisterOnShutdown(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := api.CloseRuntimeControl(ctx); err != nil {
+			log.Errorf("runtime-control shutdown error: %v", err)
+		}
+	})
 
 	go func() {
 		var err error
@@ -140,4 +152,21 @@ func LogWriter() io.Writer {
 func Shutdown() {
 	// Shutdown the log hub
 	ws.Shutdown()
+}
+func runtimeControlMutationGuard(api *handler.API, next stdhttp.Handler) stdhttp.Handler {
+	return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+		mutating := r.Method != stdhttp.MethodGet && r.Method != stdhttp.MethodHead && r.Method != stdhttp.MethodOptions
+		protectedAPI := strings.HasPrefix(r.URL.Path, "/api/") &&
+			!strings.HasPrefix(r.URL.Path, "/api/v2/runtime-control/") &&
+			!strings.HasPrefix(r.URL.Path, "/api/auth/")
+		if mutating && protectedAPI && api != nil {
+			if err := api.EnsureNoPendingRuntimeControl(); err != nil {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.WriteHeader(stdhttp.StatusConflict)
+				_, _ = w.Write([]byte(`{"error":"a transactional runtime candidate is pending"}`))
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
 }

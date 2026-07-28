@@ -29,6 +29,7 @@ const handlers = [
   readRepo("http/handler/failure_inbox.go"),
   readRepo("http/handler/clienthello_lab.go"),
   readRepo("http/handler/classifier_v23.go"),
+  readRepo("http/handler/runtime_control.go"),
 ].join("\n");
 
 assert.match(app, /path="\/classifier"/);
@@ -47,15 +48,22 @@ for (const endpoint of [
   "/api/diagnostics/issue-bundle",
   "/api/diagnostics/failures",
   "/api/lab/clienthello",
+  "/api/v2/runtime-control/status",
+  "/api/v2/runtime-control/prepare",
+  "/api/v2/runtime-control/canary",
+  "/api/v2/runtime-control/promote",
+  "/api/v2/runtime-control/rollback",
 ]) {
   assert.match(api + handlers, new RegExp(endpoint.replaceAll("/", "\\/")));
 }
 
 assert.match(page, /evaluateStrategyDryRun/);
 assert.match(page + model, /release_on_pressure|ReleaseOnPressure|releaseOnPressure/);
-assert.match(page, /runtimeControlAvailable = false/);
-assert.match(page, /disabled=\{!canControl\}/);
-assert.doesNotMatch(page, /apiPut\([^)]*(promote|rollback|canary)/i);
+assert.doesNotMatch(page, /runtimeControlAvailable = false/);
+assert.match(page + api, /runtimePrepare/);
+assert.match(page + api, /runtimeCanary/);
+assert.match(page + api, /runtimePromote/);
+assert.match(page + api, /runtimeRollback/);
 assert.match(page + api, /confirm_raw/);
 assert.match(page + api, /include_raw/);
 assert.match(page, /offload_suspected/);
@@ -64,7 +72,7 @@ assert.match(page, /clienthello/i);
 assert.match(page, /baseline-none/);
 assert.match(page, /captureCounters/);
 assert.match(page, /actionCounters/);
-assert.match(page, /lastGoodUnavailable/);
+assert.match(page, /last_good/);
 assert.match(page, /setId/);
 assert.match(model, /set or strategy scope is required/);
 assert.match(model, /maxAmplification/);

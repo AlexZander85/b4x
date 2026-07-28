@@ -90,7 +90,7 @@
       "title": "Canary / promote / rollback",
       "description": "Transactional generation controls, last-good policy и диагностическая история.",
       "unavailable": "Runtime-control action endpoint пока не подключён к HTTP control plane. Controls намеренно видимы, но заблокированы — UI не подменяет транзакционный apply обычным сохранением config.",
-      "prepare": "Подготовить export кандидата",
+      "prepare": "Подготовить candidate",
       "prepareFirst": "Сначала подготовьте и проверьте candidate.",
       "runtimeMissing": "Transactional runtime-control endpoint недоступен.",
       "canary": "Запустить scoped canary",
@@ -102,7 +102,13 @@
       "scope": "Scope canary",
       "scopeValue": "Идентификатор scope",
       "protocol": "Протокол",
-      "lastGoodUnavailable": "Last-good manifest пока не раскрывается текущим HTTP API. UI показывает только bounded trace истории promote/rollback и не придумывает доступную rollback-цель."
+      "lastGoodUnavailable": "Last-good manifest пока не раскрывается текущим HTTP API. UI показывает только bounded trace истории promote/rollback и не придумывает доступную rollback-цель.",
+      "available": "Transactional runtime control подключён и готов к scoped candidate operations.",
+      "disabled": "Transactional apply выключен в classifier feature flags.",
+      "candidateJson": "JSON candidate patch",
+      "abort": "Отменить pending candidate",
+      "pending": "Pending generation",
+      "reason": "Причина rollback / abort"
     },
     "privacy": {
       "title": "Подтверждение raw artifacts",

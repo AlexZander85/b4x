@@ -37,6 +37,10 @@ func ErrNotFound(msg string) *APIError {
 	return &APIError{Status: http.StatusNotFound, Code: "not_found", Message: msg}
 }
 
+func ErrConflict(msg string) *APIError {
+	return &APIError{Status: http.StatusConflict, Code: "conflict", Message: msg}
+}
+
 func ErrValidation(msg string, fields ...FieldError) *APIError {
 	return &APIError{Status: http.StatusBadRequest, Code: "validation_failed", Message: msg, Fields: fields}
 }

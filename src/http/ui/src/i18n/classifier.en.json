@@ -90,7 +90,7 @@
       "title": "Canary / promote / rollback",
       "description": "Transactional generation controls, last-good policy and diagnostic history.",
       "unavailable": "The runtime-control action endpoint is not connected to the HTTP control plane yet. Controls are intentionally visible but disabled rather than falling back to a non-transactional config save.",
-      "prepare": "Prepare candidate export",
+      "prepare": "Prepare candidate",
       "prepareFirst": "Prepare and review a candidate first.",
       "runtimeMissing": "Transactional runtime-control endpoint is unavailable.",
       "canary": "Start scoped canary",
@@ -102,7 +102,13 @@
       "scope": "Canary scope",
       "scopeValue": "Scope identifier",
       "protocol": "Protocol",
-      "lastGoodUnavailable": "The last-good manifest is not exposed by the current HTTP API. The UI shows only bounded promote/rollback trace history and does not infer a usable rollback target."
+      "lastGoodUnavailable": "The last-good manifest is not exposed by the current HTTP API. The UI shows only bounded promote/rollback trace history and does not infer a usable rollback target.",
+      "available": "Transactional runtime control is connected and ready for scoped candidate operations.",
+      "disabled": "Transactional apply is disabled in classifier feature flags.",
+      "candidateJson": "Candidate patch JSON",
+      "abort": "Abort pending candidate",
+      "pending": "Pending generation",
+      "reason": "Rollback / abort reason"
     },
     "privacy": {
       "title": "Raw artifact confirmation",
