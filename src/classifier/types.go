@@ -56,6 +56,34 @@ type FlowKey struct {
 	Proto   uint8
 }
 
+// NewFlowKey constructs the direction-normalized key used by lifecycle state.
+// Client remains the source identity; only the bidirectional transport
+// endpoints are canonicalized.
+func NewFlowKey(client ClientKey, srcIP, dstIP netip.Addr, srcPort, dstPort uint16, proto uint8) FlowKey {
+	return (FlowKey{
+		Client:  client,
+		SrcIP:   srcIP,
+		DstIP:   dstIP,
+		SrcPort: srcPort,
+		DstPort: dstPort,
+		Proto:   proto,
+	}).Normalize()
+}
+
+// Normalize makes reverse-direction observations map to the same flow. IPv4
+// addresses represented as IPv4-in-IPv6 are unwrapped first so capture paths
+// cannot create duplicate state for the same endpoint.
+func (k FlowKey) Normalize() FlowKey {
+	k.Client.SourceIP = normalizeFlowAddr(k.Client.SourceIP)
+	k.SrcIP = normalizeFlowAddr(k.SrcIP)
+	k.DstIP = normalizeFlowAddr(k.DstIP)
+	if flowEndpointLess(k.DstIP, k.DstPort, k.SrcIP, k.SrcPort) {
+		k.SrcIP, k.DstIP = k.DstIP, k.SrcIP
+		k.SrcPort, k.DstPort = k.DstPort, k.SrcPort
+	}
+	return k
+}
+
 type TLSMetadata struct {
 	Version         uint16
 	ECHPresent      bool

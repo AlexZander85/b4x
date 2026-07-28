@@ -236,6 +236,15 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 	routeTProxy := matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode)
 
+	tcpFlags := tcp[13]
+	isSyn := (tcpFlags & 0x02) != 0
+	isAck := (tcpFlags & 0x10) != 0
+	isRst := (tcpFlags & 0x04) != 0
+	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
+		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
+		return vc.accept()
+	}
+
 	if matched && !routeTProxy && cfg.IsTCPPort(dport) && set.TCP.Duplicate.Enabled && set.TCP.Duplicate.Count > 0 {
 		log.Tracef("TCP duplicate to %s:%d (%d copies, set: %s)", pkt.dstStr, dport, set.TCP.Duplicate.Count, set.Name)
 
@@ -264,10 +273,6 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return 0
 	}
 
-	tcpFlags := tcp[13]
-	isSyn := (tcpFlags & 0x02) != 0
-	isAck := (tcpFlags & 0x10) != 0
-	isRst := (tcpFlags & 0x04) != 0
 	if isRst && cfg.IsTCPPort(dport) {
 		log.Tracef("RST to %s:%d", pkt.dstStr, dport)
 		if matched && set != nil && set.TCP.RSTProtection.Enabled {
