@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
@@ -98,7 +99,7 @@ func (e *Engine) Start() error {
 	e.tunName = name
 	log.Infof("TUN: opened device %s", name)
 
-	sender, err := sock.NewSenderWithMark(int(cfg.Queue.Mark) | engine.ReinjectMarkBit)
+	sender, err := sock.NewSenderWithMark(int(capture.ProcessedMarkFor(cfg.Queue.Mark)) | engine.ReinjectMarkBit)
 	if err != nil {
 		e.tunFile.Close()
 		run("ip", "link", "del", name)
@@ -136,21 +137,21 @@ func (e *Engine) Start() error {
 	dupV4, _ := cfg.CollectDuplicateIPs()
 
 	e.routes = &routeManager{
-		tunName:       name,
-		tunAddr:       address,
-		tunAddrV6:     tunCfg.AddressV6,
-		outIface:      tunCfg.OutInterface,
-		outGateway:    tunCfg.OutGateway,
-		mark:          cfg.Queue.Mark,
-		routeTable:    routeTable,
-		skipTables:    cfg.System.Tables.SkipSetup,
-		captureTable:  captureTable,
-		tcpPorts:      normalizePorts(cfg.CollectTCPPorts()),
-		udpPorts:      normalizePorts(cfg.CollectUDPPorts()),
-		tcpLimit:      tcpLimit,
-		udpLimit:      udpLimit,
-		dupIPs:        dupV4,
-		replyCapture:  replyCapture,
+		tunName:      name,
+		tunAddr:      address,
+		tunAddrV6:    tunCfg.AddressV6,
+		outIface:     tunCfg.OutInterface,
+		outGateway:   tunCfg.OutGateway,
+		mark:         cfg.Queue.Mark,
+		routeTable:   routeTable,
+		skipTables:   cfg.System.Tables.SkipSetup,
+		captureTable: captureTable,
+		tcpPorts:     normalizePorts(cfg.CollectTCPPorts()),
+		udpPorts:     normalizePorts(cfg.CollectUDPPorts()),
+		tcpLimit:     tcpLimit,
+		udpLimit:     udpLimit,
+		dupIPs:       dupV4,
+		replyCapture: replyCapture,
 
 		devicesEnabled: cfg.Queue.Devices.Enabled,
 		whiteIsBlack:   cfg.Queue.Devices.WhiteIsBlack,

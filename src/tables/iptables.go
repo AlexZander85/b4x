@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 )
@@ -361,6 +362,7 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 	if cfg.Queue.Mark == 0 {
 		markAccept = "0x8000/0x8000"
 	}
+	processedMarkAccept := fmt.Sprintf("0x%x/0x%x", capture.ProcessedMarkBit, capture.ProcessedMarkMask)
 
 	var ipsets []IPSet
 	var chains []Chain
@@ -416,10 +418,16 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 						"--tcp-flags", "RST", "RST"},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
+				finSpec := append(
+					[]string{"-p", "tcp", "-m", "multiport", "--sports", portList,
+						"--tcp-flags", "FIN", "FIN"},
+					manager.buildNFQSpec(queueNum, threads)...,
+				)
 				rules = append(rules,
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: tcpResponseSpec},
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec},
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec},
+					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec},
 				)
 			}
 		} else {
@@ -438,10 +446,15 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 					[]string{"-p", "tcp", "--sport", port, "--tcp-flags", "RST", "RST"},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
+				finSpec := append(
+					[]string{"-p", "tcp", "--sport", port, "--tcp-flags", "FIN", "FIN"},
+					manager.buildNFQSpec(queueNum, threads)...,
+				)
 				rules = append(rules,
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: tcpResponseSpec},
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec},
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec},
+					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec},
 				)
 			}
 		}
@@ -503,6 +516,12 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: tcpSpec})
+				finSpec := append(
+					[]string{"-p", "tcp", "-m", "multiport", "--dports", strings.Join(chunk, ","),
+						"--tcp-flags", "FIN", "FIN"},
+					manager.buildNFQSpec(queueNum, threads)...,
+				)
+				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
 			}
 		} else {
 			for _, port := range tcpPorts {
@@ -513,6 +532,11 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: tcpSpec})
+				finSpec := append(
+					[]string{"-p", "tcp", "--dport", port, "--tcp-flags", "FIN", "FIN"},
+					manager.buildNFQSpec(queueNum, threads)...,
+				)
+				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
 			}
 		}
 
@@ -594,8 +618,17 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: "OUTPUT", Action: "I", Spec: dnsResponseSpec},
 			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: "OUTPUT", Action: "I",
 				Spec: []string{"-m", "mark", "--mark", markAccept, "-j", "ACCEPT"}},
+			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: "OUTPUT", Action: "I",
+				Spec: []string{"-m", "mark", "--mark", processedMarkAccept, "-j", "ACCEPT"}},
 			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: "OUTPUT", Action: "A",
 				Spec: []string{"-j", chainName}},
+		)
+
+		rules = append(rules,
+			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I",
+				Spec: []string{"-m", "mark", "--mark", processedMarkAccept, "-j", "RETURN"}},
+			Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "I",
+				Spec: []string{"-m", "mark", "--mark", processedMarkAccept, "-j", "RETURN"}},
 		)
 
 		if cfg.Queue.Mark != 0 && manager.hasConnmarkSupport(ipt) {

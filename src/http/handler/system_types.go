@@ -38,16 +38,16 @@ type DiagnosticsResponse struct {
 }
 
 type Diagnostics struct {
-	System     DiagSystem      `json:"system"`
-	B4         DiagB4          `json:"b4"`
-	Kernel     DiagKernel      `json:"kernel"`
-	Tools      DiagTools       `json:"tools"`
-	Network    DiagNetwork     `json:"network"`
-	Engine     DiagEngine      `json:"engine"`
-	Firewall   DiagFirewall    `json:"firewall"`
-	Geodata    DiagGeodata     `json:"geodata"`
-	Storage    []DiagMount     `json:"storage"`
-	Paths      DiagPaths       `json:"paths"`
+	System   DiagSystem   `json:"system"`
+	B4       DiagB4       `json:"b4"`
+	Kernel   DiagKernel   `json:"kernel"`
+	Tools    DiagTools    `json:"tools"`
+	Network  DiagNetwork  `json:"network"`
+	Engine   DiagEngine   `json:"engine"`
+	Firewall DiagFirewall `json:"firewall"`
+	Geodata  DiagGeodata  `json:"geodata"`
+	Storage  []DiagMount  `json:"storage"`
+	Paths    DiagPaths    `json:"paths"`
 }
 
 type DiagSystem struct {
@@ -119,10 +119,28 @@ type DiagTUN struct {
 }
 
 type DiagFirewall struct {
-	Backend      string          `json:"backend"`
-	NFQueueWorks bool            `json:"nfqueue_works"`
-	FlowOffload  string          `json:"flow_offload"`
-	RuleGroups   []DiagRuleGroup `json:"rule_groups,omitempty"`
+	Backend         string              `json:"backend"`
+	NFQueueWorks    bool                `json:"nfqueue_works"`
+	FlowOffload     string              `json:"flow_offload"`
+	RuleGroups      []DiagRuleGroup     `json:"rule_groups,omitempty"`
+	CaptureEnvelope DiagCaptureEnvelope `json:"capture_envelope"`
+}
+
+type DiagCaptureEnvelope struct {
+	Configured                 bool     `json:"configured"`
+	Active                     bool     `json:"active"`
+	QueueReady                 bool     `json:"queue_ready"`
+	QueueTableFound            bool     `json:"queue_table_found"`
+	OwnerVerified              bool     `json:"owner_verified"`
+	MissingQueues              []uint16 `json:"missing_queues,omitempty"`
+	OwnerMismatches            int      `json:"owner_mismatches"`
+	QueueDrops                 uint64   `json:"queue_drop"`
+	UserDrops                  uint64   `json:"user_drop"`
+	IncomingProgressVisible    bool     `json:"incoming_progress_visible"`
+	ProcessedMarkVerified      bool     `json:"processed_mark_verified"`
+	FlowOffloadBypassSuspected bool     `json:"flow_offload_bypass_suspected"`
+	Status                     string   `json:"status"`
+	Issues                     []string `json:"issues,omitempty"`
 }
 
 type DiagRuleGroup struct {

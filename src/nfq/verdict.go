@@ -1,6 +1,7 @@
 package nfq
 
 import (
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/sock"
@@ -39,7 +40,7 @@ func (w *Worker) InitSender() error {
 		return nil
 	}
 	cfg := w.getConfig()
-	reinjectMark := int(cfg.Queue.Mark)
+	reinjectMark := int(capture.ProcessedMarkFor(cfg.Queue.Mark))
 	tun := cfg.Queue.Mode == "tun"
 	if tun {
 		reinjectMark |= engine.ReinjectMarkBit

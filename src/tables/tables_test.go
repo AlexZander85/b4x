@@ -2,6 +2,7 @@ package tables
 
 import (
 	"net"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -317,6 +318,39 @@ func TestIPTablesManager_BuildManifest_NoIPTables(t *testing.T) {
 
 	if err == nil {
 		t.Error("expected error when no iptables binaries enabled")
+	}
+}
+
+func TestIPTablesManifest_LifecycleEnvelopeSnapshot(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.Queue.IPv6Enabled = true
+	manager := NewIPTablesManager(&cfg, false)
+	manifest, err := manager.buildManifest()
+	if err != nil {
+		t.Skipf("iptables capability unavailable for snapshot: %v", err)
+	}
+
+	var haveFirstN, haveSynAck, haveRST, haveFIN bool
+	for _, rule := range manifest.Rules {
+		spec := strings.Join(rule.Spec, " ")
+		if strings.Contains(spec, "--connbytes-dir original") || strings.Contains(spec, "--connbytes-dir reply") {
+			haveFirstN = true
+		}
+		if strings.Contains(spec, "--tcp-flags SYN,ACK SYN,ACK") {
+			haveSynAck = true
+		}
+		if strings.Contains(spec, "--tcp-flags RST RST") {
+			haveRST = true
+		}
+		if strings.Contains(spec, "--tcp-flags FIN FIN") {
+			haveFIN = true
+		}
+		if strings.Contains(spec, "NFQUEUE") && !strings.Contains(spec, "--queue-bypass") {
+			t.Errorf("NFQUEUE rule lacks fail-open queue-bypass: %s", spec)
+		}
+	}
+	if !haveFirstN || !haveSynAck || !haveRST || !haveFIN {
+		t.Fatalf("lifecycle envelope snapshot incomplete: first_n=%v syn_ack=%v rst=%v fin=%v", haveFirstN, haveSynAck, haveRST, haveFIN)
 	}
 }
 

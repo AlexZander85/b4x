@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
@@ -62,7 +63,7 @@ func pfBind(con *netlink.Conn, family uint8) error {
 func (w *Worker) Start() error {
 	cfg := w.getConfig()
 	mark := cfg.Queue.Mark
-	s, err := sock.NewSenderWithMark(int(mark))
+	s, err := sock.NewSenderWithMark(int(capture.ProcessedMarkFor(mark)))
 	if err != nil {
 		return err
 	}

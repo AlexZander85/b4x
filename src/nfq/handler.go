@@ -48,7 +48,7 @@ func (w *Worker) handlePacket(q *nfqueue.Nfqueue, a nfqueue.Attribute, mark uint
 
 	vc := &verdictCtx{id: *a.PacketID, q: q}
 
-	if a.Mark != nil && *a.Mark == uint32(mark) {
+	if a.Mark != nil && capture.IsProcessedMark(uint32(*a.Mark), mark) {
 		return vc.accept()
 	}
 

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/tables"
@@ -45,7 +46,7 @@ func (api *API) buildDiagnostics() Diagnostics {
 		Tools:    collectTools(),
 		Network:  collectNetworkInterfaces(),
 		Engine:   collectEngineInfo(cfg),
-		Firewall: collectFirewallInfo(),
+		Firewall: collectFirewallInfo(cfg),
 		Geodata:  api.collectGeodataInfo(),
 		Storage:  collectStorage(),
 		Paths:    collectPaths(cfg.ConfigPath, cfg.System.Logging.ErrorFilePath(), cfg.System.Geo.GeoSitePath, cfg.System.Geo.GeoIpPath),
@@ -268,7 +269,7 @@ func collectNetworkInterfaces() DiagNetwork {
 	return DiagNetwork{Interfaces: result}
 }
 
-func collectFirewallInfo() DiagFirewall {
+func collectFirewallInfo(cfg *config.Config) DiagFirewall {
 	info := DiagFirewall{Backend: detectFirewallBackend()}
 
 	info.RuleGroups = append(info.RuleGroups, collectNftRuleGroups()...)
@@ -276,7 +277,44 @@ func collectFirewallInfo() DiagFirewall {
 
 	info.NFQueueWorks = testNFQueue(info.Backend)
 	info.FlowOffload = detectFlowOffload()
+	info.CaptureEnvelope = collectCaptureEnvelopeInfo(cfg)
 
+	return info
+}
+
+func collectCaptureEnvelopeInfo(cfg *config.Config) DiagCaptureEnvelope {
+	info := DiagCaptureEnvelope{}
+	if cfg == nil {
+		info.Status = "invalid_config"
+		info.Issues = []string{"capture envelope: nil config"}
+		return info
+	}
+
+	envelope, err := capture.NewCaptureEnvelope(cfg, capture.QueueRoleProduction)
+	if err != nil {
+		info.Status = "invalid_config"
+		info.Issues = []string{err.Error()}
+		return info
+	}
+	info.Configured = true
+	info.Active = cfg.System.Classifier.Flags.CaptureEnvelopeEnabled
+
+	readiness := capture.CheckQueueReadiness(capture.OSProcFS{}, envelope.ReadinessSpec())
+	info.QueueReady = readiness.Ready
+	info.QueueTableFound = readiness.QueueTableFound
+	info.OwnerVerified = readiness.OwnerVerified
+	info.MissingQueues = readiness.MissingQueues
+	info.OwnerMismatches = len(readiness.OwnerMismatches)
+	info.QueueDrops = readiness.QueueDrops
+	info.UserDrops = readiness.UserDrops
+	info.Issues = append(info.Issues, readiness.Errors...)
+
+	offload := capture.EvaluateOffload(capture.OffloadCheckInput{EnvelopeActive: info.Active})
+	info.IncomingProgressVisible = offload.IncomingProgressVisible
+	info.ProcessedMarkVerified = offload.ProcessedMarkVerified
+	info.FlowOffloadBypassSuspected = offload.FlowOffloadBypassSuspected
+	info.Status = offload.Status
+	info.Issues = append(info.Issues, offload.Reasons...)
 	return info
 }
 

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
@@ -193,6 +194,7 @@ func (n *NFTablesManager) Apply() error {
 		markValue = 0x8000
 	}
 	markAccept := fmt.Sprintf("0x%x", markValue)
+	processedMark := fmt.Sprintf("0x%x", capture.ProcessedMarkBit)
 
 	selectedMACs := cfg.Queue.Devices.SelectedMACs()
 	if cfg.Queue.Devices.Enabled && len(selectedMACs) > 0 {
@@ -241,11 +243,20 @@ func (n *NFTablesManager) Apply() error {
 	if err := n.addRule("output", "meta", "mark", "&", markAccept, "==", markAccept, "accept"); err != nil {
 		return err
 	}
+	if err := n.addRule("output", "meta", "mark", "&", processedMark, "==", processedMark, "accept"); err != nil {
+		return err
+	}
 	if err := n.addRule("output", "jump", nftChainName); err != nil {
 		return err
 	}
 
 	if err := n.addRule(nftChainName, "meta", "mark", "&", markAccept, "==", markAccept, "return"); err != nil {
+		return err
+	}
+	if err := n.addRule(nftChainName, "meta", "mark", "&", processedMark, "==", processedMark, "return"); err != nil {
+		return err
+	}
+	if err := n.addRule("prerouting", "meta", "mark", "&", processedMark, "==", processedMark, "return"); err != nil {
 		return err
 	}
 
@@ -327,6 +338,10 @@ func (n *NFTablesManager) Apply() error {
 		return err
 	}
 
+	if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
+		return err
+	}
+
 	udpPorts := cfg.CollectUDPPorts()
 	var udpPortExpr string
 	if len(udpPorts) == 1 {
@@ -335,6 +350,10 @@ func (n *NFTablesManager) Apply() error {
 		udpPortExpr = "{ " + strings.Join(udpPorts, ", ") + " }"
 	}
 	if err := n.addQueueRule(nftChainName, "udp", "dport", udpPortExpr, "ct", "original", "packets", "<", udpLimit, "counter"); err != nil {
+		return err
+	}
+
+	if err := n.addQueueRule(nftChainName, "tcp", "dport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
 		return err
 	}
 
