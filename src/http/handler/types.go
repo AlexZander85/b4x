@@ -18,8 +18,15 @@ type API struct {
 	asnStore        *config.AsnStore
 	runtimeControl  atomic.Pointer[runtimecontrol.Manager]
 	ppeCapabilities PPECapabilityProvider
+	ppeStatus       PPEStatusProvider
 
 	overrideServiceManager func() string
+}
+
+func (a *API) SetPPEStatusProvider(provider PPEStatusProvider) {
+	if a != nil {
+		a.ppeStatus = provider
+	}
 }
 
 func (a *API) SetRuntimeControlManager(manager *runtimecontrol.Manager) {
@@ -42,5 +49,8 @@ func (a *API) getRuntimeControlManager() *runtimecontrol.Manager {
 }
 
 func (a *API) getCfg() *config.Config {
+	if a == nil || a.cfgPtr == nil {
+		return nil
+	}
 	return a.cfgPtr.Load()
 }

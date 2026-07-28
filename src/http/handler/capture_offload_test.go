@@ -41,3 +41,26 @@ func TestCaptureOffloadCapabilitiesRejectsMutation(t *testing.T) {
 		t.Fatalf("status=%d", res.Code)
 	}
 }
+
+type staticPPEStatusProvider struct{ report ppe.DiagnosticsReport }
+
+func (s staticPPEStatusProvider) Status(context.Context) ppe.DiagnosticsReport { return s.report }
+
+func TestCaptureOffloadStatusNeverPromotesPassiveEvidence(t *testing.T) {
+	api := &API{mux: http.NewServeMux(), ppeStatus: staticPPEStatusProvider{report: ppe.DiagnosticsReport{
+		State: ppe.DiagnosticPassiveEvidence, FunctionalVerdict: ppe.FunctionalNotRun, ProductionReady: false,
+	}}}
+	api.RegisterCaptureOffloadAPI()
+	res := httptest.NewRecorder()
+	api.mux.ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/api/v1/capture/offload/status", nil))
+	if res.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", res.Code, res.Body.String())
+	}
+	var report ppe.DiagnosticsReport
+	if err := json.NewDecoder(res.Body).Decode(&report); err != nil {
+		t.Fatal(err)
+	}
+	if report.FunctionalVerdict != ppe.FunctionalNotRun || report.ProductionReady {
+		t.Fatalf("passive status promoted: %+v", report)
+	}
+}

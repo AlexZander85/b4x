@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/http/handler"
 	"github.com/daniellavrushin/b4/http/ws"
@@ -48,6 +49,11 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 	registerWebSocketEndpoints(mux)
 
 	api := registerAPIEndpoints(mux, cfgPtr)
+	passivePPE := ppe.NewPassiveTracker(4096, 10*time.Minute)
+	if pool != nil {
+		pool.SetPPEPassiveObserver(passivePPE)
+	}
+	api.SetPPEStatusProvider(ppe.NewDiagnosticsService(func() *config.Config { return cfgPtr.Load() }, ppe.NewDetector(nil), ppe.NewRuleCounterCollector(nil), passivePPE, "b4_managed"))
 	if err := api.InitializeRuntimeControl(handler.Version + " (" + handler.Commit + ")"); err != nil {
 		return nil, nil, fmt.Errorf("initialize runtime control: %w", err)
 	}

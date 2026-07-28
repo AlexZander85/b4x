@@ -40,28 +40,29 @@ type PacketInfo struct {
 }
 
 type Worker struct {
-	packetsProcessed uint64
-	lastOverflowLog  int64
-	cfg              atomic.Value
-	qnum             uint16
-	ctx              context.Context
-	cancel           context.CancelFunc
-	q                *nfqueue.Nfqueue
-	wg               sync.WaitGroup
-	matcher          atomic.Value
-	sock             *sock.Sender
-	clientSock       *sock.Sender
-	ipToMac          atomic.Value
-	tlsCache         *tlsInfoCache
-	connTracker      *connStateTracker
-	destState        *destStateTracker
-	srcResolver      *tunSrcResolver
-	dnsHints         *classifier.HostHintStore
-	tcpReassembly    *classifier.TCPReassemblyStore
-	tcpHold          *TCPHoldStore
-	canary           *CanaryMonitor
-	candidateSet     atomic.Value // string; target set for candidate accounting
-	clientHelloSink  atomic.Pointer[clientHelloSinkHolder]
+	packetsProcessed   uint64
+	lastOverflowLog    int64
+	cfg                atomic.Value
+	qnum               uint16
+	ctx                context.Context
+	cancel             context.CancelFunc
+	q                  *nfqueue.Nfqueue
+	wg                 sync.WaitGroup
+	matcher            atomic.Value
+	sock               *sock.Sender
+	clientSock         *sock.Sender
+	ipToMac            atomic.Value
+	tlsCache           *tlsInfoCache
+	connTracker        *connStateTracker
+	destState          *destStateTracker
+	srcResolver        *tunSrcResolver
+	dnsHints           *classifier.HostHintStore
+	tcpReassembly      *classifier.TCPReassemblyStore
+	tcpHold            *TCPHoldStore
+	canary             *CanaryMonitor
+	candidateSet       atomic.Value // string; target set for candidate accounting
+	clientHelloSink    atomic.Pointer[clientHelloSinkHolder]
+	ppePassiveObserver atomic.Pointer[ppePassiveObserverHolder]
 }
 
 type clientHelloSinkHolder struct {

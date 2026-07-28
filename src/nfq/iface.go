@@ -32,9 +32,7 @@ func getIfaceName(idx uint32) string {
 func (w *Worker) matchesInterface(a nfqueue.Attribute) bool {
 	cfg := w.getConfig()
 	ifaces := cfg.Queue.Interfaces
-	if len(ifaces) == 0 {
-		return true // no filter = all interfaces
-	}
+	matched := len(ifaces) == 0
 
 	var idx uint32
 	if a.OutDev != nil && *a.OutDev != 0 {
@@ -43,15 +41,20 @@ func (w *Worker) matchesInterface(a nfqueue.Attribute) bool {
 		idx = *a.InDev
 	}
 
-	if idx == 0 {
-		return true // can't determine, allow
+	if !matched && idx == 0 {
+		matched = true // can't determine, preserve existing fail-open behavior
 	}
-
-	name := getIfaceName(idx)
-	for _, allowed := range ifaces {
-		if name == allowed {
-			return true
+	if !matched {
+		name := getIfaceName(idx)
+		for _, allowed := range ifaces {
+			if name == allowed {
+				matched = true
+				break
+			}
 		}
 	}
-	return false
+	if matched && a.Payload != nil {
+		w.observePPEPassiveRaw(cfg, *a.Payload)
+	}
+	return matched
 }
