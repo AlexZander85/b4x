@@ -1,5 +1,7 @@
 package action
 
+import "time"
+
 type SplitPosition struct {
 	Offset uint64
 	Reason string
@@ -10,6 +12,7 @@ type PlannedWrite struct {
 	StreamEnd   uint64
 	Sequence    uint32
 	Payload     []byte
+	Delay       time.Duration
 }
 
 type PlanInput struct {
