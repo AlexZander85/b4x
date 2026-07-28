@@ -3,6 +3,7 @@ package ppe
 import (
 	"context"
 	"errors"
+	"reflect"
 )
 
 type fakeTransactionBackend struct {
@@ -38,6 +39,14 @@ func (f *fakeTransactionBackend) Verify(_ context.Context, plan FamilyPlan) erro
 	if f.shouldFail("verify", plan.Family) {
 		return errors.New("verify failed")
 	}
+	current, ok := f.current[plan.Family]
+	if !ok {
+		return errors.New("rules missing")
+	}
+	want := snapshotForPlan(plan)
+	if !reflect.DeepEqual(current, want) {
+		return errors.New("rules differ")
+	}
 	return nil
 }
 
@@ -52,6 +61,9 @@ func (f *fakeTransactionBackend) Remove(_ context.Context, plan FamilyPlan) erro
 func (f *fakeTransactionBackend) VerifyRemoved(_ context.Context, plan FamilyPlan) error {
 	if f.shouldFail("verify-removed", plan.Family) {
 		return errors.New("remove verify failed")
+	}
+	if _, ok := f.current[plan.Family]; ok {
+		return errors.New("rules remain")
 	}
 	return nil
 }
