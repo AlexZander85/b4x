@@ -44,3 +44,7 @@ vendor/
 .github/instructions/codacy.instructions.md
 tspu-docs/
 .claude/
+
+# Python field-validation artifacts
+__pycache__/
+*.pyc

@@ -263,3 +263,8 @@ help:
 
 # Prevent make from treating command-line targets as files
 .PHONY: %
+.PHONY: field-validation-test
+field-validation-test:
+	python3 -m unittest tools/field_validation/test_field_validation.py -v
+	python3 -m py_compile tools/field_validation/b4_field_validation.py tools/field_validation/test_field_validation.py
+	python3 -m json.tool tools/field_validation/manifest.json >/dev/null

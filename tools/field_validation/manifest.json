@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "required_coverage": [
+    "official_youtube",
+    "revanced",
+    "api",
+    "ui",
+    "video",
+    "cdn_switch",
+    "stall_resume",
+    "background_foreground",
+    "quic_enabled",
+    "quic_disabled",
+    "ech",
+    "split_clienthello",
+    "multi_client",
+    "ipv4",
+    "ipv6",
+    "doh",
+    "system_dns",
+    "hot_apply",
+    "canary",
+    "rollback"
+  ],
+  "scenarios": [
+    {
+      "id": "official_youtube_cold_start",
+      "title": "Official YouTube cold start",
+      "instructions": "Force-stop and cold-start the official Android YouTube app; load API, UI and the first video from a clean B4 restart.",
+      "tags": [
+        "official_youtube",
+        "api",
+        "ui",
+        "video",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "dns_to_first_classified_ms",
+        "app_to_ui_usable_ms",
+        "video_to_stable_ms",
+        "unclassified_first_flows",
+        "syn_retries",
+        "evidence_source",
+        "confidence",
+        "actions_per_logical_clienthello",
+        "queue_drops_delta",
+        "collateral_failures",
+        "clean_syn_raw_reinjects",
+        "generated_packet_requeues",
+        "retransmission_action_repeats"
+      ]
+    },
+    {
+      "id": "revanced_cold_start",
+      "title": "ReVanced cold start",
+      "instructions": "Force-stop and cold-start ReVanced; verify API, UI and first-video classification without relying on a later clear-SNI retry.",
+      "tags": [
+        "revanced",
+        "api",
+        "ui",
+        "video",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "dns_to_first_classified_ms",
+        "app_to_ui_usable_ms",
+        "video_to_stable_ms",
+        "unclassified_first_flows",
+        "syn_retries",
+        "evidence_source",
+        "confidence",
+        "actions_per_logical_clienthello",
+        "queue_drops_delta",
+        "collateral_failures",
+        "clean_syn_raw_reinjects",
+        "generated_packet_requeues",
+        "retransmission_action_repeats"
+      ]
+    },
+    {
+      "id": "api_ui_load",
+      "title": "API and UI load",
+      "instructions": "Navigate Home, Subscriptions and Search; verify expected API/UI sets and complete response bodies.",
+      "tags": [
+        "api",
+        "ui"
+      ],
+      "required_metrics": [
+        "app_to_ui_usable_ms",
+        "expected_set",
+        "body_bytes",
+        "throughput_bps",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "first_video_cdn",
+      "title": "First video CDN",
+      "instructions": "Start a video after a cold app start and verify the first googlevideo flow receives the VIDEO set.",
+      "tags": [
+        "video",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "video_to_stable_ms",
+        "expected_set",
+        "unclassified_first_flows",
+        "actions_per_logical_clienthello",
+        "body_bytes",
+        "throughput_bps",
+        "cpu_peak_pct",
+        "memory_peak_bytes",
+        "queue_drops_delta",
+        "collateral_failures",
+        "post_server_progress_actions"
+      ]
+    },
+    {
+      "id": "cdn_switch",
+      "title": "CDN switch",
+      "instructions": "Run long enough to observe a CDN shard switch and verify classification, body continuity and throughput after the switch.",
+      "tags": [
+        "video",
+        "cdn_switch"
+      ],
+      "required_metrics": [
+        "cdn_switches",
+        "expected_set",
+        "body_bytes",
+        "throughput_bps",
+        "cpu_peak_pct",
+        "memory_peak_bytes",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "playback_stall_resume",
+      "title": "Playback stall and resume",
+      "instructions": "Pause network delivery or playback, then resume; verify no repeated first-flight action and stable body/throughput recovery.",
+      "tags": [
+        "video",
+        "stall_resume"
+      ],
+      "required_metrics": [
+        "resume_to_stable_ms",
+        "actions_per_logical_clienthello",
+        "body_bytes",
+        "throughput_bps",
+       "queue_drops_delta",
+        "collateral_failures",
+        "post_server_progress_actions",
+        "retransmission_action_repeats"
+      ]
+    },
+    {
+      "id": "background_foreground",
+      "title": "Background and foreground",
+      "instructions": "Move the app to background and foreground; verify resumed/new flows retain correct source-scoped classification.",
+      "tags": [
+        "background_foreground",
+        "api",
+        "ui",
+        "video"
+      ],
+      "required_metrics": [
+        "foreground_to_usable_ms",
+        "unclassified_first_flows",
+        "evidence_source",
+        "confidence",
+        "queue_drops_delta",
+        "collateral_failures",
+        "closed_flow_state_entries"
+      ]
+    },
+    {
+      "id": "quic_enabled_parse_reject",
+      "title": "QUIC enabled with B4 parse/reject",
+      "instructions": "Enable app QUIC, verify QUIC Initial evidence and source-scoped QUIC-to-TCP handoff after configured reject/fallback.",
+      "tags": [
+        "quic_enabled",
+        "video",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "quic_initial_seen",
+        "quic_tcp_handoff",
+        "unclassified_first_flows",
+        "evidence_source",
+      "confidence",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "quic_disabled_app",
+      "title": "App QUIC disabled",
+      "instructions": "Disable app QUIC and verify the direct TCP path, split handling and first-flow set selection.",
+      "tags": [
+        "quic_disabled",
+        "video",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "unclassified_first_flows",
+        "syn_retries",
+        "evidence_source",
+        "confidence",
+        "actions_per_logical_clienthello",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "ech_split_clienthello",
+      "title": "ECH and split ClientHello",
+      "instructions": "Exercise ECH and a segmented Android ClientHello; verify bounded reassembly, scoped DNS/QUIC evidence and one action token.",
+      "tags": [
+        "ech",
+        "split_clienthello",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "reassembly_completed",
+        "reassembly_bytes",
+        "reassembly_segments",
+        "evidence_source",
+        "confidence",
+        "unclassified_first_flows",
+        "actions_per_logical_clienthello",
+        "queue_drops_delta",
+        "collateral_failures",
+        "clienthello_segment_2_seen"
+      ]
+    },
+    {
+      "id": "second_client_simultaneous_lookup",
+      "title": "Second client simultaneous lookup",
+      "instructions": "Use two Android clients against shared Google/CDN destinations and verify no hostname/set leakage between clients.",
+      "tags": [
+        "multi_client",
+        "api",
+        "ui",
+        "video"
+      ],
+      "required_metrics": [
+        "clients_observed",
+        "cross_client_leakage",
+        "unclassified_first_flows",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "ipv4_ipv6",
+      "title": "IPv4 and IPv6",
+      "instructions": "Run equivalent API/UI/video flows over IPv4 and IPv6 and record capture, classification and body outcomes for both families.",
+      "tags": [
+        "ipv4",
+        "ipv6",
+        "api",
+        "ui",
+        "video"
+      ],
+      "required_metrics": [
+        "ipv4_pass",
+        "ipv6_pass",
+        "body_bytes",
+        "throughput_bps",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "doh_system_dns",
+      "title": "DoH and system DNS",
+      "instructions": "Run cold first flows with system DNS and configured DoH; verify hints exist before the first TCP/UDP payload.",
+      "tags": [
+        "doh",
+        "system_dns",
+        "first_flow"
+      ],
+      "required_metrics": [
+        "doh_pass",
+        "system_dns_pass",
+        "dns_to_first_classified_ms",
+        "unclassified_first_flows",
+        "queue_drops_delta",
+        "collateral_failures"
+      ]
+    },
+    {
+      "id": "hot_apply_canary_rollback",
+      "title": "Hot apply, canary and rollback",
+      "instructions": "Apply a candidate to a scoped client/set, pass readiness/canary, promote, then rollback and restart; verify no stale queue/chains/state.",
+      "tags": [
+        "hot_apply",
+        "canary",
+        "rollback"
+      ],
+      "required_metrics": [
+        "canary_pass",
+        "promote_pass",
+        "rollback_pass",
+        "restart_cleanup_pass",
+        "queue_chains_clean",
+        "cpu_peak_pct",
+        "memory_peak_bytes",
+        "queue_drops_delta",
+        "collateral_failures",
+        "stale_runtime_entries",
+        "held_packets_after_restart"
+      ]
+    }
+  ]
+}
