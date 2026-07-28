@@ -41,6 +41,7 @@ type DesiredState struct {
 type FamilyPlan struct {
 	Family        string   `json:"family"`
 	Binary        string   `json:"binary"`
+	WaitSupported bool     `json:"wait_supported"`
 	Enabled       bool     `json:"enabled"`
 	Reason        string   `json:"reason,omitempty"`
 	RestoreScript string   `json:"restore_script,omitempty"`

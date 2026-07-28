@@ -17,7 +17,7 @@ func compileFamily(family, mode string, capability FamilyCapability, policy stri
 			binary = "iptables"
 		}
 	}
-	plan := FamilyPlan{Family: family, Binary: binary}
+	plan := FamilyPlan{Family: family, Binary: binary, WaitSupported: capability.WaitSupported}
 	if mode == config.PPEFamilyOff {
 		plan.Reason = "disabled by configuration"
 		return plan, nil
