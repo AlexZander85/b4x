@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/capture"
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discord"
 	"github.com/daniellavrushin/b4/log"
@@ -216,6 +217,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		matched = false
 		set = nil
 	}
+	if matched && st != nil && !w.allowNFQDomainDecision(cfg, pkt, dport, 6, st, classifier.EvidenceStaticIP, "", false, "static-ip") {
+		matched = false
+		set = nil
+		st = nil
+	}
 
 	matchedLearned := false
 	if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned {
@@ -229,8 +235,10 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 	if !matched && cfg.IsTCPPort(dport) {
 		if portMatched, portSet := matcher.MatchTCPPort(dport); portMatched {
-			matched = true
-			set = portSet
+			if w.allowNFQDomainDecision(cfg, pkt, dport, 6, portSet, classifier.EvidencePortProtocol, "", false, "port-fallback") {
+				matched = true
+				set = portSet
+			}
 		}
 	}
 	if !matched {
@@ -364,11 +372,13 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if host != "" {
 			if mSNI, stSNI := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver); mSNI {
 				if stSNI.MatchesTCPDPort(dport) {
-					matchedSNI = true
-					matched = true
-					set = stSNI
-					matcher.LearnIPToDomain(pkt.dst, host, stSNI)
-					registerLearnedRoute(cfg, stSNI, pkt.dst)
+					if w.allowNFQDomainDecision(cfg, pkt, dport, 6, stSNI, classifier.EvidencePacketSNI, host, true, "clear-sni") {
+						matchedSNI = true
+						matched = true
+						set = stSNI
+						matcher.LearnIPToDomain(pkt.dst, host, stSNI)
+						registerLearnedRoute(cfg, stSNI, pkt.dst)
+					}
 				}
 			}
 		}
@@ -623,6 +633,12 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 	if matchedIP {
 		ipTarget = st.Name
+		if !w.allowNFQDomainDecision(cfg, pkt, dport, 17, st, classifier.EvidenceStaticIP, "", false, "static-ip") {
+			matchedIP = false
+			matched = false
+			set = nil
+			st = nil
+		}
 	}
 
 	if !matchedIP {
@@ -642,10 +658,12 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	matchedPort := false
 	if !matched {
 		if portMatched, portSet := matcher.MatchUDPPort(dport); portMatched {
-			matchedPort = true
-			matched = true
-			set = portSet
-			ipTarget = portSet.Name
+			if w.allowNFQDomainDecision(cfg, pkt, dport, 17, portSet, classifier.EvidencePortProtocol, "", false, "port-fallback") {
+				matchedPort = true
+				matched = true
+				set = portSet
+				ipTarget = portSet.Name
+			}
 		}
 	}
 	if !matched {
@@ -669,14 +687,16 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	if host != "" {
 		if mSNI, sniSet := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, 0x0304, pkt.ver); mSNI {
 			if sniSet.MatchesUDPDPort(dport) {
-				matchedQUIC = true
-				set = sniSet
-				sniTarget = sniSet.Name
-				if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
-					w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
-				} else {
-					matcher.LearnIPToDomain(pkt.dst, host, sniSet)
-					registerLearnedRoute(cfg, sniSet, pkt.dst)
+				if w.allowNFQDomainDecision(cfg, pkt, dport, 17, sniSet, classifier.EvidenceQUICSNI, host, true, "quic-sni") {
+					matchedQUIC = true
+					set = sniSet
+					sniTarget = sniSet.Name
+					if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
+						w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
+					} else {
+						matcher.LearnIPToDomain(pkt.dst, host, sniSet)
+						registerLearnedRoute(cfg, sniSet, pkt.dst)
+					}
 				}
 			}
 		}

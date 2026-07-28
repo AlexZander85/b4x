@@ -352,8 +352,10 @@ func (c *Config) validateClassifierConfig(v *validator) {
 	if classifier.SchemaVersion != ClassifierSchemaV23 {
 		v.addf("system.classifier.schema_version", "unsupported_schema", map[string]any{"supported": ClassifierSchemaV23}, "unsupported classifier schema version %d", classifier.SchemaVersion)
 	}
-	if classifier.DomainOnlyMode != DomainOnlyLegacy {
-		v.addf("system.classifier.domain_only_mode", "unsupported_mode", map[string]any{"supported": []string{DomainOnlyLegacy}}, "unsupported DomainOnly mode %q", classifier.DomainOnlyMode)
+	switch classifier.DomainOnlyMode {
+	case DomainStrict, DomainScopedHints, DomainLegacy, DomainDisabled:
+	default:
+		v.addf("system.classifier.domain_only_mode", "unsupported_mode", map[string]any{"supported": []string{DomainStrict, DomainScopedHints, DomainLegacy, DomainDisabled}}, "unsupported DomainOnly mode %q", classifier.DomainOnlyMode)
 	}
 	switch classifier.Flags.TCPReassemblyMode {
 	case ReassemblyOff, ReassemblyObserve:

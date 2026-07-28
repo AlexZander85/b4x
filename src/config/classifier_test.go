@@ -36,6 +36,14 @@ func TestClassifierValidationRejectsUnsupportedModes(t *testing.T) {
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected unsupported DomainOnly mode error")
 	}
+
+	for _, mode := range []string{DomainStrict, DomainScopedHints, DomainLegacy, DomainDisabled} {
+		cfg = NewConfig()
+		cfg.System.Classifier.DomainOnlyMode = mode
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("DomainOnly mode %q rejected: %v", mode, err)
+		}
+	}
 }
 
 func TestRuntimeGenerationLifecycle(t *testing.T) {

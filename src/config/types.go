@@ -72,9 +72,15 @@ type ApiConfig struct {
 
 const (
 	ClassifierSchemaV23 = 1
-	DomainOnlyLegacy    = "legacy"
-	ReassemblyOff       = "off"
-	ReassemblyObserve   = "observe"
+	DomainStrict        = "strict"
+	DomainScopedHints   = "scoped-hints"
+	DomainLegacy        = "legacy"
+	DomainDisabled      = "disabled"
+	// DomainOnlyLegacy is retained as the compatibility name used by older
+	// callers and persisted configurations.
+	DomainOnlyLegacy  = DomainLegacy
+	ReassemblyOff     = "off"
+	ReassemblyObserve = "observe"
 )
 
 // ClassifierFeatureFlags are compatibility-gated switches. All defaults are

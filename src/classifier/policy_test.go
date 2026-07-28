@@ -142,6 +142,43 @@ func TestDecideRevalidatesContext(t *testing.T) {
 	}
 }
 
+func TestDomainOnlyModesUseDomainEvidenceAndKeepTrace(t *testing.T) {
+	now := time.Unix(650, 0)
+	domainOnly := func(setID string) bool { return setID == "domain-only" }
+
+	ctx := testContext(now)
+	ctx.DomainOnlyMode = DomainStrict
+	ctx.DomainOnlySet = domainOnly
+	d := Decide(ctx, []Evidence{
+		testEvidence(EvidenceDNSAnswer, "dns.example", "domain-only", 89, now),
+		testEvidence(EvidencePacketSNI, "clear.example", "domain-only", 95, now),
+	}, DefaultConfidenceThresholds)
+	if d.Selected == nil || d.Selected.Source != EvidencePacketSNI || !d.DomainOnlyApplied || d.DomainOnlyMode != DomainStrict || len(d.Candidates) != 2 {
+		t.Fatalf("strict decision = %+v", d)
+	}
+	if d.DomainOnlyResult != "allowed:strict-domain-evidence" {
+		t.Fatalf("strict result = %q", d.DomainOnlyResult)
+	}
+
+	ctx.DomainOnlyMode = DomainScopedHints
+	d = Decide(ctx, []Evidence{testEvidence(EvidenceDNSAnswer, "dns.example", "domain-only", 89, now)}, DefaultConfidenceThresholds)
+	if d.Selected == nil || d.Selected.Source != EvidenceDNSAnswer || d.DomainOnlyResult != "allowed:scoped-domain-evidence" {
+		t.Fatalf("scoped-hints decision = %+v", d)
+	}
+
+	ctx.DomainOnlyMode = DomainLegacy
+	d = Decide(ctx, []Evidence{testEvidence(EvidenceDNSAnswer, "dns.example", "domain-only", 89, now)}, DefaultConfidenceThresholds)
+	if d.Selected != nil || d.DomainOnlyResult != "rejected:legacy-source" {
+		t.Fatalf("legacy decision = %+v", d)
+	}
+
+	ctx.DomainOnlyMode = DomainDisabled
+	d = Decide(ctx, []Evidence{testEvidence(EvidenceStaticIP, "", "domain-only", 54, now)}, DefaultConfidenceThresholds)
+	if d.Selected == nil || d.Selected.Source != EvidenceStaticIP || d.DomainOnlyResult != "disabled" {
+		t.Fatalf("disabled decision = %+v", d)
+	}
+}
+
 func (e Evidence) withExpiry(expiry time.Time) Evidence {
 	e.ExpiresAt = expiry
 	return e

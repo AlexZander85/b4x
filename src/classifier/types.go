@@ -32,6 +32,15 @@ const (
 	EvidencePortProtocol
 )
 
+type DomainOnlyMode string
+
+const (
+	DomainStrict      DomainOnlyMode = "strict"
+	DomainScopedHints DomainOnlyMode = "scoped-hints"
+	DomainLegacy      DomainOnlyMode = "legacy"
+	DomainDisabled    DomainOnlyMode = "disabled"
+)
+
 // ClientKey is the identity available at the capture boundary. A zero MAC is
 // valid for temporary IP-only identity; IfIndex and VLAN prevent cross-domain
 // merges when the same address is reused.
@@ -110,16 +119,19 @@ type Evidence struct {
 }
 
 type ClassificationDecision struct {
-	Phase       ClassificationPhase
-	Selected    *Evidence
-	Candidates  []Evidence
-	Reason      string
-	Confidence  uint8
-	ECHPresent  bool
-	TLSMetadata TLSMetadata
-	FlowKey     FlowKey
-	ConfigGen   uint64
-	Final       bool
+	Phase             ClassificationPhase
+	Selected          *Evidence
+	Candidates        []Evidence
+	Reason            string
+	Confidence        uint8
+	ECHPresent        bool
+	TLSMetadata       TLSMetadata
+	FlowKey           FlowKey
+	ConfigGen         uint64
+	Final             bool
+	DomainOnlyMode    DomainOnlyMode
+	DomainOnlyApplied bool
+	DomainOnlyResult  string
 }
 
 type ConfidenceThresholds struct {
@@ -147,4 +159,9 @@ type DecisionContext struct {
 	TLSMetadata     TLSMetadata
 	InputIncomplete bool
 	EvidenceValid   func(Evidence) bool
+	DomainOnlyMode  DomainOnlyMode
+	// DomainOnlySet identifies which evidence candidates belong to a set whose
+	// target policy requires domain evidence. Keeping this callback at the
+	// policy boundary avoids importing mutable NFQ/config state into classifier.
+	DomainOnlySet func(setID string) bool
 }

@@ -29,11 +29,13 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 		thresholds = DefaultConfidenceThresholds
 	}
 	decision := ClassificationDecision{
-		Phase:       PhaseInspecting,
-		Candidates:  make([]Evidence, 0, len(input)),
-		FlowKey:     ctx.FlowKey,
-		TLSMetadata: ctx.TLSMetadata,
-		ConfigGen:   ctx.ConfigGen,
+		Phase:            PhaseInspecting,
+		Candidates:       make([]Evidence, 0, len(input)),
+		FlowKey:          ctx.FlowKey,
+		TLSMetadata:      ctx.TLSMetadata,
+		ConfigGen:        ctx.ConfigGen,
+		DomainOnlyMode:   normalizeDomainOnlyMode(ctx.DomainOnlyMode),
+		DomainOnlyResult: "not-applicable",
 	}
 
 	for _, original := range input {
@@ -46,10 +48,26 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 	sortEvidence(decision.Candidates)
 
 	valid := make([]Evidence, 0, len(input))
+	domainFiltered := false
 	for _, e := range decision.Candidates {
-		if ValidForContext(e, ctx) {
-			valid = append(valid, e)
+		if !ValidForContext(e, ctx) {
+			continue
 		}
+		allowed, result := domainOnlyEvidenceAllowed(ctx, e, thresholds)
+		if ctx.DomainOnlySet != nil && ctx.DomainOnlySet(e.SetID) {
+			decision.DomainOnlyApplied = true
+			if decision.DomainOnlyResult == "not-applicable" || allowed {
+				decision.DomainOnlyResult = result
+			}
+		}
+		if !allowed {
+			domainFiltered = true
+			continue
+		}
+		valid = append(valid, e)
+	}
+	if decision.DomainOnlyApplied && decision.DomainOnlyResult == "not-applicable" {
+		decision.DomainOnlyResult = "allowed"
 	}
 	if len(valid) == 0 {
 		if ctx.InputIncomplete || decision.ECHPresent {
@@ -60,11 +78,17 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 				decision.Phase = PhaseInspecting
 				decision.Reason = "awaiting eligible evidence"
 			}
+			if domainFiltered {
+				decision.Reason += "; DomainOnly filtered ineligible evidence"
+			}
 			return decision
 		}
 		decision.Phase = PhaseFinal
 		decision.Final = true
 		decision.Reason = "no eligible evidence"
+		if domainFiltered {
+			decision.Reason += "; DomainOnly filtered ineligible evidence"
+		}
 		return decision
 	}
 
@@ -110,4 +134,54 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 	decision.Phase = PhaseFinal
 	decision.Final = true
 	return decision
+}
+
+func normalizeDomainOnlyMode(mode DomainOnlyMode) DomainOnlyMode {
+	switch mode {
+	case DomainStrict, DomainScopedHints, DomainLegacy, DomainDisabled:
+		return mode
+	default:
+		return DomainLegacy
+	}
+}
+
+func domainOnlyEvidenceAllowed(ctx DecisionContext, e Evidence, thresholds ConfidenceThresholds) (bool, string) {
+	if ctx.DomainOnlySet == nil || !ctx.DomainOnlySet(e.SetID) {
+		return true, "not-applicable"
+	}
+	mode := normalizeDomainOnlyMode(ctx.DomainOnlyMode)
+	if mode == DomainDisabled {
+		return true, "disabled"
+	}
+	if !e.DomainEvidence {
+		return false, "rejected:no-domain-evidence"
+	}
+	if EffectiveConfidence(e) < thresholds.Classify {
+		return false, "rejected:below-confidence"
+	}
+	switch mode {
+	case DomainStrict:
+		switch e.Source {
+		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceStaticHost:
+			return true, "allowed:strict-domain-evidence"
+		default:
+			return false, "rejected:strict-source"
+		}
+	case DomainScopedHints:
+		switch e.Source {
+		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceQUICSNI, EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceStaticHost:
+			return true, "allowed:scoped-domain-evidence"
+		default:
+			return false, "rejected:scoped-source"
+		}
+	case DomainLegacy:
+		switch e.Source {
+		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceStaticHost:
+			return true, "allowed:legacy-domain-evidence"
+		default:
+			return false, "rejected:legacy-source"
+		}
+	default:
+		return false, "rejected:unsupported-mode"
+	}
 }

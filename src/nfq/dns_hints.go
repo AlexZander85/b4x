@@ -76,6 +76,8 @@ func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dpo
 		L4Proto:         protocol,
 		SourceDevice:    pkt.srcMac,
 		FlowKey:         flow,
+		DomainOnlyMode:  classifierDomainOnlyMode(cfg),
+		DomainOnlySet:   func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },
 	}, clientHints, classifier.DefaultConfidenceThresholds)
 	if !decision.CanClassify(classifier.DefaultConfidenceThresholds) || decision.Selected == nil {
 		return nil, false
@@ -98,6 +100,7 @@ func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dpo
 	if protocol == 17 && !set.MatchesUDPDPort(dport) {
 		return nil, false
 	}
+	traceNFQDecision(decision, set, "scoped-hint")
 	return set, true
 }
 
