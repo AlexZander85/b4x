@@ -3,6 +3,8 @@ import { initReactI18next } from "react-i18next";
 
 import en from "./en.json";
 import ru from "./ru.json";
+import classifierEn from "./classifier.en.json";
+import classifierRu from "./classifier.ru.json";
 
 const SUPPORTED = ["en", "ru"] as const;
 type Lang = (typeof SUPPORTED)[number];
@@ -15,10 +17,22 @@ const initial: Lang = (() => {
   return isSupportedLang(cached) ? cached : "en";
 })();
 
+const extendClassifierTranslations = (
+  base: typeof en,
+  extension: typeof classifierEn,
+) => ({
+  ...base,
+  core: {
+    ...base.core,
+    nav: { ...base.core.nav, ...extension.core.nav },
+  },
+  classifier: extension.classifier,
+});
+
 void i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: en },
-    ru: { translation: ru },
+    en: { translation: extendClassifierTranslations(en, classifierEn) },
+    ru: { translation: extendClassifierTranslations(ru, classifierRu as typeof classifierEn) },
   },
   lng: initial,
   fallbackLng: "en",

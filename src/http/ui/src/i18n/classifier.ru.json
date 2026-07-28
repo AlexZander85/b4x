@@ -1,0 +1,114 @@
+{
+  "core": {
+    "nav": {
+      "classifier": "Классификатор"
+    }
+  },
+  "classifier": {
+    "title": "Классификатор потоков",
+    "description": "Source-scoped evidence, TCP lifecycle, причинный Discovery и диагностика транзакционного rollout",
+    "advanced": "Расширенный режим",
+    "refresh": "Обновить",
+    "safeExport": "Безопасный экспорт",
+    "cancel": "Отмена",
+    "safetyBanner": "Консоль работает по принципу fail-open и diagnostics-first. Discovery не изменяет production автоматически; destructive actions и raw export требуют явных gates.",
+    "generation": "Поколение архитектуры",
+    "domainMode": "Режим DomainOnly",
+    "flags": "Feature flags",
+    "tabs": {
+      "overview": "Статус и evidence",
+      "flows": "Потоки / FSM",
+      "dryRun": "Dry-run action",
+      "discovery": "Discovery",
+      "inbox": "Failure Inbox",
+      "lab": "ClientHello Lab",
+      "rollout": "Rollout"
+    },
+    "capture": {
+      "title": "Capture envelope",
+      "offloadWarning": "Предполагается обход через hardware flow offload. Evidence classifier/reassembly может быть неполным; promotion должен оставаться заблокированным.",
+      "notReady": "Capture path не готов. Мутации и rollout должны оставаться fail-open/заблокированными.",
+      "counters": "Счётчики видимости capture",
+      "countersDescription": "First-N, направление, lifecycle и processed-bypass observations из bounded metrics.",
+      "noCounters": "Счётчики capture недоступны; UI не предполагает наличие capability без доказательства."
+    },
+    "evidence": {
+      "title": "Source-scoped evidence",
+      "description": "Privacy-safe кандидаты evidence, используемые phased classifier.",
+      "empty": "В текущем issue bundle нет evidence.",
+      "source": "Источник",
+      "set": "Сет",
+      "domain": "Домен",
+      "confidence": "Confidence",
+      "state": "Состояние"
+    },
+    "flows": {
+      "title": "Диагностика активных потоков",
+      "description": "Фаза FSM, выбранное evidence, результат reassembly и последнее trace-событие.",
+      "empty": "Нет flow-scoped trace-событий.",
+      "actionVisibility": "Идентификатор ActionToken пока не раскрывается per-flow контрактом issue bundle. Причины applied/suppressed показаны только по bounded aggregate metrics.",
+      "actionCounters": "Счётчики action / token",
+      "noActionCounters": "Счётчики action planner, executor или token недоступны."
+    },
+    "dryRun": {
+      "title": "Dry-run сета / стратегии",
+      "description": "Проверяет confidence, host-marker, ECH и amplification без отправки пакетов.",
+      "noPackets": "Dry-run — чистая UI policy evaluation. Он не отправляет, не inject, не hold и не переписывает пакеты.",
+      "strategy": "Стратегия",
+      "confidence": "Confidence",
+      "amplification": "Amplification",
+      "clearHost": "Доступен clear или reassembled host",
+      "allowed": "Допущено к planner dry-run",
+      "blocked": "Заблокировано safety preconditions",
+      "disabledStrategy": "Эта optional strategy выключена в текущей runtime-конфигурации.",
+      "setId": "Идентификатор сета / scope"
+    },
+    "discovery": {
+      "title": "Изолированный Discovery",
+      "description": "Baseline-none, production baseline, candidate outcomes и причинные verdicts.",
+      "manualOnly": "Результаты Discovery — только диагностические кандидаты. Production apply требует явного canary и transactional promotion.",
+      "open": "Открыть Discovery",
+      "noCurrent": "Discovery suite сейчас не запущен.",
+      "causalVerdicts": "Причинные verdicts проб",
+      "noVerdicts": "Нет structured ProbeOutcome.",
+      "history": "История Discovery",
+      "noHistory": "Нет завершённой истории Discovery."
+    },
+    "inbox": {
+      "title": "Passive Failure Candidate Inbox",
+      "description": "Коррелированные source-scoped кандидаты. Destructive action не запускается автоматически.",
+      "empty": "Активных failure candidates нет."
+    },
+    "lab": {
+      "title": "Лаборатория реального ClientHello",
+      "description": "Сравнение privacy-safe metadata захвата, compiled size и MTU fit.",
+      "privacy": "Raw ClientHello остаётся локально и исключён из обычного экспорта. Metadata профилей redacted и bounded.",
+      "empty": "Сохранённых ClientHello profiles нет.",
+      "rawExport": "Запросить raw-capable export"
+    },
+    "rollout": {
+      "title": "Canary / promote / rollback",
+      "description": "Transactional generation controls, last-good policy и диагностическая история.",
+      "unavailable": "Runtime-control action endpoint пока не подключён к HTTP control plane. Controls намеренно видимы, но заблокированы — UI не подменяет транзакционный apply обычным сохранением config.",
+      "prepare": "Подготовить export кандидата",
+      "prepareFirst": "Сначала подготовьте и проверьте candidate.",
+      "runtimeMissing": "Transactional runtime-control endpoint недоступен.",
+      "canary": "Запустить scoped canary",
+      "promote": "Promote candidate",
+      "rollback": "Rollback к last-good",
+      "prepared": "Candidate config экспортирован для проверки. Runtime не изменён.",
+      "history": "История promote / rollback",
+      "noHistory": "В текущем trace нет событий promote или rollback.",
+      "scope": "Scope canary",
+      "scopeValue": "Идентификатор scope",
+      "protocol": "Протокол",
+      "lastGoodUnavailable": "Last-good manifest пока не раскрывается текущим HTTP API. UI показывает только bounded trace истории promote/rollback и не придумывает доступную rollback-цель."
+    },
+    "privacy": {
+      "title": "Подтверждение raw artifacts",
+      "warning": "Raw ClientHello или packet artifacts могут содержать чувствительные данные клиента и назначения. Храните их локально, ограниченно по времени и передавайте только после проверки.",
+      "confirm": "Я понимаю privacy-риск и явно запрашиваю raw-capable export envelope.",
+      "export": "Экспортировать с подтверждением"
+    }
+  }
+}

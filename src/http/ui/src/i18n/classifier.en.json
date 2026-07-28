@@ -1,0 +1,114 @@
+{
+  "core": {
+    "nav": {
+      "classifier": "Classifier"
+    }
+  },
+  "classifier": {
+    "title": "Flow Classifier",
+    "description": "Source-scoped evidence, TCP lifecycle, causal discovery and transactional rollout diagnostics",
+    "advanced": "Advanced mode",
+    "refresh": "Refresh",
+    "safeExport": "Safe export",
+    "cancel": "Cancel",
+    "safetyBanner": "This console is fail-open and diagnostics-first. Discovery never changes production automatically; destructive actions and raw exports require explicit gates.",
+    "generation": "Architecture generation",
+    "domainMode": "DomainOnly mode",
+    "flags": "Feature flags",
+    "tabs": {
+      "overview": "Status & evidence",
+      "flows": "Flows / FSM",
+      "dryRun": "Action dry-run",
+      "discovery": "Discovery",
+      "inbox": "Failure Inbox",
+      "lab": "ClientHello Lab",
+      "rollout": "Rollout"
+    },
+    "capture": {
+      "title": "Capture envelope",
+      "offloadWarning": "Hardware flow offload bypass is suspected. Classifier/reassembly evidence may be incomplete; promotion must remain blocked.",
+      "notReady": "Capture path is not ready. Mutating actions and rollout must remain fail-open/blocked.",
+      "counters": "Capture visibility counters",
+      "countersDescription": "First-N, direction, lifecycle and processed-bypass observations exposed by bounded metrics.",
+      "noCounters": "No capture counters are available; capability visibility is unavailable rather than assumed."
+    },
+    "evidence": {
+      "title": "Source-scoped evidence",
+      "description": "Privacy-safe candidate evidence used by the phased classifier.",
+      "empty": "No evidence is available in the current issue bundle.",
+      "source": "Source",
+      "set": "Set",
+      "domain": "Domain",
+      "confidence": "Confidence",
+      "state": "State"
+    },
+    "flows": {
+      "title": "Active flow diagnostics",
+      "description": "FSM phase, selected evidence, reassembly outcome and the latest trace event.",
+      "empty": "No flow-scoped trace events are available.",
+      "actionVisibility": "ActionToken identity is not exposed per flow by the current issue-bundle contract. Applied/suppressed reasons are shown only from bounded aggregate metrics.",
+      "actionCounters": "Action / token counters",
+      "noActionCounters": "No action planner, executor or token counters are available."
+    },
+    "dryRun": {
+      "title": "Set / strategy dry-run",
+      "description": "Checks confidence, host-marker, ECH and amplification preconditions without sending packets.",
+      "noPackets": "Dry-run is pure UI policy evaluation. It never sends, injects, holds or rewrites a packet.",
+      "strategy": "Strategy",
+      "confidence": "Confidence",
+      "amplification": "Amplification",
+      "clearHost": "Clear or reassembled host is available",
+      "allowed": "Eligible for planner dry-run",
+      "blocked": "Blocked by safety preconditions",
+      "disabledStrategy": "This optional strategy is disabled in the current runtime configuration.",
+      "setId": "Set / scope identifier"
+    },
+    "discovery": {
+      "title": "Isolated Discovery",
+      "description": "Baseline-none, production baseline, candidate outcomes and causal verdicts.",
+      "manualOnly": "Discovery results are diagnostic candidates only. Production apply requires an explicit canary and transactional promotion.",
+      "open": "Open Discovery",
+      "noCurrent": "No Discovery suite is running.",
+      "causalVerdicts": "Causal probe verdicts",
+      "noVerdicts": "No structured probe outcomes are available.",
+      "history": "Discovery history",
+      "noHistory": "No completed Discovery history is available."
+    },
+    "inbox": {
+      "title": "Passive Failure Candidate Inbox",
+      "description": "Correlated source-scoped candidates. No destructive action is triggered automatically.",
+      "empty": "No passive failure candidates are active."
+    },
+    "lab": {
+      "title": "Real ClientHello Laboratory",
+      "description": "Compare privacy-safe capture metadata, compiled size and MTU fit.",
+      "privacy": "Raw ClientHello bytes stay local and are excluded from normal exports. Profile metadata is redacted and bounded.",
+      "empty": "No retained ClientHello profiles are available.",
+      "rawExport": "Request raw-capable export"
+    },
+    "rollout": {
+      "title": "Canary / promote / rollback",
+      "description": "Transactional generation controls, last-good policy and diagnostic history.",
+      "unavailable": "The runtime-control action endpoint is not connected to the HTTP control plane yet. Controls are intentionally visible but disabled rather than falling back to a non-transactional config save.",
+      "prepare": "Prepare candidate export",
+      "prepareFirst": "Prepare and review a candidate first.",
+      "runtimeMissing": "Transactional runtime-control endpoint is unavailable.",
+      "canary": "Start scoped canary",
+      "promote": "Promote candidate",
+      "rollback": "Rollback to last-good",
+      "prepared": "Candidate configuration exported for offline review. No runtime change was applied.",
+      "history": "Promotion / rollback history",
+      "noHistory": "No promotion or rollback events are present in the current trace.",
+      "scope": "Canary scope",
+      "scopeValue": "Scope identifier",
+      "protocol": "Protocol",
+      "lastGoodUnavailable": "The last-good manifest is not exposed by the current HTTP API. The UI shows only bounded promote/rollback trace history and does not infer a usable rollback target."
+    },
+    "privacy": {
+      "title": "Raw artifact confirmation",
+      "warning": "Raw ClientHello or packet artifacts can contain sensitive client and destination data. Keep them local, time-bound and share only after review.",
+      "confirm": "I understand the privacy risk and explicitly request a raw-capable export envelope.",
+      "export": "Export with confirmation"
+    }
+  }
+}

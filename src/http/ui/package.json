@@ -8,7 +8,8 @@
     "watch": "pnpm dev",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "pnpm eslint . --fix"
+    "lint": "pnpm eslint . --fix",
+    "test:classifier": "node scripts/validate-classifier-ui.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

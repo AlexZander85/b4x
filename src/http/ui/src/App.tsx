@@ -35,6 +35,7 @@ import {
   SecurityIcon,
   SetsIcon,
   WatchdogIcon,
+  FingerprintIcon,
 } from "@b4.icons";
 import { colors, theme } from "@design";
 import { useAuth } from "@context/AuthProvider";
@@ -46,6 +47,7 @@ import Version from "@components/version/Version";
 import { useWebSocket } from "./context/B4WsProvider";
 
 import { ConnectionsPage } from "@b4.connections";
+import { ClassifierPage } from "@b4.classifier";
 import { DashboardPage } from "@b4.dashboard";
 import { DetectorPage } from "@b4.detector";
 import { DiscoveryPage } from "@b4.discovery";
@@ -67,6 +69,7 @@ const navItems: NavItem[] = [
   { path: "/dashboard", labelKey: "core.nav.dashboard", icon: <DashboardIcon /> },
   { path: "/sets", labelKey: "core.nav.sets", icon: <SetsIcon /> },
   { path: "/discovery", labelKey: "core.nav.discovery", icon: <DiscoveryIcon /> },
+  { path: "/classifier", labelKey: "core.nav.classifier", icon: <FingerprintIcon /> },
   { path: "/watchdog", labelKey: "core.nav.watchdog", icon: <WatchdogIcon /> },
   { path: "/detector", labelKey: "core.nav.detector", icon: <SecurityIcon /> },
   { path: "/traffic", labelKey: "core.nav.connections", icon: <ConnectionIcon /> },
@@ -102,6 +105,7 @@ export default function App() {
     if (path.startsWith("/traffic")) return t("core.nav.connections");
     if (path.startsWith("/discovery")) return t("core.nav.discovery");
     if (path.startsWith("/watchdog")) return t("core.nav.watchdog");
+    if (path.startsWith("/classifier")) return t("core.nav.classifier");
     if (path.startsWith("/logs")) return t("core.nav.logs");
     if (path.startsWith("/detector")) return t("core.nav.detector");
     if (path.startsWith("/settings")) return t("core.nav.settings");
@@ -259,6 +263,7 @@ export default function App() {
               <Route path="/traffic" element={<ConnectionsPage />} />
               <Route path="/connections" element={<Navigate to="/traffic" replace />} />
               <Route path="/discovery" element={<DiscoveryPage />} />
+              <Route path="/classifier" element={<ClassifierPage />} />
               <Route path="/watchdog" element={<WatchdogPage />} />
               <Route path="/detector" element={<DetectorPage />} />
               <Route path="/logs" element={<LogsPage />} />
