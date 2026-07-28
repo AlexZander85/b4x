@@ -254,6 +254,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	isSyn := (tcpFlags & 0x02) != 0
 	isAck := (tcpFlags & 0x10) != 0
 	isRst := (tcpFlags & 0x04) != 0
+	if sequence, ok := tcpPacketSequence(tcp); ok {
+		w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcpFlags, payload)
+	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
 		return vc.accept()

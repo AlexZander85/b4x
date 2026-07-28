@@ -19,10 +19,11 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	w := &Worker{
-		qnum:     qnum,
-		ctx:      ctx,
-		cancel:   cancel,
-		dnsHints: classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
+		qnum:          qnum,
+		ctx:           ctx,
+		cancel:        cancel,
+		dnsHints:      classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
+		tcpReassembly: classifier.NewTCPReassemblyStore(classifier.DefaultTCPReassemblyConfig()),
 	}
 
 	w.cfg.Store(cfg)
@@ -109,6 +110,11 @@ func NewPool(cfg *config.Config) *Pool {
 				pool.state.connState.Cleanup()
 				pool.state.tlsCache.Cleanup()
 				pool.state.destState.Cleanup(300 * time.Second)
+				for _, worker := range pool.Workers {
+					if worker.tcpReassembly != nil {
+						worker.tcpReassembly.GC(time.Now())
+					}
+				}
 			case <-escalationTicker.C:
 				metrics.GetMetricsCollector().UpdateEscalations(pool.GetEscalations())
 			case <-pool.stopCleanup:

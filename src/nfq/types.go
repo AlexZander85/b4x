@@ -54,4 +54,5 @@ type Worker struct {
 	destState        *destStateTracker
 	srcResolver      *tunSrcResolver
 	dnsHints         *classifier.HostHintStore
+	tcpReassembly    *classifier.TCPReassemblyStore
 }
