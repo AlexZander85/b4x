@@ -11,12 +11,13 @@ import (
 )
 
 type API struct {
-	cfgPtr         *atomic.Pointer[config.Config]
-	mux            *http.ServeMux
-	geodataManager *geodat.GeodataManager
-	discoveryRT    *discovery.Runtime
-	asnStore       *config.AsnStore
-	runtimeControl atomic.Pointer[runtimecontrol.Manager]
+	cfgPtr          *atomic.Pointer[config.Config]
+	mux             *http.ServeMux
+	geodataManager  *geodat.GeodataManager
+	discoveryRT     *discovery.Runtime
+	asnStore        *config.AsnStore
+	runtimeControl  atomic.Pointer[runtimecontrol.Manager]
+	ppeCapabilities PPECapabilityProvider
 
 	overrideServiceManager func() string
 }
