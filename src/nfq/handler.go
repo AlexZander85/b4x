@@ -208,14 +208,17 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	payload := tcp[datOff:]
 	sport := binary.BigEndian.Uint16(tcp[0:2])
 	dport := binary.BigEndian.Uint16(tcp[2:4])
+	var reassemblyResult classifier.TCPReassemblyResult
 	if sequence, ok := tcpPacketSequence(tcp); ok {
-		w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
+		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
 	}
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
 	if cfg.IsTCPPort(sport) {
+		w.releaseTCPHoldOnServerProgress(pkt, sport, dport)
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
+	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
 
 	if matched && !set.MatchesTCPDPort(dport) {
 		matched = false
@@ -245,10 +248,12 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			}
 		}
 	}
+	matchedScopedHint := false
 	if !matched {
 		if hintSet, ok := w.matchScopedDNSHintWithMetadata(cfg, pkt, sport, dport, 6, tlsMetadata); ok {
 			matched = true
 			set = hintSet
+			matchedScopedHint = true
 		}
 	}
 
@@ -261,6 +266,17 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
 		return vc.accept()
+	}
+	if flowKeyOK && w.tcpHold != nil {
+		if reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted {
+			w.tcpHold.Release(flowKey, reassemblyResult.Reason)
+		}
+		generation := dnsHintConfigGeneration(cfg)
+		if held, failOpen := w.maybeHoldTCPPacket(cfg, pkt, flowKey, generation, dport, payload, tcpFlags, tlsMetadata, reassemblyResult, matchedScopedHint, vc.q, vc.id); held {
+			return 0
+		} else if failOpen {
+			return vc.accept()
+		}
 	}
 
 	if matched && !routeTProxy && cfg.IsTCPPort(dport) && set.TCP.Duplicate.Enabled && set.TCP.Duplicate.Count > 0 {

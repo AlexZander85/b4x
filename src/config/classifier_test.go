@@ -19,6 +19,9 @@ func TestLegacyConfigGetsPassiveClassifierDefaults(t *testing.T) {
 	if cfg.System.Classifier.Flags.TCPReassemblyMode != ReassemblyOff {
 		t.Fatalf("reassembly mode = %q, want %q", cfg.System.Classifier.Flags.TCPReassemblyMode, ReassemblyOff)
 	}
+	if cfg.System.Classifier.Flags.TCPHoldReplayMode != HoldReplayOff {
+		t.Fatalf("hold/replay mode = %q, want %q", cfg.System.Classifier.Flags.TCPHoldReplayMode, HoldReplayOff)
+	}
 	if cfg.System.Classifier.Flags.ClassifierV2Enabled || cfg.System.Classifier.Flags.CaptureEnvelopeEnabled {
 		t.Fatal("legacy defaults must not enable runtime classifier/capture")
 	}
@@ -43,6 +46,24 @@ func TestClassifierValidationRejectsUnsupportedModes(t *testing.T) {
 		if err := cfg.Validate(); err != nil {
 			t.Fatalf("DomainOnly mode %q rejected: %v", mode, err)
 		}
+	}
+
+	for _, mode := range []string{HoldReplayOff, HoldReplayObserve, HoldReplayAuto, HoldReplayDebug} {
+		cfg = NewConfig()
+		cfg.System.Classifier.Flags.TCPHoldReplayMode = mode
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("hold/replay mode %q rejected: %v", mode, err)
+		}
+	}
+
+	cfg = NewConfig()
+	cfg.System.Classifier.Flags.TCPHoldReplayMode = ""
+	cfg.System.Classifier.Flags.AutoHoldReplayEnabled = true
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("legacy auto hold/replay config rejected: %v", err)
+	}
+	if cfg.System.Classifier.Flags.TCPHoldReplayMode != HoldReplayAuto {
+		t.Fatalf("legacy auto hold/replay migration = %q", cfg.System.Classifier.Flags.TCPHoldReplayMode)
 	}
 }
 

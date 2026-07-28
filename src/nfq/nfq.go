@@ -464,6 +464,9 @@ func (w *Worker) Stop() {
 	if w.cancel != nil {
 		w.cancel()
 	}
+	if w.tcpHold != nil {
+		w.tcpHold.ReleaseAll(tcpHoldAbortShutdown)
+	}
 	if w.q != nil {
 		_ = w.q.Close()
 	}

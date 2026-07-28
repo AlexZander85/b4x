@@ -12,29 +12,37 @@ import (
 // observeTCPReassembly is deliberately observe-only: it copies bounded
 // client-to-server payload ranges for metadata and never changes the NFQ
 // verdict, delays a packet, or invokes an action executor.
-func (w *Worker) observeTCPReassembly(cfg *config.Config, pkt *pktInfo, sequence uint32, sport, dport uint16, flags byte, payload []byte) {
+func (w *Worker) observeTCPReassembly(cfg *config.Config, pkt *pktInfo, sequence uint32, sport, dport uint16, flags byte, payload []byte) classifier.TCPReassemblyResult {
 	if cfg == nil || pkt == nil || w.tcpReassembly == nil || cfg.System.Classifier.Flags.TCPReassemblyMode != config.ReassemblyObserve || cfg.IsTCPPort(sport) {
-		return
+		return classifier.TCPReassemblyResult{}
 	}
 	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
 	if !ok {
-		return
+		return classifier.TCPReassemblyResult{}
 	}
 	key := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), sport, dport, 6)
 	generation := dnsHintConfigGeneration(cfg)
 	isSyn := flags&classifier.TCPFlagSYN != 0
 	isAck := flags&classifier.TCPFlagACK != 0
+	result := classifier.TCPReassemblyResult{Status: classifier.ReassemblyPartial, Reason: "no payload observed", Key: key}
 	if isSyn && !isAck {
 		w.tcpReassembly.Start(key, sequence+1, generation)
+		result.BaseSequence = sequence + 1
+		result.Sequence = sequence + 1
+		result.Reason = "SYN sequence base established"
 		if len(payload) > 0 {
-			w.logReassemblyResult(w.tcpReassembly.Observe(key, sequence+1, payload, generation))
+			result = w.tcpReassembly.Observe(key, sequence+1, payload, generation)
+			w.logReassemblyResult(result)
 		}
 	} else if len(payload) > 0 {
-		w.logReassemblyResult(w.tcpReassembly.Observe(key, sequence, payload, generation))
+		result = w.tcpReassembly.Observe(key, sequence, payload, generation)
+		w.logReassemblyResult(result)
 	}
 	if flags&(classifier.TCPFlagFIN|classifier.TCPFlagRST) != 0 {
-		w.logReassemblyResult(w.tcpReassembly.ObserveEvent(key, tcpTerminalEvent(flags), generation))
+		result = w.tcpReassembly.ObserveEvent(key, tcpTerminalEvent(flags), generation)
+		w.logReassemblyResult(result)
 	}
+	return result
 }
 
 func tcpTerminalEvent(flags byte) classifier.TCPFlowEvent {

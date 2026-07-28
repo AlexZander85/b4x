@@ -55,4 +55,5 @@ type Worker struct {
 	srcResolver      *tunSrcResolver
 	dnsHints         *classifier.HostHintStore
 	tcpReassembly    *classifier.TCPReassemblyStore
+	tcpHold          *TCPHoldStore
 }

@@ -348,6 +348,13 @@ func (c *Config) validateClassifierConfig(v *validator) {
 	if classifier.Flags.TCPReassemblyMode == "" {
 		classifier.Flags.TCPReassemblyMode = defaults.Flags.TCPReassemblyMode
 	}
+	if classifier.Flags.TCPHoldReplayMode == "" {
+		if classifier.Flags.AutoHoldReplayEnabled {
+			classifier.Flags.TCPHoldReplayMode = HoldReplayAuto
+		} else {
+			classifier.Flags.TCPHoldReplayMode = defaults.Flags.TCPHoldReplayMode
+		}
+	}
 
 	if classifier.SchemaVersion != ClassifierSchemaV23 {
 		v.addf("system.classifier.schema_version", "unsupported_schema", map[string]any{"supported": ClassifierSchemaV23}, "unsupported classifier schema version %d", classifier.SchemaVersion)
@@ -361,6 +368,11 @@ func (c *Config) validateClassifierConfig(v *validator) {
 	case ReassemblyOff, ReassemblyObserve:
 	default:
 		v.addf("system.classifier.flags.tcp_reassembly_mode", "unsupported_mode", map[string]any{"supported": []string{ReassemblyOff, ReassemblyObserve}}, "unsupported TCP reassembly mode %q", classifier.Flags.TCPReassemblyMode)
+	}
+	switch classifier.Flags.TCPHoldReplayMode {
+	case HoldReplayOff, HoldReplayObserve, HoldReplayAuto, HoldReplayDebug:
+	default:
+		v.addf("system.classifier.flags.tcp_hold_replay_mode", "unsupported_mode", map[string]any{"supported": []string{HoldReplayOff, HoldReplayObserve, HoldReplayAuto, HoldReplayDebug}}, "unsupported TCP hold/replay mode %q", classifier.Flags.TCPHoldReplayMode)
 	}
 }
 

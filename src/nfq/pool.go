@@ -24,6 +24,7 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 		cancel:        cancel,
 		dnsHints:      classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
 		tcpReassembly: classifier.NewTCPReassemblyStore(classifier.DefaultTCPReassemblyConfig()),
+		tcpHold:       NewTCPHoldStore(DefaultTCPHoldConfig()),
 	}
 
 	w.cfg.Store(cfg)
@@ -113,6 +114,9 @@ func NewPool(cfg *config.Config) *Pool {
 				for _, worker := range pool.Workers {
 					if worker.tcpReassembly != nil {
 						worker.tcpReassembly.GC(time.Now())
+					}
+					if worker.tcpHold != nil {
+						worker.tcpHold.GC(time.Now())
 					}
 				}
 			case <-escalationTicker.C:

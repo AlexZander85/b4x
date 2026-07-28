@@ -81,6 +81,10 @@ const (
 	DomainOnlyLegacy  = DomainLegacy
 	ReassemblyOff     = "off"
 	ReassemblyObserve = "observe"
+	HoldReplayOff     = "off"
+	HoldReplayObserve = "observe"
+	HoldReplayAuto    = "auto"
+	HoldReplayDebug   = "always-debug"
 )
 
 // ClassifierFeatureFlags are compatibility-gated switches. All defaults are
@@ -94,6 +98,7 @@ type ClassifierFeatureFlags struct {
 	CaptureEnvelopeEnabled    bool   `json:"capture_envelope_enabled"`
 	TCPReassemblyMode         string `json:"tcp_reassembly_mode"`
 	AutoHoldReplayEnabled     bool   `json:"auto_hold_replay_enabled"`
+	TCPHoldReplayMode         string `json:"tcp_hold_replay_mode"`
 	ActionPlannerV2Enabled    bool   `json:"action_planner_v2_enabled"`
 	DiscoveryV23Enabled       bool   `json:"discovery_v23_enabled"`
 	ClientHelloLabEnabled     bool   `json:"clienthello_lab_enabled"`
@@ -113,6 +118,7 @@ var DefaultClassifierConfig = ClassifierConfig{
 	DomainOnlyMode: DomainOnlyLegacy,
 	Flags: ClassifierFeatureFlags{
 		TCPReassemblyMode: ReassemblyOff,
+		TCPHoldReplayMode: HoldReplayOff,
 	},
 }
 
