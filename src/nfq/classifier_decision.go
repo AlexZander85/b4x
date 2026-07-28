@@ -1,12 +1,14 @@
 package nfq
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/observability"
 )
 
 func classifierDomainOnlyMode(cfg *config.Config) classifier.DomainOnlyMode {
@@ -121,6 +123,69 @@ func traceNFQDecision(decision classifier.ClassificationDecision, set *config.Se
 	}
 	log.Tracef("classifier decision phase=%s evidence=%v selected=%s confidence=%d corroborated=%t ech=%t host_markers=%t conflicts=%d domain_only=%s/%s set=%s strategy=%s reason=%s",
 		decision.Phase, evidence, selected, decision.Confidence, decision.Corroborated, decision.ECHPresent, decision.CanUseHostMarkers(), len(decision.Conflicts), decision.DomainOnlyMode, decision.DomainOnlyResult, setName, strategy, decision.Reason)
+	recordObservabilityDecision(decision, strategy)
+}
+
+func recordObservabilityDecision(decision classifier.ClassificationDecision, strategy string) {
+	selectedSource := "none"
+	selectedSet := ""
+	if decision.Selected != nil {
+		selectedSource = decision.Selected.Source.String()
+		selectedSet = decision.Selected.SetID
+	}
+	labels := map[string]string{"phase": decision.Phase.String(), "source": selectedSource}
+	observability.Default().Metrics.Inc(observability.MetricClassifierDecisions, labels, 1)
+	observability.Default().Metrics.Observe(observability.MetricClassifierConfidence, labels, float64(decision.Confidence))
+	if decision.Phase == classifier.PhaseAmbiguous {
+		observability.Default().Metrics.Inc(observability.MetricClassifierAmbiguous, map[string]string{"reason": "multiple-candidates"}, 1)
+	}
+	if decision.ECHPresent {
+		echSource := selectedSource
+		observability.Default().Metrics.Inc(observability.MetricECHClientHello, map[string]string{"source": echSource}, 1)
+		if !decision.CanUseHostMarkers() {
+			observability.Default().Metrics.Inc(observability.MetricECHFallback, map[string]string{"source": echSource}, 1)
+		}
+	}
+	for _, candidate := range decision.Candidates {
+		observability.Default().Metrics.Inc(observability.MetricClassifierEvidence, map[string]string{"source": candidate.Source.String()}, 1)
+		observability.Default().RecordEvidence(observability.EvidenceSummary{
+			Source:     candidate.Source.String(),
+			SetID:      candidate.SetID,
+			DomainID:   candidate.Domain,
+			Confidence: candidate.Confidence,
+			ECH:        decision.ECHPresent || candidate.ECHRelated,
+			Fresh:      candidate.ExpiresAt.IsZero() || candidate.ExpiresAt.After(time.Now()),
+		})
+	}
+	identity := "unresolved"
+	if decision.FlowKey.Client.SourceIP.IsValid() {
+		identity = "ip-only"
+		if decision.FlowKey.Client.SourceMAC != [6]byte{} {
+			identity = "full"
+		}
+	}
+	observability.Default().Trace.Record(observability.TraceEvent{
+		Timestamp: time.Now(),
+		ClientID:  fmt.Sprintf("%v", decision.FlowKey.Client),
+		FlowID:    fmt.Sprintf("%v", decision.FlowKey),
+		Kind:      "classifier_decision",
+		Fields: map[string]string{
+			"client_identity": identity,
+			"phase":           decision.Phase.String(),
+			"selected_source": selectedSource,
+			"set_id":          observability.RedactIdentifier(selectedSet),
+			"confidence":      fmt.Sprintf("%d", decision.Confidence),
+			"candidate_count": fmt.Sprintf("%d", len(decision.Candidates)),
+			"corroborated":    fmt.Sprintf("%t", decision.Corroborated),
+			"ech":             fmt.Sprintf("%t", decision.ECHPresent),
+			"host_markers":    fmt.Sprintf("%t", decision.CanUseHostMarkers()),
+			"conflicts":       fmt.Sprintf("%d", len(decision.Conflicts)),
+			"domain_only":     string(decision.DomainOnlyMode),
+			"domain_result":   decision.DomainOnlyResult,
+			"strategy":        strategy,
+			"reason":          decision.Reason,
+		},
+	})
 }
 
 func (w *Worker) allowNFQDomainDecision(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string) bool {

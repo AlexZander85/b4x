@@ -2,10 +2,12 @@ package nfq
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/sni"
 )
 
@@ -27,6 +29,7 @@ func (w *Worker) observeTCPReassembly(cfg *config.Config, pkt *pktInfo, sequence
 	result := classifier.TCPReassemblyResult{Status: classifier.ReassemblyPartial, Reason: "no payload observed", Key: key}
 	if isSyn && !isAck {
 		w.tcpReassembly.Start(key, sequence+1, generation)
+		observability.Default().Metrics.Inc(observability.MetricTCPReassemblyStarted, map[string]string{"reason": "syn"}, 1)
 		result.BaseSequence = sequence + 1
 		result.Sequence = sequence + 1
 		result.Reason = "SYN sequence base established"
@@ -58,6 +61,47 @@ func (w *Worker) logReassemblyResult(result classifier.TCPReassemblyResult) {
 	}
 	log.Tracef("tcp reassembly status=%s reason=%s segments=%d bytes=%d duplicate=%t sni=%s ech=%t need=%d",
 		result.Status, result.Reason, result.SegmentCount, result.BufferedBytes, result.Duplicate, result.Metadata.SNI, result.Metadata.ECHPresent, result.Metadata.NeedBytes)
+	labels := map[string]string{"status": result.Status.String()}
+	observability.Default().Metrics.Inc(observability.MetricTCPFlowPhase, labels, 1)
+	switch result.Status {
+	case classifier.ReassemblyComplete:
+		observability.Default().Metrics.Inc(observability.MetricTCPReassemblyCompleted, map[string]string{"reason": "clienthello"}, 1)
+	case classifier.ReassemblyAborted:
+		observability.Default().Metrics.Inc(observability.MetricTCPReassemblyAborted, map[string]string{"reason": sanitizeReassemblyReason(result.Reason)}, 1)
+	}
+	observability.Default().Trace.Record(observability.TraceEvent{
+		ClientID: fmt.Sprintf("%v", result.Key.Client),
+		FlowID:   fmt.Sprintf("%v", result.Key),
+		Kind:     "tcp_reassembly",
+		Fields: map[string]string{
+			"status":      result.Status.String(),
+			"reason":      sanitizeReassemblyReason(result.Reason),
+			"segments":    fmt.Sprintf("%d", result.SegmentCount),
+			"buffered":    fmt.Sprintf("%d", result.BufferedBytes),
+			"duplicate":   fmt.Sprintf("%t", result.Duplicate),
+			"identical":   fmt.Sprintf("%t", result.IdenticalOverlap),
+			"conflicting": fmt.Sprintf("%t", result.ConflictingOverlap),
+			"sni_hash":    observability.RedactDomain(result.Metadata.SNI),
+			"ech":         fmt.Sprintf("%t", result.Metadata.ECHPresent),
+			"need_bytes":  fmt.Sprintf("%d", result.Metadata.NeedBytes),
+			"clienthello": fmt.Sprintf("%d", result.Metadata.ClientHelloSize),
+		},
+	})
+}
+
+func sanitizeReassemblyReason(reason string) string {
+	// Reasons are normally constants from classifier; keep arbitrary parser
+	// errors out of metric labels while preserving useful failure classes.
+	switch reason {
+	case classifier.ReassemblyAbortTimeout, classifier.ReassemblyAbortFIN, classifier.ReassemblyAbortRST,
+		classifier.ReassemblyAbortConfigGeneration, classifier.ReassemblyAbortBudget,
+		classifier.ReassemblyAbortConflictingOverlap, classifier.ReassemblyAbortMalformed,
+		classifier.ReassemblyAbortSequenceBeforeBase, classifier.ReassemblyAbortManual,
+		"SYN sequence base established", "clienthello complete":
+		return reason
+	default:
+		return "other"
+	}
 }
 
 func (w *Worker) tcpTLSDecisionMetadata(cfg *config.Config, pkt *pktInfo, sport, dport uint16, payload []byte) classifier.TLSMetadata {

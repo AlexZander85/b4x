@@ -1,6 +1,11 @@
 package action
 
-import "time"
+import (
+	"strconv"
+	"time"
+
+	"github.com/daniellavrushin/b4/observability"
+)
 
 type SplitPosition struct {
 	Offset uint64
@@ -98,5 +103,6 @@ func Plan(input PlanInput) (ActionPlan, error) {
 	}
 	plan.Valid = true
 	plan.Reason = "stream-offset action plan is valid"
+	observability.Default().Metrics.Inc(observability.MetricTCPActionPlanned, map[string]string{"dry_run": strconv.FormatBool(plan.DryRun)}, 1)
 	return plan, nil
 }

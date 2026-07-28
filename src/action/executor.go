@@ -2,7 +2,10 @@ package action
 
 import (
 	"context"
+	"strconv"
 	"time"
+
+	"github.com/daniellavrushin/b4/observability"
 )
 
 type PacketSender interface {
@@ -143,6 +146,7 @@ func (e *Executor) ExecuteContext(ctx context.Context, original []byte, plan Act
 	}
 	result.Applied = true
 	result.Reason = "all planned packets sent"
+	observability.Default().Metrics.Inc(observability.MetricTCPActionApplied, map[string]string{"dry_run": strconv.FormatBool(result.DryRun)}, 1)
 	return result
 }
 
