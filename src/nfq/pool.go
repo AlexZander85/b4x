@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/dhcp"
 	"github.com/daniellavrushin/b4/log"
@@ -18,9 +19,10 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	w := &Worker{
-		qnum:   qnum,
-		ctx:    ctx,
-		cancel: cancel,
+		qnum:     qnum,
+		ctx:      ctx,
+		cancel:   cancel,
+		dnsHints: classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
 	}
 
 	w.cfg.Store(cfg)
@@ -61,6 +63,7 @@ func NewPool(cfg *config.Config) *Pool {
 	}
 
 	matcher := buildMatcher(cfg)
+	hintStore := classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil)
 
 	dhcpMgr := dhcp.NewManager()
 
@@ -73,6 +76,7 @@ func NewPool(cfg *config.Config) *Pool {
 		w.tlsCache = state.tlsCache
 		w.connTracker = state.connState
 		w.destState = state.destState
+		w.dnsHints = hintStore
 		ws = append(ws, w)
 	}
 
@@ -202,10 +206,19 @@ func (p *Pool) UpdateConfig(newCfg *config.Config) error {
 
 	var oldMatcher *sni.SuffixSet
 	reuse := false
+	var oldCfg *config.Config
 	if len(p.Workers) > 0 {
 		oldMatcher = p.Workers[0].getMatcher()
-		if oldCfg := p.Workers[0].getConfig(); oldCfg != nil {
+		oldCfg = p.Workers[0].getConfig()
+		if oldCfg != nil {
 			reuse = reflect.DeepEqual(oldCfg.Sets, newCfg.Sets)
+		}
+	}
+	if len(p.Workers) > 0 && p.Workers[0].dnsHints != nil {
+		oldGeneration := dnsHintConfigGeneration(oldCfg)
+		newGeneration := dnsHintConfigGeneration(newCfg)
+		if oldGeneration != 0 && oldGeneration != newGeneration {
+			p.Workers[0].dnsHints.InvalidateGeneration(oldGeneration)
 		}
 	}
 

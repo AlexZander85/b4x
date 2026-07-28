@@ -211,6 +211,10 @@ func (w *Worker) processDnsPacket(vc *verdictCtx, ipVersion byte, sport uint16, 
 				clientIP = net.IP(raw[24:40])
 				dnsServerIP = net.IP(raw[8:24])
 			}
+			cfg := w.getConfig()
+			if clientIP != nil {
+				w.observeDNSResponse(cfg, payload, clientIP, w.getMacByIp(clientIP.String()), dnsServerIP.String())
+			}
 
 			routed := false
 			if domain != "" {
@@ -271,6 +275,9 @@ func (w *Worker) resolveDNSRedirect(ipVersion byte, set *config.SetConfig, cfg *
 	}
 
 	w.sendDNSResponseToClient(ipVersion, originalDst, clientIP, clientPort, resp)
+	if cfg.System.Classifier.Flags.ScopedDNSHintsEnabled {
+		w.observeDNSResponse(cfg, resp, clientIP, w.getMacByIp(clientIP.String()), upstreamResolverID(set))
+	}
 
 	if set.Routing.Enabled && !set.Targets.DomainOnly && !cfg.Queue.IsDiscovery && RoutingHandleDNSFunc != nil {
 		if ips := dns.ParseResponseIPs(resp); len(ips) > 0 {
@@ -283,6 +290,16 @@ func (w *Worker) resolveDNSRedirect(ipVersion byte, set *config.SetConfig, cfg *
 		upstream = set.DNS.DoHURL
 	}
 	log.Tracef("DNS redirect: %s -> %s answered for %s with %d IPs (set: %s)", originalDst, upstream, clientIP, len(dns.ParseResponseIPs(resp)), set.Name)
+}
+
+func upstreamResolverID(set *config.SetConfig) string {
+	if set == nil {
+		return ""
+	}
+	if set.DNS.DoHURL != "" {
+		return set.DNS.DoHURL
+	}
+	return set.DNS.TargetDNS
 }
 
 func (w *Worker) sendDNSResponseToClient(ipVersion byte, originalDst, clientIP net.IP, clientPort uint16, resp []byte) {

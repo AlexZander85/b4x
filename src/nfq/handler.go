@@ -233,6 +233,12 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			set = portSet
 		}
 	}
+	if !matched {
+		if hintSet, ok := w.matchScopedDNSHint(cfg, pkt, sport, dport, 6); ok {
+			matched = true
+			set = hintSet
+		}
+	}
 
 	routeTProxy := matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode)
 
@@ -640,6 +646,13 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			matched = true
 			set = portSet
 			ipTarget = portSet.Name
+		}
+	}
+	if !matched {
+		if hintSet, ok := w.matchScopedDNSHint(cfg, pkt, sport, dport, 17); ok {
+			matched = true
+			set = hintSet
+			ipTarget = hintSet.Name
 		}
 	}
 

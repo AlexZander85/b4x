@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/dhcp"
 	"github.com/daniellavrushin/b4/sock"
 	"github.com/florianl/go-nfqueue"
@@ -52,4 +53,5 @@ type Worker struct {
 	connTracker      *connStateTracker
 	destState        *destStateTracker
 	srcResolver      *tunSrcResolver
+	dnsHints         *classifier.HostHintStore
 }
