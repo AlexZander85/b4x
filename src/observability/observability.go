@@ -295,15 +295,17 @@ type IssueBundle struct {
 }
 
 type Recorder struct {
-	Metrics     *MetricsRegistry
-	Trace       *TraceRecorder
-	mu          sync.Mutex
-	evidence    []EvidenceSummary
-	maxEvidence int
+	Metrics          *MetricsRegistry
+	Trace            *TraceRecorder
+	mu               sync.Mutex
+	evidence         []EvidenceSummary
+	probeOutcomes    []ProbeOutcomeSummary
+	maxEvidence      int
+	maxProbeOutcomes int
 }
 
 func NewRecorder() *Recorder {
-	return &Recorder{Metrics: NewMetricsRegistry(1024), Trace: NewTraceRecorder(512), evidence: make([]EvidenceSummary, 0, 256), maxEvidence: 256}
+	return &Recorder{Metrics: NewMetricsRegistry(1024), Trace: NewTraceRecorder(512), evidence: make([]EvidenceSummary, 0, 256), probeOutcomes: make([]ProbeOutcomeSummary, 0, 64), maxEvidence: 256, maxProbeOutcomes: 64}
 }
 
 // RecordEvidence retains only the bounded, redacted summary needed to explain
@@ -327,6 +329,24 @@ func (r *Recorder) RecordEvidence(summary EvidenceSummary) {
 	r.evidence = append(r.evidence, summary)
 }
 
+// RecordProbeOutcome keeps the latest bounded outcome summaries for issue
+// bundles. Body payloads and raw request/response data are never retained.
+func (r *Recorder) RecordProbeOutcome(summary ProbeOutcomeSummary) {
+	if r == nil || strings.TrimSpace(summary.Verdict) == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.maxProbeOutcomes <= 0 {
+		r.maxProbeOutcomes = 64
+	}
+	if len(r.probeOutcomes) == r.maxProbeOutcomes {
+		copy(r.probeOutcomes, r.probeOutcomes[1:])
+		r.probeOutcomes = r.probeOutcomes[:r.maxProbeOutcomes-1]
+	}
+	r.probeOutcomes = append(r.probeOutcomes, summary)
+}
+
 func (r *Recorder) Bundle(meta BundleMeta) IssueBundle {
 	if r == nil {
 		return IssueBundle{SchemaVersion: SchemaVersion, GeneratedAt: meta.GeneratedAt, Versions: map[string]string{"version": meta.Version, "commit": meta.Commit, "config_hash": meta.ConfigHash}, Queue: meta.Queue}
@@ -336,13 +356,15 @@ func (r *Recorder) Bundle(meta BundleMeta) IssueBundle {
 	}
 	r.mu.Lock()
 	evidence := append([]EvidenceSummary(nil), r.evidence...)
+	probeOutcomes := append([]ProbeOutcomeSummary(nil), r.probeOutcomes...)
 	r.mu.Unlock()
 	for _, summary := range meta.Evidence {
 		summary.SetID = RedactIdentifier(summary.SetID)
 		summary.DomainID = RedactDomain(summary.DomainID)
 		evidence = append(evidence, summary)
 	}
-	return IssueBundle{SchemaVersion: SchemaVersion, GeneratedAt: meta.GeneratedAt, Versions: map[string]string{"version": meta.Version, "commit": meta.Commit, "config_hash": meta.ConfigHash}, Metrics: r.Metrics.Snapshot(meta.GeneratedAt), Evidence: evidence, Trace: r.Trace.Snapshot(), Queue: meta.Queue, ProbeOutcomes: append([]ProbeOutcomeSummary(nil), meta.ProbeOutcomes...), RawCapture: false}
+	probeOutcomes = append(probeOutcomes, meta.ProbeOutcomes...)
+	return IssueBundle{SchemaVersion: SchemaVersion, GeneratedAt: meta.GeneratedAt, Versions: map[string]string{"version": meta.Version, "commit": meta.Commit, "config_hash": meta.ConfigHash}, Metrics: r.Metrics.Snapshot(meta.GeneratedAt), Evidence: evidence, Trace: r.Trace.Snapshot(), Queue: meta.Queue, ProbeOutcomes: probeOutcomes, RawCapture: false}
 }
 
 var defaultRecorder = NewRecorder()

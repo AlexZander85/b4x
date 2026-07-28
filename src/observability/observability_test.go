@@ -37,6 +37,9 @@ func TestMetricsRegistryIsBoundedAndDeterministic(t *testing.T) {
 func TestTraceAndEvidenceArePrivacySafeAndBounded(t *testing.T) {
 	recorder := NewRecorder()
 	recorder.RecordEvidence(EvidenceSummary{Source: "dns_answer", SetID: "private-set", DomainID: "YouTube.Example.", Confidence: 88})
+	for i := 0; i < 80; i++ {
+		recorder.RecordProbeOutcome(ProbeOutcomeSummary{TargetProfile: "youtube-body", Verdict: "available", BodyBytes: uint64(i)})
+	}
 	recorder.Trace.Record(TraceEvent{
 		Timestamp: time.Unix(20, 0),
 		ClientID:  "192.0.2.10",
@@ -65,7 +68,7 @@ func TestTraceAndEvidenceArePrivacySafeAndBounded(t *testing.T) {
 	if bundle.RawCapture {
 		t.Fatal("issue bundle must not contain raw capture by default")
 	}
-	if bundle.SchemaVersion != SchemaVersion || len(bundle.Evidence) != 1 || len(bundle.Trace) != 1 {
+	if bundle.SchemaVersion != SchemaVersion || len(bundle.Evidence) != 1 || len(bundle.Trace) != 1 || len(bundle.ProbeOutcomes) != 64 {
 		t.Fatalf("incomplete issue bundle: %+v", bundle)
 	}
 	if bundle.Trace[0].Fields["reason"] != "clear SNI selected" {

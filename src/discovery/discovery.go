@@ -1163,12 +1163,20 @@ func (ds *DiscoverySuite) tlsConfig() *tls.Config {
 	return cfg
 }
 
-func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Duration, ip string) CheckResult {
-	result := CheckResult{
+func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Duration, ip string) (result CheckResult) {
+	result = CheckResult{
 		Domain:    di.Domain,
 		Status:    CheckStatusRunning,
 		Timestamp: time.Now(),
 	}
+	tracker := NewProbeTracker(ProbePolicy{TargetProfile: "discovery-http", ReadCap: 100 * 1024, BodySuccessThreshold: 32 * 1024, StallTimeout: 2 * time.Second})
+	defer func() {
+		if result.Status == CheckStatusComplete {
+			tracker.MarkBodyComplete()
+		}
+		outcome := tracker.Finish()
+		result.Probe = &outcome
+	}()
 
 	ctx, cancel := ds.fetchContext(timeout)
 	defer cancel()
@@ -1215,6 +1223,7 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
+		markHTTPProbeError(tracker, err)
 		result.Status = CheckStatusFailed
 		_, detail := netprobe.ClassifyTLSError(err)
 		result.Error = detail
@@ -1222,6 +1231,14 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 		return result
 	}
 	defer resp.Body.Close()
+	tracker.MarkDNSResolved()
+	tracker.MarkTCPConnected()
+	if strings.HasPrefix(strings.ToLower(di.CheckURL), "https://") {
+		tracker.MarkTLSResponse(TLSResponseServerHello)
+	} else {
+		tracker.MarkTLSResponse(TLSResponseOther)
+	}
+	tracker.MarkHTTPHeaders(resp.StatusCode)
 
 	result.StatusCode = resp.StatusCode
 	result.ContentSize = resp.ContentLength
@@ -1256,6 +1273,7 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 	for bytesRead < maxRead {
 		select {
 		case <-ctx.Done():
+			tracker.MarkTimeout()
 			goto evaluate
 		default:
 		}
@@ -1263,6 +1281,7 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 		n, err := resp.Body.Read(buf)
 		if n > 0 {
 			bytesRead += int64(n)
+			tracker.ObserveBodyAt(bytesRead)
 			lastProgress = time.Now()
 			if len(headBuf) < 4*1024 {
 				headBuf = append(headBuf, buf[:n]...)
@@ -1277,9 +1296,11 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 		}
 
 		if err == io.EOF {
+			tracker.MarkBodyComplete()
 			break
 		}
 		if err != nil {
+			markHTTPProbeError(tracker, err)
 			result.Status = CheckStatusFailed
 			result.Error = fmt.Sprintf("read error after %d bytes: %v", bytesRead, err)
 			result.Duration = time.Since(start)
@@ -1288,6 +1309,7 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 		}
 
 		if time.Since(lastProgress) > 2*time.Second {
+			tracker.MarkStall()
 			result.Status = CheckStatusFailed
 			result.Error = fmt.Sprintf("stalled after %d bytes", bytesRead)
 			result.Duration = time.Since(start)
@@ -1297,6 +1319,9 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 	}
 
 evaluate:
+	if bytesRead >= maxRead {
+		tracker.markCapped()
+	}
 	duration := time.Since(start)
 	result.Duration = duration
 	result.BytesRead = bytesRead
@@ -1364,6 +1389,7 @@ func (ds *DiscoverySuite) storeResult(preset ConfigPreset, result CheckResult) {
 		Error:      result.Error,
 		StatusCode: result.StatusCode,
 		Set:        result.Set,
+		Probe:      result.Probe,
 	}
 
 	if result.Status == CheckStatusComplete && preset.Name != "no-bypass" {
@@ -1411,6 +1437,7 @@ func (ds *DiscoverySuite) storeResultsMulti(preset ConfigPreset, results map[str
 			Error:      result.Error,
 			StatusCode: result.StatusCode,
 			Set:        result.Set,
+			Probe:      result.Probe,
 		}
 
 		if result.Status == CheckStatusComplete && preset.Name != "no-bypass" {

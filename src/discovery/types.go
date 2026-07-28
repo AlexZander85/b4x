@@ -66,6 +66,7 @@ type CheckResult struct {
 	Timestamp   time.Time         `json:"timestamp"`
 	StatusCode  int               `json:"status_code"`
 	Set         *config.SetConfig `json:"set"`
+	Probe       *ProbeOutcome     `json:"probe,omitempty"`
 }
 
 type DomainInput struct {
@@ -105,6 +106,7 @@ type DomainPresetResult struct {
 	Error      string            `json:"error,omitempty"`
 	StatusCode int               `json:"status_code"`
 	Set        *config.SetConfig `json:"set"`
+	Probe      *ProbeOutcome     `json:"probe,omitempty"`
 }
 
 type StrategyGroup struct {
