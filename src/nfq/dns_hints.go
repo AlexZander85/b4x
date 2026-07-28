@@ -56,6 +56,10 @@ func (w *Worker) observeDNSResponse(cfg *config.Config, payload []byte, clientIP
 }
 
 func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dport uint16, protocol uint8) (*config.SetConfig, bool) {
+	return w.matchScopedDNSHintWithMetadata(cfg, pkt, sport, dport, protocol, classifier.TLSMetadata{})
+}
+
+func (w *Worker) matchScopedDNSHintWithMetadata(cfg *config.Config, pkt *pktInfo, sport, dport uint16, protocol uint8, tlsMetadata classifier.TLSMetadata) (*config.SetConfig, bool) {
 	if !scopedClassifierEvidenceEnabled(cfg) || w.dnsHints == nil {
 		return nil, false
 	}
@@ -75,6 +79,7 @@ func (w *Worker) matchScopedDNSHint(cfg *config.Config, pkt *pktInfo, sport, dpo
 		DestinationPort: dport,
 		L4Proto:         protocol,
 		SourceDevice:    pkt.srcMac,
+		TLSMetadata:     tlsMetadata,
 		FlowKey:         flow,
 		DomainOnlyMode:  classifierDomainOnlyMode(cfg),
 		DomainOnlySet:   func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },

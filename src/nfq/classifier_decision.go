@@ -62,8 +62,12 @@ func classifierSetID(set *config.SetConfig) string {
 }
 
 func (w *Worker) decideNFQEvidence(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, input ...classifier.Evidence) classifier.ClassificationDecision {
+	return w.decideNFQEvidenceWithMetadata(cfg, pkt, port, proto, classifier.TLSMetadata{}, input...)
+}
+
+func (w *Worker) decideNFQEvidenceWithMetadata(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, tlsMetadata classifier.TLSMetadata, input ...classifier.Evidence) classifier.ClassificationDecision {
 	if cfg == nil || pkt == nil {
-		return classifier.Decide(classifier.DecisionContext{Now: time.Now()}, input, classifier.DefaultConfidenceThresholds)
+		return classifier.Decide(classifier.DecisionContext{Now: time.Now(), TLSMetadata: tlsMetadata}, input, classifier.DefaultConfidenceThresholds)
 	}
 	client, _ := dnsClientKey(pkt.src, pkt.srcMac)
 	flow := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), 0, port, proto)
@@ -95,6 +99,7 @@ func (w *Worker) decideNFQEvidence(cfg *config.Config, pkt *pktInfo, port uint16
 		DestinationPort: port,
 		L4Proto:         proto,
 		SourceDevice:    pkt.srcMac,
+		TLSMetadata:     tlsMetadata,
 		FlowKey:         flow,
 		DomainOnlyMode:  classifierDomainOnlyMode(cfg),
 		DomainOnlySet:   func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },
@@ -114,15 +119,19 @@ func traceNFQDecision(decision classifier.ClassificationDecision, set *config.Se
 	if set != nil {
 		setName = set.Name
 	}
-	log.Tracef("classifier decision phase=%s evidence=%v selected=%s confidence=%d domain_only=%s/%s set=%s strategy=%s reason=%s",
-		decision.Phase, evidence, selected, decision.Confidence, decision.DomainOnlyMode, decision.DomainOnlyResult, setName, strategy, decision.Reason)
+	log.Tracef("classifier decision phase=%s evidence=%v selected=%s confidence=%d corroborated=%t ech=%t host_markers=%t conflicts=%d domain_only=%s/%s set=%s strategy=%s reason=%s",
+		decision.Phase, evidence, selected, decision.Confidence, decision.Corroborated, decision.ECHPresent, decision.CanUseHostMarkers(), len(decision.Conflicts), decision.DomainOnlyMode, decision.DomainOnlyResult, setName, strategy, decision.Reason)
 }
 
 func (w *Worker) allowNFQDomainDecision(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string) bool {
+	return w.allowNFQDomainDecisionWithMetadata(cfg, pkt, port, proto, set, source, domain, domainEvidence, strategy, classifier.TLSMetadata{})
+}
+
+func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string, tlsMetadata classifier.TLSMetadata) bool {
 	if set == nil || !classifierDecisionEnabled(cfg) || classifierDomainOnlyMode(cfg) == classifier.DomainLegacy {
 		return true
 	}
-	decision := w.decideNFQEvidence(cfg, pkt, port, proto, classifier.Evidence{
+	decision := w.decideNFQEvidenceWithMetadata(cfg, pkt, port, proto, tlsMetadata, classifier.Evidence{
 		Source:         source,
 		Domain:         domain,
 		SetID:          classifierSetID(set),

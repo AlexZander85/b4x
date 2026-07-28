@@ -14,6 +14,14 @@ func (d ClassificationDecision) CanDestructivelyMutate(t ConfidenceThresholds) b
 	return d.Selected != nil && d.Confidence >= t.Destructive && d.Phase == PhaseFinal && d.Selected.DomainEvidence && !d.ECHPresent
 }
 
+// CanUseHostMarkers is intentionally stricter than ordinary classification.
+// DNS and QUIC can resolve an ECH flow to a set, but neither proves that a
+// clear host marker is present in the TCP stream. ECH outer names are not
+// treated as an inner clear hostname for marker-based actions.
+func (d ClassificationDecision) CanUseHostMarkers() bool {
+	return d.Selected != nil && !d.ECHPresent && isClearSNI(*d.Selected)
+}
+
 func (d ClassificationDecision) CanProxyFallback(t ConfidenceThresholds) bool {
 	threshold := t.ProxyFallback
 	if threshold < t.Mutate {
@@ -31,6 +39,7 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 	decision := ClassificationDecision{
 		Phase:            PhaseInspecting,
 		Candidates:       make([]Evidence, 0, len(input)),
+		Conflicts:        make([]EvidenceConflict, 0, len(input)),
 		FlowKey:          ctx.FlowKey,
 		TLSMetadata:      ctx.TLSMetadata,
 		ConfigGen:        ctx.ConfigGen,
@@ -45,6 +54,7 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 			decision.ECHPresent = true
 		}
 	}
+	decision.ECHPresent = decision.ECHPresent || ctx.TLSMetadata.ECHPresent
 	sortEvidence(decision.Candidates)
 
 	valid := make([]Evidence, 0, len(input))
@@ -94,6 +104,16 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 
 	top := valid[0]
 	decision.Confidence = top.Confidence
+	for _, candidate := range valid[1:] {
+		if top.SetID == candidate.SetID || (top.Domain == "" && candidate.Domain == "") {
+			continue
+		}
+		decision.Conflicts = append(decision.Conflicts, EvidenceConflict{
+			Higher: top,
+			Lower:  candidate,
+			Reason: "different eligible set candidates for the same flow",
+		})
+	}
 	if len(valid) > 1 {
 		second := valid[1]
 		if top.SetID != second.SetID && candidateStrength(top, second) {
@@ -110,8 +130,15 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 
 	selected := top
 	decision.Selected = &selected
+	decision.Corroborated = hasScopedCorroboration(top, valid[1:])
+	if decision.Corroborated {
+		decision.Confidence = minConfidence(100, int(decision.Confidence)+3)
+	}
 	if decision.Reason == "" {
 		decision.Reason = fmt.Sprintf("selected %s evidence", top.Source)
+	}
+	if decision.Corroborated {
+		decision.Reason += "; corroborated by independent scoped evidence"
 	}
 	if decision.ECHPresent && !isClearSNI(top) {
 		decision.Phase = PhaseResolved
@@ -134,6 +161,36 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 	decision.Phase = PhaseFinal
 	decision.Final = true
 	return decision
+}
+
+func hasScopedCorroboration(selected Evidence, candidates []Evidence) bool {
+	if !isECHScopedEvidence(selected) {
+		return false
+	}
+	for _, candidate := range candidates {
+		if candidate.SetID != selected.SetID || candidate.Source == selected.Source || !isECHScopedEvidence(candidate) {
+			continue
+		}
+		if selected.DestinationIP.IsValid() && candidate.DestinationIP.IsValid() && selected.DestinationIP != candidate.DestinationIP {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func isECHScopedEvidence(e Evidence) bool {
+	return e.Source == EvidenceQUICSNI || e.Source == EvidenceDNSAnswer || e.Source == EvidenceDNSHTTPS
+}
+
+func minConfidence(limit, value int) uint8 {
+	if value > limit {
+		value = limit
+	}
+	if value < 0 {
+		value = 0
+	}
+	return uint8(value)
 }
 
 func normalizeDomainOnlyMode(mode DomainOnlyMode) DomainOnlyMode {

@@ -66,8 +66,71 @@ func TestDecideClearSNIOverridesConflictingDNS(t *testing.T) {
 		testEvidence(EvidenceDNSAnswer, "wrong.example", "wrong", 89, now),
 		testEvidence(EvidencePacketSNI, "right.example", "right", 95, now),
 	}, DefaultConfidenceThresholds)
-	if d.Selected == nil || d.Selected.SetID != "right" || d.Reason != "clear SNI overrides conflicting DNS evidence" {
+	if d.Selected == nil || d.Selected.SetID != "right" || d.Reason != "clear SNI overrides conflicting DNS evidence" || len(d.Conflicts) != 1 || !d.CanUseHostMarkers() {
 		t.Fatalf("decision = %+v", d)
+	}
+}
+
+func TestDecideECHMetadataUsesFreshScopedDNS(t *testing.T) {
+	now := time.Unix(350, 0)
+	ctx := testContext(now)
+	ctx.TLSMetadata = TLSMetadata{ECHPresent: true, HandshakeParsed: true}
+	d := Decide(ctx, []Evidence{testEvidence(EvidenceDNSAnswer, "api.youtube.com", "youtube-api", 89, now)}, DefaultConfidenceThresholds)
+	if d.Selected == nil || d.Selected.Source != EvidenceDNSAnswer || !d.ECHPresent || d.Phase != PhaseResolved || d.Final || !d.CanClassify(DefaultConfidenceThresholds) {
+		t.Fatalf("ECH DNS decision = %+v", d)
+	}
+	if d.CanUseHostMarkers() || d.CanDestructivelyMutate(DefaultConfidenceThresholds) {
+		t.Fatal("ECH DNS evidence enabled clear-host or destructive action")
+	}
+}
+
+func TestDecideECHAmbiguousSharedIPRemainsNonDestructive(t *testing.T) {
+	now := time.Unix(360, 0)
+	ctx := testContext(now)
+	ctx.TLSMetadata.ECHPresent = true
+	d := Decide(ctx, []Evidence{
+		testEvidence(EvidenceDNSAnswer, "api.youtube.com", "youtube-api", 89, now),
+		testEvidence(EvidenceDNSAnswer, "rr.googlevideo.com", "youtube-video", 89, now),
+	}, DefaultConfidenceThresholds)
+	if d.Phase != PhaseAmbiguous || d.Selected != nil || len(d.Conflicts) != 1 || d.CanDestructivelyMutate(DefaultConfidenceThresholds) {
+		t.Fatalf("ambiguous ECH decision = %+v", d)
+	}
+}
+
+func TestDecideECHQUICAndDNSCorroborationUpdatesConfidence(t *testing.T) {
+	now := time.Unix(370, 0)
+	ctx := testContext(now)
+	ctx.TLSMetadata.ECHPresent = true
+	d := Decide(ctx, []Evidence{
+		testEvidence(EvidenceDNSAnswer, "api.youtube.com", "youtube-api", 89, now),
+		testEvidence(EvidenceQUICSNI, "api.youtube.com", "youtube-api", 94, now),
+	}, DefaultConfidenceThresholds)
+	if d.Selected == nil || d.Selected.Source != EvidenceQUICSNI || !d.Corroborated || d.Confidence != 97 || !d.CanClassify(DefaultConfidenceThresholds) || d.Final {
+		t.Fatalf("corroborated ECH decision = %+v", d)
+	}
+}
+
+func TestDecideECHStaleHintDoesNotBecomeFinalUnknown(t *testing.T) {
+	now := time.Unix(380, 0)
+	ctx := testContext(now)
+	ctx.TLSMetadata.ECHPresent = true
+	stale := testEvidence(EvidenceDNSAnswer, "api.youtube.com", "youtube-api", 89, now)
+	stale.ExpiresAt = now.Add(-time.Second)
+	d := Decide(ctx, []Evidence{stale}, DefaultConfidenceThresholds)
+	if d.Selected != nil || d.Phase != PhasePartial || d.Final || !d.ECHPresent {
+		t.Fatalf("stale ECH decision = %+v", d)
+	}
+}
+
+func TestDecideECHStrictDomainOnlyRejectsScopedHint(t *testing.T) {
+	now := time.Unix(390, 0)
+	ctx := testContext(now)
+	ctx.TLSMetadata.ECHPresent = true
+	ctx.DomainOnlyMode = DomainStrict
+	ctx.DomainOnlySet = func(setID string) bool { return setID == "youtube-api" }
+	d := Decide(ctx, []Evidence{testEvidence(EvidenceDNSAnswer, "api.youtube.com", "youtube-api", 89, now)}, DefaultConfidenceThresholds)
+	if d.Selected != nil || d.Phase != PhasePartial || d.DomainOnlyResult != "rejected:strict-source" || !d.DomainOnlyApplied {
+		t.Fatalf("strict ECH decision = %+v", d)
 	}
 }
 

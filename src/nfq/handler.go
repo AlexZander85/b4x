@@ -208,6 +208,10 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	payload := tcp[datOff:]
 	sport := binary.BigEndian.Uint16(tcp[0:2])
 	dport := binary.BigEndian.Uint16(tcp[2:4])
+	if sequence, ok := tcpPacketSequence(tcp); ok {
+		w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
+	}
+	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
 	if cfg.IsTCPPort(sport) {
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
@@ -217,7 +221,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		matched = false
 		set = nil
 	}
-	if matched && st != nil && !w.allowNFQDomainDecision(cfg, pkt, dport, 6, st, classifier.EvidenceStaticIP, "", false, "static-ip") {
+	if matched && st != nil && !w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, st, classifier.EvidenceStaticIP, "", false, "static-ip", tlsMetadata) {
 		matched = false
 		set = nil
 		st = nil
@@ -242,7 +246,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 	}
 	if !matched {
-		if hintSet, ok := w.matchScopedDNSHint(cfg, pkt, sport, dport, 6); ok {
+		if hintSet, ok := w.matchScopedDNSHintWithMetadata(cfg, pkt, sport, dport, 6, tlsMetadata); ok {
 			matched = true
 			set = hintSet
 		}
@@ -254,9 +258,6 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	isSyn := (tcpFlags & 0x02) != 0
 	isAck := (tcpFlags & 0x10) != 0
 	isRst := (tcpFlags & 0x04) != 0
-	if sequence, ok := tcpPacketSequence(tcp); ok {
-		w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcpFlags, payload)
-	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
 		return vc.accept()
@@ -375,7 +376,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if host != "" {
 			if mSNI, stSNI := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver); mSNI {
 				if stSNI.MatchesTCPDPort(dport) {
-					if w.allowNFQDomainDecision(cfg, pkt, dport, 6, stSNI, classifier.EvidencePacketSNI, host, true, "clear-sni") {
+					if w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, stSNI, classifier.EvidencePacketSNI, host, true, "clear-sni", tlsMetadata) {
 						matchedSNI = true
 						matched = true
 						set = stSNI

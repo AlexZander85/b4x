@@ -118,12 +118,20 @@ type Evidence struct {
 	Reason          string
 }
 
+type EvidenceConflict struct {
+	Higher Evidence
+	Lower  Evidence
+	Reason string
+}
+
 type ClassificationDecision struct {
 	Phase             ClassificationPhase
 	Selected          *Evidence
 	Candidates        []Evidence
+	Conflicts         []EvidenceConflict
 	Reason            string
 	Confidence        uint8
+	Corroborated      bool
 	ECHPresent        bool
 	TLSMetadata       TLSMetadata
 	FlowKey           FlowKey
