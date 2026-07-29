@@ -335,13 +335,21 @@ func clientHelloIdentity(entry *tcpReassemblyEntry) uint64 {
 	if entry == nil {
 		return 0
 	}
+	return LogicalClientHelloID(entry.key, entry.baseSequence, entry.configGeneration)
+}
+
+// LogicalClientHelloID is representation-independent: a full GSO skb and the
+// equivalent MSS segment stream produce the same identity when their exact
+// flow, first TCP sequence and immutable config generation are equal.
+func LogicalClientHelloID(key FlowKey, baseSequence uint32, configGeneration uint64) uint64 {
+	key = key.Normalize()
 	h := fnv.New64a()
 	var scratch [8]byte
-	binary.BigEndian.PutUint32(scratch[:4], entry.baseSequence)
+	binary.BigEndian.PutUint32(scratch[:4], baseSequence)
 	_, _ = h.Write(scratch[:4])
-	binary.BigEndian.PutUint64(scratch[:], entry.configGeneration)
+	binary.BigEndian.PutUint64(scratch[:], configGeneration)
 	_, _ = h.Write(scratch[:])
-	_, _ = h.Write([]byte(fmt.Sprintf("%v", entry.key)))
+	_, _ = h.Write([]byte(fmt.Sprintf("%v", key)))
 	return h.Sum64()
 }
 

@@ -41,6 +41,7 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 		Candidates:       make([]Evidence, 0, len(input)),
 		Conflicts:        make([]EvidenceConflict, 0, len(input)),
 		FlowKey:          ctx.FlowKey,
+		ClientHelloID:    ctx.ClientHelloID,
 		TLSMetadata:      ctx.TLSMetadata,
 		ConfigGen:        ctx.ConfigGen,
 		DomainOnlyMode:   normalizeDomainOnlyMode(ctx.DomainOnlyMode),

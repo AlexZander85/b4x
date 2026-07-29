@@ -11,22 +11,28 @@ func testClient() ClientKey {
 }
 
 func testEvidence(source EvidenceSource, domain, set string, confidence uint8, now time.Time) Evidence {
+	flow := NewFlowKey(testClient(), testClient().SourceIP, netip.MustParseAddr("203.0.113.7"), 51000, 443, 6)
 	return Evidence{
-		Source:         source,
-		Client:         testClient(),
-		DestinationIP:  netip.MustParseAddr("203.0.113.7"),
-		Domain:         domain,
-		SetID:          set,
-		Confidence:     confidence,
-		DomainEvidence: domain != "",
-		CreatedAt:      now.Add(-time.Second),
-		ExpiresAt:      now.Add(time.Minute),
-		ConfigGen:      7,
+		Source:              source,
+		FlowKey:             flow,
+		ClientHelloID:       99,
+		Client:              testClient(),
+		DestinationIP:       netip.MustParseAddr("203.0.113.7"),
+		Domain:              domain,
+		SetID:               set,
+		Confidence:          confidence,
+		DomainEvidence:      domain != "",
+		CompleteClientHello: source == EvidenceReassembledSNI,
+		TLSVersion:          0x0304,
+		CreatedAt:           now.Add(-time.Second),
+		ExpiresAt:           now.Add(time.Minute),
+		ConfigGen:           7,
 	}
 }
 
 func testContext(now time.Time) DecisionContext {
-	return DecisionContext{Now: now, Client: testClient(), ConfigGen: 7, InputIncomplete: false}
+	flow := NewFlowKey(testClient(), testClient().SourceIP, netip.MustParseAddr("203.0.113.7"), 51000, 443, 6)
+	return DecisionContext{Now: now, Client: testClient(), ConfigGen: 7, FlowKey: flow, ClientHelloID: 99, TLSMetadata: TLSMetadata{Version: 0x0304}, InputIncomplete: false}
 }
 
 func TestDecideSourcePriorityAndFreshness(t *testing.T) {
@@ -274,4 +280,44 @@ func FuzzDecideNeverPanics(f *testing.F) {
 		_ = decision.CanDestructivelyMutate(DefaultConfidenceThresholds)
 		_ = decision.CanProxyFallback(DefaultConfidenceThresholds)
 	})
+}
+
+func TestReassembledSNIEvidenceRequiresExactLogicalClientHelloScope(t *testing.T) {
+	now := time.Unix(900, 0)
+	ctx := testContext(now)
+	valid := testEvidence(EvidenceReassembledSNI, "api.youtube.com", "youtube", 100, now)
+	if decision := Decide(ctx, []Evidence{valid}, DefaultConfidenceThresholds); decision.Selected == nil || decision.ClientHelloID != 99 || decision.FlowKey != ctx.FlowKey {
+		t.Fatalf("valid reassembled evidence lost exact scope: %+v", decision)
+	}
+
+	cases := map[string]Evidence{
+		"missing-flow":       func() Evidence { e := valid; e.FlowKey = FlowKey{}; return e }(),
+		"missing-hello-id":   func() Evidence { e := valid; e.ClientHelloID = 0; return e }(),
+		"missing-generation": func() Evidence { e := valid; e.ConfigGen = 0; return e }(),
+		"incomplete":         func() Evidence { e := valid; e.CompleteClientHello = false; return e }(),
+		"ech-ambiguous":      func() Evidence { e := valid; e.ECHRelated = true; return e }(),
+		"wrong-flow": func() Evidence {
+			e := valid
+			e.FlowKey = NewFlowKey(testClient(), testClient().SourceIP, netip.MustParseAddr("203.0.113.8"), 51000, 443, 6)
+			return e
+		}(),
+		"wrong-generation":  func() Evidence { e := valid; e.ConfigGen = 8; return e }(),
+		"wrong-hello-id":    func() Evidence { e := valid; e.ClientHelloID = 100; return e }(),
+		"wrong-tls-version": func() Evidence { e := valid; e.TLSVersion = 0x0303; return e }(),
+	}
+	for name, evidence := range cases {
+		t.Run(name, func(t *testing.T) {
+			decision := Decide(ctx, []Evidence{evidence}, DefaultConfidenceThresholds)
+			if decision.Selected != nil {
+				t.Fatalf("invalid reassembled evidence selected: %+v", decision)
+			}
+			if name == "ech-ambiguous" {
+				if decision.Final || decision.Phase != PhasePartial {
+					t.Fatalf("ECH ambiguity must remain non-final fail-open: %+v", decision)
+				}
+			} else if !decision.Final {
+				t.Fatalf("invalid non-ECH evidence must finish with no selection: %+v", decision)
+			}
+		})
+	}
 }

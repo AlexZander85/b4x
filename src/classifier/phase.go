@@ -24,7 +24,7 @@ func (s EvidenceSource) String() string {
 	case EvidencePacketSNI:
 		return "packet_sni"
 	case EvidenceReassembledSNI:
-		return "reassembled_sni"
+		return "reassembled-tcp-sni"
 	case EvidenceQUICSNI:
 		return "quic_sni"
 	case EvidenceDNSAnswer:

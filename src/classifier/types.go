@@ -74,6 +74,10 @@ type FlowKey struct {
 	Proto   uint8
 }
 
+func (k FlowKey) IsZero() bool {
+	return k.Client.IsZero() && !k.SrcIP.IsValid() && !k.DstIP.IsValid() && k.SrcPort == 0 && k.DstPort == 0 && k.Proto == 0
+}
+
 // NewFlowKey constructs the direction-normalized key used by lifecycle state.
 // Client remains the source identity; only the bidirectional transport
 // endpoints are canonicalized.
@@ -110,21 +114,25 @@ type TLSMetadata struct {
 }
 
 type Evidence struct {
-	Source          EvidenceSource
-	Client          ClientKey
-	DestinationIP   netip.Addr
-	DestinationPort uint16
-	L4Proto         uint8
-	SourceDevice    string
-	Domain          string
-	SetID           string
-	Confidence      uint8
-	DomainEvidence  bool
-	ECHRelated      bool
-	CreatedAt       time.Time
-	ExpiresAt       time.Time
-	ConfigGen       uint64
-	Reason          string
+	Source              EvidenceSource
+	FlowKey             FlowKey
+	ClientHelloID       uint64
+	Client              ClientKey
+	DestinationIP       netip.Addr
+	DestinationPort     uint16
+	L4Proto             uint8
+	SourceDevice        string
+	Domain              string
+	SetID               string
+	Confidence          uint8
+	DomainEvidence      bool
+	CompleteClientHello bool
+	TLSVersion          uint16
+	ECHRelated          bool
+	CreatedAt           time.Time
+	ExpiresAt           time.Time
+	ConfigGen           uint64
+	Reason              string
 }
 
 type EvidenceConflict struct {
@@ -144,6 +152,7 @@ type ClassificationDecision struct {
 	ECHPresent        bool
 	TLSMetadata       TLSMetadata
 	FlowKey           FlowKey
+	ClientHelloID     uint64
 	ConfigGen         uint64
 	Final             bool
 	DomainOnlyMode    DomainOnlyMode
@@ -174,6 +183,7 @@ type DecisionContext struct {
 	L4Proto         uint8
 	SourceDevice    string
 	FlowKey         FlowKey
+	ClientHelloID   uint64
 	TLSMetadata     TLSMetadata
 	InputIncomplete bool
 	EvidenceValid   func(Evidence) bool

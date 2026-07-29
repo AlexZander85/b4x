@@ -89,18 +89,49 @@ func classifierSetID(set *config.SetConfig) string {
 	return strings.TrimSpace(set.Name)
 }
 
+type nfqDecisionScope struct {
+	FlowKey             classifier.FlowKey
+	ClientHelloID       uint64
+	EvidenceConfigGen   uint64
+	CompleteClientHello bool
+	TLSVersion          uint16
+}
+
 func (w *Worker) decideNFQEvidence(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, input ...classifier.Evidence) classifier.ClassificationDecision {
 	return w.decideNFQEvidenceWithMetadata(cfg, pkt, port, proto, classifier.TLSMetadata{}, input...)
 }
 
 func (w *Worker) decideNFQEvidenceWithMetadata(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, tlsMetadata classifier.TLSMetadata, input ...classifier.Evidence) classifier.ClassificationDecision {
+	return w.decideNFQEvidenceScoped(cfg, pkt, port, proto, tlsMetadata, nfqDecisionScope{}, input...)
+}
+
+func (w *Worker) decideNFQEvidenceScoped(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, tlsMetadata classifier.TLSMetadata, scope nfqDecisionScope, input ...classifier.Evidence) classifier.ClassificationDecision {
+	now := time.Now()
 	if cfg == nil || pkt == nil {
-		return classifier.Decide(classifier.DecisionContext{Now: time.Now(), TLSMetadata: tlsMetadata}, input, classifier.DefaultConfidenceThresholds)
+		return classifier.Decide(classifier.DecisionContext{Now: now, TLSMetadata: tlsMetadata, FlowKey: scope.FlowKey, ClientHelloID: scope.ClientHelloID, ConfigGen: scope.EvidenceConfigGen}, input, classifier.DefaultConfidenceThresholds)
 	}
 	client, _ := dnsClientKey(pkt.src, pkt.srcMac)
-	flow := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), 0, port, proto)
-	now := time.Now()
+	flow := scope.FlowKey
+	if flow.IsZero() {
+		flow = classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), 0, port, proto)
+	} else if !flow.Client.IsZero() {
+		client = flow.Client
+	}
+	currentGeneration := dnsHintConfigGeneration(cfg)
+	evidenceGeneration := scope.EvidenceConfigGen
+	if evidenceGeneration == 0 {
+		evidenceGeneration = currentGeneration
+	}
+	if tlsMetadata.Version == 0 {
+		tlsMetadata.Version = scope.TLSVersion
+	}
 	for i := range input {
+		if input[i].FlowKey.IsZero() {
+			input[i].FlowKey = flow
+		}
+		if input[i].ClientHelloID == 0 {
+			input[i].ClientHelloID = scope.ClientHelloID
+		}
 		if input[i].Client.IsZero() {
 			input[i].Client = client
 		}
@@ -119,16 +150,26 @@ func (w *Worker) decideNFQEvidenceWithMetadata(cfg *config.Config, pkt *pktInfo,
 		if input[i].CreatedAt.IsZero() {
 			input[i].CreatedAt = now
 		}
+		if input[i].ConfigGen == 0 {
+			input[i].ConfigGen = evidenceGeneration
+		}
+		if input[i].TLSVersion == 0 {
+			input[i].TLSVersion = scope.TLSVersion
+		}
+		if scope.CompleteClientHello {
+			input[i].CompleteClientHello = true
+		}
 	}
 	return classifier.Decide(classifier.DecisionContext{
 		Now:                now,
 		Client:             client,
-		ConfigGen:          dnsHintConfigGeneration(cfg),
+		ConfigGen:          currentGeneration,
 		DestinationPort:    port,
 		L4Proto:            proto,
 		SourceDevice:       pkt.srcMac,
 		TLSMetadata:        tlsMetadata,
 		FlowKey:            flow,
+		ClientHelloID:      scope.ClientHelloID,
 		DomainOnlyMode:     classifierDomainOnlyMode(cfg),
 		DomainOnlySet:      func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },
 		DomainPolicyForSet: func(setID string) classifier.DomainPolicy { return classifierSetDomainPolicy(cfg, setID) },
@@ -197,20 +238,22 @@ func recordObservabilityDecision(decision classifier.ClassificationDecision, str
 		FlowID:    fmt.Sprintf("%v", decision.FlowKey),
 		Kind:      "classifier_decision",
 		Fields: map[string]string{
-			"client_identity": identity,
-			"phase":           decision.Phase.String(),
-			"selected_source": selectedSource,
-			"set_id":          observability.RedactIdentifier(selectedSet),
-			"confidence":      fmt.Sprintf("%d", decision.Confidence),
-			"candidate_count": fmt.Sprintf("%d", len(decision.Candidates)),
-			"corroborated":    fmt.Sprintf("%t", decision.Corroborated),
-			"ech":             fmt.Sprintf("%t", decision.ECHPresent),
-			"host_markers":    fmt.Sprintf("%t", decision.CanUseHostMarkers()),
-			"conflicts":       fmt.Sprintf("%d", len(decision.Conflicts)),
-			"domain_only":     string(decision.DomainOnlyMode),
-			"domain_result":   decision.DomainOnlyResult,
-			"strategy":        strategy,
-			"reason":          decision.Reason,
+			"client_identity":  identity,
+			"client_hello_id":  fmt.Sprintf("%d", decision.ClientHelloID),
+			"layout_parity_id": fmt.Sprintf("%d", decision.ClientHelloID),
+			"phase":            decision.Phase.String(),
+			"selected_source":  selectedSource,
+			"set_id":           observability.RedactIdentifier(selectedSet),
+			"confidence":       fmt.Sprintf("%d", decision.Confidence),
+			"candidate_count":  fmt.Sprintf("%d", len(decision.Candidates)),
+			"corroborated":     fmt.Sprintf("%t", decision.Corroborated),
+			"ech":              fmt.Sprintf("%t", decision.ECHPresent),
+			"host_markers":     fmt.Sprintf("%t", decision.CanUseHostMarkers()),
+			"conflicts":        fmt.Sprintf("%d", len(decision.Conflicts)),
+			"domain_only":      string(decision.DomainOnlyMode),
+			"domain_result":    decision.DomainOnlyResult,
+			"strategy":         strategy,
+			"reason":           decision.Reason,
 		},
 	})
 }
@@ -220,16 +263,26 @@ func (w *Worker) allowNFQDomainDecision(cfg *config.Config, pkt *pktInfo, port u
 }
 
 func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string, tlsMetadata classifier.TLSMetadata) bool {
+	return w.allowNFQDomainDecisionScoped(cfg, pkt, port, proto, set, source, domain, domainEvidence, strategy, tlsMetadata, nfqDecisionScope{})
+}
+
+func (w *Worker) allowNFQDomainDecisionScoped(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string, tlsMetadata classifier.TLSMetadata, scope nfqDecisionScope) bool {
 	if set == nil || !classifierDecisionEnabled(cfg) {
 		return true
 	}
-	decision := w.decideNFQEvidenceWithMetadata(cfg, pkt, port, proto, tlsMetadata, classifier.Evidence{
-		Source:         source,
-		Domain:         domain,
-		SetID:          classifierSetID(set),
-		Confidence:     0,
-		DomainEvidence: domainEvidence,
-		Reason:         "NFQ packet decision integration",
+	decision := w.decideNFQEvidenceScoped(cfg, pkt, port, proto, tlsMetadata, scope, classifier.Evidence{
+		Source:              source,
+		FlowKey:             scope.FlowKey,
+		ClientHelloID:       scope.ClientHelloID,
+		Domain:              domain,
+		SetID:               classifierSetID(set),
+		Confidence:          0,
+		DomainEvidence:      domainEvidence,
+		CompleteClientHello: scope.CompleteClientHello,
+		TLSVersion:          scope.TLSVersion,
+		ConfigGen:           scope.EvidenceConfigGen,
+		ECHRelated:          tlsMetadata.ECHPresent,
+		Reason:              "NFQ packet decision integration",
 	})
 	traceNFQDecision(decision, set, strategy)
 	if decision.Phase == classifier.PhaseAmbiguous {
@@ -253,9 +306,10 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 		return false
 	}
 	candidateEvidence := classifier.Evidence{
-		Source: source, Client: decision.FlowKey.Client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: port,
-		L4Proto: proto, SourceDevice: pkt.srcMac, Domain: domain, SetID: classifierSetID(set),
-		Confidence: decision.Confidence, DomainEvidence: domainEvidence, CreatedAt: time.Now(), ConfigGen: decision.ConfigGen,
+		Source: source, FlowKey: decision.FlowKey, ClientHelloID: decision.ClientHelloID, Client: decision.FlowKey.Client,
+		DestinationIP: netIPToAddr(pkt.dst), DestinationPort: port, L4Proto: proto, SourceDevice: pkt.srcMac,
+		Domain: domain, SetID: classifierSetID(set), Confidence: decision.Confidence, DomainEvidence: domainEvidence,
+		CompleteClientHello: scope.CompleteClientHello, TLSVersion: scope.TLSVersion, CreatedAt: time.Now(), ConfigGen: decision.ConfigGen,
 		Reason: "NFQ capture candidate",
 	}
 	candidate := classifier.CandidateFromEvidence(decision.FlowKey, candidateEvidence)
@@ -266,7 +320,7 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 	}
 	observability.Default().Metrics.Inc(observability.MetricDomainAuthorization, map[string]string{"policy": string(policy), "source": decision.Selected.Source.String(), "result": result}, 1)
 	if ok {
-		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", decision.FlowKey), Kind: "action_authorization", Fields: map[string]string{"authorization_id": auth.ID, "set_id": observability.RedactIdentifier(auth.SetID), "source": auth.EvidenceSource.String(), "policy": string(auth.DomainPolicy), "scope": "exact-flow", "config_generation": fmt.Sprintf("%d", auth.ConfigGen), "final": fmt.Sprintf("%t", auth.Final)}})
+		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", decision.FlowKey), Kind: "action_authorization", Fields: map[string]string{"authorization_id": auth.ID, "set_id": observability.RedactIdentifier(auth.SetID), "source": auth.EvidenceSource.String(), "policy": string(auth.DomainPolicy), "scope": "exact-flow", "client_hello_id": fmt.Sprintf("%d", decision.ClientHelloID), "config_generation": fmt.Sprintf("%d", auth.ConfigGen), "final": fmt.Sprintf("%t", auth.Final)}})
 	}
 	return ok
 }

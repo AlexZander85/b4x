@@ -42,6 +42,23 @@ func ValidForContext(e Evidence, ctx DecisionContext) bool {
 	if ctx.ConfigGen != 0 && e.ConfigGen != 0 && e.ConfigGen != ctx.ConfigGen {
 		return false
 	}
+	if !ctx.FlowKey.IsZero() && !e.FlowKey.IsZero() && e.FlowKey.Normalize() != ctx.FlowKey.Normalize() {
+		return false
+	}
+	if ctx.ClientHelloID != 0 && e.ClientHelloID != 0 && e.ClientHelloID != ctx.ClientHelloID {
+		return false
+	}
+	if ctx.TLSMetadata.Version != 0 && e.TLSVersion != 0 && e.TLSVersion != ctx.TLSMetadata.Version {
+		return false
+	}
+	if e.Source == EvidenceReassembledSNI {
+		if e.FlowKey.IsZero() || e.ClientHelloID == 0 || e.ConfigGen == 0 || !e.CompleteClientHello || e.Domain == "" || e.ECHRelated {
+			return false
+		}
+		if ctx.FlowKey.IsZero() || ctx.ClientHelloID == 0 || ctx.ConfigGen == 0 {
+			return false
+		}
+	}
 	if ctx.DestinationPort != 0 && e.DestinationPort != 0 && ctx.DestinationPort != e.DestinationPort {
 		return false
 	}

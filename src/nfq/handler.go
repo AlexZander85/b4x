@@ -212,7 +212,8 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	sport := binary.BigEndian.Uint16(tcp[0:2])
 	dport := binary.BigEndian.Uint16(tcp[2:4])
 	var reassemblyResult classifier.TCPReassemblyResult
-	if sequence, ok := tcpPacketSequence(tcp); ok {
+	sequence, sequenceOK := tcpPacketSequence(tcp)
+	if sequenceOK {
 		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
 		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
 	}
@@ -224,6 +225,14 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
 	tlsObservation := resolveAuthoritativeTLSObservation(payload, reassemblyResult)
+	if flowKeyOK && tlsObservation.Complete {
+		if tlsObservation.ConfigGen == 0 {
+			tlsObservation.ConfigGen = dnsHintConfigGeneration(cfg)
+		}
+		if tlsObservation.ClientHelloID == 0 && sequenceOK {
+			tlsObservation.ClientHelloID = classifier.LogicalClientHelloID(flowKey, sequence, tlsObservation.ConfigGen)
+		}
+	}
 	host := tlsObservation.Host
 	tlsVersion := tlsObservation.TLSVersion
 	isClientHello := host != ""
@@ -308,15 +317,26 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			stSNI := eligible[0]
 			strategy := "clear-sni"
 			if tlsObservation.Source == classifier.EvidenceReassembledSNI {
-				strategy = "reassembled-sni"
+				strategy = "reassembled-tcp-sni"
 			}
-			if w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, stSNI, tlsObservation.Source, host, true, strategy, tlsMetadata) {
-				if tlsObservation.Source != classifier.EvidenceReassembledSNI || !flowKeyOK || w.clientHelloClaims == nil || w.clientHelloClaims.Claim(flowKey, tlsObservation.ClientHelloID, tlsObservation.ConfigGen, time.Now()) {
+			claimed := true
+			if flowKeyOK && tlsObservation.ClientHelloID != 0 && w.clientHelloClaims != nil {
+				claimed = w.clientHelloClaims.Claim(flowKey, tlsObservation.ClientHelloID, tlsObservation.ConfigGen, time.Now())
+			}
+			if !claimed {
+				log.Tracef("duplicate logical ClientHello decision suppressed before classifier side effects flow=%v id=%d", flowKey, tlsObservation.ClientHelloID)
+			} else {
+				scope := nfqDecisionScope{
+					FlowKey:             flowKey,
+					ClientHelloID:       tlsObservation.ClientHelloID,
+					EvidenceConfigGen:   tlsObservation.ConfigGen,
+					CompleteClientHello: tlsObservation.Complete,
+					TLSVersion:          tlsObservation.TLSVersion,
+				}
+				if w.allowNFQDomainDecisionScoped(cfg, pkt, dport, 6, stSNI, tlsObservation.Source, host, true, strategy, tlsMetadata, scope) {
 					matchedSNI = true
 					matched = true
 					set = stSNI
-				} else {
-					log.Tracef("duplicate reassembled ClientHello decision suppressed flow=%v id=%d", flowKey, tlsObservation.ClientHelloID)
 				}
 			}
 		}
