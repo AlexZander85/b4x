@@ -1,1 +1,1 @@
-trigger pull-request publisher v3
+trigger pull-request publisher v4
