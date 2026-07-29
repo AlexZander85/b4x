@@ -242,6 +242,10 @@ func (api *API) handleAddPresetAsSet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	set.Targets.IPs = nil
+	if err := config.PrepareGeneratedSetDomainPolicy(&set); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	api.loadTargetsForSetCached(&set)
 	config.ApplySetDefaults(&set)

@@ -6,7 +6,7 @@ func TestMigratePPEProductDefaultsPreservesMonitoringMode(t *testing.T) {
 	cfg := NewConfig()
 	cfg.System.Classifier.Runtime.Capture.OffloadPolicy = ""
 	cfg.System.Classifier.Runtime.Capture.PPE = PPEOffloadConfig{}
-	if err := migratePPEProductDefaults(cfg); err != nil {
+	if err := migratePPEProductDefaults(&cfg); err != nil {
 		t.Fatal(err)
 	}
 	capture := cfg.System.Classifier.Runtime.Capture
@@ -21,7 +21,7 @@ func TestMigratePPEProductDefaultsPreservesMonitoringMode(t *testing.T) {
 func TestMigratePPEProductDefaultsRejectsLegacyGlobalMode(t *testing.T) {
 	cfg := NewConfig()
 	cfg.System.Classifier.Runtime.Capture.OffloadPolicy = OffloadPolicyDisableGlobal
-	if err := migratePPEProductDefaults(cfg); err != nil {
+	if err := migratePPEProductDefaults(&cfg); err != nil {
 		t.Fatal(err)
 	}
 	if cfg.System.Classifier.Runtime.Capture.OffloadPolicy != OffloadPolicyDetect {

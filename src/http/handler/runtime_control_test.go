@@ -20,7 +20,7 @@ func runtimeControlTestConfig() *config.Config {
 func TestRuntimeControlDiffAllowsClassifierAndSetChanges(t *testing.T) {
 	active := runtimeControlTestConfig()
 	candidate := active.CloneForRuntimeUpdate()
-	candidate.System.Classifier.Confidence.Mutate++
+	candidate.System.Classifier.Runtime.Confidence.Mutate++
 	candidate.GetSetById("youtube-api").TCP.SynFake = true
 	if err := runtimeControlDiffAllowed(active, candidate); err != nil {
 		t.Fatal(err)

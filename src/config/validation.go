@@ -124,6 +124,21 @@ func (c *Config) Validate() error {
 	}
 
 	for setIdx, set := range c.Sets {
+		if set == nil {
+			v.add(fmt.Sprintf("sets[%d]", setIdx), "required", "set must not be null", nil)
+			return v.result()
+		}
+		policy := NormalizeDomainPolicy(set.Targets.DomainPolicy)
+		switch policy {
+		case DomainPolicyInherit, DomainPolicyStrict, DomainPolicyScopedHints, DomainPolicyLegacy, DomainPolicyDisabled:
+		default:
+			v.addf(fmt.Sprintf("sets[%d].targets.domain_policy", setIdx), "unsupported_mode", map[string]any{"supported": []DomainPolicy{DomainPolicyInherit, DomainPolicyStrict, DomainPolicyScopedHints, DomainPolicyLegacy, DomainPolicyDisabled}}, "set %q: unsupported domain policy %q", set.Name, set.Targets.DomainPolicy)
+			return v.result()
+		}
+		if UnsafeLegacyDomainScope(c, set) && !c.System.Classifier.UnsafeLegacyDomainScopeOverride {
+			v.addf(fmt.Sprintf("sets[%d].targets.domain_policy", setIdx), UnsafeLegacyDomainScopeReason, map[string]any{"set": set.Name, "effective_policy": DomainPolicyLegacy, "suggested_policy": DomainPolicyScopedHints}, "set %q uses unsafe legacy DomainOnly scope with fallback targets and an active action", set.Name)
+			return v.result()
+		}
 		if set.Routing.Table < 0 {
 			set.Routing.Table = 0
 		}

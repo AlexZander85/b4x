@@ -70,12 +70,20 @@ type ApiConfig struct {
 	IPInfoToken string `json:"ipinfo_token"`
 }
 
+type DomainPolicy string
+
 const (
-	ClassifierSchemaV23 = 1
-	DomainStrict        = "strict"
-	DomainScopedHints   = "scoped-hints"
-	DomainLegacy        = "legacy"
-	DomainDisabled      = "disabled"
+	ClassifierSchemaV23                  = 1
+	DomainPolicyInherit     DomainPolicy = "inherit"
+	DomainPolicyStrict      DomainPolicy = "strict"
+	DomainPolicyScopedHints DomainPolicy = "scoped-hints"
+	DomainPolicyLegacy      DomainPolicy = "legacy"
+	DomainPolicyDisabled    DomainPolicy = "disabled"
+
+	DomainStrict      = string(DomainPolicyStrict)
+	DomainScopedHints = string(DomainPolicyScopedHints)
+	DomainLegacy      = string(DomainPolicyLegacy)
+	DomainDisabled    = string(DomainPolicyDisabled)
 	// DomainOnlyLegacy is retained as the compatibility name used by older
 	// callers and persisted configurations.
 	DomainOnlyLegacy  = DomainLegacy
@@ -108,11 +116,12 @@ type ClassifierFeatureFlags struct {
 }
 
 type ClassifierConfig struct {
-	SchemaVersion  int                     `json:"schema_version"`
-	APIVersion     string                  `json:"api_version"`
-	DomainOnlyMode string                  `json:"domain_only_mode"`
-	Flags          ClassifierFeatureFlags  `json:"flags"`
-	Runtime        ClassifierRuntimeConfig `json:"runtime"`
+	SchemaVersion                   int                     `json:"schema_version"`
+	APIVersion                      string                  `json:"api_version"`
+	DomainOnlyMode                  string                  `json:"domain_only_mode"`
+	UnsafeLegacyDomainScopeOverride bool                    `json:"unsafe_legacy_domain_scope_override,omitempty"`
+	Flags                           ClassifierFeatureFlags  `json:"flags"`
+	Runtime                         ClassifierRuntimeConfig `json:"runtime"`
 }
 
 var DefaultClassifierConfig = ClassifierConfig{
@@ -288,17 +297,18 @@ type SNIMutationConfig struct {
 }
 
 type TargetsConfig struct {
-	SNIDomains           []string `json:"sni_domains"`
-	IPs                  []string `json:"ip"`
-	GeoSiteCategories    []string `json:"geosite_categories"`
-	GeoIpCategories      []string `json:"geoip_categories"`
-	SourceDevices        []string `json:"source_devices"`
-	SourceDevicesExclude bool     `json:"source_devices_exclude"`
-	DomainOnly           bool     `json:"domain_only"`
-	TLSVersion           string   `json:"tls"`        // "1.2", "1.3", or "" (match any)
-	IPVersion            string   `json:"ip_version"` // "4", "6", or "" (match any)
-	DomainsToMatch       []string `json:"-"`
-	IpsToMatch           []string `json:"-"`
+	SNIDomains           []string     `json:"sni_domains"`
+	IPs                  []string     `json:"ip"`
+	GeoSiteCategories    []string     `json:"geosite_categories"`
+	GeoIpCategories      []string     `json:"geoip_categories"`
+	SourceDevices        []string     `json:"source_devices"`
+	SourceDevicesExclude bool         `json:"source_devices_exclude"`
+	DomainOnly           bool         `json:"domain_only"`
+	DomainPolicy         DomainPolicy `json:"domain_policy,omitempty"`
+	TLSVersion           string       `json:"tls"`        // "1.2", "1.3", or "" (match any)
+	IPVersion            string       `json:"ip_version"` // "4", "6", or "" (match any)
+	DomainsToMatch       []string     `json:"-"`
+	IpsToMatch           []string     `json:"-"`
 }
 
 type SystemConfig struct {

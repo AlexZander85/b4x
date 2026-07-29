@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 
 	"github.com/daniellavrushin/b4/log"
@@ -42,7 +43,7 @@ func migrateV51to52(c *Config, _ map[string]interface{}) error {
 	if c.System.Classifier.DomainOnlyMode == "" {
 		c.System.Classifier.DomainOnlyMode = DomainOnlyLegacy
 	}
-	if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {
+	if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {
 		c.System.Classifier.Runtime = DefaultClassifierRuntimeConfig
 	}
 	return nil

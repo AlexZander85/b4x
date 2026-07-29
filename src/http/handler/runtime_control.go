@@ -363,11 +363,11 @@ func runtimeControlDiffAllowed(active, candidate *config.Config) error {
 		!reflect.DeepEqual(active.CollectUDPPorts(), candidate.CollectUDPPorts()) {
 		return errors.New("candidate cannot change the kernel capture port envelope")
 	}
-	if err := runtimeControlSetEnvelopeAllowed(active, candidate); err != nil {
-		return err
-	}
 	a := active.Clone()
 	c := candidate.Clone()
+	if err := runtimeControlSetEnvelopeAllowed(a, c); err != nil {
+		return err
+	}
 	c.System.Classifier = a.System.Classifier
 	c.Sets = a.Sets
 	c.RuntimeGeneration = a.RuntimeGeneration
