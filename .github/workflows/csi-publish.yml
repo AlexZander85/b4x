@@ -27,10 +27,11 @@ jobs:
           go-version-file: src/go.mod
           cache: false
 
-      - name: Reconstruct and apply ten CSI commits
+      - name: Reconstruct, fixup, test and publish ten CSI commits
         shell: bash
         run: |
           set -euo pipefail
+          readonly base=8325bb4efe191aad274b46330e75d5272178c035
           git config user.name "b4-csi-agent"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin csi-publisher-20260729-v2
@@ -79,12 +80,34 @@ jobs:
           mkdir -p /tmp/csi-patches
           tar -xzf /tmp/csi-patches.tar.gz -C /tmp/csi-patches
           test "$(find /tmp/csi-patches -maxdepth 1 -name '*.patch' | wc -l)" -eq 10
-
           git am /tmp/csi-patches/*.patch
-          test "$(git rev-list --count 8325bb4efe191aad274b46330e75d5272178c035..HEAD)" -eq 10
-          git diff --check 8325bb4efe191aad274b46330e75d5272178c035..HEAD
 
-          unformatted="$(git diff --name-only 8325bb4efe191aad274b46330e75d5272178c035..HEAD -- '*.go' | xargs -r gofmt -l)"
+          mapfile -t stages < <(git rev-list --reverse "$base"..HEAD)
+          test "${#stages[@]}" -eq 10
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/config/migration.go')
+          s = p.read_text()
+          if '"reflect"' not in s:
+              s = s.replace('"path/filepath"\n\t"strings"', '"path/filepath"\n\t"reflect"\n\t"strings"')
+          s = s.replace('if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {', 'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {')
+          p.write_text(s)
+          PY
+          gofmt -w src/config/migration.go
+          git add src/config/migration.go
+          git commit --fixup="${stages[0]}"
+
+          sed -i 's#github.com/daniellavrushin/b4/classifier/fixtures#github.com/daniellavrushin/b4/fixtures#' src/nfq/tcp_reassembly_visibility_test.go
+          gofmt -w src/nfq/tcp_reassembly_visibility_test.go
+          git add src/nfq/tcp_reassembly_visibility_test.go
+          git commit --fixup="${stages[2]}"
+
+          GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$base"
+          test "$(git rev-list --count "$base"..HEAD)" -eq 10
+          git diff --check "$base"..HEAD
+
+          unformatted="$(git diff --name-only "$base"..HEAD -- '*.go' | xargs -r gofmt -l)"
           test -z "$unformatted" || { printf 'Unformatted Go files:\n%s\n' "$unformatted"; exit 1; }
 
           cd src
