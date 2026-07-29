@@ -11,7 +11,7 @@ import (
 
 func (w *Worker) tcpTLSDecisionMetadata(cfg *config.Config, pkt *pktInfo, sport, dport uint16, payload []byte) classifier.TLSMetadata {
 	metadata := classifier.TLSMetadata{}
-	if cfg != nil && pkt != nil && cfg.IsTCPPort(dport) && len(payload) > 0 {
+	if cfg != nil && pkt != nil && !pkt.offload.Truncated && cfg.IsTCPPort(dport) && len(payload) > 0 {
 		parsed := sni.ParseTLSClientHelloMetadata(payload)
 		metadata = classifier.TLSMetadata{
 			Version:         parsed.MaxVersion,

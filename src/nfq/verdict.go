@@ -12,6 +12,7 @@ type verdictCtx struct {
 	id      uint32
 	q       *nfqueue.Nfqueue
 	verdict engine.PacketVerdict
+	offload OffloadMetadata
 }
 
 func (vc *verdictCtx) accept() int {
@@ -81,7 +82,10 @@ func (w *Worker) ProcessPacket(raw []byte) engine.PacketVerdict {
 	if len(raw) == 0 {
 		return engine.VerdictAccept
 	}
-	vc := &verdictCtx{verdict: engine.VerdictAccept}
+	vc := &verdictCtx{
+		verdict: engine.VerdictAccept,
+		offload: OffloadMetadata{PayloadLength: uint32(len(raw)), OriginalLength: uint32(len(raw))},
+	}
 	w.dispatch(vc, raw)
 	return vc.verdict
 }

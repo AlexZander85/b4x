@@ -25,6 +25,10 @@ type authoritativeTLSObservation struct {
 }
 
 func resolveAuthoritativeTLSObservation(payload []byte, reassembly classifier.TCPReassemblyResult) authoritativeTLSObservation {
+	return resolveAuthoritativeTLSObservationWithOffload(payload, reassembly, OffloadMetadata{})
+}
+
+func resolveAuthoritativeTLSObservationWithOffload(payload []byte, reassembly classifier.TCPReassemblyResult, offload OffloadMetadata) authoritativeTLSObservation {
 	packet := sni.ParseTLSClientHelloMetadata(payload)
 	observation := authoritativeTLSObservation{
 		Host:       strings.ToLower(strings.TrimSpace(packet.SNI)),
@@ -32,6 +36,15 @@ func resolveAuthoritativeTLSObservation(payload []byte, reassembly classifier.TC
 		Source:     classifier.EvidencePacketSNI,
 		Complete:   packet.Complete,
 		ECHPresent: packet.ECHPresent,
+	}
+	if offload.Truncated {
+		// NFQA_CAP_LEN proves that userspace received only a prefix. Even when
+		// that prefix happens to contain a syntactically complete ClientHello, it
+		// is not authoritative for this skb. A separately completed bounded
+		// reassembly result may still be used below.
+		observation.Host = ""
+		observation.Complete = false
+		observation.Reason = "nfqueue payload truncated"
 	}
 	if reassembly.Status != classifier.ReassemblyComplete || !reassembly.Metadata.Complete {
 		return observation

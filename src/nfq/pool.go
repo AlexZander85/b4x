@@ -29,6 +29,7 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	}
 
 	w.cfg.Store(cfg)
+	w.gsoCapability.Store(defaultGSOCapabilityStatus())
 
 	return w
 }

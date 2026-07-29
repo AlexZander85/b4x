@@ -29,15 +29,16 @@ import (
 )
 
 type pktInfo struct {
-	raw    []byte
-	ver    uint8
-	proto  uint8
-	src    net.IP
-	dst    net.IP
-	srcStr string
-	dstStr string
-	srcMac string
-	ihl    int
+	raw     []byte
+	ver     uint8
+	proto   uint8
+	src     net.IP
+	dst     net.IP
+	srcStr  string
+	dstStr  string
+	srcMac  string
+	ihl     int
+	offload OffloadMetadata
 }
 
 func (w *Worker) handlePacket(q *nfqueue.Nfqueue, a nfqueue.Attribute, mark uint) int {
@@ -50,7 +51,9 @@ func (w *Worker) handlePacket(q *nfqueue.Nfqueue, a nfqueue.Attribute, mark uint
 		return 0
 	}
 
-	vc := &verdictCtx{id: *a.PacketID, q: q}
+	offload := DecodeOffloadMetadata(a)
+	w.observeOffloadMetadata(offload)
+	vc := &verdictCtx{id: *a.PacketID, q: q, offload: offload}
 
 	if a.Mark != nil && capture.IsProcessedMark(uint32(*a.Mark), mark) {
 		return vc.accept()
@@ -78,6 +81,14 @@ func (w *Worker) dispatch(vc *verdictCtx, raw []byte) int {
 	pkt, ok := w.parseIPHeaders(raw)
 	if !ok {
 		return vc.accept()
+	}
+
+	pkt.offload = vc.offload
+	if pkt.offload.PayloadLength == 0 {
+		pkt.offload.PayloadLength = uint32(len(raw))
+	}
+	if pkt.offload.OriginalLength == 0 {
+		pkt.offload.OriginalLength = pkt.offload.PayloadLength
 	}
 
 	matched, st := matcher.MatchIPWithSource(pkt.dst, pkt.srcMac)
@@ -213,7 +224,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	dport := binary.BigEndian.Uint16(tcp[2:4])
 	var reassemblyResult classifier.TCPReassemblyResult
 	sequence, sequenceOK := tcpPacketSequence(tcp)
-	if sequenceOK {
+	if sequenceOK && !pkt.offload.Truncated {
 		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
 		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
 	}
@@ -224,7 +235,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
 	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
-	tlsObservation := resolveAuthoritativeTLSObservation(payload, reassemblyResult)
+	tlsObservation := resolveAuthoritativeTLSObservationWithOffload(payload, reassemblyResult, pkt.offload)
 	if flowKeyOK && tlsObservation.Complete {
 		if tlsObservation.ConfigGen == 0 {
 			tlsObservation.ConfigGen = dnsHintConfigGeneration(cfg)

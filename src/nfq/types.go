@@ -67,6 +67,7 @@ type Worker struct {
 	candidateSet       atomic.Value // string; target set for candidate accounting
 	clientHelloSink    atomic.Pointer[clientHelloSinkHolder]
 	ppePassiveObserver atomic.Pointer[ppePassiveObserverHolder]
+	gsoCapability      atomic.Value // GSOCapabilityStatus
 }
 
 type clientHelloSinkHolder struct {
