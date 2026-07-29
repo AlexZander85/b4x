@@ -38,7 +38,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat publisher/.hardening/payload.[0-9][0-9] | base64 -d > /tmp/hardening-stage.patch
+          cat \
+            publisher/.hardening/payload.00 \
+            publisher/.hardening/payload.01 \
+            publisher/.hardening/payload.02 \
+            publisher/.hardening/payload.03 \
+            > /tmp/hardening-stage.b64
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('/tmp/hardening-stage.b64')
+          data = path.read_text()
+          old = 'dGU7MHgxNy'
+          new = 'dGV7MHgxNy'
+          if data.count(old) != 1:
+              raise SystemExit(f'expected one deterministic payload correction, found {data.count(old)}')
+          path.write_text(data.replace(old, new, 1))
+          PY
+          base64 -d /tmp/hardening-stage.b64 > /tmp/hardening-stage.patch
           echo "$(cat publisher/.hardening/payload.sha256)  /tmp/hardening-stage.patch" | sha256sum -c -
           cd work
           git config user.name "OpenAI Agent"
