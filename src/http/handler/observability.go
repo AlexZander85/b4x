@@ -56,6 +56,13 @@ func (api *API) handleIssueBundle(w http.ResponseWriter, r *http.Request) {
 		GeneratedAt: now,
 		Queue:       queue,
 	})
+	if api.ppeProduct != nil {
+		sendResponse(w, struct {
+			observability.IssueBundle
+			PPE any `json:"ppe"`
+		}{IssueBundle: bundle, PPE: api.ppeProduct.IssueBundle(r.Context())})
+		return
+	}
 	sendResponse(w, bundle)
 }
 

@@ -1,0 +1,29 @@
+{
+  "ppe": {
+    "title": "Видимость при аппаратном offload",
+    "description": "Первые пакеты только выбранных B4-потоков остаются на CPU-пути, чтобы классификатор видел оба направления.",
+    "beginnerSafety": "Per-flow исключение сохраняет аппаратный offload для остального трафика. Этот переключатель не отключает аппаратное ускорение глобально.",
+    "toggle": "Аппаратный offload: per-flow исключение",
+    "modeExclude": "Для выбранных B4-портов действует ограниченное firmware-окно исключения. До успешной контрольной проверки hold, автоматический Discovery, canary и promote остаются заблокированы.",
+    "modeMonitor": "Только мониторинг. B4 проверяет capability и риск потери видимости, но не устанавливает exclusion rules.",
+    "unsupported": "Роутер не подтвердил обязательные Keenetic PPE target и connskip. Правила не устанавливались.",
+    "rulesPresent": "правила B4 присутствуют",
+    "rulesMissing": "правила B4 не подтверждены",
+    "visibility": "видимость",
+    "refresh": "Обновить",
+    "bundle": "PPE diagnostic bundle",
+    "generation": "Поколение PPE",
+    "scope": "Область источников",
+    "tcpPorts": "Эффективные TCP-порты",
+    "udpPorts": "Эффективные QUIC/UDP-порты",
+    "blockedFeatures": "Функции, заблокированные safety gate",
+    "advancedTitle": "Контрольная проверка видимости",
+    "noGlobalClaim": "B4 не отключает глобальный offload автоматически. Advanced-проверка подтверждает только активное per-flow поколение на контролируемом endpoint.",
+    "endpoint": "Контролируемый endpoint",
+    "family": "Семейство IP",
+    "tcpSourcePort": "Исходный TCP-порт",
+    "quicSourcePort": "Исходный QUIC-порт",
+    "requireQuic": "Требовать QUIC proof",
+    "runSelfTest": "Запустить контрольный A/B test"
+  }
+}

@@ -24,6 +24,8 @@ import (
 //go:embed ui/dist/*
 var uiDist embed.FS
 
+var processPPE atomic.Pointer[ppe.ProductService]
+
 type errLogFilter struct{ w io.Writer }
 
 func (f errLogFilter) Write(p []byte) (int, error) {
@@ -38,6 +40,7 @@ func (f errLogFilter) Write(p []byte) (int, error) {
 
 func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhttp.Server, *handler.API, error) {
 	cfg := cfgPtr.Load()
+	ensureProcessPPE(cfgPtr, pool)
 	if cfg.System.WebServer.Port == 0 {
 		log.Infof("Web server disabled (port 0)")
 		return nil, nil, nil
@@ -49,11 +52,7 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 	registerWebSocketEndpoints(mux)
 
 	api := registerAPIEndpoints(mux, cfgPtr)
-	passivePPE := ppe.NewPassiveTracker(4096, 10*time.Minute)
-	if pool != nil {
-		pool.SetPPEPassiveObserver(passivePPE)
-	}
-	api.SetPPEStatusProvider(ppe.NewDiagnosticsService(func() *config.Config { return cfgPtr.Load() }, ppe.NewDetector(nil), ppe.NewRuleCounterCollector(nil), passivePPE, "b4_managed"))
+	api.AttachProcessPPEProductService()
 	if err := api.InitializeRuntimeControl(handler.Version + " (" + handler.Commit + ")"); err != nil {
 		return nil, nil, fmt.Errorf("initialize runtime control: %w", err)
 	}
@@ -156,8 +155,32 @@ func LogWriter() io.Writer {
 }
 
 func Shutdown() {
+	if service := processPPE.Swap(nil); service != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		service.Stop(ctx)
+		cancel()
+		handler.SetProcessPPEProductService(nil)
+	}
 	// Shutdown the log hub
 	ws.Shutdown()
+}
+
+func ensureProcessPPE(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) *ppe.ProductService {
+	if current := processPPE.Load(); current != nil {
+		return current
+	}
+	service := ppe.NewProductService(func() *config.Config { return cfgPtr.Load() }, nil, ppe.DefaultManagedSourceSet)
+	if !processPPE.CompareAndSwap(nil, service) {
+		return processPPE.Load()
+	}
+	if pool != nil {
+		pool.SetPPEPassiveObserver(service.ObservationBus())
+	}
+	if err := service.Start(context.Background()); err != nil {
+		log.Warnf("PPE product startup degraded to monitoring mode: %v", err)
+	}
+	handler.SetProcessPPEProductService(service)
+	return service
 }
 func runtimeControlMutationGuard(api *handler.API, next stdhttp.Handler) stdhttp.Handler {
 	return stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {

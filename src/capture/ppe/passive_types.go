@@ -26,6 +26,8 @@ type PassiveObservation struct {
 	Family       string
 	Protocol     string
 	Direction    PassiveDirection
+	ClientPort   uint16
+	ServerPort   uint16
 	Sequence     uint32
 	HasSequence  bool
 	SYN          bool

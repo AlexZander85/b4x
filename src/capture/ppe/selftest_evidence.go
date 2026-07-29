@@ -3,20 +3,24 @@ package ppe
 import "sync"
 
 type evidenceCollector struct {
-	mu         sync.Mutex
-	phase      SelfTestPhase
-	tcpFlowID  string
-	quicFlowID string
-	evidence   PhaseEvidence
-	firstSeq   uint32
-	firstLen   uint32
-	hasFirst   bool
-	ranges     map[[2]uint32]struct{}
+	mu             sync.Mutex
+	phase          SelfTestPhase
+	family         string
+	tcpFlowID      string
+	quicFlowID     string
+	tcpSourcePort  uint16
+	quicSourcePort uint16
+	evidence       PhaseEvidence
+	firstSeq       uint32
+	firstLen       uint32
+	hasFirst       bool
+	ranges         map[[2]uint32]struct{}
 }
 
-func newEvidenceCollector(phase SelfTestPhase, tcpFlowID, quicFlowID string) *evidenceCollector {
+func newEvidenceCollector(phase SelfTestPhase, family, tcpFlowID, quicFlowID string, tcpSourcePort, quicSourcePort uint16) *evidenceCollector {
 	return &evidenceCollector{
-		phase: phase, tcpFlowID: tcpFlowID, quicFlowID: quicFlowID,
+		phase: phase, family: family, tcpFlowID: tcpFlowID, quicFlowID: quicFlowID,
+		tcpSourcePort: tcpSourcePort, quicSourcePort: quicSourcePort,
 		evidence: PhaseEvidence{Phase: phase}, ranges: make(map[[2]uint32]struct{}),
 	}
 }
@@ -28,9 +32,9 @@ func (c *evidenceCollector) Observe(observation PassiveObservation) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
-	case observation.FlowID == c.tcpFlowID && observation.Protocol == "tcp":
+	case c.matches(observation, "tcp", c.tcpFlowID, c.tcpSourcePort):
 		c.observeTCP(observation)
-	case c.quicFlowID != "" && observation.FlowID == c.quicFlowID && observation.Protocol == "udp":
+	case c.matches(observation, "udp", c.quicFlowID, c.quicSourcePort):
 		if observation.Direction == PassiveOutgoing && observation.QUIC && observation.PayloadBytes > 0 {
 			c.evidence.QUICInitialSeen = true
 		}
@@ -38,6 +42,16 @@ func (c *evidenceCollector) Observe(observation PassiveObservation) {
 			c.evidence.QUICIncomingResponseSeen = true
 		}
 	}
+}
+
+func (c *evidenceCollector) matches(observation PassiveObservation, protocol, flowID string, sourcePort uint16) bool {
+	if observation.Protocol != protocol || (c.family != "" && observation.Family != c.family) {
+		return false
+	}
+	if flowID != "" && observation.FlowID == flowID {
+		return true
+	}
+	return sourcePort != 0 && observation.ClientPort == sourcePort
 }
 
 func (c *evidenceCollector) observeTCP(observation PassiveObservation) {

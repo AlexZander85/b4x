@@ -6,7 +6,7 @@ import (
 )
 
 func (c *SelfTestController) runPhase(ctx context.Context, request SelfTestRequest, phase SelfTestPhase) (PhaseEvidence, error) {
-	collector := newEvidenceCollector(phase, request.TCPFlowID, request.QUICFlowID)
+	collector := newEvidenceCollector(phase, request.Family, request.TCPFlowID, request.QUICFlowID, request.TCPSourcePort, request.QUICSourcePort)
 	unsubscribe := c.bus.Subscribe(collector)
 	defer unsubscribe()
 	tcpOutcome, err := c.probe.Run(ctx, ProbeRequest{RunID: request.RunID, Phase: phase, Protocol: "tcp", Family: request.Family, FlowID: request.TCPFlowID, SourcePort: request.TCPSourcePort, ControlledEndpoint: request.ControlledEndpoint, Timeout: request.Timeout})

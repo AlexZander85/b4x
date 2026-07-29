@@ -1,0 +1,29 @@
+{
+  "ppe": {
+    "title": "Hardware offload visibility",
+    "description": "Keep only the first packets of selected B4 flows on the CPU path so classification can see both directions.",
+    "beginnerSafety": "Per-flow exclusion keeps hardware offload available for unrelated traffic. Turning this on does not disable hardware acceleration globally.",
+    "toggle": "Hardware offload: per-flow exclusion",
+    "modeExclude": "Selected B4 ports use a bounded firmware exclusion window. A controlled proof is still required before hold, automatic Discovery, canary, or promotion are enabled.",
+    "modeMonitor": "Monitoring only. B4 detects capability and visibility risk but does not install exclusion rules.",
+    "unsupported": "This router did not prove the required Keenetic PPE target and connskip capability. No rules were installed.",
+    "rulesPresent": "owned rules present",
+    "rulesMissing": "owned rules not verified",
+    "visibility": "visibility",
+    "refresh": "Refresh",
+    "bundle": "PPE issue bundle",
+    "generation": "PPE generation",
+    "scope": "Source scope",
+    "tcpPorts": "Effective TCP ports",
+    "udpPorts": "Effective QUIC/UDP ports",
+    "blockedFeatures": "Safety-gated features",
+    "advancedTitle": "Controlled visibility test",
+    "noGlobalClaim": "B4 does not automatically disable global offload. The advanced test only verifies the active per-flow exclusion generation against a controlled endpoint.",
+    "endpoint": "Controlled endpoint",
+    "family": "IP family",
+    "tcpSourcePort": "TCP source port",
+    "quicSourcePort": "QUIC source port",
+    "requireQuic": "Require QUIC proof",
+    "runSelfTest": "Run controlled A/B test"
+  }
+}

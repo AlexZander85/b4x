@@ -15,7 +15,7 @@ import (
 type MigrationFunc func(*Config, map[string]interface{}) error
 
 const (
-	CurrentConfigVersion = 52
+	CurrentConfigVersion = 53
 	MinSupportedVersion  = 0
 )
 
@@ -28,6 +28,7 @@ var migrationRegistry = map[int]MigrationFunc{
 	48: migrateV48to49,
 	49: migrateV49to50,
 	51: migrateV51to52,
+	52: migrateV52to53,
 }
 
 func migrateV51to52(c *Config, _ map[string]interface{}) error {

@@ -76,10 +76,15 @@ func (w *Worker) observePPEPassiveTCP(cfg *config.Config, pkt *pktInfo, sport, d
 	if !incoming && !outgoing {
 		return
 	}
+	clientPort, serverPort := sport, dport
+	if incoming {
+		clientPort, serverPort = dport, sport
+	}
 	flags := tcp[13]
 	observation := ppe.PassiveObservation{
 		FlowID: flowHash(pkt, sport, dport, incoming, "tcp"), Family: packetFamily(pkt), Protocol: "tcp",
-		Direction: ppe.PassiveOutgoing, Sequence: binary.BigEndian.Uint32(tcp[4:8]), HasSequence: true,
+		Direction: ppe.PassiveOutgoing, ClientPort: clientPort, ServerPort: serverPort,
+		Sequence: binary.BigEndian.Uint32(tcp[4:8]), HasSequence: true,
 		SYN: flags&0x02 != 0, ACK: flags&0x10 != 0, RST: flags&0x04 != 0,
 		PayloadBytes: len(payload), ObservedAt: time.Now(),
 	}
@@ -99,9 +104,14 @@ func (w *Worker) observePPEPassiveUDP(cfg *config.Config, pkt *pktInfo, sport, d
 	if !incoming && !outgoing {
 		return
 	}
+	clientPort, serverPort := sport, dport
+	if incoming {
+		clientPort, serverPort = dport, sport
+	}
 	observation := ppe.PassiveObservation{
 		FlowID: flowHash(pkt, sport, dport, incoming, "udp"), Family: packetFamily(pkt), Protocol: "udp",
-		Direction: ppe.PassiveOutgoing, PayloadBytes: len(payload), QUIC: quic.LooksLikeQUIC(payload), ObservedAt: time.Now(),
+		Direction: ppe.PassiveOutgoing, ClientPort: clientPort, ServerPort: serverPort,
+		PayloadBytes: len(payload), QUIC: quic.LooksLikeQUIC(payload), ObservedAt: time.Now(),
 	}
 	if incoming {
 		observation.Direction = ppe.PassiveIncoming

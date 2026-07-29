@@ -5,6 +5,8 @@ import en from "./en.json";
 import ru from "./ru.json";
 import classifierEn from "./classifier.en.json";
 import classifierRu from "./classifier.ru.json";
+import ppeEn from "./ppe.en.json";
+import ppeRu from "./ppe.ru.json";
 
 const SUPPORTED = ["en", "ru"] as const;
 type Lang = (typeof SUPPORTED)[number];
@@ -20,6 +22,7 @@ const initial: Lang = (() => {
 const extendClassifierTranslations = (
   base: typeof en,
   extension: typeof classifierEn,
+  ppe: typeof ppeEn,
 ) => ({
   ...base,
   core: {
@@ -27,12 +30,13 @@ const extendClassifierTranslations = (
     nav: { ...base.core.nav, ...extension.core.nav },
   },
   classifier: extension.classifier,
+  ppe: ppe.ppe,
 });
 
 void i18n.use(initReactI18next).init({
   resources: {
-    en: { translation: extendClassifierTranslations(en, classifierEn) },
-    ru: { translation: extendClassifierTranslations(ru, classifierRu as typeof classifierEn) },
+    en: { translation: extendClassifierTranslations(en, classifierEn, ppeEn) },
+    ru: { translation: extendClassifierTranslations(ru, classifierRu as typeof classifierEn, ppeRu as typeof ppeEn) },
   },
   lng: initial,
   fallbackLng: "en",

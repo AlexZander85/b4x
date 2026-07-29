@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"sync"
 	"sync/atomic"
 
 	"github.com/daniellavrushin/b4/config"
@@ -9,6 +10,23 @@ import (
 	"github.com/daniellavrushin/b4/geodat"
 	"github.com/daniellavrushin/b4/runtimecontrol"
 )
+
+var processPPEProduct struct {
+	sync.RWMutex
+	service PPEProductController
+}
+
+func SetProcessPPEProductService(service PPEProductController) {
+	processPPEProduct.Lock()
+	processPPEProduct.service = service
+	processPPEProduct.Unlock()
+}
+
+func ProcessPPEProductService() PPEProductController {
+	processPPEProduct.RLock()
+	defer processPPEProduct.RUnlock()
+	return processPPEProduct.service
+}
 
 type API struct {
 	cfgPtr          *atomic.Pointer[config.Config]
@@ -19,12 +37,30 @@ type API struct {
 	runtimeControl  atomic.Pointer[runtimecontrol.Manager]
 	ppeCapabilities PPECapabilityProvider
 	ppeStatus       PPEStatusProvider
+	ppeProduct      PPEProductController
 
 	overrideServiceManager func() string
 }
 
 func (a *API) SetPPEStatusProvider(provider PPEStatusProvider) {
 	if a != nil {
+		a.ppeStatus = provider
+	}
+}
+
+func (a *API) SetPPEProductService(service PPEProductController) {
+	if a != nil {
+		a.ppeProduct = service
+	}
+}
+
+func (a *API) AttachProcessPPEProductService() {
+	if a == nil {
+		return
+	}
+	service := ProcessPPEProductService()
+	a.ppeProduct = service
+	if provider, ok := service.(PPEStatusProvider); ok {
 		a.ppeStatus = provider
 	}
 }

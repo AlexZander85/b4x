@@ -15,6 +15,7 @@ import { DryRunPanel } from "./DryRunPanel";
 import { FailureInboxPanel } from "./FailureInboxPanel";
 import { FlowsPanel } from "./FlowsPanel";
 import { OverviewPanel } from "./OverviewPanel";
+import { PPEPanel } from "./PPEPanel";
 import { RolloutPanel } from "./RolloutPanel";
 
 export function ClassifierPage() {
@@ -102,7 +103,12 @@ export function ClassifierPage() {
         </Box>
       </B4Card>
 
-      {tab === 0 && <OverviewPanel config={configQuery.data} bundle={bundleQuery.data} advanced={advanced} />}
+      {tab === 0 && (
+        <Stack gap={2}>
+          <PPEPanel advanced={advanced} />
+          <OverviewPanel config={configQuery.data} bundle={bundleQuery.data} advanced={advanced} />
+        </Stack>
+      )}
       {tab === 1 && <FlowsPanel bundle={bundleQuery.data} />}
       {tab === 2 && <DryRunPanel config={configQuery.data} />}
       {tab === 3 && <DiscoveryPanel current={discoveryCurrentQuery.data} history={discoveryHistoryQuery.data} bundle={bundleQuery.data} />}
