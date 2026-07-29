@@ -32,12 +32,8 @@ func (w *Worker) StartCandidate() error {
 	}
 	w.clientSock = cs
 
-	q, err := nfqueue.Open(&nfqueue.Config{
-		NfQueue:      w.qnum,
-		MaxPacketLen: 0xffff,
-		MaxQueueLen:  4096,
-		Copymode:     nfqueue.NfQnlCopyPacket,
-	})
+	queueConfig := nfqueueOpenConfig(cfg, w.qnum, true)
+	q, err := nfqueue.Open(&queueConfig)
 	if err != nil {
 		return err
 	}

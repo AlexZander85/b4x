@@ -45,6 +45,7 @@ type Worker struct {
 	lastOverflowLog    int64
 	cfg                atomic.Value
 	qnum               uint16
+	candidate          bool
 	ctx                context.Context
 	cancel             context.CancelFunc
 	q                  *nfqueue.Nfqueue

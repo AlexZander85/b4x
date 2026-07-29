@@ -77,6 +77,9 @@ func ParseTLSClientHelloMetadata(input []byte) TLSClientHelloMetadata {
 		previousHandshakeBytes := len(handshake)
 		handshake = appendBounded(handshake, record, TLSClientHelloMetadataMaxBytes)
 		if len(handshake) < 4 {
+			if pos < len(view) {
+				continue
+			}
 			metadata.Incomplete(4 - len(handshake))
 			return metadata
 		}
@@ -91,6 +94,9 @@ func ParseTLSClientHelloMetadata(input []byte) TLSClientHelloMetadata {
 			return metadata
 		}
 		if len(handshake) < helloLength {
+			if pos < len(view) {
+				continue
+			}
 			metadata.Incomplete(helloLength - len(handshake))
 			return metadata
 		}

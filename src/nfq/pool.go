@@ -87,6 +87,7 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 	ws := make([]*Worker, 0, threads)
 	for i := 0; i < threads; i++ {
 		w := NewWorkerWithQueue(cfg, start+uint16(i))
+		w.candidate = candidate
 		w.matcher.Store(matcher)
 		w.ipToMac.Store(make(map[string]string))
 		w.tlsCache = state.tlsCache

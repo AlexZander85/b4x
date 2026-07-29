@@ -8,6 +8,14 @@ import (
 	"github.com/daniellavrushin/b4/observability"
 )
 
+type PacketRepresentation uint8
+
+const (
+	RepresentationAny PacketRepresentation = iota
+	RepresentationNormalTCP
+	RepresentationGSOSafe
+)
+
 type SplitPosition struct {
 	Offset uint64
 	Reason string
@@ -48,6 +56,7 @@ type PlanInput struct {
 
 type ActionPlan struct {
 	Valid                bool
+	Representation       PacketRepresentation
 	DryRun               bool
 	StrategyID           string
 	ProcessedMark        uint32
@@ -58,7 +67,7 @@ type ActionPlan struct {
 }
 
 func Plan(input PlanInput) (ActionPlan, error) {
-	plan := ActionPlan{DryRun: input.DryRun, ProcessedMark: input.ProcessedMark, HostMarkersAvailable: input.Markers.HostMarkersAvailable(), Writes: make([]PlannedWrite, 0)}
+	plan := ActionPlan{DryRun: input.DryRun, Representation: RepresentationNormalTCP, ProcessedMark: input.ProcessedMark, HostMarkersAvailable: input.Markers.HostMarkersAvailable(), Writes: make([]PlannedWrite, 0)}
 	if input.Retransmission {
 		return plan, ErrRetransmission
 	}

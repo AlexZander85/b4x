@@ -224,15 +224,18 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	dport := binary.BigEndian.Uint16(tcp[2:4])
 	var reassemblyResult classifier.TCPReassemblyResult
 	sequence, sequenceOK := tcpPacketSequence(tcp)
-	if sequenceOK && !pkt.offload.Truncated {
-		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
-		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
-	}
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
 	if cfg.IsTCPPort(sport) {
 		w.releaseTCPHoldOnServerProgress(pkt, sport, dport)
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
+	}
+	if handled, verdict, _ := w.handleGSOFastPath(vc, pkt, cfg, matcher, payload, sport, dport, sequence, sequenceOK); handled {
+		return verdict
+	}
+	if sequenceOK && !pkt.offload.Truncated {
+		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
+		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
 	}
 	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
 	tlsObservation := resolveAuthoritativeTLSObservationWithOffload(payload, reassemblyResult, pkt.offload)

@@ -142,3 +142,27 @@ func BenchmarkParseTLSClientHelloMetadata(b *testing.B) {
 		}
 	}
 }
+
+func TestParseTLSClientHelloMetadataAcrossMultipleRecords(t *testing.T) {
+	record := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 32*1024-5)
+	if len(record) < 5 || len(record[5:]) <= 16*1024 {
+		t.Fatalf("fixture does not require multiple records: %d", len(record))
+	}
+	payload := record[5:]
+	multi := make([]byte, 0, len(record)+5)
+	for len(payload) > 0 {
+		n := len(payload)
+		if n > 16*1024 {
+			n = 16 * 1024
+		}
+		header := []byte{0x16, 0x03, 0x03, 0, 0}
+		binary.BigEndian.PutUint16(header[3:5], uint16(n))
+		multi = append(multi, header...)
+		multi = append(multi, payload[:n]...)
+		payload = payload[n:]
+	}
+	metadata := ParseTLSClientHelloMetadata(multi)
+	if !metadata.Complete || metadata.SNI != "api.youtube.com" || metadata.RecordCount != 2 || metadata.ClientHelloSize == 0 {
+		t.Fatalf("multi-record ClientHello not parsed: %+v", metadata)
+	}
+}

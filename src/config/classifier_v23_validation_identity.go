@@ -32,6 +32,25 @@ func (s classifierRuntimeValidation) validateIdentityHintsCapture() {
 		s.v.add("system.classifier.runtime.hints.max_entries_per_client", "exceeds_global_limit", "per-client hint limit must not exceed global limit", nil)
 	}
 
+	if s.r.Capture.NFQueue == (NFQueueCaptureConfig{}) {
+		s.r.Capture.NFQueue = s.d.Capture.NFQueue
+	}
+	if s.r.Capture.NFQueue.GSOMode == "" {
+		s.r.Capture.NFQueue.GSOMode = s.d.Capture.NFQueue.GSOMode
+	}
+	if s.r.Capture.NFQueue.MaxGSOBytes <= 0 {
+		s.r.Capture.NFQueue.MaxGSOBytes = s.d.Capture.NFQueue.MaxGSOBytes
+	}
+	switch s.r.Capture.NFQueue.GSOMode {
+	case GSOModeOff, GSOModeObserve, GSOModeClassify, GSOModeFull:
+	default:
+		s.v.add("system.classifier.runtime.capture.nfqueue.gso_mode", "unsupported_mode", "gso_mode must be off, observe, classify, or full", nil)
+	}
+	s.outOfRange("system.classifier.runtime.capture.nfqueue.max_gso_bytes", s.r.Capture.NFQueue.MaxGSOBytes, 1500, 65535)
+	if !s.r.Capture.NFQueue.TCPOnly {
+		s.v.add("system.classifier.runtime.capture.nfqueue.tcp_only", "tcp_only_required", "GSO hardening currently supports TCP capture only", nil)
+	}
+
 	s.defaultU32(&s.r.Capture.OutgoingPacketLimit, s.d.Capture.OutgoingPacketLimit)
 	s.defaultU32(&s.r.Capture.IncomingPacketLimit, s.d.Capture.IncomingPacketLimit)
 	s.defaultU32(&s.r.Capture.ProcessedMarkMask, s.d.Capture.ProcessedMarkMask)
