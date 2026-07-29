@@ -52,6 +52,13 @@ jobs:
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
+          if [[ -f ../publisher/.hardening/fix.b64 ]]; then
+            base64 -d ../publisher/.hardening/fix.b64 > /tmp/hardening-fix.patch
+            echo "$(cat ../publisher/.hardening/fix.sha256)  /tmp/hardening-fix.patch" | sha256sum -c -
+            git apply /tmp/hardening-fix.patch
+            git add -A
+            git commit --amend --no-edit
+          fi
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
 
       - name: Go unit and integration gate
