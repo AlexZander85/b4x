@@ -134,6 +134,10 @@ func (m *Manager) PromotePending(ctx context.Context) (ApplyResult, error) {
 	if m.beforePromote != nil {
 		if err := m.beforePromote(pending.meta.clone()); err != nil {
 			_ = m.store.Abort()
+			m.cooldown.RecordFailure(cooldownKey(pending.meta, pending.request.Canary))
+			m.cleanupCandidateLocked(ctx, pending.runtime, pending.meta.ID, err)
+			m.appendHistoryLocked(HistoryEntry{Action: "promotion-gate", Generation: pending.meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: pending.canary})
+			m.pending = nil
 			return ApplyResult{}, &TransactionError{Stage: StagePromote, Err: err}
 		}
 	}

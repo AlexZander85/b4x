@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/crossservice"
 	"github.com/daniellavrushin/b4/observability"
 )
 
@@ -24,10 +25,16 @@ type classifierIsolationSetStatus struct {
 }
 
 type classifierNegativeControlStatus struct {
-	Status                      string `json:"status"`
-	UnrelatedControlActionTotal uint64 `json:"unrelated_control_action_total"`
-	PromotionAllowed            bool   `json:"promotion_allowed"`
-	Reason                      string `json:"reason,omitempty"`
+	Status                      string    `json:"status"`
+	ReportGeneration            string    `json:"report_generation,omitempty"`
+	CheckedAt                   time.Time `json:"checked_at,omitempty"`
+	RequiredScenarios           int       `json:"required_scenarios,omitempty"`
+	PassedScenarios             int       `json:"passed_scenarios,omitempty"`
+	UnrelatedControlActionTotal uint64    `json:"unrelated_control_action_total"`
+	CrossServiceCacheReuse      uint64    `json:"cross_service_cache_reuse"`
+	CrossServiceRouteReuse      uint64    `json:"cross_service_route_reuse"`
+	PromotionAllowed            bool      `json:"promotion_allowed"`
+	Reason                      string    `json:"reason,omitempty"`
 }
 
 type classifierIsolationStatus struct {
@@ -47,10 +54,11 @@ func (api *API) handleClassifierIsolation(w http.ResponseWriter, r *http.Request
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	sendResponse(w, buildClassifierIsolationStatus(api.getCfg(), observability.Default(), time.Now().UTC()))
+	report, _ := crossservice.Default().Latest()
+	sendResponse(w, buildClassifierIsolationStatus(api.getCfg(), observability.Default(), &report, time.Now().UTC()))
 }
 
-func buildClassifierIsolationStatus(cfg *config.Config, recorder *observability.Recorder, now time.Time) classifierIsolationStatus {
+func buildClassifierIsolationStatus(cfg *config.Config, recorder *observability.Recorder, report *crossservice.ValidationReport, now time.Time) classifierIsolationStatus {
 	status := classifierIsolationStatus{
 		APIVersion:   config.ClassifierAPIV23,
 		GeneratedAt:  now,
@@ -91,6 +99,24 @@ func buildClassifierIsolationStatus(cfg *config.Config, recorder *observability.
 	}
 	sort.Slice(status.Sets, func(i, j int) bool { return status.Sets[i].SetID < status.Sets[j].SetID })
 
+	hasReport := report != nil && report.SchemaVersion != ""
+	if hasReport {
+		status.NegativeControl.ReportGeneration = report.Generation
+		status.NegativeControl.CheckedAt = report.CheckedAt
+		status.NegativeControl.RequiredScenarios = report.RequiredScenarios
+		status.NegativeControl.PassedScenarios = report.PassedScenarios
+		status.NegativeControl.UnrelatedControlActionTotal = report.UnrelatedControlActionTotal
+		status.NegativeControl.CrossServiceCacheReuse = report.CrossServiceCacheReuse
+		status.NegativeControl.CrossServiceRouteReuse = report.CrossServiceRouteReuse
+		status.NegativeControl.PromotionAllowed = report.PromotionAllowed
+		if report.Passed {
+			status.NegativeControl.Status = "passed"
+			status.NegativeControl.Reason = "all required negative-control hard gates passed"
+		} else {
+			status.NegativeControl.Status = "failed"
+			status.NegativeControl.Reason = "negative-control report contains hard-gate failures"
+		}
+	}
 	if recorder == nil {
 		return status
 	}
@@ -107,11 +133,11 @@ func buildClassifierIsolationStatus(cfg *config.Config, recorder *observability.
 			continue
 		}
 		status.Metrics = append(status.Metrics, sample)
-		if sample.Name == observability.MetricUnrelatedControlAction {
+		if sample.Name == observability.MetricUnrelatedControlAction && !hasReport {
 			status.NegativeControl.UnrelatedControlActionTotal += sample.Value
 		}
 	}
-	if status.NegativeControl.UnrelatedControlActionTotal > 0 {
+	if !hasReport && status.NegativeControl.UnrelatedControlActionTotal > 0 {
 		status.NegativeControl.Status = "failed"
 		status.NegativeControl.Reason = "unrelated service received a service-scoped action"
 	}

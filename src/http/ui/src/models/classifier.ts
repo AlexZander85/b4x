@@ -153,7 +153,13 @@ export interface ClassifierIsolationSetStatus {
 
 export interface ClassifierNegativeControlStatus {
   status: "not_run" | "passed" | "failed";
+  report_generation?: string;
+  checked_at?: string;
+  required_scenarios?: number;
+  passed_scenarios?: number;
   unrelated_control_action_total: number;
+  cross_service_cache_reuse: number;
+  cross_service_route_reuse: number;
   promotion_allowed: boolean;
   reason?: string;
 }

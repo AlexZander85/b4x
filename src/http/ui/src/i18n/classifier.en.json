@@ -132,7 +132,10 @@
         "not_run": "negative controls not run",
         "passed": "negative controls passed",
         "failed": "negative controls failed"
-      }
+      },
+      "scenarios": "Scenarios",
+      "cacheReuse": "Cache reuse",
+      "routeReuse": "Route reuse"
     }
   }
 }

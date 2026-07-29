@@ -132,7 +132,10 @@
         "not_run": "negative controls не запускались",
         "passed": "negative controls пройдены",
         "failed": "negative controls провалены"
-      }
+      },
+      "scenarios": "Сценарии",
+      "cacheReuse": "Повторное использование cache",
+      "routeReuse": "Повторное использование route"
     }
   }
 }

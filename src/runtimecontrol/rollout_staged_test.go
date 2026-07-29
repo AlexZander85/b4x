@@ -70,16 +70,9 @@ func (s *commitFailStore) Load() (*LastGoodRecord, error) { return nil, nil }
 func TestPromoteCommitFailureRestoresPreviousRuntime(t *testing.T) {
 	next := &fakeRuntime{readiness: RuntimeReadiness{Ready: true}, canary: validOutcome()}
 	builder := &fakeBuilder{runtime: next}
-	clk := clock.NewFixed(time.Unix(100, 0))
+	manager, previous, _, _ := testManager(t, builder, Options{})
 	store := &commitFailStore{}
-	manager, err := NewManager(builder, Options{Enabled: true, Clock: clk, LastGood: store})
-	if err != nil {
-		t.Fatal(err)
-	}
-	previous := &fakeRuntime{readiness: RuntimeReadiness{Ready: true}, canary: validOutcome()}
-	if err := manager.InstallInitial(testConfig(false), previous); err != nil {
-		t.Fatal(err)
-	}
+	manager.store = store
 	before, _ := manager.Active()
 	if _, err := manager.Prepare(context.Background(), testConfig(true), ApplyRequest{Canary: validCanary()}); err != nil {
 		t.Fatal(err)
@@ -87,7 +80,7 @@ func TestPromoteCommitFailureRestoresPreviousRuntime(t *testing.T) {
 	if _, err := manager.RunCanary(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	_, err = manager.PromotePending(context.Background())
+	_, err := manager.PromotePending(context.Background())
 	var tx *TransactionError
 	if !errors.As(err, &tx) || tx.Stage != StageCommit {
 		t.Fatalf("error=%v", err)
@@ -151,5 +144,28 @@ func TestCanarySpecRejectsGlobalAndMalformedClientScope(t *testing.T) {
 		if err := spec.Validate(); err == nil {
 			t.Fatalf("scope %q accepted", scope)
 		}
+	}
+}
+
+func TestPromotionGateFailureRollsBackAndClearsPending(t *testing.T) {
+	next := &fakeRuntime{readiness: RuntimeReadiness{Ready: true}, canary: validOutcome()}
+	builder := &fakeBuilder{runtime: next}
+	manager, _, _, _ := testManager(t, builder, Options{BeforePromote: func(GenerationMeta) error { return errors.New("negative controls failed") }})
+	if _, err := manager.Prepare(context.Background(), testConfig(true), ApplyRequest{Canary: validCanary()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.RunCanary(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_, err := manager.PromotePending(context.Background())
+	var tx *TransactionError
+	if !errors.As(err, &tx) || tx.Stage != StagePromote {
+		t.Fatalf("error=%v", err)
+	}
+	if next.rollbackN != 1 || next.closeN != 1 {
+		t.Fatalf("candidate was not rolled back and closed: rollback=%d close=%d", next.rollbackN, next.closeN)
+	}
+	if status := manager.Status(); status.Pending != nil {
+		t.Fatalf("failed candidate remained pending: %+v", status.Pending)
 	}
 }

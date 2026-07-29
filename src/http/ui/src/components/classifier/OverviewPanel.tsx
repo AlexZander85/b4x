@@ -76,6 +76,21 @@ export function OverviewPanel({
               label={`${t("classifier.isolation.unrelatedActions")}: ${isolation?.negative_control.unrelated_control_action_total ?? 0}`}
               color={(isolation?.negative_control.unrelated_control_action_total ?? 0) === 0 ? "success" : "error"}
             />
+            <Chip
+              size="small"
+              label={`${t("classifier.isolation.scenarios")}: ${isolation?.negative_control.passed_scenarios ?? 0}/${isolation?.negative_control.required_scenarios ?? 14}`}
+              color={isolation?.negative_control.status === "passed" ? "success" : "default"}
+            />
+            <Chip
+              size="small"
+              label={`${t("classifier.isolation.cacheReuse")}: ${isolation?.negative_control.cross_service_cache_reuse ?? 0}`}
+              color={(isolation?.negative_control.cross_service_cache_reuse ?? 0) === 0 ? "success" : "error"}
+            />
+            <Chip
+              size="small"
+              label={`${t("classifier.isolation.routeReuse")}: ${isolation?.negative_control.cross_service_route_reuse ?? 0}`}
+              color={(isolation?.negative_control.cross_service_route_reuse ?? 0) === 0 ? "success" : "error"}
+            />
             <Chip size="small" variant="outlined" label={isolation?.raw_hostnames ? "raw hostnames" : t("classifier.isolation.redacted")} />
           </Stack>
           {(isolation?.sets.length ?? 0) === 0 ? (

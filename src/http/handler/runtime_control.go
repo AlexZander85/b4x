@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/crossservice"
 	"github.com/daniellavrushin/b4/runtimecontrol"
 )
 
@@ -86,6 +87,9 @@ func (api *API) InitializeRuntimeControl(b4Version string) error {
 		LastGood:     lastGood,
 		Cooldown:     time.Duration(current.System.Classifier.Runtime.Rollout.CooldownSeconds) * time.Second,
 		HistoryLimit: 64,
+		BeforePromote: func(meta runtimecontrol.GenerationMeta) error {
+			return crossservice.Default().RequirePromotion(meta.ID, time.Now().UTC())
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("initialize runtime-control manager: %w", err)
