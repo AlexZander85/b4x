@@ -1,20 +1,16 @@
 package nfq
 
 import (
-	"encoding/binary"
 	"fmt"
 
+	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/observability"
-	"github.com/daniellavrushin/b4/sni"
 )
 
-// observeTCPReassembly is deliberately observe-only: it copies bounded
-// client-to-server payload ranges for metadata and never changes the NFQ
-// verdict, delays a packet, or invokes an action executor.
 func (w *Worker) observeTCPReassembly(cfg *config.Config, pkt *pktInfo, sequence uint32, sport, dport uint16, flags byte, payload []byte) classifier.TCPReassemblyResult {
 	if cfg == nil || pkt == nil || w.tcpReassembly == nil || cfg.System.Classifier.Flags.TCPReassemblyMode != config.ReassemblyObserve || cfg.IsTCPPort(sport) {
 		return classifier.TCPReassemblyResult{}
@@ -24,6 +20,13 @@ func (w *Worker) observeTCPReassembly(cfg *config.Config, pkt *pktInfo, sequence
 		return classifier.TCPReassemblyResult{}
 	}
 	key := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), sport, dport, 6)
+	if !ppe.DefaultVisibilityGate().Decision(ppe.VisibilityFeatureReassembly).Allowed {
+		result := w.tcpReassembly.Close(key, classifier.ReassemblyAbortManual)
+		if result.Key == (classifier.FlowKey{}) {
+			result = classifier.TCPReassemblyResult{Status: classifier.ReassemblyAborted, Reason: classifier.ReassemblyAbortManual, Key: key}
+		}
+		return result
+	}
 	generation := dnsHintConfigGeneration(cfg)
 	isSyn := flags&classifier.TCPFlagSYN != 0
 	isAck := flags&classifier.TCPFlagACK != 0
@@ -115,41 +118,4 @@ func sanitizeReassemblyReason(reason string) string {
 	default:
 		return "other"
 	}
-}
-
-func (w *Worker) tcpTLSDecisionMetadata(cfg *config.Config, pkt *pktInfo, sport, dport uint16, payload []byte) classifier.TLSMetadata {
-	metadata := classifier.TLSMetadata{}
-	if cfg != nil && pkt != nil && cfg.IsTCPPort(dport) && len(payload) > 0 {
-		parsed := sni.ParseTLSClientHelloMetadata(payload)
-		metadata = classifier.TLSMetadata{
-			Version:         parsed.MaxVersion,
-			ECHPresent:      parsed.ECHPresent,
-			ClearSNI:        parsed.SNI != "" && !parsed.ECHPresent,
-			HandshakeParsed: parsed.Complete,
-		}
-	}
-	if cfg == nil || pkt == nil || w.tcpReassembly == nil || cfg.System.Classifier.Flags.TCPReassemblyMode != config.ReassemblyObserve {
-		return metadata
-	}
-	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
-	if !ok {
-		return metadata
-	}
-	key := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), sport, dport, 6)
-	if result, found := w.tcpReassembly.Lookup(key); found {
-		if metadata.Version == 0 {
-			metadata.Version = result.Metadata.MaxVersion
-		}
-		metadata.ECHPresent = metadata.ECHPresent || result.Metadata.ECHPresent
-		metadata.ClearSNI = metadata.ClearSNI || (result.Metadata.SNI != "" && !result.Metadata.ECHPresent)
-		metadata.HandshakeParsed = metadata.HandshakeParsed || result.Metadata.Complete
-	}
-	return metadata
-}
-
-func tcpPacketSequence(tcp []byte) (uint32, bool) {
-	if len(tcp) < 8 {
-		return 0, false
-	}
-	return binary.BigEndian.Uint32(tcp[4:8]), true
 }

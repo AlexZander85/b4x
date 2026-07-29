@@ -6,12 +6,16 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/nfq"
 )
 
-var ErrDiscoveryAlreadyRunning = errors.New("discovery is already running")
+var (
+	ErrDiscoveryAlreadyRunning      = errors.New("discovery is already running")
+	ErrAutomaticDiscoveryVisibility = errors.New("automatic Discovery requires complete capture visibility")
+)
 
 type poolStopper interface {
 	Stop()
@@ -42,6 +46,7 @@ type StartSuiteOptions struct {
 	ValidationTries int
 	TLSVersion      string
 	IPVersion       string
+	Automatic       bool
 }
 
 type Runtime struct {
@@ -141,6 +146,12 @@ func (m *Runtime) SetActiveSuiteID(suiteID string) {
 }
 
 func (m *Runtime) StartSuite(cfg *config.Config, urls []string, opts StartSuiteOptions) (*DiscoverySuite, error) {
+	if opts.Automatic {
+		decision := ppe.DefaultVisibilityGate().Decision(ppe.VisibilityFeatureAutomaticDiscovery)
+		if !decision.Allowed {
+			return nil, fmt.Errorf("%w: %s", ErrAutomaticDiscoveryVisibility, decision.Reason)
+		}
+	}
 	runtimeState, err := m.Start(cfg)
 	if err != nil {
 		return nil, err

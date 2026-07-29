@@ -68,6 +68,7 @@ func NewManager(builder Builder, opts Options) (*Manager, error) {
 	if builder == nil {
 		return nil, errors.New("runtime builder is nil")
 	}
+	builder = WrapBuilderWithDefaultVisibility(builder)
 	clk := opts.Clock
 	if clk == nil {
 		clk = clock.RealClock{}
@@ -113,6 +114,7 @@ func (m *Manager) InstallInitial(cfg *config.Config, runtime Runtime) error {
 		return &TransactionError{Stage: StageValidate, Err: err}
 	}
 	meta := makeGenerationMeta(cfg, m.clk.Now())
+	syncInitialVisibilityRequirement(cfg, meta.ID)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	record := recordFrom(meta, CanaryOutcome{Passed: true, Samples: 1, StartedAt: meta.CreatedAt, CompletedAt: meta.CreatedAt}, m.b4Version, meta.CreatedAt)
