@@ -1,1 +1,1 @@
-feat(capture): add NFQUEUE GSO and checksum offload metadata
+feat(capture): add capability-gated NFQUEUE GSO classification fast path
