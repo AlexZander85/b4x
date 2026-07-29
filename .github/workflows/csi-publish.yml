@@ -36,9 +36,36 @@ jobs:
           git fetch origin csi-publisher-20260729-v2
 
           : > /tmp/csi-patches.b64
+          failed=0
           for part in $(seq -w 0 16); do
-            git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}" | tr -d '\r\n' >> /tmp/csi-patches.b64
+            case "$part" in
+              00) expected=c6d675d00411f4867181a92710e35262367d549ba1efc698ac4739563c6e192b ;;
+              01) expected=ea379b4b9a38a9e17db26930f476dbafb79d9ff2ecb2bd12008a9539a4b990f9 ;;
+              02) expected=799371d069e82771aea51696f4b74af1e886f3eb9d4c9b5f29d5ebd2130a570d ;;
+              03) expected=024624c559ce982b1a654b699bd0a7ba52043ddc5970fdefaaeba970a33928e5 ;;
+              04) expected=d9eb4105e3fdbd270ebe777fbbd56bed7ebaef953e147dd5079aedc80bc7f7ca ;;
+              05) expected=5806fea63b9f97906ab3efe1a756fd4a77060e410690a5e2308f120c0a5e050d ;;
+              06) expected=c9b26218d0fa20f948b3358c93c5fd003bb40dc57fd0564dc49212380de9c652 ;;
+              07) expected=3252de99f4c05208695c0c7dc3a0e03d70a4ec4d4f6e59b1eb5e9889bb5c1ca6 ;;
+              08) expected=870446957215985d94092400b586d04a064da081927b8ae26e74d0b251ced490 ;;
+              09) expected=d43bcbe9cd97be10f0b082401da4e5efe4d728da4e912596b291f86d6abd0817 ;;
+              10) expected=3be9c6f707dd194e324a4a5aca13997570ea8bf6983378f9b85ab84efd4a9737 ;;
+              11) expected=54fac33e2416f7862cf7e2010dd405a5820a5bdfc05f80e636bf6284c0b86465 ;;
+              12) expected=376e5255e761268e5415af659b5088693292c50b36251d1bc43a636b3bd9c06d ;;
+              13) expected=af941af23152053f5a7c94381c3e4cfe1f29165352852d1df7e1cd38ce175e61 ;;
+              14) expected=159ac179c333f481a3621fbe443307df2e1c542ef560f2a3fe1a3acd1eb4a6cc ;;
+              15) expected=da29d2d8ec7f6d1502d96c876fcc079fe2f5338ed9e5140356c30c1d6161e90d ;;
+              16) expected=baae192d6151a427a10c4a07a275d60bf31298c58ebccc7c788a8c57db67558b ;;
+            esac
+            git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}" | tr -d '\r\n' > "/tmp/csi-part.${part}"
+            actual="$(sha256sum "/tmp/csi-part.${part}" | cut -d' ' -f1)"
+            if [ "$actual" != "$expected" ]; then
+              echo "CSI chunk ${part} mismatch: expected=${expected} actual=${actual} bytes=$(wc -c < "/tmp/csi-part.${part}")"
+              failed=1
+            fi
+            cat "/tmp/csi-part.${part}" >> /tmp/csi-patches.b64
           done
+          test "$failed" -eq 0
 
           test "$(wc -c < /tmp/csi-patches.b64)" -eq 68032
           echo "c51b36bfedb4becd9d3f7efbc559e1bdaff6b8f5b1c02149d629d7835c0c782c  /tmp/csi-patches.b64" | sha256sum -c -
