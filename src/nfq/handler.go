@@ -575,6 +575,13 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 
 	if matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode) {
+		routeSource, routeConfidence, routeAuthorized := tlsObservation.Source, uint8(100), matchedSNI
+		if matchedScopedHint {
+			routeSource, routeConfidence, routeAuthorized = classifier.EvidenceDNSAnswer, 89, true
+		}
+		if !w.bindAuthorizedRoute(cfg, pkt, sport, dport, 6, set, host, routeSource, routeConfidence, routeAuthorized) {
+			return vc.accept()
+		}
 		return vc.accept()
 	}
 
@@ -899,6 +906,16 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		m.RecordConnection("UDP", host, pkt.srcStr, pkt.dstStr, false, pkt.srcMac, "", udpTLS)
 		m.RecordPacket(uint64(len(pkt.raw)))
 		return vc.accept()
+	}
+
+	if set != nil && set.Routing.Enabled && set.Targets.DomainOnly {
+		confidence := uint8(94)
+		if quicGate.Source == classifier.EvidenceDNSAnswer {
+			confidence = 89
+		}
+		if !w.bindAuthorizedRoute(cfg, pkt, sport, dport, 17, set, host, quicGate.Source, confidence, quicGate.Authorized) {
+			return vc.accept()
+		}
 	}
 
 	m := metrics.GetMetricsCollector()

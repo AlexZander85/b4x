@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/routing"
 )
 
 type connInfo struct {
@@ -374,6 +375,7 @@ type runtimeState struct {
 	connState      *connStateTracker
 	destState      *destStateTracker
 	scopedFailures *scopedFailureState
+	routeBindings  *routing.BindingStore
 }
 
 func newRuntimeState() *runtimeState {
@@ -385,6 +387,7 @@ func newRuntimeState() *runtimeState {
 			conns: make(map[string]*connInfo),
 		},
 		scopedFailures: newScopedFailureState(),
+		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
 		destState: &destStateTracker{
 			conns:       make(map[string]*ipBlockEntry),
 			blocked:     make(map[string]time.Time),

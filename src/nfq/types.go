@@ -8,6 +8,7 @@ import (
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/dhcp"
 	"github.com/daniellavrushin/b4/lab"
+	"github.com/daniellavrushin/b4/routing"
 	"github.com/daniellavrushin/b4/sock"
 	"github.com/florianl/go-nfqueue"
 )
@@ -56,6 +57,7 @@ type Worker struct {
 	connTracker        *connStateTracker
 	destState          *destStateTracker
 	scopedFailures     *scopedFailureState
+	routeBindings      *routing.BindingStore
 	srcResolver        *tunSrcResolver
 	dnsHints           *classifier.HostHintStore
 	tcpReassembly      *classifier.TCPReassemblyStore

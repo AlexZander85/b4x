@@ -18,7 +18,9 @@ func registerEscalatedRoute(cfg *config.Config, escSet *config.SetConfig, dst ne
 	if cfg == nil || escSet == nil || dst == nil || !escSet.Routing.Enabled || RoutingHandleDNSFunc == nil {
 		return
 	}
-	if cfg.Queue.IsDiscovery {
+	if cfg.Queue.IsDiscovery || escSet.Targets.DomainOnly {
+		// Domain-scoped escalation must be represented by an authorized exact-flow
+		// binding; destination-global ipset learning is unsafe on shared endpoints.
 		return
 	}
 	log.Tracef("registerEscalatedRoute: adding %s to %s ipset (mode=%s)", dst, escSet.Name, escSet.Routing.Mode)
