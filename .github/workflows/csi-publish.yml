@@ -85,8 +85,6 @@ jobs:
           mapfile -t stages < <(git rev-list --reverse "$base"..HEAD)
           test "${#stages[@]}" -eq 10
 
-          # CSI-1 compatibility fixes: runtime config contains slices and PPE
-          # migration helpers take a pointer.
           python3 - <<'PY'
           from pathlib import Path
 
@@ -111,8 +109,6 @@ jobs:
           git add src/config/migration.go src/config/migration_ppe_product_test.go
           git commit --fixup="${stages[0]}"
 
-          # CSI-2 compatibility fixes: Config exposes uint16 port matchers and
-          # scoped hint lookup consumes uint16 source/destination ports.
           python3 - <<'PY'
           from pathlib import Path
 
@@ -135,14 +131,48 @@ jobs:
               'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])',
           )
           worker.write_text(text)
+
+          methods = Path('src/config/methods.go')
+          text = methods.read_text()
+          if 'func (cfg *Config) IsUDPPort(port uint16) bool' not in text:
+              anchor = '''func (cfg *Config) IsTCPPort(port uint16) bool {
+          \tif cfg.tcpPortMap == nil {
+          \t\treturn port == 443
+          \t}
+          \treturn cfg.tcpPortMap[port]
+          }
+          '''
+              addition = anchor + '''
+          // IsUDPPort checks if a port is in the configured UDP port set. The canary
+          // monitor uses this on a bounded candidate queue, so deriving from the
+          // normalized configured ranges avoids a second mutable runtime index.
+          func (cfg *Config) IsUDPPort(port uint16) bool {
+          \tif cfg == nil {
+          \t\treturn port == 443
+          \t}
+          \tfor _, value := range cfg.CollectUDPPorts() {
+          \t\tif portRange, ok := parsePortRangeStr(value); ok && port >= portRange.Min && port <= portRange.Max {
+          \t\t\treturn true
+          \t\t}
+          \t}
+          \treturn false
+          }
+          '''
+              if anchor not in text:
+                  raise SystemExit('IsTCPPort anchor not found')
+              text = text.replace(anchor, addition)
+          methods.write_text(text)
+
+          canary_test = Path('src/nfq/canary_monitor_test.go')
+          text = canary_test.read_text()
+          text = text.replace('IsTCPPort(port int) bool', 'IsTCPPort(port uint16) bool')
+          text = text.replace('IsUDPPort(port int) bool', 'IsUDPPort(port uint16) bool')
+          canary_test.write_text(text)
           PY
-          gofmt -w src/nfq/canary_monitor.go src/nfq/candidate_worker.go
-          git add src/nfq/canary_monitor.go src/nfq/candidate_worker.go
+          gofmt -w src/config/methods.go src/nfq/canary_monitor.go src/nfq/candidate_worker.go src/nfq/canary_monitor_test.go
+          git add src/config/methods.go src/nfq/canary_monitor.go src/nfq/candidate_worker.go src/nfq/canary_monitor_test.go
           git commit --fixup="${stages[1]}"
 
-          # CSI-3 compatibility fixes: use the repository fixture package and
-          # import the diagnostics/observability dependencies used by the new
-          # authoritative-SNI path.
           python3 - <<'PY'
           from pathlib import Path
 
@@ -166,9 +196,18 @@ jobs:
                   '"github.com/daniellavrushin/b4/metrics"\n\t"github.com/daniellavrushin/b4/observability"\n',
               )
           handler.write_text(text)
+
+          hold = Path('src/nfq/tcp_hold_worker.go')
+          text = hold.read_text()
+          if 'github.com/daniellavrushin/b4/log' not in text:
+              text = text.replace(
+                  '"github.com/daniellavrushin/b4/config"\n',
+                  '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/log"\n',
+              )
+          hold.write_text(text)
           PY
-          gofmt -w src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go
-          git add src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go
+          gofmt -w src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go
+          git add src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go
           git commit --fixup="${stages[2]}"
 
           GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$base"
