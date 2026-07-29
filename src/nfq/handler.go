@@ -253,12 +253,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 
 	matchedLearned := false
-	if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned {
-		if learnedSet.MatchesTCPDPort(dport) {
-			matched = true
-			set = learnedSet
-			st = learnedSet
-			matchedLearned = true
+	if !classifierDecisionEnabled(cfg) {
+		if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesTCPDPort(dport) {
+			matched, set, st, matchedLearned = true, learnedSet, learnedSet, true
 		}
 	}
 
@@ -454,9 +451,8 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		// path above. Reassembled SNI never creates a destination-global learned
 		// IP or routing side effect. Packet-local compatibility learning is left
 		// for the scoped-observation migration stage.
-		if matchedSNI && tlsObservation.Source == classifier.EvidencePacketSNI && set != nil {
-			matcher.LearnIPToDomain(pkt.dst, host, set)
-			registerLearnedRoute(cfg, set, pkt.dst)
+		if matchedSNI && set != nil {
+			w.observeScopedLearnedObservation(cfg, pkt, dport, 6, host, set, tlsObservation.Source)
 		}
 
 		if matched && !matchedSNI && set != nil && !set.MatchesTLSVersion(tlsVersion) {
@@ -739,17 +735,10 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 	}
 
-	if !matchedIP {
-		if mLearned, learnedSet, learnedDomain := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned {
-			if learnedSet.MatchesUDPDPort(dport) {
-				matchedIP = true
-				matchedLearned = true
-				matched = true
-				set = learnedSet
-				host = learnedDomain
-				sniTarget = learnedSet.Name
-				ipTarget = learnedSet.Name
-			}
+	if !matchedIP && !classifierDecisionEnabled(cfg) {
+		if mLearned, learnedSet, learnedDomain := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesUDPDPort(dport) {
+			matchedIP, matchedLearned, matched, set, host = true, true, true, learnedSet, learnedDomain
+			sniTarget, ipTarget = learnedSet.Name, learnedSet.Name
 		}
 	}
 
@@ -789,11 +778,9 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 					matchedQUIC = true
 					set = sniSet
 					sniTarget = sniSet.Name
+					w.observeScopedLearnedObservation(cfg, pkt, dport, 17, host, sniSet, classifier.EvidenceQUICSNI)
 					if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
 						w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
-					} else {
-						matcher.LearnIPToDomain(pkt.dst, host, sniSet)
-						registerLearnedRoute(cfg, sniSet, pkt.dst)
 					}
 				}
 			}

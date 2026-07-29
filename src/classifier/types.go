@@ -30,6 +30,7 @@ const (
 	EvidenceStaticIP
 	EvidenceLegacyLearnedIP
 	EvidencePortProtocol
+	EvidenceScopedLearnedObservation
 )
 
 type DomainOnlyMode string

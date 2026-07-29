@@ -522,7 +522,7 @@ func validateHostHintEvidence(e Evidence) error {
 func isHostHintSource(source EvidenceSource) bool {
 	switch source {
 	case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceQUICSNI,
-		EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceLegacyLearnedIP:
+		EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceLegacyLearnedIP, EvidenceScopedLearnedObservation:
 		return true
 	default:
 		return false
@@ -541,6 +541,8 @@ func hostHintSourceTTL(source EvidenceSource) time.Duration {
 		return 2 * time.Minute
 	case EvidenceLegacyLearnedIP:
 		return 30 * time.Second
+	case EvidenceScopedLearnedObservation:
+		return 90 * time.Second
 	default:
 		return time.Minute
 	}

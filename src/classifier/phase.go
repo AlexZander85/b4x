@@ -39,6 +39,8 @@ func (s EvidenceSource) String() string {
 		return "legacy_learned_ip"
 	case EvidencePortProtocol:
 		return "port_protocol"
+	case EvidenceScopedLearnedObservation:
+		return "scoped_learned_observation"
 	default:
 		return fmt.Sprintf("source(%d)", s)
 	}
@@ -59,6 +61,8 @@ func sourceRank(s EvidenceSource) int {
 		return 75
 	case EvidenceStaticHost:
 		return 65
+	case EvidenceScopedLearnedObservation:
+		return 50
 	case EvidenceStaticIP:
 		return 45
 	case EvidenceLegacyLearnedIP:
@@ -82,6 +86,8 @@ func sourceConfidenceCap(s EvidenceSource) uint8 {
 		return 84
 	case EvidenceStaticHost:
 		return 70
+	case EvidenceScopedLearnedObservation:
+		return 54
 	case EvidenceStaticIP:
 		return 54
 	case EvidenceLegacyLearnedIP:
@@ -103,7 +109,7 @@ func isClearSNI(e Evidence) bool {
 
 func isClientScopedSource(s EvidenceSource) bool {
 	switch s {
-	case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceQUICSNI, EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceLegacyLearnedIP:
+	case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceQUICSNI, EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceLegacyLearnedIP, EvidenceScopedLearnedObservation:
 		return true
 	default:
 		return false
