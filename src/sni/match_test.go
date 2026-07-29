@@ -957,3 +957,13 @@ func TestRegexCache(t *testing.T) {
 		t.Error("regex should match both times")
 	}
 }
+
+func TestMatchSNICandidatesReportsOverlappingSets(t *testing.T) {
+	first := &config.SetConfig{Name: "youtube-a", Enabled: true, Targets: config.TargetsConfig{DomainsToMatch: []string{"youtube.com"}}}
+	second := &config.SetConfig{Name: "youtube-b", Enabled: true, Targets: config.TargetsConfig{DomainsToMatch: []string{"youtube.com"}}}
+	matcher := NewSuffixSet([]*config.SetConfig{first, second})
+	candidates := matcher.MatchSNICandidatesWithSourceTLS("api.youtube.com", "", 0, 4)
+	if len(candidates) != 2 {
+		t.Fatalf("expected ambiguity candidates, got %d", len(candidates))
+	}
+}

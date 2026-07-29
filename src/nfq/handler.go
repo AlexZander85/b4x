@@ -279,16 +279,36 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 	}
 
-	// A completed reassembled ClientHello is authoritative for this exact flow.
-	// It must replace provisional IP/port/legacy candidates before any action
-	// planner or routing path observes the selected set.
-	if host != "" && tlsObservation.Source == classifier.EvidenceReassembledSNI {
+	// Clear or completely reassembled hostname evidence is both positive and
+	// negative evidence: no provisional IP/port/learned selection survives it.
+	var provisional *config.SetConfig
+	if host != "" {
+		provisional = set
 		matched, set, st = false, nil, nil
 		matchedLearned = false
 		matchedScopedHint = false
-	}
-	if host != "" {
-		if mSNI, stSNI := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver); mSNI && stSNI.MatchesTCPDPort(dport) {
+		eligible := matcher.MatchSNICandidatesWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver)
+		eligibleIDs := make([]string, 0, len(eligible))
+		for _, candidateSet := range eligible {
+			if candidateSet != nil && candidateSet.MatchesTCPDPort(dport) {
+				eligibleIDs = append(eligibleIDs, classifierSetID(candidateSet))
+			}
+		}
+		disposition := classifier.CandidateInsufficient
+		if provisional != nil {
+			disposition = classifier.ResolveCandidateDisposition(classifier.CaptureCandidate{CandidateSetID: classifierSetID(provisional)}, eligibleIDs)
+		} else if len(eligibleIDs) == 1 {
+			disposition = classifier.CandidateEligible
+		} else if len(eligibleIDs) > 1 {
+			disposition = classifier.CandidateAmbiguous
+		}
+		recordCandidateDisposition(flowKey, provisional, host, tlsObservation.Source, disposition, eligibleIDs)
+		if len(eligibleIDs) > 1 {
+			if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
+				_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{Signal: diagnostics.SignalClassifierAmbiguous, Client: client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: dport, Protocol: 6, SetCandidates: eligibleIDs, Reason: "authoritative hostname matched multiple eligible sets"})
+			}
+		} else if len(eligibleIDs) == 1 {
+			stSNI := eligible[0]
 			strategy := "clear-sni"
 			if tlsObservation.Source == classifier.EvidenceReassembledSNI {
 				strategy = "reassembled-sni"

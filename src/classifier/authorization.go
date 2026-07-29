@@ -119,3 +119,40 @@ func authorizationID(a ActionAuthorization) string {
 	}, "|") + "|" + time.Unix(0, int64(a.ConfigGen)).UTC().Format(time.RFC3339Nano)))
 	return hex.EncodeToString(sum[:8])
 }
+
+type CandidateDisposition string
+
+const (
+	CandidateEligible     CandidateDisposition = "eligible"
+	CandidateContradicted CandidateDisposition = "contradicted"
+	CandidateAmbiguous    CandidateDisposition = "ambiguous"
+	CandidateInsufficient CandidateDisposition = "insufficient"
+)
+
+// ResolveCandidateDisposition evaluates a provisional candidate after
+// authoritative hostname evidence has been mapped to eligible set IDs.
+func ResolveCandidateDisposition(candidate CaptureCandidate, eligibleSetIDs []string) CandidateDisposition {
+	candidateID := strings.TrimSpace(candidate.CandidateSetID)
+	if candidateID == "" || len(eligibleSetIDs) == 0 {
+		if candidateID == "" {
+			return CandidateInsufficient
+		}
+		return CandidateContradicted
+	}
+	unique := make(map[string]struct{}, len(eligibleSetIDs))
+	for _, id := range eligibleSetIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			unique[id] = struct{}{}
+		}
+	}
+	if len(unique) == 0 {
+		return CandidateContradicted
+	}
+	if len(unique) > 1 {
+		return CandidateAmbiguous
+	}
+	if _, ok := unique[candidateID]; ok {
+		return CandidateEligible
+	}
+	return CandidateContradicted
+}

@@ -765,3 +765,46 @@ func selectSetBySourceAndTLS(candidates []*config.SetConfig, srcMAC string, tlsV
 
 	return false, nil
 }
+
+// MatchSNICandidatesWithSourceTLS returns every equally eligible set for an
+// authoritative hostname. Callers use this to fail open instead of silently
+// selecting one overlapping service profile.
+func (s *SuffixSet) MatchSNICandidatesWithSourceTLS(host string, srcMAC string, tlsVersion uint16, ipVersion uint8) []*config.SetConfig {
+	if s == nil || strings.TrimSpace(host) == "" {
+		return nil
+	}
+	lower := strings.ToLower(strings.TrimSpace(host))
+	candidates := append([]*config.SetConfig(nil), s.findDomainCandidates(lower)...)
+	for _, rws := range s.regexes {
+		if rws.regex.MatchString(lower) {
+			candidates = append(candidates, rws.set)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	var scoped, global []*config.SetConfig
+	seenScoped := make(map[*config.SetConfig]struct{})
+	seenGlobal := make(map[*config.SetConfig]struct{})
+	for _, set := range candidates {
+		if set == nil || !set.MatchesTLSVersion(tlsVersion) || !set.MatchesIPVersion(ipVersion) || !setMatchesSource(set, srcMAC) {
+			continue
+		}
+		if len(set.Targets.SourceDevices) > 0 {
+			if _, exists := seenScoped[set]; !exists {
+				seenScoped[set] = struct{}{}
+				scoped = append(scoped, set)
+			}
+			continue
+		}
+		if _, exists := seenGlobal[set]; !exists {
+			seenGlobal[set] = struct{}{}
+			global = append(global, set)
+		}
+	}
+	if len(scoped) > 0 {
+		return scoped
+	}
+	return global
+}
