@@ -85,22 +85,90 @@ jobs:
           mapfile -t stages < <(git rev-list --reverse "$base"..HEAD)
           test "${#stages[@]}" -eq 10
 
+          # CSI-1 compatibility fixes: runtime config contains slices and PPE
+          # migration helpers take a pointer.
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('src/config/migration.go')
-          s = p.read_text()
-          if '"reflect"' not in s:
-              s = s.replace('"path/filepath"\n\t"strings"', '"path/filepath"\n\t"reflect"\n\t"strings"')
-          s = s.replace('if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {', 'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {')
-          p.write_text(s)
+
+          migration = Path('src/config/migration.go')
+          text = migration.read_text()
+          if '"reflect"' not in text:
+              text = text.replace('"path/filepath"\n\t"strings"', '"path/filepath"\n\t"reflect"\n\t"strings"')
+          text = text.replace(
+              'if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {',
+              'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {',
+          )
+          migration.write_text(text)
+
+          tests = Path('src/config/migration_ppe_product_test.go')
+          text = tests.read_text().replace(
+              'migratePPEProductDefaults(cfg)',
+              'migratePPEProductDefaults(&cfg)',
+          )
+          tests.write_text(text)
           PY
-          gofmt -w src/config/migration.go
-          git add src/config/migration.go
+          gofmt -w src/config/migration.go src/config/migration_ppe_product_test.go
+          git add src/config/migration.go src/config/migration_ppe_product_test.go
           git commit --fixup="${stages[0]}"
 
-          sed -i 's#github.com/daniellavrushin/b4/classifier/fixtures#github.com/daniellavrushin/b4/fixtures#' src/nfq/tcp_reassembly_visibility_test.go
-          gofmt -w src/nfq/tcp_reassembly_visibility_test.go
-          git add src/nfq/tcp_reassembly_visibility_test.go
+          # CSI-2 compatibility fixes: Config exposes uint16 port matchers and
+          # scoped hint lookup consumes uint16 source/destination ports.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          monitor = Path('src/nfq/canary_monitor.go')
+          text = monitor.read_text()
+          text = text.replace('IsTCPPort(int) bool', 'IsTCPPort(uint16) bool')
+          text = text.replace('IsUDPPort(int) bool', 'IsUDPPort(uint16) bool')
+          text = text.replace('ports.IsTCPPort(sport)', 'ports.IsTCPPort(uint16(sport))')
+          text = text.replace('ports.IsUDPPort(sport)', 'ports.IsUDPPort(uint16(sport))')
+          monitor.write_text(text)
+
+          worker = Path('src/nfq/candidate_worker.go')
+          text = worker.read_text()
+          text = text.replace(
+              'sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))',
+              'sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])',
+          )
+          text = text.replace(
+              'dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))',
+              'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])',
+          )
+          worker.write_text(text)
+          PY
+          gofmt -w src/nfq/canary_monitor.go src/nfq/candidate_worker.go
+          git add src/nfq/canary_monitor.go src/nfq/candidate_worker.go
+          git commit --fixup="${stages[1]}"
+
+          # CSI-3 compatibility fixes: use the repository fixture package and
+          # import the diagnostics/observability dependencies used by the new
+          # authoritative-SNI path.
+          python3 - <<'PY'
+          from pathlib import Path
+
+          visibility = Path('src/nfq/tcp_reassembly_visibility_test.go')
+          text = visibility.read_text().replace(
+              'github.com/daniellavrushin/b4/classifier/fixtures',
+              'github.com/daniellavrushin/b4/fixtures',
+          )
+          visibility.write_text(text)
+
+          handler = Path('src/nfq/handler.go')
+          text = handler.read_text()
+          if 'github.com/daniellavrushin/b4/diagnostics' not in text:
+              text = text.replace(
+                  '"github.com/daniellavrushin/b4/config"\n',
+                  '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/diagnostics"\n',
+              )
+          if 'github.com/daniellavrushin/b4/observability' not in text:
+              text = text.replace(
+                  '"github.com/daniellavrushin/b4/metrics"\n',
+                  '"github.com/daniellavrushin/b4/metrics"\n\t"github.com/daniellavrushin/b4/observability"\n',
+              )
+          handler.write_text(text)
+          PY
+          gofmt -w src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go
+          git add src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go
           git commit --fixup="${stages[2]}"
 
           GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$base"
