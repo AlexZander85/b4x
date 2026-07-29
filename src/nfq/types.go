@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/dhcp"
 	"github.com/daniellavrushin/b4/lab"
@@ -69,6 +70,10 @@ type Worker struct {
 	clientHelloSink    atomic.Pointer[clientHelloSinkHolder]
 	ppePassiveObserver atomic.Pointer[ppePassiveObserverHolder]
 	gsoCapability      atomic.Value // GSOCapabilityStatus
+	gsoPassTokens      *GSOPassTokenStore
+	actionTokens       *action.ActionTokenStore
+	normalizerQueue    uint16
+	normalizer         bool
 }
 
 type clientHelloSinkHolder struct {

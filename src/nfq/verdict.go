@@ -9,10 +9,30 @@ import (
 )
 
 type verdictCtx struct {
-	id      uint32
-	q       *nfqueue.Nfqueue
-	verdict engine.PacketVerdict
-	offload OffloadMetadata
+	id       uint32
+	q        *nfqueue.Nfqueue
+	verdict  engine.PacketVerdict
+	offload  OffloadMetadata
+	queuedTo uint16
+}
+
+const nfQueueBaseVerdict = 3
+
+func nfQueueVerdictFor(queue uint16) int {
+	return int((uint32(queue) << 16) | nfQueueBaseVerdict)
+}
+
+func (vc *verdictCtx) queueTo(queue uint16) int {
+	if vc == nil || queue == 0 {
+		return 0
+	}
+	vc.queuedTo = queue
+	if vc.q != nil {
+		if err := vc.q.SetVerdict(vc.id, nfQueueVerdictFor(queue)); err != nil {
+			log.Tracef("failed to queue packet %d to NFQUEUE %d: %v", vc.id, queue, err)
+		}
+	}
+	return 0
 }
 
 func (vc *verdictCtx) accept() int {

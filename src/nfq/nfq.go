@@ -462,6 +462,9 @@ func (w *Worker) Stop() {
 	if w.tcpHold != nil {
 		w.tcpHold.ReleaseAll(tcpHoldAbortShutdown)
 	}
+	if w.gsoPassTokens != nil {
+		w.gsoPassTokens.Clear()
+	}
 	if w.q != nil {
 		_ = w.q.Close()
 	}
@@ -488,6 +491,12 @@ func (w *Worker) gc(cfg *config.Config) {
 		case <-w.ctx.Done():
 			return
 		case <-t.C:
+			if w.gsoPassTokens != nil {
+				w.gsoPassTokens.GC(time.Now())
+			}
+			if w.actionTokens != nil {
+				w.actionTokens.GC(time.Now())
+			}
 			if w.connTracker != nil {
 				w.connTracker.Cleanup()
 			}

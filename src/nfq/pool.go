@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/dhcp"
@@ -26,6 +27,8 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 		tcpReassembly:     classifier.NewTCPReassemblyStore(classifier.DefaultTCPReassemblyConfig()),
 		tcpHold:           NewTCPHoldStore(DefaultTCPHoldConfig()),
 		clientHelloClaims: newClientHelloDecisionClaimStore(),
+		gsoPassTokens:     NewGSOPassTokenStore(DefaultGSOPassTokenStoreConfig()),
+		actionTokens:      action.NewActionTokenStore(action.DefaultActionTokenStoreConfig()),
 	}
 
 	w.cfg.Store(cfg)
@@ -95,6 +98,8 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 		w.destState = state.destState
 		w.scopedFailures = state.scopedFailures
 		w.routeBindings = state.routeBindings
+		w.gsoPassTokens = state.gsoPassTokens
+		w.actionTokens = state.actionTokens
 		w.dnsHints = hintStore
 		w.canary = canary
 		w.candidateSet.Store("")
@@ -242,6 +247,17 @@ func (w *Worker) getMatcher() *sni.SuffixSet {
 }
 
 func (w *Worker) UpdateConfig(newCfg *config.Config) {
+	oldCfg := w.getConfig()
+	oldGeneration := dnsHintConfigGeneration(oldCfg)
+	newGeneration := dnsHintConfigGeneration(newCfg)
+	if oldGeneration != 0 && oldGeneration != newGeneration {
+		if w.gsoPassTokens != nil {
+			w.gsoPassTokens.InvalidateGeneration(oldGeneration)
+		}
+		if w.actionTokens != nil {
+			w.actionTokens.InvalidateGeneration(oldGeneration)
+		}
+	}
 	w.cfg.Store(newCfg)
 }
 
@@ -276,11 +292,19 @@ func (p *Pool) UpdateConfig(newCfg *config.Config) error {
 			reuse = reflect.DeepEqual(oldCfg.Sets, newCfg.Sets)
 		}
 	}
-	if len(p.Workers) > 0 && p.Workers[0].dnsHints != nil {
+	if len(p.Workers) > 0 {
 		oldGeneration := dnsHintConfigGeneration(oldCfg)
 		newGeneration := dnsHintConfigGeneration(newCfg)
 		if oldGeneration != 0 && oldGeneration != newGeneration {
-			p.Workers[0].dnsHints.InvalidateGeneration(oldGeneration)
+			if p.Workers[0].dnsHints != nil {
+				p.Workers[0].dnsHints.InvalidateGeneration(oldGeneration)
+			}
+			if p.state != nil && p.state.gsoPassTokens != nil {
+				p.state.gsoPassTokens.InvalidateGeneration(oldGeneration)
+			}
+			if p.state != nil && p.state.actionTokens != nil {
+				p.state.actionTokens.InvalidateGeneration(oldGeneration)
+			}
 		}
 	}
 

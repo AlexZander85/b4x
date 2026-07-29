@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/routing"
 )
@@ -376,6 +377,8 @@ type runtimeState struct {
 	destState      *destStateTracker
 	scopedFailures *scopedFailureState
 	routeBindings  *routing.BindingStore
+	gsoPassTokens  *GSOPassTokenStore
+	actionTokens   *action.ActionTokenStore
 }
 
 func newRuntimeState() *runtimeState {
@@ -388,6 +391,8 @@ func newRuntimeState() *runtimeState {
 		},
 		scopedFailures: newScopedFailureState(),
 		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
+		gsoPassTokens:  NewGSOPassTokenStore(DefaultGSOPassTokenStoreConfig()),
+		actionTokens:   action.NewActionTokenStore(action.DefaultActionTokenStoreConfig()),
 		destState: &destStateTracker{
 			conns:       make(map[string]*ipBlockEntry),
 			blocked:     make(map[string]time.Time),

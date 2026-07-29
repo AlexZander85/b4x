@@ -20,6 +20,7 @@ const (
 	gsoPathAcceptedUnchanged    gsoFastPathResult = "accepted-unchanged"
 	gsoPathRoutingOnly          gsoFastPathResult = "routing-only"
 	gsoPathActionSuppressed     gsoFastPathResult = "action-suppressed"
+	gsoPathNormalizeQueued      gsoFastPathResult = "normalize-queued"
 	gsoPathCapabilityFailOpen   gsoFastPathResult = "capability-fail-open"
 	gsoPathInputFailOpen        gsoFastPathResult = "input-fail-open"
 	gsoPathAmbiguousFailOpen    gsoFastPathResult = "ambiguous-fail-open"
@@ -131,9 +132,28 @@ func (w *Worker) handleGSOFastPath(vc *verdictCtx, pkt *pktInfo, cfg *config.Con
 		return true, vc.accept(), gsoPathAmbiguousFailOpen
 	}
 	set := filtered[0]
+	if gsoRequiresNormalPackets(set) && w.gsoPassTokens != nil && w.normalizerQueue != 0 {
+		if token, ok, _ := w.gsoPassTokens.Peek(flow, clientHelloID, generation, gsoExecutionScope(w, cfg)); ok {
+			traceGSOPassToken(token, "first-pass-retransmission", "requeue-existing")
+			return true, vc.queueTo(w.normalizerQueue), gsoPathNormalizeQueued
+		}
+	}
 	if w.clientHelloClaims != nil && !w.clientHelloClaims.Claim(flow, clientHelloID, generation, time.Now()) {
 		traceGSOFastPath(pkt, mode, gsoPathAcceptedUnchanged, "logical ClientHello already decided", clientHelloID)
 		return true, vc.accept(), gsoPathAcceptedUnchanged
+	}
+	if gsoRequiresNormalPackets(set) {
+		if !cfg.System.Classifier.Runtime.Capture.NFQueue.NormalizeForMutation {
+			traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "normalization disabled by policy", clientHelloID)
+			return true, vc.accept(), gsoPathActionSuppressed
+		}
+		verdict, result := w.prepareGSONormalization(vc, cfg, pkt, set, flow, clientHelloID, generation, parsed.SNI, parsed.MaxVersion, len(payload))
+		if result == gsoPathNormalizeQueued {
+			traceGSOFastPath(pkt, mode, result, "pure first-pass decision queued for normal packet execution", clientHelloID)
+		} else {
+			traceGSOFastPath(pkt, mode, result, "normalizer unavailable or token suppressed", clientHelloID)
+		}
+		return true, verdict, result
 	}
 	scope := nfqDecisionScope{FlowKey: flow, ClientHelloID: clientHelloID, EvidenceConfigGen: generation, CompleteClientHello: true, TLSVersion: parsed.MaxVersion}
 	authorized := w.allowNFQDomainDecisionScoped(cfg, pkt, dport, 6, set, classifier.EvidencePacketSNI, parsed.SNI, true, "gso-fast-path", classifier.TLSMetadata{Version: parsed.MaxVersion, ClearSNI: true, HandshakeParsed: true}, scope)
@@ -148,10 +168,6 @@ func (w *Worker) handleGSOFastPath(vc *verdictCtx, pkt *pktInfo, cfg *config.Con
 		}
 		traceGSOFastPath(pkt, mode, gsoPathUnauthorizedFailOpen, "route authorization rejected", clientHelloID)
 		return true, vc.accept(), gsoPathUnauthorizedFailOpen
-	}
-	if gsoRequiresNormalPackets(set) {
-		traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "normal TCP representation required; normalizer unavailable", clientHelloID)
-		return true, vc.accept(), gsoPathActionSuppressed
 	}
 	traceGSOFastPath(pkt, mode, gsoPathAcceptedUnchanged, "classification complete; no packet mutation required", clientHelloID)
 	return true, vc.accept(), gsoPathAcceptedUnchanged

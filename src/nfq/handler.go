@@ -230,15 +230,37 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		w.releaseTCPHoldOnServerProgress(pkt, sport, dport)
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
-	if handled, verdict, _ := w.handleGSOFastPath(vc, pkt, cfg, matcher, payload, sport, dport, sequence, sequenceOK); handled {
-		return verdict
+	var secondaryToken *GSOPassToken
+	if w.normalizer {
+		token, selectedSet, ok, _ := w.consumeGSOPassForPacket(cfg, pkt, sport, dport, sequence, sequenceOK)
+		if !ok {
+			return vc.accept()
+		}
+		secondaryToken = &token
+		matched, set, st = true, selectedSet, selectedSet
 	}
-	if sequenceOK && !pkt.offload.Truncated {
-		reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
-		w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
+	if secondaryToken == nil {
+		if handled, verdict, _ := w.handleGSOFastPath(vc, pkt, cfg, matcher, payload, sport, dport, sequence, sequenceOK); handled {
+			return verdict
+		}
+		if sequenceOK && !pkt.offload.Truncated {
+			reassemblyResult = w.observeTCPReassembly(cfg, pkt, sequence, sport, dport, tcp[13], payload)
+			w.submitClientHelloSegment(pkt, sequence, sport, dport, tcp[13], payload)
+		}
 	}
 	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
 	tlsObservation := resolveAuthoritativeTLSObservationWithOffload(payload, reassemblyResult, pkt.offload)
+	if secondaryToken != nil {
+		flowKey, flowKeyOK = secondaryToken.FlowKey, true
+		tlsMetadata = secondaryToken.Decision.TLSMetadata
+		if secondaryToken.Decision.Selected != nil {
+			tlsObservation = authoritativeTLSObservation{
+				Host: secondaryToken.Decision.Selected.Domain, Source: secondaryToken.Decision.Selected.Source, Complete: true,
+				ClientHelloID: secondaryToken.ClientHelloID, ConfigGen: secondaryToken.ConfigGen, TLSVersion: secondaryToken.Decision.TLSMetadata.Version,
+				Reason: "GSO normalizer secondary pass token",
+			}
+		}
+	}
 	if flowKeyOK && tlsObservation.Complete {
 		if tlsObservation.ConfigGen == 0 {
 			tlsObservation.ConfigGen = dnsHintConfigGeneration(cfg)
@@ -250,7 +272,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	host := tlsObservation.Host
 	tlsVersion := tlsObservation.TLSVersion
 	isClientHello := host != ""
-	matchedSNI := false
+	matchedSNI := secondaryToken != nil
+	matchedLearned := false
+	matchedScopedHint := false
 	if tlsObservation.Conflict || (reassemblyResult.Status == classifier.ReassemblyAborted && reassemblyResult.Reason == classifier.ReassemblyAbortConflictingOverlap) {
 		if flowKeyOK && w.tcpHold != nil {
 			w.tcpHold.Release(flowKey, classifier.ReassemblyAbortConflictingOverlap)
@@ -265,98 +289,98 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return vc.accept()
 	}
 
-	if matched && !set.MatchesTCPDPort(dport) {
-		matched = false
-		set = nil
-	}
-	if matched && st != nil && !w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, st, classifier.EvidenceStaticIP, "", false, "static-ip", tlsMetadata) {
-		matched = false
-		set = nil
-		st = nil
-	}
+	if secondaryToken == nil {
+		if matched && !set.MatchesTCPDPort(dport) {
+			matched = false
+			set = nil
+		}
+		if matched && st != nil && !w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, st, classifier.EvidenceStaticIP, "", false, "static-ip", tlsMetadata) {
+			matched = false
+			set = nil
+			st = nil
+		}
 
-	matchedLearned := false
-	if !classifierDecisionEnabled(cfg) {
-		if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesTCPDPort(dport) {
-			matched, set, st, matchedLearned = true, learnedSet, learnedSet, true
+		if !classifierDecisionEnabled(cfg) {
+			if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesTCPDPort(dport) {
+				matched, set, st, matchedLearned = true, learnedSet, learnedSet, true
+			}
 		}
-	}
 
-	if !matched && cfg.IsTCPPort(dport) {
-		if portMatched, portSet := matcher.MatchTCPPort(dport); portMatched {
-			if w.allowNFQDomainDecision(cfg, pkt, dport, 6, portSet, classifier.EvidencePortProtocol, "", false, "port-fallback") {
-				matched = true
-				set = portSet
-			}
-		}
-	}
-	matchedScopedHint := false
-	if !matched {
-		if hintSet, ok := w.matchScopedDNSHintWithMetadata(cfg, pkt, sport, dport, 6, tlsMetadata); ok {
-			matched = true
-			set = hintSet
-			matchedScopedHint = true
-		}
-	}
-
-	// Clear or completely reassembled hostname evidence is both positive and
-	// negative evidence: no provisional IP/port/learned selection survives it.
-	var provisional *config.SetConfig
-	if host != "" {
-		provisional = set
-		matched, set, st = false, nil, nil
-		matchedLearned = false
-		matchedScopedHint = false
-		eligible := matcher.MatchSNICandidatesWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver)
-		eligibleIDs := make([]string, 0, len(eligible))
-		for _, candidateSet := range eligible {
-			if candidateSet != nil && candidateSet.MatchesTCPDPort(dport) {
-				eligibleIDs = append(eligibleIDs, classifierSetID(candidateSet))
-			}
-		}
-		disposition := classifier.CandidateInsufficient
-		if provisional != nil {
-			disposition = classifier.ResolveCandidateDisposition(classifier.CaptureCandidate{CandidateSetID: classifierSetID(provisional)}, eligibleIDs)
-		} else if len(eligibleIDs) == 1 {
-			disposition = classifier.CandidateEligible
-		} else if len(eligibleIDs) > 1 {
-			disposition = classifier.CandidateAmbiguous
-		}
-		recordCandidateDisposition(flowKey, provisional, host, tlsObservation.Source, disposition, eligibleIDs)
-		if len(eligibleIDs) > 1 {
-			if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
-				_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{Signal: diagnostics.SignalClassifierAmbiguous, Client: client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: dport, Protocol: 6, SetCandidates: eligibleIDs, Reason: "authoritative hostname matched multiple eligible sets"})
-			}
-		} else if len(eligibleIDs) == 1 {
-			stSNI := eligible[0]
-			strategy := "clear-sni"
-			if tlsObservation.Source == classifier.EvidenceReassembledSNI {
-				strategy = "reassembled-tcp-sni"
-			}
-			claimed := true
-			if flowKeyOK && tlsObservation.ClientHelloID != 0 && w.clientHelloClaims != nil {
-				claimed = w.clientHelloClaims.Claim(flowKey, tlsObservation.ClientHelloID, tlsObservation.ConfigGen, time.Now())
-			}
-			if !claimed {
-				log.Tracef("duplicate logical ClientHello decision suppressed before classifier side effects flow=%v id=%d", flowKey, tlsObservation.ClientHelloID)
-			} else {
-				scope := nfqDecisionScope{
-					FlowKey:             flowKey,
-					ClientHelloID:       tlsObservation.ClientHelloID,
-					EvidenceConfigGen:   tlsObservation.ConfigGen,
-					CompleteClientHello: tlsObservation.Complete,
-					TLSVersion:          tlsObservation.TLSVersion,
-				}
-				if w.allowNFQDomainDecisionScoped(cfg, pkt, dport, 6, stSNI, tlsObservation.Source, host, true, strategy, tlsMetadata, scope) {
-					matchedSNI = true
+		if !matched && cfg.IsTCPPort(dport) {
+			if portMatched, portSet := matcher.MatchTCPPort(dport); portMatched {
+				if w.allowNFQDomainDecision(cfg, pkt, dport, 6, portSet, classifier.EvidencePortProtocol, "", false, "port-fallback") {
 					matched = true
-					set = stSNI
+					set = portSet
 				}
 			}
 		}
-	}
-	if flowKeyOK && w.tcpHold != nil && (reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted) {
-		w.tcpHold.Release(flowKey, reassemblyResult.Reason)
+		if !matched {
+			if hintSet, ok := w.matchScopedDNSHintWithMetadata(cfg, pkt, sport, dport, 6, tlsMetadata); ok {
+				matched = true
+				set = hintSet
+				matchedScopedHint = true
+			}
+		}
+
+		// Clear or completely reassembled hostname evidence is both positive and
+		// negative evidence: no provisional IP/port/learned selection survives it.
+		var provisional *config.SetConfig
+		if host != "" {
+			provisional = set
+			matched, set, st = false, nil, nil
+			matchedLearned = false
+			matchedScopedHint = false
+			eligible := matcher.MatchSNICandidatesWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver)
+			eligibleIDs := make([]string, 0, len(eligible))
+			for _, candidateSet := range eligible {
+				if candidateSet != nil && candidateSet.MatchesTCPDPort(dport) {
+					eligibleIDs = append(eligibleIDs, classifierSetID(candidateSet))
+				}
+			}
+			disposition := classifier.CandidateInsufficient
+			if provisional != nil {
+				disposition = classifier.ResolveCandidateDisposition(classifier.CaptureCandidate{CandidateSetID: classifierSetID(provisional)}, eligibleIDs)
+			} else if len(eligibleIDs) == 1 {
+				disposition = classifier.CandidateEligible
+			} else if len(eligibleIDs) > 1 {
+				disposition = classifier.CandidateAmbiguous
+			}
+			recordCandidateDisposition(flowKey, provisional, host, tlsObservation.Source, disposition, eligibleIDs)
+			if len(eligibleIDs) > 1 {
+				if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
+					_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{Signal: diagnostics.SignalClassifierAmbiguous, Client: client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: dport, Protocol: 6, SetCandidates: eligibleIDs, Reason: "authoritative hostname matched multiple eligible sets"})
+				}
+			} else if len(eligibleIDs) == 1 {
+				stSNI := eligible[0]
+				strategy := "clear-sni"
+				if tlsObservation.Source == classifier.EvidenceReassembledSNI {
+					strategy = "reassembled-tcp-sni"
+				}
+				claimed := true
+				if flowKeyOK && tlsObservation.ClientHelloID != 0 && w.clientHelloClaims != nil {
+					claimed = w.clientHelloClaims.Claim(flowKey, tlsObservation.ClientHelloID, tlsObservation.ConfigGen, time.Now())
+				}
+				if !claimed {
+					log.Tracef("duplicate logical ClientHello decision suppressed before classifier side effects flow=%v id=%d", flowKey, tlsObservation.ClientHelloID)
+				} else {
+					scope := nfqDecisionScope{
+						FlowKey:             flowKey,
+						ClientHelloID:       tlsObservation.ClientHelloID,
+						EvidenceConfigGen:   tlsObservation.ConfigGen,
+						CompleteClientHello: tlsObservation.Complete,
+						TLSVersion:          tlsObservation.TLSVersion,
+					}
+					if w.allowNFQDomainDecisionScoped(cfg, pkt, dport, 6, stSNI, tlsObservation.Source, host, true, strategy, tlsMetadata, scope) {
+						matchedSNI = true
+						matched = true
+						set = stSNI
+					}
+				}
+			}
+		}
+		if flowKeyOK && w.tcpHold != nil && (reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted) {
+			w.tcpHold.Release(flowKey, reassemblyResult.Reason)
+		}
 	}
 
 	routeTProxy := matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode)
@@ -365,11 +389,20 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	isSyn := (tcpFlags & 0x02) != 0
 	isAck := (tcpFlags & 0x10) != 0
 	isRst := (tcpFlags & 0x04) != 0
+	isFin := (tcpFlags & 0x01) != 0
+	if flowKeyOK && (isFin || isRst) {
+		if w.gsoPassTokens != nil {
+			w.gsoPassTokens.DeleteFlow(flowKey)
+		}
+		if w.actionTokens != nil {
+			w.actionTokens.CloseServerProgress(gsoFlowHash(flowKey))
+		}
+	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
 		return vc.accept()
 	}
-	if flowKeyOK && w.tcpHold != nil {
+	if secondaryToken == nil && flowKeyOK && w.tcpHold != nil {
 		generation := dnsHintConfigGeneration(cfg)
 		if held, failOpen := w.maybeHoldTCPPacket(cfg, pkt, flowKey, generation, dport, payload, tcpFlags, tlsMetadata, reassemblyResult, matchedScopedHint, vc.q, vc.id); held {
 			return 0
