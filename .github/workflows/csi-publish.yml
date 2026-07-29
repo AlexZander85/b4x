@@ -35,11 +35,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin csi-publisher-20260729-v2
 
+          : > /tmp/csi-patches.b64
           for part in $(seq -w 0 16); do
-            git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}"
-          done | base64 -d > /tmp/csi-patches.tar.gz
+            git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}" | tr -d '\r\n' >> /tmp/csi-patches.b64
+          done
 
+          test "$(wc -c < /tmp/csi-patches.b64)" -eq 68032
+          echo "c51b36bfedb4becd9d3f7efbc559e1bdaff6b8f5b1c02149d629d7835c0c782c  /tmp/csi-patches.b64" | sha256sum -c -
+          base64 -d /tmp/csi-patches.b64 > /tmp/csi-patches.tar.gz
           echo "a18b420ba57ab57ea7eb47ad51f391077658bc53f82ce249ee186b63f487be9c  /tmp/csi-patches.tar.gz" | sha256sum -c -
+
           rm -rf /tmp/csi-patches
           mkdir -p /tmp/csi-patches
           tar -xzf /tmp/csi-patches.tar.gz -C /tmp/csi-patches
