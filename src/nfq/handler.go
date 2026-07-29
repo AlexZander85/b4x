@@ -747,6 +747,7 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 	matchedIP := st != nil
 	matchedQUIC := false
+	matchedScopedHint := false
 	matchedLearned := false
 	isVoiceMedia := false
 	host := ""
@@ -791,6 +792,7 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if hintSet, ok := w.matchScopedDNSHint(cfg, pkt, sport, dport, 17); ok {
 			matched = true
 			set = hintSet
+			matchedScopedHint = true
 			ipTarget = hintSet.Name
 		}
 	}
@@ -805,33 +807,61 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 	}
 
+	quicGate := quicActionGate{}
 	if host != "" {
-		if mSNI, sniSet := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, 0x0304, pkt.ver); mSNI {
-			if sniSet.MatchesUDPDPort(dport) {
-				if w.allowNFQDomainDecision(cfg, pkt, dport, 17, sniSet, classifier.EvidenceQUICSNI, host, true, "quic-sni") {
-					matchedQUIC = true
-					set = sniSet
-					sniTarget = sniSet.Name
-					w.observeScopedLearnedObservation(cfg, pkt, dport, 17, host, sniSet, classifier.EvidenceQUICSNI)
-					if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
-						w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
-					}
+		// QUIC SNI is authoritative positive and negative service evidence.
+		provisional := set
+		matched, matchedIP, matchedPort, matchedScopedHint = false, false, false, false
+		set, st = nil, nil
+		eligible := matcher.MatchSNICandidatesWithSourceTLS(host, pkt.srcMac, 0x0304, pkt.ver)
+		udpEligible := make([]*config.SetConfig, 0, len(eligible))
+		for _, candidateSet := range eligible {
+			if candidateSet != nil && candidateSet.MatchesUDPDPort(dport) {
+				udpEligible = append(udpEligible, candidateSet)
+			}
+		}
+		if len(udpEligible) == 1 {
+			sniSet := udpEligible[0]
+			if w.allowNFQDomainDecision(cfg, pkt, dport, 17, sniSet, classifier.EvidenceQUICSNI, host, true, "quic-sni") {
+				matchedQUIC, matched, set = true, true, sniSet
+				sniTarget = sniSet.Name
+				quicGate = newQUICActionGate(cfg, pkt, sport, dport, sniSet, classifier.EvidenceQUICSNI, true, "authoritative QUIC SNI")
+				w.observeScopedLearnedObservation(cfg, pkt, dport, 17, host, sniSet, classifier.EvidenceQUICSNI)
+				if cfg.System.Classifier.Flags.QUICToTCPHandoffEnabled {
+					w.observeQUICHandoff(cfg, pkt, dport, host, sniSet)
 				}
 			}
+		} else {
+			reason := "QUIC SNI contradicted provisional service candidate"
+			if len(udpEligible) > 1 {
+				reason = "QUIC SNI matched multiple service sets"
+			}
+			quicGate = newQUICActionGate(cfg, pkt, sport, dport, provisional, classifier.EvidenceQUICSNI, false, reason)
 		}
 	}
 
-	if !matchedQUIC && (matchedIP || matchedPort) && set.UDP.FilterQUIC == "all" {
-		if isQUIC {
-			matchedQUIC = true
+	if isQUIC && !quicGate.Authorized && set != nil {
+		switch {
+		case matchedScopedHint:
+			quicGate = newQUICActionGate(cfg, pkt, sport, dport, set, classifier.EvidenceDNSAnswer, true, "fresh scoped hint authorized QUIC flow")
+		case quicSetCanUseGlobalFallback(cfg, set) && (matchedIP || matchedPort):
+			quicGate = newQUICActionGate(cfg, pkt, sport, dport, set, classifier.EvidenceStaticIP, true, "explicit non-domain global fallback")
+		default:
+			matched, matchedIP, matchedPort, matchedQUIC = false, false, false, false
+			set = nil
+			quicGate = newQUICActionGate(cfg, pkt, sport, dport, set, classifier.EvidenceStaticIP, false, "unknown or malformed QUIC without service authorization")
 		}
+	}
+
+	if isQUIC && quicGate.Authorized && set != nil && set.UDP.FilterQUIC == "all" {
+		matchedQUIC = true
 	}
 
 	if captureManager := capture.GetManager(cfg); captureManager != nil {
 		captureManager.CapturePayload(connKey, host, "quic", payload)
 	}
 
-	shouldHandle := (matchedIP || matchedQUIC || matchedPort) && !(isVoiceMedia && set.UDP.FilterSTUN)
+	shouldHandle := set != nil && (matchedIP || matchedQUIC || matchedPort) && (!isQUIC || quicGate.Authorized) && !(isVoiceMedia && set.UDP.FilterSTUN)
 
 	matched = shouldHandle
 
@@ -841,18 +871,17 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 
 	if shouldHandle && set != nil && host != "" {
-		if escId, _, ok := w.destState.GetEscalation(host); ok {
-			if escSet := cfg.GetSetById(escId); escSet != nil && escSet.Enabled {
-				log.Tracef("UDP escalation hit for %s: %s -> %s", host, set.Name, escSet.Name)
-				set = escSet
-				if sniTarget != "" {
-					sniTarget = set.Name
+		if key, ok := scopedEscalationKey(cfg, pkt, set, host); ok && w.scopedFailures != nil {
+			if escID, _, found := w.scopedFailures.GetEscalation(key, time.Now()); found {
+				if escSet := cfg.GetSetById(escID); escSet != nil && escSet.Enabled {
+					set = escSet
+					if sniTarget != "" {
+						sniTarget = set.Name
+					}
+					if ipTarget != "" {
+						ipTarget = set.Name
+					}
 				}
-				if ipTarget != "" {
-					ipTarget = set.Name
-				}
-			} else {
-				w.destState.ClearEscalation(host)
 			}
 		}
 	}
