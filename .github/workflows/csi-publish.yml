@@ -1,0 +1,36 @@
+name: Publish CSI stages
+
+on:
+  push:
+    branches:
+      - csi-publisher-20260729-v2
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out target branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/classifier-v2.3-capture-envelope
+          fetch-depth: 0
+
+      - name: Apply staged commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "b4-csi-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin csi-publisher-20260729-v2
+          for part in 00 01 02 03; do
+            git show "origin/csi-publisher-20260729-v2:.csi-publisher/patches.b64.${part}"
+          done | base64 -d > /tmp/csi-patches.tar.gz
+          echo "a18b420ba57ab57ea7eb47ad51f391077658bc53f82ce249ee186b63f487be9c  /tmp/csi-patches.tar.gz" | sha256sum -c -
+          mkdir -p /tmp/csi-patches
+          tar -xzf /tmp/csi-patches.tar.gz -C /tmp/csi-patches
+          git am /tmp/csi-patches/*.patch
+          git push origin HEAD:agent/classifier-v2.3-capture-envelope
+          git push origin --delete csi-publisher-20260729-v2 || true
