@@ -53,17 +53,12 @@ jobs:
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
           if [[ -f ../publisher/.hardening/fix.00 ]]; then
-            cat ../publisher/.hardening/fix.00 ../publisher/.hardening/fix.01 | base64 -d > /tmp/hardening-fix.patch
-            python3 - <<'PY'
-          from pathlib import Path
-          path = Path('/tmp/hardening-fix.patch')
-          data = path.read_bytes()
-          old = b'BuildTLSClientHelloo('
-          new = b'BuildTLSClientHello('
-          if data.count(old) != 1:
-              raise SystemExit(f'expected one deterministic H3 fix correction, found {data.count(old)}')
-          path.write_bytes(data.replace(old, new, 1))
-          PY
+            cat \
+              ../publisher/.hardening/fix.00 \
+              ../publisher/.hardening/fix.01 \
+              ../publisher/.hardening/fix.02 \
+              ../publisher/.hardening/fix.03 \
+              | base64 -d > /tmp/hardening-fix.patch
             echo "$(cat ../publisher/.hardening/fix.sha256)  /tmp/hardening-fix.patch" | sha256sum -c -
             git apply /tmp/hardening-fix.patch
             git add -A
