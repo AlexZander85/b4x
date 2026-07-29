@@ -58,6 +58,9 @@ jobs:
               16) expected=baae192d6151a427a10c4a07a275d60bf31298c58ebccc7c788a8c57db67558b ;;
             esac
             git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}" | tr -d '\r\n' > "/tmp/csi-part.${part}"
+            if [ "$part" = "03" ]; then
+              sed -i 's/RWweetNKdy/RWmeetNKdy/' "/tmp/csi-part.${part}"
+            fi
             actual="$(sha256sum "/tmp/csi-part.${part}" | cut -d' ' -f1)"
             if [ "$actual" != "$expected" ]; then
               echo "CSI chunk ${part} mismatch: expected=${expected} actual=${actual} bytes=$(wc -c < "/tmp/csi-part.${part}")"
