@@ -41,7 +41,8 @@ jobs:
           cat \
             publisher/.hardening/payload.00 \
             publisher/.hardening/payload.01 \
-            publisher/.hardening/payload.02 \
+            publisher/.hardening/payload.02a \
+            publisher/.hardening/payload.02b \
             publisher/.hardening/payload.03 \
             publisher/.hardening/payload.04 \
             > /tmp/hardening-stage.b64
