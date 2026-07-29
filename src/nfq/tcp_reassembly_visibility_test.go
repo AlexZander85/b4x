@@ -6,8 +6,8 @@ import (
 
 	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/classifier"
-	"github.com/daniellavrushin/b4/classifier/fixtures"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/fixtures"
 )
 
 func TestNFQTCPReassemblyAbortsWhenVisibilityIsUnknown(t *testing.T) {

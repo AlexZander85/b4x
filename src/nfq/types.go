@@ -59,6 +59,7 @@ type Worker struct {
 	dnsHints           *classifier.HostHintStore
 	tcpReassembly      *classifier.TCPReassemblyStore
 	tcpHold            *TCPHoldStore
+	clientHelloClaims  *clientHelloDecisionClaimStore
 	canary             *CanaryMonitor
 	candidateSet       atomic.Value // string; target set for candidate accounting
 	clientHelloSink    atomic.Pointer[clientHelloSinkHolder]

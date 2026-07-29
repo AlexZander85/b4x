@@ -14,10 +14,12 @@ import (
 	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/discord"
 	"github.com/daniellavrushin/b4/lab"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/sni"
 	"github.com/daniellavrushin/b4/sock"
@@ -221,6 +223,24 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
 	flowKey, flowKeyOK := tcpFlowKeyForPacket(pkt, sport, dport)
+	tlsObservation := resolveAuthoritativeTLSObservation(payload, reassemblyResult)
+	host := tlsObservation.Host
+	tlsVersion := tlsObservation.TLSVersion
+	isClientHello := host != ""
+	matchedSNI := false
+	if tlsObservation.Conflict || (reassemblyResult.Status == classifier.ReassemblyAborted && reassemblyResult.Reason == classifier.ReassemblyAbortConflictingOverlap) {
+		if flowKeyOK && w.tcpHold != nil {
+			w.tcpHold.Release(flowKey, classifier.ReassemblyAbortConflictingOverlap)
+		}
+		if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
+			_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+				Signal: diagnostics.SignalReassemblyAbort, Client: client, DestinationIP: netIPToAddr(pkt.dst),
+				DestinationPort: dport, Protocol: 6, Reason: "authoritative SNI conflict; mutation suppressed",
+			})
+		}
+		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", flowKey), Kind: "reassembled_sni_conflict", Fields: map[string]string{"reason": tlsObservation.Reason, "result": "fail-open"}})
+		return vc.accept()
+	}
 
 	if matched && !set.MatchesTCPDPort(dport) {
 		matched = false
@@ -259,6 +279,35 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 	}
 
+	// A completed reassembled ClientHello is authoritative for this exact flow.
+	// It must replace provisional IP/port/legacy candidates before any action
+	// planner or routing path observes the selected set.
+	if host != "" && tlsObservation.Source == classifier.EvidenceReassembledSNI {
+		matched, set, st = false, nil, nil
+		matchedLearned = false
+		matchedScopedHint = false
+	}
+	if host != "" {
+		if mSNI, stSNI := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver); mSNI && stSNI.MatchesTCPDPort(dport) {
+			strategy := "clear-sni"
+			if tlsObservation.Source == classifier.EvidenceReassembledSNI {
+				strategy = "reassembled-sni"
+			}
+			if w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, stSNI, tlsObservation.Source, host, true, strategy, tlsMetadata) {
+				if tlsObservation.Source != classifier.EvidenceReassembledSNI || !flowKeyOK || w.clientHelloClaims == nil || w.clientHelloClaims.Claim(flowKey, tlsObservation.ClientHelloID, tlsObservation.ConfigGen, time.Now()) {
+					matchedSNI = true
+					matched = true
+					set = stSNI
+				} else {
+					log.Tracef("duplicate reassembled ClientHello decision suppressed flow=%v id=%d", flowKey, tlsObservation.ClientHelloID)
+				}
+			}
+		}
+	}
+	if flowKeyOK && w.tcpHold != nil && (reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted) {
+		w.tcpHold.Release(flowKey, reassemblyResult.Reason)
+	}
+
 	routeTProxy := matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode)
 
 	tcpFlags := tcp[13]
@@ -270,9 +319,6 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return vc.accept()
 	}
 	if flowKeyOK && w.tcpHold != nil {
-		if reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted {
-			w.tcpHold.Release(flowKey, reassemblyResult.Reason)
-		}
 		generation := dnsHintConfigGeneration(cfg)
 		if held, failOpen := w.maybeHoldTCPPacket(cfg, pkt, flowKey, generation, dport, payload, tcpFlags, tlsMetadata, reassemblyResult, matchedScopedHint, vc.q, vc.id); held {
 			return 0
@@ -360,11 +406,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return 0
 	}
 
-	host := ""
-	isClientHello := false
-	var tlsVersion uint16
 	matchedIP := st != nil
-	matchedSNI := false
 	ipTarget := ""
 	sniTarget := ""
 
@@ -380,9 +422,6 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		}
 		connKey := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
 
-		host, tlsVersion, _ = sni.ParseTLSClientHelloSNI(payload)
-		isClientHello = host != ""
-
 		if host != "" && tlsVersion != 0 {
 			w.tlsCache.Store(connKey, host, tlsVersion)
 		}
@@ -391,18 +430,13 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			captureManager.CapturePayload(connKey, host, "tls", payload)
 		}
 
-		if host != "" {
-			if mSNI, stSNI := matcher.MatchSNIWithSourceTLS(host, pkt.srcMac, tlsVersion, pkt.ver); mSNI {
-				if stSNI.MatchesTCPDPort(dport) {
-					if w.allowNFQDomainDecisionWithMetadata(cfg, pkt, dport, 6, stSNI, classifier.EvidencePacketSNI, host, true, "clear-sni", tlsMetadata) {
-						matchedSNI = true
-						matched = true
-						set = stSNI
-						matcher.LearnIPToDomain(pkt.dst, host, stSNI)
-						registerLearnedRoute(cfg, stSNI, pkt.dst)
-					}
-				}
-			}
+		// Hostname matching already ran through the authoritative packet/reassembly
+		// path above. Reassembled SNI never creates a destination-global learned
+		// IP or routing side effect. Packet-local compatibility learning is left
+		// for the scoped-observation migration stage.
+		if matchedSNI && tlsObservation.Source == classifier.EvidencePacketSNI && set != nil {
+			matcher.LearnIPToDomain(pkt.dst, host, set)
+			registerLearnedRoute(cfg, set, pkt.dst)
 		}
 
 		if matched && !matchedSNI && set != nil && !set.MatchesTLSVersion(tlsVersion) {

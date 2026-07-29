@@ -1,6 +1,9 @@
 package classifier
 
 import (
+	"encoding/binary"
+	"fmt"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -76,6 +79,8 @@ type TCPReassemblyResult struct {
 	IdenticalOverlap   bool
 	ConflictingOverlap bool
 	Metadata           sni.TLSClientHelloMetadata
+	ConfigGen          uint64
+	ClientHelloID      uint64
 }
 
 type TCPReassemblyStats struct {
@@ -323,7 +328,21 @@ func (s *TCPReassemblyStore) observeEntryLocked(entry *tcpReassemblyEntry, seque
 }
 
 func (s *TCPReassemblyStore) resultLocked(entry *tcpReassemblyEntry, status ReassemblyStatus, reason string) TCPReassemblyResult {
-	return TCPReassemblyResult{Status: status, Reason: reason, Key: entry.key, BaseSequence: entry.baseSequence, NewBytes: entry.lastNewBytes, BufferedBytes: entry.ranges.Bytes(), SegmentCount: entry.segments, Duplicate: entry.lastDuplicate, IdenticalOverlap: entry.lastIdentical, Metadata: entry.metadata}
+	return TCPReassemblyResult{Status: status, Reason: reason, Key: entry.key, BaseSequence: entry.baseSequence, NewBytes: entry.lastNewBytes, BufferedBytes: entry.ranges.Bytes(), SegmentCount: entry.segments, Duplicate: entry.lastDuplicate, IdenticalOverlap: entry.lastIdentical, Metadata: entry.metadata, ConfigGen: entry.configGeneration, ClientHelloID: clientHelloIdentity(entry)}
+}
+
+func clientHelloIdentity(entry *tcpReassemblyEntry) uint64 {
+	if entry == nil {
+		return 0
+	}
+	h := fnv.New64a()
+	var scratch [8]byte
+	binary.BigEndian.PutUint32(scratch[:4], entry.baseSequence)
+	_, _ = h.Write(scratch[:4])
+	binary.BigEndian.PutUint64(scratch[:], entry.configGeneration)
+	_, _ = h.Write(scratch[:])
+	_, _ = h.Write([]byte(fmt.Sprintf("%v", entry.key)))
+	return h.Sum64()
 }
 
 func (s *TCPReassemblyStore) ObserveEvent(key FlowKey, event TCPFlowEvent, configGeneration uint64) TCPReassemblyResult {

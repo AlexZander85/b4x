@@ -134,3 +134,17 @@ func BenchmarkTCPReassemblyObserve(b *testing.B) {
 		store.Close(key, ReassemblyAbortManual)
 	}
 }
+
+func TestTCPReassemblyResultCarriesStableClientHelloIdentity(t *testing.T) {
+	store := NewTCPReassemblyStore(DefaultTCPReassemblyConfig())
+	key := testFlowKey()
+	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 0)
+	first := store.Observe(key, 1000, hello, 42)
+	second := store.Observe(key, 1000, hello, 42)
+	if first.Status != ReassemblyComplete || first.ClientHelloID == 0 || first.ConfigGen != 42 {
+		t.Fatalf("missing completed identity: %+v", first)
+	}
+	if second.ClientHelloID != first.ClientHelloID {
+		t.Fatalf("retransmission changed logical identity: first=%d second=%d", first.ClientHelloID, second.ClientHelloID)
+	}
+}

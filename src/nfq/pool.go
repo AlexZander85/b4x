@@ -19,12 +19,13 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	w := &Worker{
-		qnum:          qnum,
-		ctx:           ctx,
-		cancel:        cancel,
-		dnsHints:      classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
-		tcpReassembly: classifier.NewTCPReassemblyStore(classifier.DefaultTCPReassemblyConfig()),
-		tcpHold:       NewTCPHoldStore(DefaultTCPHoldConfig()),
+		qnum:              qnum,
+		ctx:               ctx,
+		cancel:            cancel,
+		dnsHints:          classifier.NewHostHintStore(classifier.HostHintStoreConfig{}, nil),
+		tcpReassembly:     classifier.NewTCPReassemblyStore(classifier.DefaultTCPReassemblyConfig()),
+		tcpHold:           NewTCPHoldStore(DefaultTCPHoldConfig()),
+		clientHelloClaims: newClientHelloDecisionClaimStore(),
 	}
 
 	w.cfg.Store(cfg)
@@ -131,6 +132,9 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 					}
 					if worker.tcpHold != nil {
 						worker.tcpHold.GC(time.Now())
+					}
+					if worker.clientHelloClaims != nil {
+						worker.clientHelloClaims.GC(time.Now())
 					}
 				}
 			case <-escalationTicker.C:
