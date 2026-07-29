@@ -21,18 +21,39 @@ jobs:
           ref: agent/classifier-v2.3-capture-envelope
           fetch-depth: 0
 
-      - name: Apply staged commits
+      - name: Set up project Go toolchain
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: false
+
+      - name: Reconstruct and apply ten CSI commits
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "b4-csi-agent"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin csi-publisher-20260729-v2
-          for part in 00 01 02 03; do
-            git show "origin/csi-publisher-20260729-v2:.csi-publisher/patches.b64.${part}"
+
+          for part in $(seq -w 0 16); do
+            git show "origin/csi-publisher-20260729-v2:.csi-publisher/v2/part.${part}"
           done | base64 -d > /tmp/csi-patches.tar.gz
+
           echo "a18b420ba57ab57ea7eb47ad51f391077658bc53f82ce249ee186b63f487be9c  /tmp/csi-patches.tar.gz" | sha256sum -c -
+          rm -rf /tmp/csi-patches
           mkdir -p /tmp/csi-patches
           tar -xzf /tmp/csi-patches.tar.gz -C /tmp/csi-patches
+          test "$(find /tmp/csi-patches -maxdepth 1 -name '*.patch' | wc -l)" -eq 10
+
           git am /tmp/csi-patches/*.patch
+          test "$(git rev-list --count 8325bb4efe191aad274b46330e75d5272178c035..HEAD)" -eq 10
+          git diff --check 8325bb4efe191aad274b46330e75d5272178c035..HEAD
+
+          unformatted="$(git diff --name-only 8325bb4efe191aad274b46330e75d5272178c035..HEAD -- '*.go' | xargs -r gofmt -l)"
+          test -z "$unformatted" || { printf 'Unformatted Go files:\n%s\n' "$unformatted"; exit 1; }
+
+          cd src
+          go test ./config ./classifier ./action ./routing ./crossservice ./http/handler ./nfq ./sni ./observability ./diagnostics ./runtimecontrol
+          cd ..
+
           git push origin HEAD:agent/classifier-v2.3-capture-envelope
