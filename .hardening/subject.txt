@@ -1,1 +1,1 @@
-fix(classifier): promote complete reassembled SNI into flow decisions
+feat(capture): add NFQUEUE GSO and checksum offload metadata
