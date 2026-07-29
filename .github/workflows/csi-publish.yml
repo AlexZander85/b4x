@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - csi-publisher-20260729-v2
+  pull_request:
+    branches:
+      - csi-publisher-20260729-v2
 
 permissions:
   contents: write
@@ -33,4 +36,3 @@ jobs:
           tar -xzf /tmp/csi-patches.tar.gz -C /tmp/csi-patches
           git am /tmp/csi-patches/*.patch
           git push origin HEAD:agent/classifier-v2.3-capture-envelope
-          git push origin --delete csi-publisher-20260729-v2 || true
