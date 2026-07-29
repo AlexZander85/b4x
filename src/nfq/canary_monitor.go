@@ -105,8 +105,8 @@ func (m *CanaryMonitor) Observe(pkt *pktInfo, cfgPorts canaryPortMatcher) {
 }
 
 type canaryPortMatcher interface {
-	IsTCPPort(int) bool
-	IsUDPPort(int) bool
+	IsTCPPort(uint16) bool
+	IsUDPPort(uint16) bool
 }
 
 func (m *CanaryMonitor) observeTCP(pkt *pktInfo, ports canaryPortMatcher, now time.Time) {
@@ -117,7 +117,7 @@ func (m *CanaryMonitor) observeTCP(pkt *pktInfo, ports canaryPortMatcher, now ti
 	sport := int(binary.BigEndian.Uint16(tcp[0:2]))
 	dport := int(binary.BigEndian.Uint16(tcp[2:4]))
 	flags := tcp[13]
-	incoming := ports != nil && ports.IsTCPPort(sport)
+	incoming := ports != nil && ports.IsTCPPort(uint16(sport))
 	key := canaryFlowKey(pkt, sport, dport, incoming)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -156,7 +156,7 @@ func (m *CanaryMonitor) observeUDP(pkt *pktInfo, ports canaryPortMatcher, now ti
 	}
 	sport := int(binary.BigEndian.Uint16(udp[0:2]))
 	dport := int(binary.BigEndian.Uint16(udp[2:4]))
-	incoming := ports != nil && ports.IsUDPPort(sport)
+	incoming := ports != nil && ports.IsUDPPort(uint16(sport))
 	key := canaryFlowKey(pkt, sport, dport, incoming)
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -194,7 +194,7 @@ func (m *CanaryMonitor) MarkEligible(pkt *pktInfo, ports canaryPortMatcher) {
 		}
 		sport = int(binary.BigEndian.Uint16(tcp[0:2]))
 		dport = int(binary.BigEndian.Uint16(tcp[2:4]))
-		incoming = ports != nil && ports.IsTCPPort(sport)
+		incoming = ports != nil && ports.IsTCPPort(uint16(sport))
 	case 17:
 		udp := pkt.raw[pkt.ihl:]
 		if len(udp) < UDPHeaderLen {
@@ -202,7 +202,7 @@ func (m *CanaryMonitor) MarkEligible(pkt *pktInfo, ports canaryPortMatcher) {
 		}
 		sport = int(binary.BigEndian.Uint16(udp[0:2]))
 		dport = int(binary.BigEndian.Uint16(udp[2:4]))
-		incoming = ports != nil && ports.IsUDPPort(sport)
+		incoming = ports != nil && ports.IsUDPPort(uint16(sport))
 	default:
 		return
 	}

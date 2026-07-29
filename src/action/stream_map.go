@@ -8,14 +8,15 @@ import (
 )
 
 var (
-	ErrInvalidStreamRange = errors.New("invalid stream range")
-	ErrStreamGap          = errors.New("stream range has a gap")
-	ErrSequenceOverflow   = errors.New("stream sequence offset exceeds uint32")
-	ErrRetransmission     = errors.New("retransmission is not eligible for a new action")
-	ErrPlanBudget         = errors.New("action plan budget exceeded")
-	ErrMTU                = errors.New("planned packet exceeds MTU")
-	ErrMarkerUnavailable  = errors.New("required semantic marker is unavailable")
-	ErrInvalidPacket      = errors.New("invalid packet")
+	ErrInvalidStreamRange    = errors.New("invalid stream range")
+	ErrStreamGap             = errors.New("stream range has a gap")
+	ErrSequenceOverflow      = errors.New("stream sequence offset exceeds uint32")
+	ErrRetransmission        = errors.New("retransmission is not eligible for a new action")
+	ErrPlanBudget            = errors.New("action plan budget exceeded")
+	ErrMTU                   = errors.New("planned packet exceeds MTU")
+	ErrMarkerUnavailable     = errors.New("required semantic marker is unavailable")
+	ErrInvalidPacket         = errors.New("invalid packet")
+	ErrAuthorizationRequired = errors.New("domain-scoped action authorization is required")
 )
 
 type StreamRange struct {

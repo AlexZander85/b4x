@@ -44,6 +44,7 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 		TLSMetadata:      ctx.TLSMetadata,
 		ConfigGen:        ctx.ConfigGen,
 		DomainOnlyMode:   normalizeDomainOnlyMode(ctx.DomainOnlyMode),
+		DomainPolicy:     domainPolicyFromMode(normalizeDomainOnlyMode(ctx.DomainOnlyMode)),
 		DomainOnlyResult: "not-applicable",
 	}
 
@@ -66,6 +67,7 @@ func Decide(ctx DecisionContext, input []Evidence, thresholds ConfidenceThreshol
 		allowed, result := domainOnlyEvidenceAllowed(ctx, e, thresholds)
 		if ctx.DomainOnlySet != nil && ctx.DomainOnlySet(e.SetID) {
 			decision.DomainOnlyApplied = true
+			decision.DomainPolicy = effectiveDomainPolicy(ctx, e.SetID)
 			if decision.DomainOnlyResult == "not-applicable" || allowed {
 				decision.DomainOnlyResult = result
 			}
@@ -202,12 +204,35 @@ func normalizeDomainOnlyMode(mode DomainOnlyMode) DomainOnlyMode {
 	}
 }
 
+func domainPolicyFromMode(mode DomainOnlyMode) DomainPolicy {
+	switch normalizeDomainOnlyMode(mode) {
+	case DomainStrict:
+		return DomainPolicyStrict
+	case DomainScopedHints:
+		return DomainPolicyScopedHints
+	case DomainDisabled:
+		return DomainPolicyDisabled
+	default:
+		return DomainPolicyLegacy
+	}
+}
+
+func effectiveDomainPolicy(ctx DecisionContext, setID string) DomainPolicy {
+	if ctx.DomainPolicyForSet != nil {
+		switch policy := ctx.DomainPolicyForSet(setID); policy {
+		case DomainPolicyStrict, DomainPolicyScopedHints, DomainPolicyLegacy, DomainPolicyDisabled:
+			return policy
+		}
+	}
+	return domainPolicyFromMode(ctx.DomainOnlyMode)
+}
+
 func domainOnlyEvidenceAllowed(ctx DecisionContext, e Evidence, thresholds ConfidenceThresholds) (bool, string) {
 	if ctx.DomainOnlySet == nil || !ctx.DomainOnlySet(e.SetID) {
 		return true, "not-applicable"
 	}
-	mode := normalizeDomainOnlyMode(ctx.DomainOnlyMode)
-	if mode == DomainDisabled {
+	policy := effectiveDomainPolicy(ctx, e.SetID)
+	if policy == DomainPolicyDisabled {
 		return true, "disabled"
 	}
 	if !e.DomainEvidence {
@@ -216,22 +241,22 @@ func domainOnlyEvidenceAllowed(ctx DecisionContext, e Evidence, thresholds Confi
 	if EffectiveConfidence(e) < thresholds.Classify {
 		return false, "rejected:below-confidence"
 	}
-	switch mode {
-	case DomainStrict:
+	switch policy {
+	case DomainPolicyStrict:
 		switch e.Source {
 		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceStaticHost:
 			return true, "allowed:strict-domain-evidence"
 		default:
 			return false, "rejected:strict-source"
 		}
-	case DomainScopedHints:
+	case DomainPolicyScopedHints:
 		switch e.Source {
 		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceQUICSNI, EvidenceDNSAnswer, EvidenceDNSHTTPS, EvidenceStaticHost:
 			return true, "allowed:scoped-domain-evidence"
 		default:
 			return false, "rejected:scoped-source"
 		}
-	case DomainLegacy:
+	case DomainPolicyLegacy, DomainPolicyInherit:
 		switch e.Source {
 		case EvidencePacketSNI, EvidenceReassembledSNI, EvidenceStaticHost:
 			return true, "allowed:legacy-domain-evidence"

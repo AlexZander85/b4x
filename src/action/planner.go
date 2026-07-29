@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/observability"
 )
 
@@ -22,19 +23,27 @@ type PlannedWrite struct {
 }
 
 type PlanInput struct {
-	BaseSequence       uint32
-	Payload            []byte
-	SplitPositions     []SplitPosition
-	Markers            MarkerSet
-	MTU                int
-	IPHeaderLen        int
-	TCPHeaderLen       int
-	ProcessedMark      uint32
-	MaxWrites          int
-	MaxBytes           int
-	DryRun             bool
-	Retransmission     bool
-	RequireHostMarkers bool
+	BaseSequence         uint32
+	Payload              []byte
+	SplitPositions       []SplitPosition
+	Markers              MarkerSet
+	MTU                  int
+	IPHeaderLen          int
+	TCPHeaderLen         int
+	ProcessedMark        uint32
+	MaxWrites            int
+	MaxBytes             int
+	DryRun               bool
+	Retransmission       bool
+	RequireHostMarkers   bool
+	RequireAuthorization bool
+	Authorization        *classifier.ActionAuthorization
+	FlowKey              classifier.FlowKey
+	Client               classifier.ClientKey
+	SetID                string
+	ConfigGen            uint64
+	DestinationPort      uint16
+	L4Proto              uint8
 }
 
 type ActionPlan struct {
@@ -52,6 +61,12 @@ func Plan(input PlanInput) (ActionPlan, error) {
 	plan := ActionPlan{DryRun: input.DryRun, ProcessedMark: input.ProcessedMark, HostMarkersAvailable: input.Markers.HostMarkersAvailable(), Writes: make([]PlannedWrite, 0)}
 	if input.Retransmission {
 		return plan, ErrRetransmission
+	}
+	if input.RequireAuthorization {
+		if input.Authorization == nil || !input.Authorization.ValidFor(input.FlowKey, input.Client, input.SetID, input.ConfigGen, input.DestinationPort, input.L4Proto, time.Now()) {
+			plan.Reason = "missing or invalid action authorization"
+			return plan, ErrAuthorizationRequired
+		}
 	}
 	if input.ProcessedMark == 0 {
 		return plan, ErrInvalidPacket

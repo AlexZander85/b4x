@@ -9,8 +9,8 @@ import (
 
 type canaryTestPorts struct{}
 
-func (canaryTestPorts) IsTCPPort(port int) bool { return port == 443 }
-func (canaryTestPorts) IsUDPPort(port int) bool { return port == 443 }
+func (canaryTestPorts) IsTCPPort(port uint16) bool { return port == 443 }
+func (canaryTestPorts) IsUDPPort(port uint16) bool { return port == 443 }
 
 func canaryTCPPacket(src, dst string, sport, dport uint16, flags byte) *pktInfo {
 	raw := make([]byte, 40)

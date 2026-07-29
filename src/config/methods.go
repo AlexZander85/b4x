@@ -537,6 +537,21 @@ func (cfg *Config) IsTCPPort(port uint16) bool {
 	return cfg.tcpPortMap[port]
 }
 
+// IsUDPPort checks if a port is in the configured UDP port set. The canary
+// monitor uses this on a bounded candidate queue, so deriving from the
+// normalized configured ranges avoids a second mutable runtime index.
+func (cfg *Config) IsUDPPort(port uint16) bool {
+	if cfg == nil {
+		return port == 443
+	}
+	for _, value := range cfg.CollectUDPPorts() {
+		if portRange, ok := parsePortRangeStr(value); ok && port >= portRange.Min && port <= portRange.Max {
+			return true
+		}
+	}
+	return false
+}
+
 func (cfg *Config) CollectDeviceMSSClamps() map[int][]string {
 	result := make(map[int][]string)
 	for _, d := range cfg.Queue.Devices.Devices {

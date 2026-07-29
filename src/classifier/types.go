@@ -34,11 +34,19 @@ const (
 
 type DomainOnlyMode string
 
+type DomainPolicy string
+
 const (
 	DomainStrict      DomainOnlyMode = "strict"
 	DomainScopedHints DomainOnlyMode = "scoped-hints"
 	DomainLegacy      DomainOnlyMode = "legacy"
 	DomainDisabled    DomainOnlyMode = "disabled"
+
+	DomainPolicyInherit     DomainPolicy = "inherit"
+	DomainPolicyStrict      DomainPolicy = "strict"
+	DomainPolicyScopedHints DomainPolicy = "scoped-hints"
+	DomainPolicyLegacy      DomainPolicy = "legacy"
+	DomainPolicyDisabled    DomainPolicy = "disabled"
 )
 
 // ClientKey is the identity available at the capture boundary. A zero MAC is
@@ -138,6 +146,7 @@ type ClassificationDecision struct {
 	ConfigGen         uint64
 	Final             bool
 	DomainOnlyMode    DomainOnlyMode
+	DomainPolicy      DomainPolicy
 	DomainOnlyApplied bool
 	DomainOnlyResult  string
 }
@@ -172,4 +181,7 @@ type DecisionContext struct {
 	// target policy requires domain evidence. Keeping this callback at the
 	// policy boundary avoids importing mutable NFQ/config state into classifier.
 	DomainOnlySet func(setID string) bool
+	// DomainPolicyForSet supersedes the global mode when present. It keeps
+	// per-set semantics deterministic without importing mutable config.
+	DomainPolicyForSet func(setID string) DomainPolicy
 }

@@ -54,6 +54,31 @@ func classifierSetIsDomainOnly(cfg *config.Config, setID string) bool {
 	return set != nil && set.Targets.DomainOnly
 }
 
+func classifierSetDomainPolicy(cfg *config.Config, setID string) classifier.DomainPolicy {
+	if cfg == nil {
+		return classifier.DomainPolicyLegacy
+	}
+	set := cfg.GetSetById(setID)
+	if set == nil {
+		for _, candidate := range cfg.Sets {
+			if candidate != nil && candidate.Name == setID {
+				set = candidate
+				break
+			}
+		}
+	}
+	switch cfg.EffectiveDomainPolicy(set) {
+	case config.DomainPolicyStrict:
+		return classifier.DomainPolicyStrict
+	case config.DomainPolicyScopedHints:
+		return classifier.DomainPolicyScopedHints
+	case config.DomainPolicyDisabled:
+		return classifier.DomainPolicyDisabled
+	default:
+		return classifier.DomainPolicyLegacy
+	}
+}
+
 func classifierSetID(set *config.SetConfig) string {
 	if set == nil {
 		return ""
@@ -96,16 +121,17 @@ func (w *Worker) decideNFQEvidenceWithMetadata(cfg *config.Config, pkt *pktInfo,
 		}
 	}
 	return classifier.Decide(classifier.DecisionContext{
-		Now:             now,
-		Client:          client,
-		ConfigGen:       dnsHintConfigGeneration(cfg),
-		DestinationPort: port,
-		L4Proto:         proto,
-		SourceDevice:    pkt.srcMac,
-		TLSMetadata:     tlsMetadata,
-		FlowKey:         flow,
-		DomainOnlyMode:  classifierDomainOnlyMode(cfg),
-		DomainOnlySet:   func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },
+		Now:                now,
+		Client:             client,
+		ConfigGen:          dnsHintConfigGeneration(cfg),
+		DestinationPort:    port,
+		L4Proto:            proto,
+		SourceDevice:       pkt.srcMac,
+		TLSMetadata:        tlsMetadata,
+		FlowKey:            flow,
+		DomainOnlyMode:     classifierDomainOnlyMode(cfg),
+		DomainOnlySet:      func(setID string) bool { return classifierSetIsDomainOnly(cfg, setID) },
+		DomainPolicyForSet: func(setID string) classifier.DomainPolicy { return classifierSetDomainPolicy(cfg, setID) },
 	}, input, classifier.DefaultConfidenceThresholds)
 }
 
@@ -194,7 +220,7 @@ func (w *Worker) allowNFQDomainDecision(cfg *config.Config, pkt *pktInfo, port u
 }
 
 func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pktInfo, port uint16, proto uint8, set *config.SetConfig, source classifier.EvidenceSource, domain string, domainEvidence bool, strategy string, tlsMetadata classifier.TLSMetadata) bool {
-	if set == nil || !classifierDecisionEnabled(cfg) || classifierDomainOnlyMode(cfg) == classifier.DomainLegacy {
+	if set == nil || !classifierDecisionEnabled(cfg) {
 		return true
 	}
 	decision := w.decideNFQEvidenceWithMetadata(cfg, pkt, port, proto, tlsMetadata, classifier.Evidence{
@@ -218,8 +244,23 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 			})
 		}
 	}
-	if classifierDomainOnlyMode(cfg) == classifier.DomainDisabled || !set.Targets.DomainOnly {
+	policy := classifierSetDomainPolicy(cfg, classifierSetID(set))
+	if policy == classifier.DomainPolicyDisabled || !set.Targets.DomainOnly {
 		return true
 	}
-	return decision.CanClassify(classifier.DefaultConfidenceThresholds) && decision.Selected != nil && decision.Selected.SetID == classifierSetID(set)
+	if !decision.CanClassify(classifier.DefaultConfidenceThresholds) || decision.Selected == nil || decision.Selected.SetID != classifierSetID(set) {
+		return false
+	}
+	candidateEvidence := classifier.Evidence{
+		Source: source, Client: decision.FlowKey.Client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: port,
+		L4Proto: proto, SourceDevice: pkt.srcMac, Domain: domain, SetID: classifierSetID(set),
+		Confidence: decision.Confidence, DomainEvidence: domainEvidence, CreatedAt: time.Now(), ConfigGen: decision.ConfigGen,
+		Reason: "NFQ capture candidate",
+	}
+	candidate := classifier.CandidateFromEvidence(decision.FlowKey, candidateEvidence)
+	auth, ok := classifier.AuthorizeCandidate(candidate, *decision.Selected, policy, decision.Final || decision.Selected.Source == classifier.EvidenceQUICSNI || decision.Selected.Source == classifier.EvidenceDNSAnswer || decision.Selected.Source == classifier.EvidenceDNSHTTPS, time.Now())
+	if ok {
+		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", decision.FlowKey), Kind: "action_authorization", Fields: map[string]string{"authorization_id": auth.ID, "set_id": observability.RedactIdentifier(auth.SetID), "source": auth.EvidenceSource.String(), "policy": string(auth.DomainPolicy)}})
+	}
+	return ok
 }

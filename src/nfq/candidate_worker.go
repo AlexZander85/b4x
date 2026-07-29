@@ -103,8 +103,8 @@ func (w *Worker) candidateSetForPacket(pkt *pktInfo) *config.SetConfig {
 	if len(pkt.raw) < pkt.ihl+4 {
 		return nil
 	}
-	sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))
-	dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))
+	sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])
+	dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])
 	if pkt.proto == 6 && w.connTracker != nil {
 		key := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
 		if set := w.connTracker.GetSetForOutgoing(key); set != nil {
