@@ -86,17 +86,13 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-
           migration = Path('src/config/migration.go')
           text = migration.read_text()
           if '"reflect"' not in text:
               text = text.replace('"path/filepath"\n\t"strings"', '"path/filepath"\n\t"reflect"\n\t"strings"')
-          text = text.replace('if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {', 'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {')
-          migration.write_text(text)
-
+          migration.write_text(text.replace('if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {', 'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {'))
           tests = Path('src/config/migration_ppe_product_test.go')
           tests.write_text(tests.read_text().replace('migratePPEProductDefaults(cfg)', 'migratePPEProductDefaults(&cfg)'))
-
           runtime_test = Path('src/http/handler/runtime_control_test.go')
           runtime_test.write_text(runtime_test.read_text().replace('candidate.System.Classifier.Confidence.Mutate++', 'candidate.System.Classifier.Runtime.Confidence.Mutate++'))
           PY
@@ -106,21 +102,12 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-
           monitor = Path('src/nfq/canary_monitor.go')
-          text = monitor.read_text()
-          text = text.replace('IsTCPPort(int) bool', 'IsTCPPort(uint16) bool')
-          text = text.replace('IsUDPPort(int) bool', 'IsUDPPort(uint16) bool')
-          text = text.replace('ports.IsTCPPort(sport)', 'ports.IsTCPPort(uint16(sport))')
-          text = text.replace('ports.IsUDPPort(sport)', 'ports.IsUDPPort(uint16(sport))')
+          text = monitor.read_text().replace('IsTCPPort(int) bool', 'IsTCPPort(uint16) bool').replace('IsUDPPort(int) bool', 'IsUDPPort(uint16) bool').replace('ports.IsTCPPort(sport)', 'ports.IsTCPPort(uint16(sport))').replace('ports.IsUDPPort(sport)', 'ports.IsUDPPort(uint16(sport))')
           monitor.write_text(text)
-
           worker = Path('src/nfq/candidate_worker.go')
-          text = worker.read_text()
-          text = text.replace('sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))', 'sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])')
-          text = text.replace('dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))', 'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])')
+          text = worker.read_text().replace('sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))', 'sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])').replace('dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))', 'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])')
           worker.write_text(text)
-
           methods = Path('src/config/methods.go')
           text = methods.read_text()
           if 'func (cfg *Config) IsUDPPort(port uint16) bool' not in text:
@@ -151,10 +138,8 @@ jobs:
                   raise SystemExit('IsTCPPort anchor not found')
               text = text.replace(anchor, addition)
           methods.write_text(text)
-
           canary_test = Path('src/nfq/canary_monitor_test.go')
-          text = canary_test.read_text().replace('IsTCPPort(port int) bool', 'IsTCPPort(port uint16) bool').replace('IsUDPPort(port int) bool', 'IsUDPPort(port uint16) bool')
-          canary_test.write_text(text)
+          canary_test.write_text(canary_test.read_text().replace('IsTCPPort(port int) bool', 'IsTCPPort(port uint16) bool').replace('IsUDPPort(port int) bool', 'IsUDPPort(port uint16) bool'))
           PY
           gofmt -w src/config/methods.go src/nfq/canary_monitor.go src/nfq/candidate_worker.go src/nfq/canary_monitor_test.go
           git add src/config/methods.go src/nfq/canary_monitor.go src/nfq/candidate_worker.go src/nfq/canary_monitor_test.go
@@ -162,10 +147,8 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-
           visibility = Path('src/nfq/tcp_reassembly_visibility_test.go')
           visibility.write_text(visibility.read_text().replace('github.com/daniellavrushin/b4/classifier/fixtures', 'github.com/daniellavrushin/b4/fixtures'))
-
           handler = Path('src/nfq/handler.go')
           text = handler.read_text()
           if 'github.com/daniellavrushin/b4/diagnostics' not in text:
@@ -173,13 +156,11 @@ jobs:
           if 'github.com/daniellavrushin/b4/observability' not in text:
               text = text.replace('"github.com/daniellavrushin/b4/metrics"\n', '"github.com/daniellavrushin/b4/metrics"\n\t"github.com/daniellavrushin/b4/observability"\n')
           handler.write_text(text)
-
           hold = Path('src/nfq/tcp_hold_worker.go')
           text = hold.read_text()
           if 'github.com/daniellavrushin/b4/log' not in text:
               text = text.replace('"github.com/daniellavrushin/b4/config"\n', '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/log"\n')
           hold.write_text(text)
-
           hold_test = Path('src/nfq/tcp_hold_visibility_test.go')
           hold_test.write_text(hold_test.read_text().replace('Protocol: 6', 'Proto: 6'))
           PY
@@ -189,7 +170,6 @@ jobs:
 
           python3 - <<'PY'
           from pathlib import Path
-
           test = Path('src/runtimecontrol/rollout_staged_test.go')
           text = test.read_text()
           old = '''\tclk := clock.NewFixed(time.Unix(100, 0))
@@ -212,6 +192,35 @@ jobs:
           test.write_text(text.replace(old, new))
           PY
           gofmt -w src/runtimecontrol/rollout_staged_test.go
+          git add src/runtimecontrol/rollout_staged_test.go
+          git commit --fixup="${stages[9]}"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          runtime = Path('src/http/handler/runtime_control.go')
+          text = runtime.read_text()
+          old = '''\tif err := runtimeControlSetEnvelopeAllowed(active, candidate); err != nil {
+          \t\treturn err
+          \t}
+          \ta := active.Clone()
+          \tc := candidate.Clone()
+          '''
+          new = '''\ta := active.Clone()
+          \tc := candidate.Clone()
+          \tif err := runtimeControlSetEnvelopeAllowed(a, c); err != nil {
+          \t\treturn err
+          \t}
+          '''
+          if old not in text:
+              raise SystemExit('runtime control normalization anchor not found')
+          runtime.write_text(text.replace(old, new))
+
+          staged = Path('src/runtimecontrol/rollout_staged_test.go')
+          staged.write_text(staged.read_text().replace('\t_, err = manager.PromotePending(context.Background())', '\t_, err := manager.PromotePending(context.Background())'))
+          PY
+          gofmt -w src/http/handler/runtime_control.go src/runtimecontrol/rollout_staged_test.go
+          git add src/http/handler/runtime_control.go
+          git commit --fixup="${stages[0]}"
           git add src/runtimecontrol/rollout_staged_test.go
           git commit --fixup="${stages[9]}"
 
