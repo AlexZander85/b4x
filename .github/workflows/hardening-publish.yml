@@ -42,37 +42,13 @@ jobs:
             publisher/.hardening/payload.00 \
             publisher/.hardening/payload.01 \
             publisher/.hardening/payload.02 \
-            publisher/.hardening/payload.03 \
             > /tmp/hardening-stage.b64
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('/tmp/hardening-stage.b64')
-          data = path.read_text()
-          old = 'dGU7MHgxNy'
-          new = 'dGV7MHgxNy'
-          if data.count(old) != 1:
-              raise SystemExit(f'expected one deterministic payload correction, found {data.count(old)}')
-          path.write_text(data.replace(old, new, 1))
-          PY
           base64 -d /tmp/hardening-stage.b64 > /tmp/hardening-stage.patch
           echo "$(cat publisher/.hardening/payload.sha256)  /tmp/hardening-stage.patch" | sha256sum -c -
           cd work
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
-          python3 - <<'PY'
-          from pathlib import Path
-          path = Path('src/classifier/policy_test.go')
-          data = path.read_text()
-          old = '''\t\tt.Run(name, func(t *testing.T) {\n\t\t\tdecision := Decide(ctx, []Evidence{evidence}, DefaultConfidenceThresholds)\n\t\t\tif decision.Selected != nil || !decision.Final {\n\t\t\t\tt.Fatalf("invalid reassembled evidence selected: %+v", decision)\n\t\t\t}\n\t\t})\n'''
-          new = '''\t\tt.Run(name, func(t *testing.T) {\n\t\t\tdecision := Decide(ctx, []Evidence{evidence}, DefaultConfidenceThresholds)\n\t\t\tif decision.Selected != nil {\n\t\t\t\tt.Fatalf("invalid reassembled evidence selected: %+v", decision)\n\t\t\t}\n\t\t\tif name == "ech-ambiguous" {\n\t\t\t\tif decision.Final || decision.Phase != PhasePartial {\n\t\t\t\t\tt.Fatalf("ECH ambiguity must remain non-final fail-open: %+v", decision)\n\t\t\t\t}\n\t\t\t} else if !decision.Final {\n\t\t\t\tt.Fatalf("invalid non-ECH evidence must finish with no selection: %+v", decision)\n\t\t\t}\n\t\t})\n'''
-          if data.count(old) != 1:
-              raise SystemExit('H1 ECH test compatibility pattern missing')
-          path.write_text(data.replace(old, new, 1))
-          PY
-          gofmt -w src/classifier/policy_test.go
-          git add src/classifier/policy_test.go
-          git commit --amend --no-edit
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
 
       - name: Go unit and integration gate
