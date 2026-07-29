@@ -1,6 +1,7 @@
 import { apiGet, apiPost } from "./apiClient";
 import type {
   ClassifierConfigEnvelope,
+  ClassifierIsolationStatus,
   ClientHelloProfilesResponse,
   FailureCandidatesResponse,
   IssueBundle,
@@ -47,6 +48,8 @@ const idempotencyKey = (operation: string) =>
 export const classifierApi = {
   config: () =>
     apiGet<ClassifierConfigEnvelope>("/api/v2/classifier/config"),
+  isolation: () =>
+    apiGet<ClassifierIsolationStatus>("/api/v2/classifier/isolation"),
   issueBundle: () =>
     apiGet<IssueBundle>("/api/diagnostics/issue-bundle"),
   metrics: () =>

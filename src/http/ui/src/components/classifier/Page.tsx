@@ -26,14 +26,15 @@ export function ClassifierPage() {
   const [rawConfirmed, setRawConfirmed] = useState(false);
 
   const configQuery = useQuery({ queryKey: ["classifier-v23-config"], queryFn: classifierApi.config });
+  const isolationQuery = useQuery({ queryKey: ["classifier-v23-isolation"], queryFn: classifierApi.isolation, refetchInterval: 5000 });
   const bundleQuery = useQuery({ queryKey: ["classifier-issue-bundle"], queryFn: classifierApi.issueBundle, refetchInterval: 5000 });
   const failuresQuery = useQuery({ queryKey: ["classifier-failures"], queryFn: classifierApi.failures, refetchInterval: 5000 });
   const profilesQuery = useQuery({ queryKey: ["classifier-clienthello"], queryFn: classifierApi.clientHelloProfiles, refetchInterval: 10000 });
   const discoveryCurrentQuery = useQuery({ queryKey: ["classifier-discovery-current"], queryFn: classifierApi.discoveryCurrent, refetchInterval: 5000 });
   const discoveryHistoryQuery = useQuery({ queryKey: ["classifier-discovery-history"], queryFn: classifierApi.discoveryHistory });
 
-  const isLoading = configQuery.isLoading || bundleQuery.isLoading;
-  const error = configQuery.error || bundleQuery.error;
+  const isLoading = configQuery.isLoading || bundleQuery.isLoading || isolationQuery.isLoading;
+  const error = configQuery.error || bundleQuery.error || isolationQuery.error;
   const tabs = [
     t("classifier.tabs.overview"),
     t("classifier.tabs.flows"),
@@ -63,7 +64,7 @@ export function ClassifierPage() {
   };
   const refetchAll = () => {
     void Promise.all([
-      configQuery.refetch(), bundleQuery.refetch(), failuresQuery.refetch(), profilesQuery.refetch(),
+      configQuery.refetch(), isolationQuery.refetch(), bundleQuery.refetch(), failuresQuery.refetch(), profilesQuery.refetch(),
       discoveryCurrentQuery.refetch(), discoveryHistoryQuery.refetch(),
     ]);
   };
@@ -106,7 +107,7 @@ export function ClassifierPage() {
       {tab === 0 && (
         <Stack gap={2}>
           <PPEPanel advanced={advanced} />
-          <OverviewPanel config={configQuery.data} bundle={bundleQuery.data} advanced={advanced} />
+          <OverviewPanel config={configQuery.data} isolation={isolationQuery.data} bundle={bundleQuery.data} advanced={advanced} />
         </Stack>
       )}
       {tab === 1 && <FlowsPanel bundle={bundleQuery.data} />}

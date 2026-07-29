@@ -22,14 +22,21 @@ import (
 type FailureSignal string
 
 const (
-	SignalConntrackUnreplied  FailureSignal = "conntrack_unreplied"
-	SignalConntrackSynSent    FailureSignal = "conntrack_syn_sent"
-	SignalClassifierAmbiguous FailureSignal = "classifier_ambiguous"
-	SignalReassemblyAbort     FailureSignal = "reassembly_abort"
-	SignalFlowRetry           FailureSignal = "flow_retry"
-	SignalQueueDrop           FailureSignal = "queue_drop"
-	SignalOffloadSuspicion    FailureSignal = "offload_suspicion"
-	SignalProbeFailure        FailureSignal = "probe_failure"
+	SignalConntrackUnreplied         FailureSignal = "conntrack_unreplied"
+	SignalConntrackSynSent           FailureSignal = "conntrack_syn_sent"
+	SignalClassifierAmbiguous        FailureSignal = "classifier_ambiguous"
+	SignalReassemblyAbort            FailureSignal = "reassembly_abort"
+	SignalFlowRetry                  FailureSignal = "flow_retry"
+	SignalQueueDrop                  FailureSignal = "queue_drop"
+	SignalOffloadSuspicion           FailureSignal = "offload_suspicion"
+	SignalProbeFailure               FailureSignal = "probe_failure"
+	SignalCrossServiceScopeViolation FailureSignal = "cross_service_scope_violation"
+	SignalProvisionalSetRevokedBySNI FailureSignal = "provisional_set_revoked_by_sni"
+	SignalSharedIPAmbiguous          FailureSignal = "shared_ip_ambiguous"
+	SignalUnsafeLegacyDomainScope    FailureSignal = "unsafe_legacy_domain_scope"
+	SignalBlockedCacheScopeRejected  FailureSignal = "blocked_cache_scope_rejected"
+	SignalRouteScopeRejected         FailureSignal = "route_scope_rejected"
+	SignalQUICActionScopeRejected    FailureSignal = "quic_action_scope_rejected"
 )
 
 type SuggestedAction string
@@ -389,7 +396,10 @@ func validateObservation(observation FailureObservation) error {
 func validSignal(signal FailureSignal) bool {
 	switch signal {
 	case SignalConntrackUnreplied, SignalConntrackSynSent, SignalClassifierAmbiguous, SignalReassemblyAbort,
-		SignalFlowRetry, SignalQueueDrop, SignalOffloadSuspicion, SignalProbeFailure:
+		SignalFlowRetry, SignalQueueDrop, SignalOffloadSuspicion, SignalProbeFailure,
+		SignalCrossServiceScopeViolation, SignalProvisionalSetRevokedBySNI, SignalSharedIPAmbiguous,
+		SignalUnsafeLegacyDomainScope, SignalBlockedCacheScopeRejected, SignalRouteScopeRejected,
+		SignalQUICActionScopeRejected:
 		return true
 	default:
 		return false
@@ -522,8 +532,10 @@ func suggestedAction(signal FailureSignal) SuggestedAction {
 		return ActionPCAP
 	case SignalReassemblyAbort:
 		return ActionClientHello
-	case SignalFlowRetry:
+	case SignalFlowRetry, SignalCrossServiceScopeViolation, SignalSharedIPAmbiguous:
 		return ActionDiscovery
+	case SignalUnsafeLegacyDomainScope, SignalBlockedCacheScopeRejected, SignalRouteScopeRejected, SignalQUICActionScopeRejected:
+		return ActionScopedCanary
 	case SignalProbeFailure:
 		return ActionIssueBundle
 	default:

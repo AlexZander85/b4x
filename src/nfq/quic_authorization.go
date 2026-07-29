@@ -9,6 +9,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/observability"
 )
 
@@ -29,9 +30,25 @@ func newQUICActionGate(cfg *config.Config, pkt *pktInfo, sport, dport uint16, se
 	flow := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), sport, dport, 17)
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%v|%s|%d|%s", flow, gate.SetID, dnsHintConfigGeneration(cfg), source.String())))
 	gate.ID = hex.EncodeToString(sum[:8])
+	if !authorized {
+		metricReason := strings.TrimSpace(reason)
+		if metricReason == "" {
+			metricReason = "unauthorized"
+		}
+		if len(metricReason) > 48 {
+			metricReason = metricReason[:48]
+		}
+		observability.Default().Metrics.Inc(observability.MetricQUICScopeRejected, map[string]string{"reason": metricReason}, 1)
+		if !client.IsZero() {
+			_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+				Signal: diagnostics.SignalQUICActionScopeRejected, Client: client, DestinationIP: netIPToAddr(pkt.dst),
+				DestinationPort: dport, Protocol: 17, ObservedAt: time.Now(), Reason: metricReason,
+			})
+		}
+	}
 	observability.Default().Trace.Record(observability.TraceEvent{
 		Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", flow), Kind: "quic_action_authorization",
-		Fields: map[string]string{"authorization_id": gate.ID, "set_id": observability.RedactIdentifier(gate.SetID), "source": source.String(), "result": fmt.Sprintf("%t", authorized), "reason": strings.TrimSpace(reason)},
+		Fields: map[string]string{"authorization_id": gate.ID, "set_id": observability.RedactIdentifier(gate.SetID), "source": source.String(), "result": fmt.Sprintf("%t", authorized), "reason": strings.TrimSpace(reason), "scope": "exact-flow", "config_generation": fmt.Sprintf("%d", dnsHintConfigGeneration(cfg))},
 	})
 	return gate
 }

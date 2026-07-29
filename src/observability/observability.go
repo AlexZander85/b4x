@@ -47,6 +47,15 @@ const (
 	MetricFallbackDecision           = "fallback_route_decisions_total"
 	MetricFallbackHealth             = "fallback_route_health_total"
 	MetricFallbackCooldown           = "fallback_route_cooldown_total"
+	MetricCrossServiceCandidate      = "cross_service_candidate_total"
+	MetricCrossServiceRevoked        = "cross_service_candidate_revoked_total"
+	MetricCrossServiceAmbiguous      = "cross_service_ambiguous_total"
+	MetricDomainAuthorization        = "domain_authorization_total"
+	MetricLegacyScopeRejected        = "legacy_scope_rejected_total"
+	MetricBlockedCacheWrite          = "blocked_cache_write_total"
+	MetricRouteBinding               = "route_binding_total"
+	MetricQUICScopeRejected          = "quic_scope_rejected_total"
+	MetricUnrelatedControlAction     = "unrelated_control_action_total"
 )
 
 type MetricSample struct {

@@ -140,6 +140,36 @@ export interface MetricSample {
   value: number;
 }
 
+export interface ClassifierIsolationSetStatus {
+  set_id: string;
+  domain_only: boolean;
+  configured_policy: string;
+  effective_policy: string;
+  unsafe_legacy: boolean;
+  migration_required: boolean;
+  migration_target?: string;
+  reason_code?: string;
+}
+
+export interface ClassifierNegativeControlStatus {
+  status: "not_run" | "passed" | "failed";
+  unrelated_control_action_total: number;
+  promotion_allowed: boolean;
+  reason?: string;
+}
+
+export interface ClassifierIsolationStatus {
+  api_version: string;
+  generated_at: string;
+  config_generation?: string;
+  sets: ClassifierIsolationSetStatus[];
+  metrics: MetricSample[];
+  recent_events?: TraceEvent[];
+  warnings?: string[];
+  negative_control: ClassifierNegativeControlStatus;
+  raw_hostnames: boolean;
+}
+
 export interface MetricsSnapshot {
   generated_at: string;
   counters: MetricSample[];

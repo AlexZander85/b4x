@@ -46,6 +46,7 @@ type classifierAPIGroup struct {
 
 func (api *API) RegisterClassifierV23API() {
 	api.mux.HandleFunc(classifierConfigAPIPath, api.handleClassifierV23Config)
+	api.mux.HandleFunc(classifierIsolationAPIPath, api.handleClassifierIsolation)
 	api.mux.HandleFunc("/api/v2/classifier/schema", api.handleClassifierV23Schema)
 	api.mux.HandleFunc("/api/v2/classifier/export", api.handleClassifierV23Export)
 	api.mux.HandleFunc("/api/v2/classifier/import", api.handleClassifierV23Import)

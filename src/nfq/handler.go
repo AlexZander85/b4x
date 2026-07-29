@@ -650,9 +650,19 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 						}
 						if ibd.CacheBlockedIPs {
 							if scopedKeyOK && w.scopedFailures != nil {
-								w.scopedFailures.AddBlocked(failureKey, 5*time.Minute, time.Now())
+								if w.scopedFailures.AddBlocked(failureKey, 5*time.Minute, time.Now()) {
+									observability.Default().Metrics.Inc(observability.MetricBlockedCacheWrite, map[string]string{"result": "accepted", "reason": "full_scope"}, 1)
+									observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", flowKey), Kind: "scoped_failure_state", Fields: map[string]string{"operation": "blocked_cache_write", "scope": "client-domain-set-generation", "result": "accepted", "config_generation": fmt.Sprintf("%d", failureKey.ConfigGen)}})
+								} else {
+									observability.Default().Metrics.Inc(observability.MetricBlockedCacheWrite, map[string]string{"result": "rejected", "reason": "invalid_scope"}, 1)
+								}
 							} else if !classifierDecisionEnabled(cfg) {
 								w.destState.AddBlocked(fmt.Sprintf("%s:%d", pkt.dstStr, dport))
+							} else {
+								observability.Default().Metrics.Inc(observability.MetricBlockedCacheWrite, map[string]string{"result": "rejected", "reason": "unknown_or_ambiguous_domain"}, 1)
+								if client, ok := dnsClientKey(pkt.src, pkt.srcMac); ok {
+									_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{Signal: diagnostics.SignalBlockedCacheScopeRejected, Client: client, DestinationIP: netIPToAddr(pkt.dst), DestinationPort: dport, Protocol: 6, ObservedAt: time.Now(), Reason: "blocked cache write rejected without full domain scope"})
+								}
 							}
 						}
 						if !cfg.Queue.IsDiscovery {

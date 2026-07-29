@@ -23,6 +23,6 @@ func (w *Worker) observeScopedLearnedObservation(cfg *config.Config, pkt *pktInf
 		ExpiresAt: now.Add(90 * time.Second), ConfigGen: dnsHintConfigGeneration(cfg),
 	}
 	if err := w.dnsHints.Observe(observation.Evidence()); err != nil {
-		observability.Default().Metrics.Inc("legacy_scope_rejected_total", map[string]string{"path": "scoped_observation"}, 1)
+		observability.Default().Metrics.Inc(observability.MetricLegacyScopeRejected, map[string]string{"path": "scoped_observation"}, 1)
 	}
 }

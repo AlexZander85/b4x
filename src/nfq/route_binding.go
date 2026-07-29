@@ -6,6 +6,7 @@ import (
 
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/routing"
 )
@@ -16,11 +17,13 @@ func (w *Worker) bindAuthorizedRoute(cfg *config.Config, pkt *pktInfo, sport, dp
 	}
 	if w == nil || w.routeBindings == nil || cfg == nil || pkt == nil || !authorized {
 		recordRouteBindingResult(set, "rejected", "missing exact-flow authorization")
+		observeRouteScopeRejected(pkt, dport, proto, "missing exact-flow authorization")
 		return false
 	}
 	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
 	if !ok {
 		recordRouteBindingResult(set, "rejected", "client scope unavailable")
+		observeRouteScopeRejected(pkt, dport, proto, "client scope unavailable")
 		return false
 	}
 	flow := classifier.NewFlowKey(client, netIPToAddr(pkt.src), netIPToAddr(pkt.dst), sport, dport, proto)
@@ -37,6 +40,7 @@ func (w *Worker) bindAuthorizedRoute(cfg *config.Config, pkt *pktInfo, sport, dp
 	}, now)
 	if err != nil {
 		recordRouteBindingResult(set, "rejected", err.Error())
+		observeRouteScopeRejected(pkt, dport, proto, err.Error())
 		return false
 	}
 	observability.Default().Trace.Record(observability.TraceEvent{Timestamp: now, FlowID: fmt.Sprintf("%v", flow), Kind: "route_binding", Fields: map[string]string{
@@ -52,6 +56,20 @@ func recordRouteBindingResult(set *config.SetConfig, result, reason string) {
 	if set != nil {
 		setID = classifierSetID(set)
 	}
-	observability.Default().Metrics.Inc("route_binding_total", map[string]string{"result": result, "scope": "exact-flow"}, 1)
+	observability.Default().Metrics.Inc(observability.MetricRouteBinding, map[string]string{"result": result, "scope": "exact-flow"}, 1)
 	observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), Kind: "route_binding_result", Fields: map[string]string{"set_id": observability.RedactIdentifier(setID), "result": result, "reason": reason}})
+}
+
+func observeRouteScopeRejected(pkt *pktInfo, dport uint16, proto uint8, reason string) {
+	if pkt == nil {
+		return
+	}
+	client, ok := dnsClientKey(pkt.src, pkt.srcMac)
+	if !ok {
+		return
+	}
+	_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+		Signal: diagnostics.SignalRouteScopeRejected, Client: client, DestinationIP: netIPToAddr(pkt.dst),
+		DestinationPort: dport, Protocol: proto, ObservedAt: time.Now(), Reason: reason,
+	})
 }

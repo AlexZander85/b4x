@@ -115,6 +115,24 @@
       "warning": "Raw ClientHello or packet artifacts can contain sensitive client and destination data. Keep them local, time-bound and share only after review.",
       "confirm": "I understand the privacy risk and explicitly request a raw-capable export envelope.",
       "export": "Export with confirmation"
+    },
+    "isolation": {
+      "title": "Cross-service isolation",
+      "description": "Per-set domain authorization, provisional candidate revocation, scoped cache/route state, and negative-control rollout status.",
+      "unsafeLegacy": "{{count}} set(s) use unsafe legacy domain scope. Review the migration preview before apply.",
+      "unrelatedActions": "Unrelated control actions",
+      "redacted": "hostnames redacted",
+      "empty": "No configured sets were reported.",
+      "configured": "Configured policy",
+      "effective": "Effective policy",
+      "state": "Isolation state",
+      "scoped": "scoped",
+      "recentEvents": "Recent authorization events",
+      "negative": {
+        "not_run": "negative controls not run",
+        "passed": "negative controls passed",
+        "failed": "negative controls failed"
+      }
     }
   }
 }

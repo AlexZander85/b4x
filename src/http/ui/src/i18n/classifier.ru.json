@@ -115,6 +115,24 @@
       "warning": "Raw ClientHello или packet artifacts могут содержать чувствительные данные клиента и назначения. Храните их локально, ограниченно по времени и передавайте только после проверки.",
       "confirm": "Я понимаю privacy-риск и явно запрашиваю raw-capable export envelope.",
       "export": "Экспортировать с подтверждением"
+    },
+    "isolation": {
+      "title": "Межсервисная изоляция",
+      "description": "Per-set авторизация домена, отзыв provisional-кандидатов, scoped cache/route state и статус negative-control gate.",
+      "unsafeLegacy": "Сетов с небезопасным legacy domain scope: {{count}}. Перед применением проверьте план миграции.",
+      "unrelatedActions": "Действия на посторонних сервисах",
+      "redacted": "hostname скрыты",
+      "empty": "Настроенные сеты не найдены.",
+      "configured": "Заданная policy",
+      "effective": "Эффективная policy",
+      "state": "Состояние изоляции",
+      "scoped": "изолировано",
+      "recentEvents": "Последние события авторизации",
+      "negative": {
+        "not_run": "negative controls не запускались",
+        "passed": "negative controls пройдены",
+        "failed": "negative controls провалены"
+      }
     }
   }
 }

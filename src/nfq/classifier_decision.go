@@ -249,6 +249,7 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 		return true
 	}
 	if !decision.CanClassify(classifier.DefaultConfidenceThresholds) || decision.Selected == nil || decision.Selected.SetID != classifierSetID(set) {
+		observability.Default().Metrics.Inc(observability.MetricDomainAuthorization, map[string]string{"policy": string(policy), "source": source.String(), "result": "rejected"}, 1)
 		return false
 	}
 	candidateEvidence := classifier.Evidence{
@@ -259,8 +260,13 @@ func (w *Worker) allowNFQDomainDecisionWithMetadata(cfg *config.Config, pkt *pkt
 	}
 	candidate := classifier.CandidateFromEvidence(decision.FlowKey, candidateEvidence)
 	auth, ok := classifier.AuthorizeCandidate(candidate, *decision.Selected, policy, decision.Final || decision.Selected.Source == classifier.EvidenceQUICSNI || decision.Selected.Source == classifier.EvidenceDNSAnswer || decision.Selected.Source == classifier.EvidenceDNSHTTPS, time.Now())
+	result := "rejected"
 	if ok {
-		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", decision.FlowKey), Kind: "action_authorization", Fields: map[string]string{"authorization_id": auth.ID, "set_id": observability.RedactIdentifier(auth.SetID), "source": auth.EvidenceSource.String(), "policy": string(auth.DomainPolicy)}})
+		result = "authorized"
+	}
+	observability.Default().Metrics.Inc(observability.MetricDomainAuthorization, map[string]string{"policy": string(policy), "source": decision.Selected.Source.String(), "result": result}, 1)
+	if ok {
+		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", decision.FlowKey), Kind: "action_authorization", Fields: map[string]string{"authorization_id": auth.ID, "set_id": observability.RedactIdentifier(auth.SetID), "source": auth.EvidenceSource.String(), "policy": string(auth.DomainPolicy), "scope": "exact-flow", "config_generation": fmt.Sprintf("%d", auth.ConfigGen), "final": fmt.Sprintf("%t", auth.Final)}})
 	}
 	return ok
 }
