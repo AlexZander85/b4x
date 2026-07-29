@@ -5,7 +5,7 @@
 
 **B4X** — независимый расширенный форк [B4](https://github.com/DanielLavrushin/b4), ориентированный на устойчивую работу DPI-обхода на маршрутизаторах, прежде всего Keenetic/Entware.
 
-Проект сохраняет знакомые sets, strategies и packet-level техники B4, но перестраивает критический runtime вокруг точной классификации flow, изоляции сервисов, ограниченных ресурсов, транзакционного применения конфигурации и автоматической проверки на реальном клиенте.
+Проект сохраняет знакомые sets, strategies и packet-level техники B4, но перестраивает критический runtime вокруг точной классификации flow, изоляции сервисов, доказательного детектора блокировок, guided-подбора стратегий, ограниченных ресурсов, транзакционного применения конфигурации и автоматической проверки на реальном клиенте.
 
 > [!IMPORTANT]
 > B4X не является официальной версией B4. README описывает целевую архитектуру форка. Конкретная функция считается готовой к production только после прохождения собственных implementation, router и real-device release gates.
@@ -20,18 +20,22 @@
 - один IP обслуживает YouTube, Gmail, Google Feed и другие сервисы;
 - аппаратный offload уводит часть соединения из NFQUEUE;
 - соединение зависает без явного RST или HTTP-ошибки;
-- стратегия работает на тестовом запросе, но нестабильна в реальном приложении.
+- стратегия работает на тестовом запросе, но нестабильна в реальном приложении;
+- встроенный detector находит признаки блокировки, но без network-context, freshness и control probes его результат нельзя безопасно использовать для подбора стратегии;
+- Android/Telegram может заранее открыть прозрачное MTProto-соединение и не отправлять первые данные в течение фиксированного короткого timeout.
 
 B4X исправляет не отдельный параметр split/fake, а весь путь принятия решения:
 
 ```text
-packet capture
-→ client/flow identity
-→ DNS, QUIC, TLS and TCP evidence
+user-selected services and domains
+→ clean native detector baseline
+→ DNS, QUIC, TLS, HTTP and L4 evidence graph
+→ scoped BlockingProfile and fresh NetworkDiagnosticProfile
+→ guided bounded Discovery with mandatory baselines
+→ packet capture and exact client/flow identity
 → classification and authorization
 → bounded ActionPlan or scoped transport binding
-→ execution
-→ progress verification
+→ execution and progress verification
 → canary, promote or rollback
 ```
 
@@ -49,7 +53,10 @@ packet capture
 | GSO | Представление пакета может менять classifier/executor path | Один логический ClientHello получает одинаковое решение в GSO и MSS layouts |
 | Аппаратный offload | Для диагностики часто приходится отключать offload шире необходимого | Native Keenetic PPE per-flow exclusion удерживает только handshake window на CPU |
 | RST-защита | Ограниченные diagnostics | Passive RST observation с evidence budget, conservative enforcement и rollback |
-| Подбор стратегий | Ручной перебор или отдельные тесты | Isolated Discovery sandbox, adaptive probes, ranking, canary, last-good и rollback |
+| Детектор блокировок | Статический набор тестов и агрегированный suite result | Пользовательские service/domain targets, clean-path multi-protocol probes, controls, evidence graph и confidence-bearing `BlockingProfile` |
+| Detector → Discovery | Результаты detector не образуют безопасный вход для optimizer | Freshness-aware `NetworkDiagnosticProfile` изменяет порядок и budget поиска, сохраняя mandatory baselines и полный bounded fallback |
+| Подбор стратегий | Ручной перебор или отдельные тесты | Isolated Discovery sandbox, detector-guided priors, adaptive probes, ranking, canary, last-good и rollback |
+| Прозрачный Telegram bridge | Zero-byte timeout может разрушить valid delayed/preconnected session | Delayed-first-data FSM, bounded pending budgets, prefix-preserving handoff и non-recursive fail-open |
 | Альтернативный маршрут | Внешний proxy/TUN требует отдельной настройки | Встроенный scoped Cloudflare WARP/MASQUE transport без отдельной установки `usque` |
 | «Тихие» зависания | Timeout сам по себе мало объясняет | Progress accounting, false-positive suppression, differential proof и scoped recovery |
 | Пользовательский интерфейс | Пользователь работает преимущественно с sets и strategies | Service Profiles, transport profiles и beginner workflow с сохранением expert mode |
@@ -215,34 +222,150 @@ PPE target
 
 Наличие kernel target недостаточно: B4X выполняет functional bidirectional self-test. При неполной видимости hold/replay и automatic promotion блокируются, а система деградирует в fail-open/observe-only.
 
-### 9. Discovery и автоматический подбор стратегий
+### 9. Adaptive Blocking Detector v2
 
-Встроенный Discovery/Optimizer работает в изолированном sandbox и сравнивает:
+B4X развивает встроенный B4 Detector, а не создаёт отдельную утилиту рядом с ним.
+
+Пользователь сначала выбирает, что именно должно работать:
+
+```text
+YouTube / Telegram / Discord / другой Service Profile
++ дополнительные пользовательские домены
++ конкретные service components
+```
+
+Из этого формируется ограниченный `TargetPlan`:
+
+```text
+primary targets
++ component targets
++ same-service controls
++ same-provider controls
++ unrelated controls
+```
+
+Detector выполняет clean native/direct baseline до применения production strategy и строит multi-protocol evidence matrix:
+
+- system DNS, UDP/TCP DNS, DoH, A/AAAA, CNAME, HTTPS/SVCB и ECH metadata;
+- IPv4/IPv6 reachability;
+- fresh и persistent TCP connections;
+- TLS 1.2/1.3;
+- verified certificate integrity отдельно от unverified availability;
+- Chrome/Firefox/Android/real-device ClientHello fingerprints;
+- HTTP redirect, injection и ISP block-page integrity;
+- QUIC Initial, Version Negotiation, Retry и handshake progress;
+- отдельные packet-count и byte-count L4 thresholds;
+- dynamic ASN/provider targets и здоровые control endpoints.
+
+Результаты не сворачиваются в одно поле `blocked=true`. Detector создаёт immutable evidence graph и scoped `BlockingProfile`:
+
+```yaml
+blocking_profile:
+  target_scope: service/component/domain
+  network_context: wan-fingerprint
+  hypotheses:
+    - tls_sni_active_reset
+    - quic_udp_drop
+  exclusions:
+    - dns_poisoning_not_confirmed
+    - global_wan_failure_not_observed
+  confidence: high
+  valid_until: ...
+```
+
+Один timeout, exception string, один статический IP или одна неудачная попытка не могут дать высокий confidence. Controls, contradictions, incomplete visibility и origin-side failures подавляют оптимистичный verdict.
+
+`BlockingProfile` является источником диагностического evidence и search priors, но не содержит `ActionAuthorization` и не разрешает packet mutation, routing или production promotion.
+
+### 10. Detector-guided Discovery и автоматический подбор стратегий
+
+`BlockingProfile` помещается в versioned `NetworkDiagnosticProfile`, привязанный к:
+
+```text
+WAN interface and gateway
++ egress/network fingerprint
++ resolver fingerprint
++ IP-family capabilities
++ ConfigGeneration
++ creation time and expiry
+```
+
+Перед использованием B4X проверяет freshness, совместимость network context, contradictions и при необходимости выполняет bounded fast revalidation. Профиль другой сети, старого uplink или несовместимой config generation не может молча направлять поиск.
+
+DDI-компилятор преобразует evidence только в **приоритеты** существующего Discovery:
+
+| Обнаруженная гипотеза | Что проверяется раньше |
+|---|---|
+| DNS spoof/interception | system-forward, trusted DoH, bootstrap-IP resolver |
+| QUIC/UDP drop | TCP fallback и TLS candidates |
+| SNI-specific reset | marker split, host-fake split, bounded disorder/fake |
+| TLS fingerprint sensitivity | validated Android/Chrome/real ClientHello profiles |
+| L4 packet budget | low-amplification candidates с минимальным числом generated packets |
+| IP/CIDR/SYN failure | scoped WARP, SOCKS или TUN transport candidates |
+| TLS 1.3 fails, TLS 1.2 works | TLS-profile-specific candidates |
+| silent stall | Silent Path differential validation |
+
+Главные инварианты:
+
+```text
+Detector hints
+→ меняют порядок и budget поиска
+
+Detector hints
+≠ target-specific proof
+≠ запрет других strategy families
+≠ production configuration
+```
+
+Встроенный Discovery/Optimizer по-прежнему работает в изолированном sandbox и всегда выполняет обязательные:
 
 ```text
 baseline-none
-vs production
-vs candidate
+vs baseline-production
+vs guided candidate
 ```
 
-Он анализирует не только connect/status, но и:
+Если guided candidates не помогли, запускается полный bounded fallback search. Ни Detector, ни DDI не могут его отключить.
+
+Discovery оценивает:
 
 - DNS и CDN variation;
-- время до ServerHello;
-- время до первого body/media byte;
+- время до ServerHello и первого body/media byte;
 - API/UI startup latency;
 - first frame и buffering markers;
-- goodput и throughput clamp;
-- stalls и retries;
-- IPv4/IPv6;
-- TLS 1.2/1.3;
-- QUIC-to-TCP behavior;
-- CPU, RAM и packet overhead;
-- влияние на control traffic.
+- goodput, stalls и retries;
+- IPv4/IPv6 и TLS/QUIC behavior;
+- CPU, RAM и packet amplification;
+- target и same-client control traffic.
 
-Поддерживаются shadow probes, candidate ranking, canary, cooldown, last-good, promotion и automatic rollback.
+Итоговый отчёт показывает guided winner rank, использовался ли полный fallback, сколько probes и времени сэкономлено, а также сохранилось ли качество относительно полного поиска. Поддерживаются shadow probes, candidate ranking, canary, cooldown, last-good, promotion и automatic rollback.
 
-### 10. Transactional configuration
+### 11. Hardened transparent Telegram bridge
+
+B4X исправляет lifecycle-проблему прозрачного Telegram/MTProto bridge, при которой Android может открыть или preconnect TCP session, но не отправить первые application bytes в течение фиксированного короткого timeout.
+
+Zero-byte timeout больше не считается «успешно обработанным» соединением и не разрешает silent drop.
+
+Новый bridge lifecycle включает:
+
+- structured `BridgeOutcome` вместо неоднозначного boolean result;
+- отдельный soft deadline ожидания первого byte;
+- bounded hard deadline;
+- `PendingHandshakeManager`;
+- global и per-client pending limits;
+- управляемую overflow policy;
+- delayed-first-data/preconnect support;
+- exact preservation уже прочитанных `0`, `1–3`, `4–63` и `64+` bytes;
+- prefix-preserving handoff в worker или direct fallback;
+- fallback после ошибки primary WS/DC dial;
+- защиту от TPROXY recursion;
+- корректную очистку pending sockets и goroutines при reload, shutdown и timeout.
+
+Простое увеличение timeout `5 → 30 секунд` не считается исправлением: без state machine, budgets и handoff semantics оно только удерживает больше idle sockets.
+
+Production verdict требует воспроизведения исходной Android-ситуации, успешного delayed-first-byte path, explicit MTProto proxy как control scenario, stress-тестов pending limits и нулевых prefix-loss/route-recursion counters.
+
+### 12. Transactional configuration
 
 Новая конфигурация проходит полный lifecycle:
 
@@ -259,7 +382,7 @@ compile
 
 Flow state не хранит долгоживущие указатели на mutable config. Старые конфиги B4 продолжают загружаться, но unsafe legacy semantics явно помечаются и не маскируются под production-safe policy.
 
-### 11. Встроенный WARP/MASQUE transport
+### 13. Встроенный WARP/MASQUE transport
 
 B4X включает собственный transport subsystem:
 
@@ -310,7 +433,7 @@ observed country != RU
 
 `RU`, `unknown`, stale или conflicting result блокирует этот experimental route. Это не выбор страны и не гарантия постоянной доступности конкретной геолокации.
 
-### 12. Silent Path Failure и scoped recovery
+### 14. Silent Path Failure и scoped recovery
 
 Некоторые DPI/path failures не отправляют RST и не возвращают явную ошибку: flow просто перестаёт продвигаться.
 
@@ -358,18 +481,19 @@ current binding
 
 Recursive transport fallback и бесконечная rotation запрещены. Default mode — `observe`.
 
-### 13. Service Profiles и понятный UX
+### 15. Service Profiles и понятный UX
 
 B4X добавляет declarative Service Profile Framework.
 
 Пользовательский сценарий:
 
 ```text
-выбрать сервис
-→ выбрать устройства
-→ применить рекомендуемый профиль
-→ запустить проверку
-→ получить понятный статус
+выбрать сервис и нужные компоненты
+→ при необходимости добавить свои домены
+→ выполнить clean Detector run
+→ увидеть осторожный BlockingProfile
+→ запустить guided Discovery
+→ применить validated candidate ограниченному cohort
 ```
 
 Профиль может описывать компоненты сервиса:
@@ -389,11 +513,21 @@ B4X добавляет declarative Service Profile Framework.
 - `client-configured`;
 - `hybrid`.
 
-Profile compiler создаёт обычные B4X sets, strategies, probes и scoped transport bindings. Packet engine не получает веток `if YouTube` или `if Telegram`.
+Profile compiler создаёт обычные B4X sets, strategies, detector targets, controls, probes и scoped transport bindings. Packet engine не получает веток `if YouTube` или `if Telegram`.
+
+Beginner UI различает:
+
+```text
+наблюдение
+→ гипотезу
+→ свежий профиль сети
+→ target-validated candidate
+→ production-ready promotion
+```
 
 Expert mode сохраняет полный доступ к sets, strategies, evidence, flows, trace, compiled objects, preview diff, pin/exclude и manual overrides.
 
-### 14. Автоматические field tests на реальном Android
+### 16. Автоматические field tests на реальном Android
 
 B4X проверяет не только synthetic fixtures, но и реальный client path:
 
@@ -410,13 +544,18 @@ B4X проверяет не только synthetic fixtures, но и реаль�
 - WARP forwarded path;
 - camouflage cutoff;
 - silent recovery false positives;
+- Detector clean-path self-interference;
+- guided/full Discovery A/B;
+- stale/cross-WAN profile rejection;
+- Telegram delayed-first-byte и pending-budget stress;
+- prefix-preserving fallback;
 - WAN flap, reboot и daemon crash.
 
-Локальный Field-Test Controller управляет B4X API и Android через ADB. Он собирает structured events, metrics, traces и отчёты, а затем может выполнить canary, promote или rollback.
+Локальный Field-Test Controller управляет B4X API и Android через ADB. Он собирает structured events, metrics, traces, `BlockingProfile`, search-prior и bridge-lifecycle artifacts, а затем может выполнить canary, promote или rollback.
 
-Один успешный `curl` или единичный запуск видео не считается достаточным доказательством.
+Один успешный `curl`, правдоподобный detector summary или единичный запуск видео не считается достаточным доказательством.
 
-### 15. Validation, которая не позволяет получить ложный PASS
+### 17. Validation, которая не позволяет получить ложный PASS
 
 Каждая подсистема проходит применимые уровни:
 
@@ -443,12 +582,31 @@ Validation Controller проверяет, что функция:
 - диагностируется через API, metrics и trace;
 - имеет disable и rollback path.
 
+Дополнительно он запрещает считать:
+
+```text
+новое detector API field
+→ решением issue #278
+
+увеличенный Telegram timeout
+→ решением issue #277
+```
+
+Для Detector/DDI требуется clean router baseline, causal evidence graph, freshness/revalidation, guided/full A/B и target/control Android validation. Для Telegram bridge — delayed-first-data, bounded pending resources, exact prefix handoff, non-recursive fallback и реальное воспроизведение Android scenario.
+
 Отсутствие target environment или обязательного evidence даёт `BLOCKED`, а не фиктивный `PASS`.
 
 ## Архитектура
 
 ```mermaid
 flowchart LR
+    U[User services / domains] --> TP[TargetPlan Compiler]
+    TP --> DT[Clean Detector Probe Matrix]
+    DT --> EG[EvidenceGraph]
+    EG --> BP[BlockingProfile]
+    BP --> NP[Fresh NetworkDiagnosticProfile]
+    NP --> DP[Discovery Search Priors]
+
     A[LAN traffic] --> B[Kernel Capture Envelope]
     B --> C[Client and Flow Identity]
     C --> D[DNS / QUIC / TLS / TCP Evidence]
@@ -464,10 +622,14 @@ flowchart LR
     H --> K[Progress and Telemetry]
     J --> K
 
-    K --> L[Discovery / Failure Inbox]
+    DP --> L[Discovery / Optimizer]
+    K --> L
     L --> M[Canary / Promote / Rollback]
     M --> N[Immutable Config Generation]
     N --> B
+
+    TG[Transparent Telegram Bridge] --> TF[Delayed-first-data FSM]
+    TF --> K
 ```
 
 ## Safety by default
@@ -475,15 +637,17 @@ flowchart LR
 B4X придерживается следующих правил:
 
 1. **Classification before action.** Сначала доказательство и решение, затем mutation или routing.
-2. **Exact scope.** Client, flow, service component, domain evidence и config generation не смешиваются.
-3. **Fail-open.** Недостаток данных, ресурсов или visibility не должен ломать обычный direct path.
-4. **Observe before enforce.** Рискованные функции сначала собирают evidence.
-5. **Bounded state.** Все buffers, stores, probes и leases имеют limits и TTL.
-6. **No global side effects.** Никаких destination-global failure caches или автоматического global VPN/offload disable.
-7. **Transactional changes.** Любая активация имеет last-good и rollback.
-8. **Real-client proof.** Production promotion требует проверки на целевом роутере и приложении.
-9. **Explainability.** Каждое решение имеет phase, evidence, confidence, reason и trace.
-10. **Compatibility.** Новые режимы включаются явно; legacy B4 configs не переписываются молча.
+2. **Detector evidence is not authorization.** `BlockingProfile` меняет поиск, но сам не включает стратегию.
+3. **Exact scope.** Client, flow, service component, domain evidence и config generation не смешиваются.
+4. **Fresh network context.** Stale, conflicting или cross-WAN profile не используется без revalidation.
+5. **Mandatory baselines and fallback.** Guided search не пропускает baseline и не отключает полный bounded search.
+6. **Fail-open.** Недостаток данных, ресурсов или visibility не должен ломать обычный direct path.
+7. **Observe before enforce.** Рискованные функции сначала собирают evidence.
+8. **Bounded state.** Все buffers, stores, pending sockets, probes и leases имеют limits и TTL.
+9. **No global side effects.** Никаких destination-global failure caches или автоматического global VPN/offload disable.
+10. **Transactional changes.** Любая активация имеет last-good и rollback.
+11. **Real-client proof.** Production promotion требует проверки на целевом роутере и приложении.
+12. **Explainability and compatibility.** Каждое решение имеет provenance/phase/confidence/reason/trace; legacy configs не переписываются молча.
 
 ## Что B4X не обещает
 
@@ -491,6 +655,9 @@ B4X намеренно не заявляет невозможных гарант
 
 - не расшифровывает внутренний SNI из ECH;
 - не считает каждый timeout доказательством блокировки РКН/ТСПУ;
+- не объявляет provider-wide DPI по одному target, exception string или detector run;
+- не применяет стратегию автоматически только из-за `BlockingProfile`;
+- не считает увеличенный Telegram timeout полноценным исправлением bridge lifecycle;
 - не гарантирует конкретную страну выхода Cloudflare WARP;
 - не делает WARP анонимным или полностью «невидимым»;
 - не включает global VPN или global hardware-offload disable автоматически;
@@ -505,9 +672,11 @@ B4X предназначен для пользователей и разрабо
 - устойчивый DPI bypass на Keenetic/Entware;
 - корректная работа official YouTube и ReVanced;
 - минимизация влияния на Gmail, Google Feed и другой traffic;
-- автоматический подбор и безопасный rollback стратегий;
+- target-oriented Detector v2 для нужных пользователю сервисов и доменов;
+- detector-guided подбор с обязательным полным fallback и безопасным rollback;
 - встроенный scoped transport fallback;
-- детальная диагностика сложных TCP/QUIC/DPI failures;
+- корректный прозрачный Telegram bridge для delayed/preconnected Android sessions;
+- детальная диагностика сложных DNS/TCP/TLS/QUIC/DPI failures;
 - воспроизводимая инженерная проверка вместо ручного перебора параметров.
 
 Архитектура не ограничена YouTube: service-specific данные живут в profile packs, а classifier, executor, transport и validation остаются generic.
@@ -522,11 +691,13 @@ Core Fix
 → Strategy Catalog
 → Keenetic PPE
 → Cross-Service Isolation
-→ Built-in WARP/MASQUE
 → RST/GSO Hardening
+→ Built-in WARP/MASQUE
 → Silent Path Recovery
+→ Adaptive Blocking Detector
+→ Detector-Guided Discovery + Telegram Bridge Hardening
 → Field Test Automation
-→ Service Profiles
+→ Service Profiles / Beginner UX
 → Implementation Validation
 → Production Promotion
 ```
@@ -544,6 +715,8 @@ Core Fix
 - [`B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md`](B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md) — встроенный WARP/MASQUE, camouflage и experimental non-RU mode.
 - [`B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md`](B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md) — GSO parity и passive RST safety.
 - [`B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md`](B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md) — false-positive-safe silent failure detection и scoped recovery.
+- [`B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.0.md`](B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.0.md) — Detector v2, user target plans, evidence graph, `BlockingProfile` и guided search priors.
+- [`B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md`](B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md) — freshness/revalidation для Detector → Discovery и delayed-first-data lifecycle прозрачного Telegram bridge.
 - [`B4_FIELD_TEST_AUTOMATION_ADDENDUM.md`](B4_FIELD_TEST_AUTOMATION_ADDENDUM.md) — router/Android field-test contract.
 - [`B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM.md`](B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM.md) — service profiles, transport profiles и beginner UX.
 - [`B4_IMPLEMENTATION_VALIDATION_ADDENDUM.md`](B4_IMPLEMENTATION_VALIDATION_ADDENDUM.md) — umbrella validation, hard gates и release verdicts.
@@ -556,6 +729,9 @@ B4X основан на B4 и сохраняет уважение к upstream-п
 
 - B4;
 - z2k / zapret2 ecosystem;
+- YT-DPI;
+- hyperion-cs/dpi-checkers (`dpi-ch`);
+- Runnin4ik/dpi-detector;
 - usque;
 - usque-keenetic;
 - Keenetic firmware primitives.
