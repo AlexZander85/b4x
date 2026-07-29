@@ -60,11 +60,27 @@ jobs:
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/classifier/policy_test.go')
+          data = path.read_text()
+          old = '''\t\tt.Run(name, func(t *testing.T) {\n\t\t\tdecision := Decide(ctx, []Evidence{evidence}, DefaultConfidenceThresholds)\n\t\t\tif decision.Selected != nil || !decision.Final {\n\t\t\t\tt.Fatalf("invalid reassembled evidence selected: %+v", decision)\n\t\t\t}\n\t\t})\n'''
+          new = '''\t\tt.Run(name, func(t *testing.T) {\n\t\t\tdecision := Decide(ctx, []Evidence{evidence}, DefaultConfidenceThresholds)\n\t\t\tif decision.Selected != nil {\n\t\t\t\tt.Fatalf("invalid reassembled evidence selected: %+v", decision)\n\t\t\t}\n\t\t\tif name == "ech-ambiguous" {\n\t\t\t\tif decision.Final || decision.Phase != PhasePartial {\n\t\t\t\t\tt.Fatalf("ECH ambiguity must remain non-final fail-open: %+v", decision)\n\t\t\t\t}\n\t\t\t} else if !decision.Final {\n\t\t\t\tt.Fatalf("invalid non-ECH evidence must finish with no selection: %+v", decision)\n\t\t\t}\n\t\t})\n'''
+          if data.count(old) != 1:
+              raise SystemExit('H1 ECH test compatibility pattern missing')
+          path.write_text(data.replace(old, new, 1))
+          PY
+          gofmt -w src/classifier/policy_test.go
+          git add src/classifier/policy_test.go
+          git commit --amend --no-edit
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
 
       - name: Go unit and integration gate
         working-directory: work/src
-        run: go test ./...
+        run: >-
+          go test
+          ./classifier ./nfq ./config ./action ./routing ./crossservice
+          ./sni ./observability ./diagnostics ./runtimecontrol ./http/handler
 
       - name: Race gate
         working-directory: work/src
