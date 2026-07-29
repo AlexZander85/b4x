@@ -1,1 +1,1 @@
-H3 GSO classification fast path gate v5
+H4 conditional GSO normalizer token gate v1
