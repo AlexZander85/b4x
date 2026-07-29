@@ -370,9 +370,10 @@ func (t *destStateTracker) RecordRSTKill(host string, threshold int, window time
 }
 
 type runtimeState struct {
-	tlsCache  *tlsInfoCache
-	connState *connStateTracker
-	destState *destStateTracker
+	tlsCache       *tlsInfoCache
+	connState      *connStateTracker
+	destState      *destStateTracker
+	scopedFailures *scopedFailureState
 }
 
 func newRuntimeState() *runtimeState {
@@ -383,6 +384,7 @@ func newRuntimeState() *runtimeState {
 		connState: &connStateTracker{
 			conns: make(map[string]*connInfo),
 		},
+		scopedFailures: newScopedFailureState(),
 		destState: &destStateTracker{
 			conns:       make(map[string]*ipBlockEntry),
 			blocked:     make(map[string]time.Time),

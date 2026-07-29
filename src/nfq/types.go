@@ -55,6 +55,7 @@ type Worker struct {
 	tlsCache           *tlsInfoCache
 	connTracker        *connStateTracker
 	destState          *destStateTracker
+	scopedFailures     *scopedFailureState
 	srcResolver        *tunSrcResolver
 	dnsHints           *classifier.HostHintStore
 	tcpReassembly      *classifier.TCPReassemblyStore

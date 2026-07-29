@@ -91,6 +91,7 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 		w.tlsCache = state.tlsCache
 		w.connTracker = state.connState
 		w.destState = state.destState
+		w.scopedFailures = state.scopedFailures
 		w.dnsHints = hintStore
 		w.canary = canary
 		w.candidateSet.Store("")
@@ -126,6 +127,7 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 				pool.state.connState.Cleanup()
 				pool.state.tlsCache.Cleanup()
 				pool.state.destState.Cleanup(300 * time.Second)
+				pool.state.scopedFailures.GC(time.Now())
 				for _, worker := range pool.Workers {
 					if worker.tcpReassembly != nil {
 						worker.tcpReassembly.GC(time.Now())

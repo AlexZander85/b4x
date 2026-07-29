@@ -487,9 +487,15 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	}
 
 	if matched && isClientHello && host != "" && cfg.IsTCPPort(dport) {
-		if escId, _, ok := w.destState.GetEscalation(host); ok {
-			if escSet := cfg.GetSetById(escId); escSet != nil && escSet.Enabled {
-				log.Tracef("escalation hit for %s: %s -> %s", host, set.Name, escSet.Name)
+		escID, escOK := "", false
+		if key, ok := scopedEscalationKey(cfg, pkt, set, host); ok && w.scopedFailures != nil {
+			escID, _, escOK = w.scopedFailures.GetEscalation(key, time.Now())
+		} else if !classifierDecisionEnabled(cfg) {
+			escID, _, escOK = w.destState.GetEscalation(host)
+		}
+		if escOK {
+			if escSet := cfg.GetSetById(escID); escSet != nil && escSet.Enabled {
+				log.Tracef("scoped escalation hit for %s: %s -> %s", host, set.Name, escSet.Name)
 				set = escSet
 				if sniTarget != "" {
 					sniTarget = set.Name
@@ -497,17 +503,20 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 				if ipTarget != "" {
 					ipTarget = set.Name
 				}
-			} else {
-				w.destState.ClearEscalation(host)
 			}
 		}
 	}
 
 	if matched && isClientHello && set.TCP.IPBlockDetect.Enabled && host != "" && cfg.IsTCPPort(dport) {
 		ibd := &set.TCP.IPBlockDetect
-		dstIPPort := fmt.Sprintf("%s:%d", pkt.dstStr, dport)
+		blocked := false
+		if failureKey, ok := scopedFailureKey(cfg, pkt, dport, 6, set, host); ok && w.scopedFailures != nil {
+			blocked = ibd.CacheBlockedIPs && w.scopedFailures.IsBlocked(failureKey, time.Now())
+		} else if !classifierDecisionEnabled(cfg) {
+			blocked = ibd.CacheBlockedIPs && w.destState.IsBlocked(fmt.Sprintf("%s:%d", pkt.dstStr, dport))
+		}
 
-		if ibd.CacheBlockedIPs && w.destState.IsBlocked(dstIPPort) {
+		if blocked {
 			if !cfg.Queue.IsDiscovery {
 				log.LogConnection("TCP", sniTarget, host, pkt.srcStr, sport, ipTarget, pkt.dstStr, dport, pkt.srcMac, config.TLSVersionString(tlsVersion), "ipblock-cached")
 			}
@@ -574,10 +583,15 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		canEscalate := set.Escalate.To != ""
 		if isClientHello && !routeTProxy && (ibdOn || canEscalate) && host != "" && cfg.IsTCPPort(dport) {
 			ibd := &set.TCP.IPBlockDetect
-			dstIPPort := fmt.Sprintf("%s:%d", pkt.dstStr, dport)
 			ibConnKey := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
+			failureKey, scopedKeyOK := scopedFailureKey(cfg, pkt, dport, 6, set, host)
 
-			count, firstSeen := w.destState.RecordClientHello(ibConnKey, host)
+			count, firstSeen := 0, time.Time{}
+			if scopedKeyOK && w.scopedFailures != nil {
+				count, firstSeen = w.scopedFailures.RecordAttempt(failureKey, time.Now())
+			} else if !classifierDecisionEnabled(cfg) {
+				count, firstSeen = w.destState.RecordClientHello(ibConnKey, host)
+			}
 			threshold := ibd.RetransmitThreshold
 			if threshold <= 0 {
 				threshold = 3
@@ -591,7 +605,13 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 				if canEscalate {
 					if next := cfg.GetSetById(set.Escalate.To); next != nil && next.Enabled {
 						ttl := time.Duration(set.Escalate.TtlSec) * time.Second
-						if w.destState.SetEscalation(host, next.Id, ttl) {
+						escalated := false
+						if key, ok := scopedEscalationKey(cfg, pkt, set, host); ok && w.scopedFailures != nil {
+							escalated = w.scopedFailures.SetEscalation(key, next.Id, ttl, time.Now())
+						} else if !classifierDecisionEnabled(cfg) {
+							escalated = w.destState.SetEscalation(host, next.Id, ttl)
+						}
+						if escalated {
 							metrics.GetMetricsCollector().RecordEscalation()
 							registerEscalatedRoute(cfg, next, pkt.dst)
 							if !cfg.Queue.IsDiscovery {
@@ -604,15 +624,29 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 					}
 				}
 				if ibdOn {
-					if !w.destState.HasRSTSent(ibConnKey) {
-						w.destState.MarkRSTSent(ibConnKey)
+					rstAlreadySent := false
+					if flowKeyOK && w.scopedFailures != nil {
+						rstAlreadySent = w.scopedFailures.HasRSTSent(flowKey, time.Now())
+					} else if !classifierDecisionEnabled(cfg) {
+						rstAlreadySent = w.destState.HasRSTSent(ibConnKey)
+					}
+					if !rstAlreadySent {
+						if flowKeyOK && w.scopedFailures != nil {
+							w.scopedFailures.MarkRSTSent(flowKey, time.Now())
+						} else if !classifierDecisionEnabled(cfg) {
+							w.destState.MarkRSTSent(ibConnKey)
+						}
 						if pkt.ver == IPv4 {
 							w.sendRSTToClientV4(pkt.raw, pkt.ihl, pkt.src, pkt.dst)
 						} else {
 							w.sendRSTToClientV6(pkt.raw, pkt.src, pkt.dst)
 						}
 						if ibd.CacheBlockedIPs {
-							w.destState.AddBlocked(dstIPPort)
+							if scopedKeyOK && w.scopedFailures != nil {
+								w.scopedFailures.AddBlocked(failureKey, 5*time.Minute, time.Now())
+							} else if !classifierDecisionEnabled(cfg) {
+								w.destState.AddBlocked(fmt.Sprintf("%s:%d", pkt.dstStr, dport))
+							}
 						}
 						if !cfg.Queue.IsDiscovery {
 							log.LogConnection("TCP", sniTarget, host, pkt.srcStr, sport, ipTarget, pkt.dstStr, dport, pkt.srcMac, config.TLSVersionString(tlsVersion), "ipblock")
