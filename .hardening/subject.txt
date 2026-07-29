@@ -1,1 +1,1 @@
-feat(capture): add capability-gated NFQUEUE GSO classification fast path
+feat(capture): normalize GSO only for normal-packet action plans
