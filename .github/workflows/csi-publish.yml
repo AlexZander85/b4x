@@ -70,7 +70,6 @@ jobs:
             cat "/tmp/csi-part.${part}" >> /tmp/csi-patches.b64
           done
           test "$failed" -eq 0
-
           test "$(wc -c < /tmp/csi-patches.b64)" -eq 68032
           echo "c51b36bfedb4becd9d3f7efbc559e1bdaff6b8f5b1c02149d629d7835c0c782c  /tmp/csi-patches.b64" | sha256sum -c -
           base64 -d /tmp/csi-patches.b64 > /tmp/csi-patches.tar.gz
@@ -92,21 +91,17 @@ jobs:
           text = migration.read_text()
           if '"reflect"' not in text:
               text = text.replace('"path/filepath"\n\t"strings"', '"path/filepath"\n\t"reflect"\n\t"strings"')
-          text = text.replace(
-              'if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {',
-              'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {',
-          )
+          text = text.replace('if c.System.Classifier.Runtime == (ClassifierRuntimeConfig{}) {', 'if reflect.DeepEqual(c.System.Classifier.Runtime, ClassifierRuntimeConfig{}) {')
           migration.write_text(text)
 
           tests = Path('src/config/migration_ppe_product_test.go')
-          text = tests.read_text().replace(
-              'migratePPEProductDefaults(cfg)',
-              'migratePPEProductDefaults(&cfg)',
-          )
-          tests.write_text(text)
+          tests.write_text(tests.read_text().replace('migratePPEProductDefaults(cfg)', 'migratePPEProductDefaults(&cfg)'))
+
+          runtime_test = Path('src/http/handler/runtime_control_test.go')
+          runtime_test.write_text(runtime_test.read_text().replace('candidate.System.Classifier.Confidence.Mutate++', 'candidate.System.Classifier.Runtime.Confidence.Mutate++'))
           PY
-          gofmt -w src/config/migration.go src/config/migration_ppe_product_test.go
-          git add src/config/migration.go src/config/migration_ppe_product_test.go
+          gofmt -w src/config/migration.go src/config/migration_ppe_product_test.go src/http/handler/runtime_control_test.go
+          git add src/config/migration.go src/config/migration_ppe_product_test.go src/http/handler/runtime_control_test.go
           git commit --fixup="${stages[0]}"
 
           python3 - <<'PY'
@@ -122,14 +117,8 @@ jobs:
 
           worker = Path('src/nfq/candidate_worker.go')
           text = worker.read_text()
-          text = text.replace(
-              'sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))',
-              'sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])',
-          )
-          text = text.replace(
-              'dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))',
-              'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])',
-          )
+          text = text.replace('sport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2]))', 'sport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl : pkt.ihl+2])')
+          text = text.replace('dport := int(binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4]))', 'dport := binary.BigEndian.Uint16(pkt.raw[pkt.ihl+2 : pkt.ihl+4])')
           worker.write_text(text)
 
           methods = Path('src/config/methods.go')
@@ -164,9 +153,7 @@ jobs:
           methods.write_text(text)
 
           canary_test = Path('src/nfq/canary_monitor_test.go')
-          text = canary_test.read_text()
-          text = text.replace('IsTCPPort(port int) bool', 'IsTCPPort(port uint16) bool')
-          text = text.replace('IsUDPPort(port int) bool', 'IsUDPPort(port uint16) bool')
+          text = canary_test.read_text().replace('IsTCPPort(port int) bool', 'IsTCPPort(port uint16) bool').replace('IsUDPPort(port int) bool', 'IsUDPPort(port uint16) bool')
           canary_test.write_text(text)
           PY
           gofmt -w src/config/methods.go src/nfq/canary_monitor.go src/nfq/candidate_worker.go src/nfq/canary_monitor_test.go
@@ -177,43 +164,60 @@ jobs:
           from pathlib import Path
 
           visibility = Path('src/nfq/tcp_reassembly_visibility_test.go')
-          text = visibility.read_text().replace(
-              'github.com/daniellavrushin/b4/classifier/fixtures',
-              'github.com/daniellavrushin/b4/fixtures',
-          )
-          visibility.write_text(text)
+          visibility.write_text(visibility.read_text().replace('github.com/daniellavrushin/b4/classifier/fixtures', 'github.com/daniellavrushin/b4/fixtures'))
 
           handler = Path('src/nfq/handler.go')
           text = handler.read_text()
           if 'github.com/daniellavrushin/b4/diagnostics' not in text:
-              text = text.replace(
-                  '"github.com/daniellavrushin/b4/config"\n',
-                  '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/diagnostics"\n',
-              )
+              text = text.replace('"github.com/daniellavrushin/b4/config"\n', '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/diagnostics"\n')
           if 'github.com/daniellavrushin/b4/observability' not in text:
-              text = text.replace(
-                  '"github.com/daniellavrushin/b4/metrics"\n',
-                  '"github.com/daniellavrushin/b4/metrics"\n\t"github.com/daniellavrushin/b4/observability"\n',
-              )
+              text = text.replace('"github.com/daniellavrushin/b4/metrics"\n', '"github.com/daniellavrushin/b4/metrics"\n\t"github.com/daniellavrushin/b4/observability"\n')
           handler.write_text(text)
 
           hold = Path('src/nfq/tcp_hold_worker.go')
           text = hold.read_text()
           if 'github.com/daniellavrushin/b4/log' not in text:
-              text = text.replace(
-                  '"github.com/daniellavrushin/b4/config"\n',
-                  '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/log"\n',
-              )
+              text = text.replace('"github.com/daniellavrushin/b4/config"\n', '"github.com/daniellavrushin/b4/config"\n\t"github.com/daniellavrushin/b4/log"\n')
           hold.write_text(text)
+
+          hold_test = Path('src/nfq/tcp_hold_visibility_test.go')
+          hold_test.write_text(hold_test.read_text().replace('Protocol: 6', 'Proto: 6'))
           PY
-          gofmt -w src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go
-          git add src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go
+          gofmt -w src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go src/nfq/tcp_hold_visibility_test.go
+          git add src/nfq/handler.go src/nfq/tcp_reassembly_visibility_test.go src/nfq/tcp_hold_worker.go src/nfq/tcp_hold_visibility_test.go
           git commit --fixup="${stages[2]}"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test = Path('src/runtimecontrol/rollout_staged_test.go')
+          text = test.read_text()
+          old = '''\tclk := clock.NewFixed(time.Unix(100, 0))
+          \tstore := &commitFailStore{}
+          \tmanager, err := NewManager(builder, Options{Enabled: true, Clock: clk, LastGood: store})
+          \tif err != nil {
+          \t\tt.Fatal(err)
+          \t}
+          \tprevious := &fakeRuntime{readiness: RuntimeReadiness{Ready: true}, canary: validOutcome()}
+          \tif err := manager.InstallInitial(testConfig(false), previous); err != nil {
+          \t\tt.Fatal(err)
+          \t}
+          '''
+          new = '''\tmanager, previous, _, _ := testManager(t, builder, Options{})
+          \tstore := &commitFailStore{}
+          \tmanager.store = store
+          '''
+          if old not in text:
+              raise SystemExit('commit failure test anchor not found')
+          test.write_text(text.replace(old, new))
+          PY
+          gofmt -w src/runtimecontrol/rollout_staged_test.go
+          git add src/runtimecontrol/rollout_staged_test.go
+          git commit --fixup="${stages[9]}"
 
           GIT_SEQUENCE_EDITOR=: git rebase -i --autosquash "$base"
           test "$(git rev-list --count "$base"..HEAD)" -eq 10
           git diff --check "$base"..HEAD
-
           unformatted="$(git diff --name-only "$base"..HEAD -- '*.go' | xargs -r gofmt -l)"
           test -z "$unformatted" || { printf 'Unformatted Go files:\n%s\n' "$unformatted"; exit 1; }
 
