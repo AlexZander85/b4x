@@ -38,7 +38,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat publisher/.hardening/stage.00 publisher/.hardening/stage.01 \
+          cat \
+            publisher/.hardening/stage.00 \
+            publisher/.hardening/stage.01 \
+            publisher/.hardening/stage.02 \
             | base64 -d > /tmp/hardening-stage.patch.gz
           echo "$(cat publisher/.hardening/archive.sha256)  /tmp/hardening-stage.patch.gz" | sha256sum -c -
           gzip -dc /tmp/hardening-stage.patch.gz > /tmp/hardening-stage.patch
@@ -47,42 +50,6 @@ jobs:
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("src/nfq/gso_token_test.go")
-          text = path.read_text()
-          old = "reassemblyTestKey()"
-          if text.count(old) != 3:
-              raise SystemExit(f"expected three H4 token fixture references, found {text.count(old)}")
-          text = text.replace(old, "gsoTokenTestFlowKey()")
-          if '"net/netip"' not in text:
-              text = text.replace("import (\n", 'import (\n\t"net/netip"\n', 1)
-          if '"github.com/daniellavrushin/b4/classifier"' not in text:
-              text = text.replace("import (\n", 'import (\n\t"github.com/daniellavrushin/b4/classifier"\n', 1)
-          marker = "\nfunc Test"
-          helper = '''
-
-          func gsoTokenTestFlowKey() classifier.FlowKey {
-          \tclient := classifier.ClientKey{
-          \t\tL3Family: 4,
-          \t\tSourceIP: netip.MustParseAddr("192.0.2.44"),
-          \t\tIfIndex:  4,
-          \t\tVLAN:     44,
-          \t}
-          \treturn classifier.NewFlowKey(client, client.SourceIP, netip.MustParseAddr("203.0.113.44"), 51444, 443, 6)
-          }
-          '''
-          if "func gsoTokenTestFlowKey()" not in text:
-              index = text.find(marker)
-              if index < 0:
-                  raise SystemExit("unable to locate first H4 token test")
-              text = text[:index] + helper + text[index:]
-          path.write_text(text)
-          PY
-          gofmt -w src/nfq/gso_token_test.go
-          git add src/nfq/gso_token_test.go
-          git commit --amend --no-edit
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
 
       - name: Go unit and integration gate
@@ -91,10 +58,11 @@ jobs:
           go test
           ./classifier ./nfq ./config ./action ./routing ./crossservice
           ./sni ./observability ./diagnostics ./runtimecontrol ./http/handler
+          ./capture ./tables ./discovery
 
       - name: Race gate
         working-directory: work/src
-        run: go test -race ./classifier ./nfq
+        run: go test -race ./classifier ./nfq ./runtimecontrol
 
       - name: Reassembly fuzz smoke
         working-directory: work/src
