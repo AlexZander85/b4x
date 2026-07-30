@@ -54,6 +54,17 @@ type DifferentialProof struct {
 func (p DifferentialProof) Valid() bool {
 	return p.ID != "" && p.ScopeHash != "" && p.BaselineID != "" && p.CandidateID != "" && p.DirectFailed && p.CandidateSucceeded && p.ControlsUnaffected && p.ConfigGen > 0
 }
+func DifferentialReady(ps []DifferentialProof) bool {
+	if len(ps) == 0 {
+		return false
+	}
+	for _, p := range ps {
+		if !p.Valid() {
+			return false
+		}
+	}
+	return true
+}
 
 type RecoveryLongRun struct {
 	Observation               SilentObservation
