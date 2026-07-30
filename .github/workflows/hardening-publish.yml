@@ -34,11 +34,24 @@ jobs:
           go-version: '1.25.3'
           cache-dependency-path: work/src/go.sum
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.2
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: work/src/http/ui/pnpm-lock.yaml
+
       - name: Apply one hardening stage
         shell: bash
         run: |
           set -euo pipefail
-          cp publisher/.hardening/h9-api-stage.patch.gz /tmp/hardening-stage.patch.gz
+          cp publisher/.hardening/h9-ui-stage.patch.gz /tmp/hardening-stage.patch.gz
           echo "$(cat publisher/.hardening/archive.sha256)  /tmp/hardening-stage.patch.gz" | sha256sum -c -
           gzip -dc /tmp/hardening-stage.patch.gz > /tmp/hardening-stage.patch
           echo "$(cat publisher/.hardening/payload.sha256)  /tmp/hardening-stage.patch" | sha256sum -c -
@@ -46,12 +59,17 @@ jobs:
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
-          base64 -d ../publisher/.hardening/h9-api.fix.b64 > /tmp/hardening-fix.patch
-          echo "$(cat ../publisher/.hardening/h9-api.fix.sha256)  /tmp/hardening-fix.patch" | sha256sum -c -
-          git apply /tmp/hardening-fix.patch
-          git add -A
-          git commit --amend --no-edit
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
+
+      - name: Classifier UI contract gate
+        working-directory: work/src/http/ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:classifier
+
+      - name: UI production build gate
+        working-directory: work/src/http/ui
+        run: pnpm build
 
       - name: Go unit and integration gate
         working-directory: work/src
