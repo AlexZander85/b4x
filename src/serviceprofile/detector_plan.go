@@ -74,6 +74,19 @@ func (v EvidenceView) Valid() bool {
 	return v.Hypothesis != "" && v.Confidence != "" && v.NetworkContextID != "" && v.Redacted
 }
 
+type GuidedPlan struct {
+	MandatoryBaselines, GuidedCandidates []string
+	FullFallbackLimit, TargetControls    int
+	EstimatedSeconds                     int
+	FallbackUsed                         bool
+	QualityDelta                         float64
+	Canary, Promoted, RolledBack         bool
+}
+
+func (g GuidedPlan) TruthfulSavings() bool {
+	return !g.FallbackUsed && g.QualityDelta >= 0 && len(g.MandatoryBaselines) > 0
+}
+
 func (c DetectorCapabilities) Effective(m DetectorMode) DetectorMode {
 	if !c.CleanPath || !c.CaptureVisibility {
 		return DetectorOff
