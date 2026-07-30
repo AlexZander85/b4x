@@ -47,6 +47,16 @@ func ValidateWARPPolicy(p WARPProjection, c CamouflagePolicy, n NonRUPolicy) err
 	return nil
 }
 
+func CompileStrictNonRU(p NonRUPolicy, capability WARPProjection) (NonRUPolicy, error) {
+	if !p.Enabled {
+		return p, nil
+	}
+	if p.Strict && (!capability.Valid() || !capability.ForwardedBindingCorrelation) {
+		return NonRUPolicy{}, errors.New("strict non-ru capability unavailable")
+	}
+	return p, nil
+}
+
 type WARPHealth struct {
 	Base, Camouflage, NonRU         string
 	ObservedCountry, AttestationAge string
