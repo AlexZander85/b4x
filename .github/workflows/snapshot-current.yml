@@ -1,12 +1,14 @@
 name: Snapshot current hardening target
 
 on:
-  push:
+  pull_request:
     branches:
       - hardening-snapshot-h5
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   snapshot:
