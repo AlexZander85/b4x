@@ -39,7 +39,7 @@ func Manifest(m schema.Manifest) error {
 			}
 			for _, d := range t.Domains {
 				d = strings.TrimSpace(d)
-				if d == "" || strings.ContainsAny(d, "/\\*$") {
+				if d == "" || (strings.ContainsAny(d, "/\\$")) || (strings.Contains(d, "*") && !strings.HasPrefix(strings.ToLower(d), "*.")) {
 					if _, _, e := net.ParseCIDR(d); e != nil {
 						return fmt.Errorf("%w: domain", ErrInvalidManifest)
 					}
