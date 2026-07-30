@@ -37,3 +37,26 @@ func TestPassiveRSTValidationRejectsUnsafeEnvelope(t *testing.T) {
 		})
 	}
 }
+
+func TestPassiveRSTActiveModesRequireScopesAndAggressiveConfirmation(t *testing.T) {
+	cfg := NewConfig()
+	cfg.System.Classifier.Runtime.PassiveRST.Mode = PassiveRSTConservative
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unscoped conservative mode accepted")
+	}
+	cfg = NewConfig()
+	cfg.System.Classifier.Runtime.PassiveRST.Mode = PassiveRSTAggressive
+	cfg.System.Classifier.Runtime.PassiveRST.SetScopes = []string{" YouTube ", "youtube"}
+	cfg.System.Classifier.Runtime.PassiveRST.DeviceScopes = []string{"AA:BB:CC:DD:EE:01"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unconfirmed aggressive mode accepted")
+	}
+	cfg.System.Classifier.Runtime.PassiveRST.AggressiveConfirmationToken = PassiveRSTAggressiveConfirmation
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("confirmed aggressive mode rejected: %v", err)
+	}
+	got := cfg.System.Classifier.Runtime.PassiveRST
+	if len(got.SetScopes) != 1 || got.SetScopes[0] != "youtube" || got.DeviceScopes[0] != "aa:bb:cc:dd:ee:01" {
+		t.Fatalf("scopes not normalized: %+v", got)
+	}
+}

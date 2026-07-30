@@ -227,7 +227,18 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
 	if cfg.IsTCPPort(sport) {
-		w.observePassiveRSTIncoming(cfg, pkt, tcp, payload, sport, dport)
+		result, isTrackedRST := w.observePassiveRSTIncoming(cfg, pkt, tcp, payload, sport, dport)
+		if isTrackedRST {
+			if result.Suppress() {
+				vc.drop()
+				return 0
+			}
+			if w.passiveRST != nil {
+				w.passiveRST.DeleteFlow(result.FlowKey)
+			}
+		} else if tcp[13]&classifier.TCPFlagFIN != 0 && w.passiveRST != nil {
+			w.passiveRST.DeleteIncoming(pkt.dstStr, pkt.srcStr, dport, sport, pkt.ver)
+		}
 		w.releaseTCPHoldOnServerProgress(pkt, sport, dport)
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
@@ -397,6 +408,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	isRst := (tcpFlags & 0x04) != 0
 	isFin := (tcpFlags & 0x01) != 0
 	if flowKeyOK && (isFin || isRst) {
+		if w.passiveRST != nil {
+			w.passiveRST.DeleteFlow(flowKey)
+		}
 		if w.gsoPassTokens != nil {
 			w.gsoPassTokens.DeleteFlow(flowKey)
 		}

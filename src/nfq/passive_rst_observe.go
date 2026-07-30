@@ -41,23 +41,28 @@ func (w *Worker) observePassiveRSTOutgoing(cfg *config.Config, pkt *pktInfo, tcp
 	w.passiveRST.ObserveOutgoing(flow, dnsHintConfigGeneration(cfg), obs)
 }
 
-func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp, payload []byte, sport, dport uint16) {
+func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp, payload []byte, sport, dport uint16) (PassiveRSTEnforcementResult, bool) {
 	if w == nil || w.normalizer || w.passiveRST == nil || !passiveRSTObservationEnabled(cfg) || pkt == nil || !cfg.IsTCPPort(sport) {
-		return
+		return PassiveRSTEnforcementResult{}, false
 	}
 	obs, ok := ParsePassiveRSTTCPObservation(pkt, tcp, len(payload), PassiveRSTServerToClient, passiveRSTVisibilityComplete(), time.Now())
 	if !ok {
-		return
+		return PassiveRSTEnforcementResult{}, false
 	}
 	evidence, tracked := w.passiveRST.ObserveIncoming(pkt.dstStr, pkt.srcStr, dport, sport, dnsHintConfigGeneration(cfg), obs)
 	if !tracked || tcp[13]&0x04 == 0 {
-		return
+		return PassiveRSTEnforcementResult{}, false
 	}
+	result := w.passiveRST.Enforce(cfg.System.Classifier.Runtime.PassiveRST, evidence)
 	fields := map[string]string{
-		"decision":                string(evidence.Decision),
-		"requested_mode":          cfg.System.Classifier.Runtime.PassiveRST.Mode,
-		"effective_mode":          config.PassiveRSTObserve,
+		"decision":                string(result.Decision),
+		"reason":                  result.Reason,
+		"requested_mode":          result.RequestedMode,
+		"effective_mode":          result.EffectiveMode,
 		"signal_count":            fmt.Sprintf("%d", len(evidence.Signals)),
+		"strong_signals":          fmt.Sprintf("%d", result.StrongSignals),
+		"corroborating_signals":   fmt.Sprintf("%d", result.CorroboratingSignals),
+		"diagnostic_signals":      fmt.Sprintf("%d", result.DiagnosticSignals),
 		"baseline_quality":        string(evidence.Baseline.Quality),
 		"baseline_spread":         fmt.Sprintf("%d", evidence.Baseline.Spread),
 		"visibility_complete":     fmt.Sprintf("%t", evidence.Flow.VisibilityComplete),
@@ -66,6 +71,7 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 		"sequence_in_window":      fmt.Sprintf("%t", evidence.Sequence.InWindow),
 		"ack_reliable":            fmt.Sprintf("%t", evidence.Acknowledgment.Reliable),
 		"ack_in_window":           fmt.Sprintf("%t", evidence.Acknowledgment.InWindow),
+		"budget_remaining":        fmt.Sprintf("%d", result.BudgetRemaining),
 	}
 	for i, signal := range evidence.Signals {
 		fields[fmt.Sprintf("signal_%d", i)] = string(signal.Signal) + ":" + string(signal.Strength)
@@ -73,7 +79,8 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 	observability.Default().Trace.Record(observability.TraceEvent{
 		Timestamp: evidence.ObservedAt,
 		FlowID:    fmt.Sprintf("%v", evidence.Flow.FlowKey),
-		Kind:      "passive_rst_observation",
+		Kind:      "passive_rst_decision",
 		Fields:    fields,
 	})
+	return result, true
 }

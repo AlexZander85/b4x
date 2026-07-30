@@ -58,6 +58,7 @@ type PassiveRSTDecision string
 const (
 	PassiveRSTDecisionObserve  PassiveRSTDecision = "observe"
 	PassiveRSTDecisionPass     PassiveRSTDecision = "pass"
+	PassiveRSTDecisionSuppress PassiveRSTDecision = "suppress"
 	PassiveRSTDecisionFailOpen PassiveRSTDecision = "fail-open"
 )
 
@@ -98,6 +99,7 @@ type PassiveRSTFlowSnapshot struct {
 	RSTCount                 int                        `json:"rst_count"`
 	LastRSTAt                time.Time                  `json:"last_rst_at,omitempty"`
 	SuppressionBudget        int                        `json:"suppression_budget"`
+	SuppressionExpiresAt     time.Time                  `json:"suppression_expires_at,omitempty"`
 	ServerOptionsKnown       bool                       `json:"server_options_known"`
 	ServerOptionsFingerprint uint64                     `json:"server_options_fingerprint,omitempty"`
 	IPv4Baseline             PassiveRSTBaselineSnapshot `json:"ipv4_baseline"`
@@ -151,6 +153,10 @@ type PassiveRSTStoreStats struct {
 	FlowInvalidated       uint64 `json:"flow_invalidated"`
 	GenerationInvalidated uint64 `json:"generation_invalidated"`
 	Cleared               uint64 `json:"cleared"`
+	Passed                uint64 `json:"passed"`
+	Suppressed            uint64 `json:"suppressed"`
+	FailOpen              uint64 `json:"fail_open"`
+	BudgetExhausted       uint64 `json:"budget_exhausted"`
 }
 
 type passiveRSTEndpointKey struct {
@@ -196,18 +202,21 @@ type passiveRSTFlowState struct {
 	ttl6                 passiveRSTTTLState
 	rstTimes             []time.Time
 	suppressionBudget    int
+	suppressionDeadline  time.Time
 	order                uint64
 }
 
 type PassiveRSTStore struct {
-	mu        sync.RWMutex
-	flows     map[classifier.FlowKey]*passiveRSTFlowState
-	endpoints map[passiveRSTEndpointKey]classifier.FlowKey
-	recent    []PassiveRSTEvidence
-	cfg       config.PassiveRSTRuntimeConfig
-	clock     clock.Clock
-	order     uint64
-	stats     PassiveRSTStoreStats
+	mu                sync.RWMutex
+	flows             map[classifier.FlowKey]*passiveRSTFlowState
+	endpoints         map[passiveRSTEndpointKey]classifier.FlowKey
+	recent            []PassiveRSTEvidence
+	cfg               config.PassiveRSTRuntimeConfig
+	clock             clock.Clock
+	order             uint64
+	stats             PassiveRSTStoreStats
+	globalWindowStart time.Time
+	globalSuppressed  int
 }
 
 func NewPassiveRSTStore(cfg config.PassiveRSTRuntimeConfig, c clock.Clock) *PassiveRSTStore {
@@ -255,6 +264,12 @@ func normalizedPassiveRSTConfig(cfg config.PassiveRSTRuntimeConfig) config.Passi
 	}
 	if cfg.SuppressionBudgetPerFlow <= 0 {
 		cfg.SuppressionBudgetPerFlow = d.SuppressionBudgetPerFlow
+	}
+	if cfg.SuppressionWindowSeconds <= 0 {
+		cfg.SuppressionWindowSeconds = d.SuppressionWindowSeconds
+	}
+	if cfg.GlobalSuppressionsPerMinute <= 0 {
+		cfg.GlobalSuppressionsPerMinute = d.GlobalSuppressionsPerMinute
 	}
 	if cfg.RecentDecisionLimit <= 0 {
 		cfg.RecentDecisionLimit = d.RecentDecisionLimit
@@ -606,7 +621,7 @@ func (s *PassiveRSTStore) snapshotLocked(state *passiveRSTFlowState, now time.Ti
 		FlowKey: state.flow, ConfigGeneration: state.generation, SetID: state.setID, DeviceScope: state.deviceScope,
 		SYNSeen: state.synSeen, SYNACKSeen: state.synAckSeen, ServerPayloadBytes: state.serverPayload,
 		ServerPayloadProgress: state.serverPayload > 0, VisibilityComplete: state.visibility,
-		RSTCount: len(state.rstTimes), LastRSTAt: lastRST, SuppressionBudget: state.suppressionBudget,
+		RSTCount: len(state.rstTimes), LastRSTAt: lastRST, SuppressionBudget: state.suppressionBudget, SuppressionExpiresAt: state.suppressionDeadline,
 		ServerOptionsKnown: state.serverOptionsKnown, ServerOptionsFingerprint: state.serverOptions,
 		IPv4Baseline: s.baselineLocked(state, 4, now), IPv6Baseline: s.baselineLocked(state, 6, now),
 		CreatedAt: state.createdAt, LastSeen: state.lastSeen,

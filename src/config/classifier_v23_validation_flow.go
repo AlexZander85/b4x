@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 func (s classifierRuntimeValidation) validateFlowControls() {
 	s.defaultInt(&s.r.Reassembly.MaxFlows, s.d.Reassembly.MaxFlows)
 	s.defaultInt(&s.r.Reassembly.MaxBytesPerFlow, s.d.Reassembly.MaxBytesPerFlow)
@@ -46,7 +48,22 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 	s.defaultInt(&s.r.PassiveRST.BurstThreshold, s.d.PassiveRST.BurstThreshold)
 	s.defaultInt(&s.r.PassiveRST.BurstWindowMS, s.d.PassiveRST.BurstWindowMS)
 	s.defaultInt(&s.r.PassiveRST.SuppressionBudgetPerFlow, s.d.PassiveRST.SuppressionBudgetPerFlow)
+	s.defaultInt(&s.r.PassiveRST.SuppressionWindowSeconds, s.d.PassiveRST.SuppressionWindowSeconds)
+	s.defaultInt(&s.r.PassiveRST.GlobalSuppressionsPerMinute, s.d.PassiveRST.GlobalSuppressionsPerMinute)
 	s.defaultInt(&s.r.PassiveRST.RecentDecisionLimit, s.d.PassiveRST.RecentDecisionLimit)
+	s.r.PassiveRST.SetScopes = normalizePassiveRSTScopes(s.r.PassiveRST.SetScopes)
+	s.r.PassiveRST.DeviceScopes = normalizePassiveRSTScopes(s.r.PassiveRST.DeviceScopes)
+	if s.r.PassiveRST.Mode == PassiveRSTConservative || s.r.PassiveRST.Mode == PassiveRSTAggressive {
+		if len(s.r.PassiveRST.SetScopes) == 0 {
+			s.v.add("system.classifier.runtime.passive_rst.set_scopes", "scope_required", "active passive RST suppression requires explicit set scopes", nil)
+		}
+		if len(s.r.PassiveRST.DeviceScopes) == 0 {
+			s.v.add("system.classifier.runtime.passive_rst.device_scopes", "scope_required", "active passive RST suppression requires explicit device scopes", nil)
+		}
+	}
+	if s.r.PassiveRST.Mode == PassiveRSTAggressive && s.r.PassiveRST.AggressiveConfirmationToken != PassiveRSTAggressiveConfirmation {
+		s.v.add("system.classifier.runtime.passive_rst.aggressive_confirmation_token", "confirmation_required", "aggressive passive RST mode requires the explicit confirmation token", nil)
+	}
 	s.outOfRange("system.classifier.runtime.passive_rst.max_flows", s.r.PassiveRST.MaxFlows, 64, 65536)
 	s.outOfRange("system.classifier.runtime.passive_rst.flow_ttl_seconds", s.r.PassiveRST.FlowTTLSeconds, 5, 3600)
 	s.outOfRange("system.classifier.runtime.passive_rst.baseline_samples", s.r.PassiveRST.BaselineSamples, 3, 32)
@@ -56,6 +73,8 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 	s.outOfRange("system.classifier.runtime.passive_rst.burst_threshold", s.r.PassiveRST.BurstThreshold, 2, 32)
 	s.outOfRange("system.classifier.runtime.passive_rst.burst_window_ms", s.r.PassiveRST.BurstWindowMS, 100, 30000)
 	s.outOfRange("system.classifier.runtime.passive_rst.suppression_budget_per_flow", s.r.PassiveRST.SuppressionBudgetPerFlow, 1, 32)
+	s.outOfRange("system.classifier.runtime.passive_rst.suppression_window_seconds", s.r.PassiveRST.SuppressionWindowSeconds, 1, 300)
+	s.outOfRange("system.classifier.runtime.passive_rst.global_suppressions_per_minute", s.r.PassiveRST.GlobalSuppressionsPerMinute, 1, 4096)
 	s.outOfRange("system.classifier.runtime.passive_rst.recent_decision_limit", s.r.PassiveRST.RecentDecisionLimit, 16, 4096)
 
 	s.defaultInt(&s.r.Actions.MaxWritesPerHello, s.d.Actions.MaxWritesPerHello)
@@ -68,4 +87,21 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 	if s.r.Actions.MaxAmplification < 1 || s.r.Actions.MaxAmplification > 16 {
 		s.v.add("system.classifier.runtime.actions.max_amplification", "out_of_range", "amplification must be in [1,16]", map[string]any{"min": 1, "max": 16})
 	}
+}
+
+func normalizePassiveRSTScopes(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
