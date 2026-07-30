@@ -33,6 +33,9 @@ func (c *Config) validateClassifierRuntimeConfig(v *validator) {
 	if r.HoldReplay == (HoldReplayRuntimeConfig{}) {
 		r.HoldReplay = d.HoldReplay
 	}
+	if r.PassiveRST == (PassiveRSTRuntimeConfig{}) {
+		r.PassiveRST = d.PassiveRST
+	}
 	if r.Actions == (ActionBudgetRuntimeConfig{}) {
 		r.Actions = d.Actions
 	}

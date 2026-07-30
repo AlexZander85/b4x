@@ -379,9 +379,14 @@ type runtimeState struct {
 	routeBindings  *routing.BindingStore
 	gsoPassTokens  *GSOPassTokenStore
 	actionTokens   *action.ActionTokenStore
+	passiveRST     *PassiveRSTStore
 }
 
-func newRuntimeState() *runtimeState {
+func newRuntimeState(cfg *config.Config) *runtimeState {
+	passiveCfg := config.DefaultClassifierRuntimeConfig.PassiveRST
+	if cfg != nil {
+		passiveCfg = cfg.System.Classifier.Runtime.PassiveRST
+	}
 	return &runtimeState{
 		tlsCache: &tlsInfoCache{
 			conns: make(map[string]*tlsInfo),
@@ -393,6 +398,7 @@ func newRuntimeState() *runtimeState {
 		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
 		gsoPassTokens:  NewGSOPassTokenStore(DefaultGSOPassTokenStoreConfig()),
 		actionTokens:   action.NewActionTokenStore(action.DefaultActionTokenStoreConfig()),
+		passiveRST:     NewPassiveRSTStore(passiveCfg, nil),
 		destState: &destStateTracker{
 			conns:       make(map[string]*ipBlockEntry),
 			blocked:     make(map[string]time.Time),

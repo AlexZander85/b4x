@@ -103,7 +103,7 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 	state := shared
 	ownsState := state == nil
 	if state == nil {
-		state = newRuntimeState()
+		state = newRuntimeState(cfg)
 	}
 	var dhcpMgr *dhcp.Manager
 	if startDHCP {
@@ -122,6 +122,7 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.routeBindings = state.routeBindings
 		w.gsoPassTokens = state.gsoPassTokens
 		w.actionTokens = state.actionTokens
+		w.passiveRST = state.passiveRST
 		w.dnsHints = hintStore
 		w.canary = canary
 		w.candidateSet.Store("")
@@ -163,6 +164,9 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 					pool.state.destState.Cleanup(300 * time.Second)
 					pool.state.scopedFailures.GC(time.Now())
 					pool.state.routeBindings.GC(time.Now())
+					if pool.state.passiveRST != nil {
+						pool.state.passiveRST.GC(time.Now())
+					}
 					for _, worker := range pool.Workers {
 						if worker.tcpReassembly != nil {
 							worker.tcpReassembly.GC(time.Now())
@@ -283,6 +287,9 @@ func (p *Pool) Stop() {
 
 	select {
 	case <-done:
+		if p.ownsState && p.state != nil && p.state.passiveRST != nil {
+			p.state.passiveRST.Clear()
+		}
 		log.Infof("All NFQueue workers stopped")
 	case <-time.After(timeout):
 		log.Errorf("Timeout (%v) waiting for NFQueue workers to stop", timeout)
@@ -308,6 +315,12 @@ func (w *Worker) UpdateConfig(newCfg *config.Config) {
 		if w.actionTokens != nil {
 			w.actionTokens.InvalidateGeneration(oldGeneration)
 		}
+		if w.passiveRST != nil {
+			w.passiveRST.InvalidateGeneration(oldGeneration)
+		}
+	}
+	if w.passiveRST != nil && newCfg != nil {
+		w.passiveRST.Reconfigure(newCfg.System.Classifier.Runtime.PassiveRST)
 	}
 	w.cfg.Store(newCfg)
 }

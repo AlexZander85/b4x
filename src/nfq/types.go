@@ -73,6 +73,7 @@ type Worker struct {
 	gsoCapability      atomic.Value // GSOCapabilityStatus
 	gsoPassTokens      *GSOPassTokenStore
 	actionTokens       *action.ActionTokenStore
+	passiveRST         *PassiveRSTStore
 	normalizerQueue    uint16
 	normalizer         bool
 }

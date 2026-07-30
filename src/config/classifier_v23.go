@@ -25,6 +25,11 @@ const (
 
 	GSONormalizerDirectQueue = "direct-queue"
 	GSONormalizerNFRepeat    = "nf-repeat"
+
+	PassiveRSTOff          = "off"
+	PassiveRSTObserve      = "observe"
+	PassiveRSTConservative = "conservative"
+	PassiveRSTAggressive   = "aggressive"
 )
 
 const (
@@ -47,6 +52,7 @@ type ClassifierRuntimeConfig struct {
 	Capture        CaptureRuntimeConfig        `json:"capture"`
 	Reassembly     ReassemblyRuntimeConfig     `json:"reassembly"`
 	HoldReplay     HoldReplayRuntimeConfig     `json:"hold_replay"`
+	PassiveRST     PassiveRSTRuntimeConfig     `json:"passive_rst"`
 	Actions        ActionBudgetRuntimeConfig   `json:"actions"`
 	Discovery      DiscoveryRuntimeConfig      `json:"discovery"`
 	FailureInbox   FailureInboxRuntimeConfig   `json:"failure_inbox"`
@@ -147,6 +153,20 @@ type HoldReplayRuntimeConfig struct {
 	MaxBytesTotal     int  `json:"max_bytes_total"`
 	TimeoutMS         int  `json:"timeout_ms"`
 	ReleaseOnPressure bool `json:"release_on_pressure"`
+}
+
+type PassiveRSTRuntimeConfig struct {
+	Mode                     string `json:"mode"`
+	MaxFlows                 int    `json:"max_flows"`
+	FlowTTLSeconds           int    `json:"flow_ttl_seconds"`
+	BaselineSamples          int    `json:"baseline_samples"`
+	BaselineFreshnessSeconds int    `json:"baseline_freshness_seconds"`
+	MinTTLTolerance          int    `json:"min_ttl_tolerance"`
+	TTLSafetyMargin          int    `json:"ttl_safety_margin"`
+	BurstThreshold           int    `json:"burst_threshold"`
+	BurstWindowMS            int    `json:"burst_window_ms"`
+	SuppressionBudgetPerFlow int    `json:"suppression_budget_per_flow"`
+	RecentDecisionLimit      int    `json:"recent_decision_limit"`
 }
 
 type ActionBudgetRuntimeConfig struct {
@@ -259,6 +279,7 @@ var DefaultClassifierRuntimeConfig = ClassifierRuntimeConfig{
 	Capture:        CaptureRuntimeConfig{OffloadPolicy: OffloadPolicyDetect, NFQueue: NFQueueCaptureConfig{GSOMode: GSOModeOff, MaxGSOBytes: 32 * 1024, NormalizeForMutation: true, TCPOnly: true, NormalizerMechanism: GSONormalizerDirectQueue, NormalizerQueueOffset: 2, NormalizerThreads: 1, DiscoveryQueueOffset: 0, DiscoveryThreads: 1, MaxTopologyWorkers: 32, MaxTopologyMemoryBytes: 64 * 1024 * 1024}, PPE: PPEOffloadConfig{TCPEnabled: true, QUICEnabled: true, TCPPorts: []uint16{80, 443, 2053, 2083, 2087, 2096, 8443}, UDPPorts: []uint16{443}, ConnskipPackets: 30, IPv4: PPEFamilyAuto, IPv6: PPEFamilyAuto, SourceScope: PPESourceManagedDevices, ReassertIntervalSec: 55, SelfTest: PPESelfTestConfig{Mode: PPESelfTestStartupAndChange, TimeoutMS: 5000}}, OutgoingPacketLimit: 20, IncomingPacketLimit: 20, AlwaysQueueSynAck: true, AlwaysQueueFIN: true, AlwaysQueueRST: true, AlwaysQueueQUIC: true, ProcessedMarkMask: 1 << 27, QueueBypass: true, CandidateQueueOffset: 1, ReadinessTimeoutMS: 3000, OffloadSelfCheck: true},
 	Reassembly:     ReassemblyRuntimeConfig{MaxFlows: 1024, MaxBytesPerFlow: 32 * 1024, MaxBytesTotal: 4 * 1024 * 1024, MaxSegments: 64, MaxClientHello: 32 * 1024, TimeoutMS: 5000},
 	HoldReplay:     HoldReplayRuntimeConfig{MaxFlows: 256, MaxPacketsPerFlow: 8, MaxBytesTotal: 64 * 1024, TimeoutMS: 750, ReleaseOnPressure: true},
+	PassiveRST:     PassiveRSTRuntimeConfig{Mode: PassiveRSTObserve, MaxFlows: 4096, FlowTTLSeconds: 120, BaselineSamples: 8, BaselineFreshnessSeconds: 60, MinTTLTolerance: 3, TTLSafetyMargin: 2, BurstThreshold: 2, BurstWindowMS: 1500, SuppressionBudgetPerFlow: 2, RecentDecisionLimit: 256},
 	Actions:        ActionBudgetRuntimeConfig{MaxWritesPerHello: 16, MaxFakeBytes: 64 * 1024, MaxAmplification: 4},
 	Discovery:      DiscoveryRuntimeConfig{SandboxMaxActive: 8, SandboxMaxEvents: 256, MaxProbes: 32, MaxConcurrency: 2, SamplesPerVariant: 1, StableSuccesses: 2, MaxShadowProbes: 3, RequireBaselines: true, NoAutomaticApply: true},
 	FailureInbox:   FailureInboxRuntimeConfig{MaxCandidates: 512, MaxEvidencePerCandidate: 16, MaxSetCandidates: 16, MaxSignals: 8, MaxReasons: 8, RetentionSeconds: 120, MinSYNSentAgeMS: 3000},

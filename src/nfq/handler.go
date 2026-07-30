@@ -227,9 +227,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
 
 	if cfg.IsTCPPort(sport) {
+		w.observePassiveRSTIncoming(cfg, pkt, tcp, payload, sport, dport)
 		w.releaseTCPHoldOnServerProgress(pkt, sport, dport)
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
+	w.observePassiveRSTOutgoing(cfg, pkt, tcp, payload, sport, dport, set)
 	var secondaryToken *GSOPassToken
 	if w.normalizer {
 		token, selectedSet, ok, _ := w.consumeGSOPassForPacket(cfg, pkt, sport, dport, sequence, sequenceOK)
@@ -381,6 +383,10 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if flowKeyOK && w.tcpHold != nil && (reassemblyResult.Status == classifier.ReassemblyComplete || reassemblyResult.Status == classifier.ReassemblyAborted) {
 			w.tcpHold.Release(flowKey, reassemblyResult.Reason)
 		}
+	}
+
+	if flowKeyOK && matched && set != nil && w.passiveRST != nil {
+		w.passiveRST.UpdateScope(flowKey, dnsHintConfigGeneration(cfg), classifierSetID(set), pkt.srcMac)
 	}
 
 	routeTProxy := matched && set != nil && set.Routing.Enabled && config.RoutingUsesTProxy(set.Routing.Mode)

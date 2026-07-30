@@ -29,6 +29,35 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 		s.v.add("system.classifier.runtime.hold_replay.release_on_pressure", "fail_open_required", "hold/replay must release unchanged packets under pressure", nil)
 	}
 
+	if s.r.PassiveRST.Mode == "" {
+		s.r.PassiveRST.Mode = s.d.PassiveRST.Mode
+	}
+	switch s.r.PassiveRST.Mode {
+	case PassiveRSTOff, PassiveRSTObserve, PassiveRSTConservative, PassiveRSTAggressive:
+	default:
+		s.v.add("system.classifier.runtime.passive_rst.mode", "unsupported_mode", "mode must be off, observe, conservative, or aggressive", nil)
+	}
+	s.defaultInt(&s.r.PassiveRST.MaxFlows, s.d.PassiveRST.MaxFlows)
+	s.defaultInt(&s.r.PassiveRST.FlowTTLSeconds, s.d.PassiveRST.FlowTTLSeconds)
+	s.defaultInt(&s.r.PassiveRST.BaselineSamples, s.d.PassiveRST.BaselineSamples)
+	s.defaultInt(&s.r.PassiveRST.BaselineFreshnessSeconds, s.d.PassiveRST.BaselineFreshnessSeconds)
+	s.defaultInt(&s.r.PassiveRST.MinTTLTolerance, s.d.PassiveRST.MinTTLTolerance)
+	s.defaultInt(&s.r.PassiveRST.TTLSafetyMargin, s.d.PassiveRST.TTLSafetyMargin)
+	s.defaultInt(&s.r.PassiveRST.BurstThreshold, s.d.PassiveRST.BurstThreshold)
+	s.defaultInt(&s.r.PassiveRST.BurstWindowMS, s.d.PassiveRST.BurstWindowMS)
+	s.defaultInt(&s.r.PassiveRST.SuppressionBudgetPerFlow, s.d.PassiveRST.SuppressionBudgetPerFlow)
+	s.defaultInt(&s.r.PassiveRST.RecentDecisionLimit, s.d.PassiveRST.RecentDecisionLimit)
+	s.outOfRange("system.classifier.runtime.passive_rst.max_flows", s.r.PassiveRST.MaxFlows, 64, 65536)
+	s.outOfRange("system.classifier.runtime.passive_rst.flow_ttl_seconds", s.r.PassiveRST.FlowTTLSeconds, 5, 3600)
+	s.outOfRange("system.classifier.runtime.passive_rst.baseline_samples", s.r.PassiveRST.BaselineSamples, 3, 32)
+	s.outOfRange("system.classifier.runtime.passive_rst.baseline_freshness_seconds", s.r.PassiveRST.BaselineFreshnessSeconds, 1, 3600)
+	s.outOfRange("system.classifier.runtime.passive_rst.min_ttl_tolerance", s.r.PassiveRST.MinTTLTolerance, 1, 64)
+	s.outOfRange("system.classifier.runtime.passive_rst.ttl_safety_margin", s.r.PassiveRST.TTLSafetyMargin, 1, 32)
+	s.outOfRange("system.classifier.runtime.passive_rst.burst_threshold", s.r.PassiveRST.BurstThreshold, 2, 32)
+	s.outOfRange("system.classifier.runtime.passive_rst.burst_window_ms", s.r.PassiveRST.BurstWindowMS, 100, 30000)
+	s.outOfRange("system.classifier.runtime.passive_rst.suppression_budget_per_flow", s.r.PassiveRST.SuppressionBudgetPerFlow, 1, 32)
+	s.outOfRange("system.classifier.runtime.passive_rst.recent_decision_limit", s.r.PassiveRST.RecentDecisionLimit, 16, 4096)
+
 	s.defaultInt(&s.r.Actions.MaxWritesPerHello, s.d.Actions.MaxWritesPerHello)
 	s.defaultInt(&s.r.Actions.MaxFakeBytes, s.d.Actions.MaxFakeBytes)
 	if s.r.Actions.MaxAmplification <= 0 {
