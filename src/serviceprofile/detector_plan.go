@@ -64,6 +64,15 @@ type DetectorCapabilities struct {
 	DNS, TLS12, TLS13, QUIC, L4, CleanPath, CaptureVisibility bool
 	ResourceDowngrade, PrivacyDowngrade                       string
 }
+type EvidenceView struct {
+	Hypothesis, Confidence, NetworkContextID, Age string
+	Contradictions, Suppressors, EvidenceFamilies []string
+	Redacted                                      bool
+}
+
+func (v EvidenceView) Valid() bool {
+	return v.Hypothesis != "" && v.Confidence != "" && v.NetworkContextID != "" && v.Redacted
+}
 
 func (c DetectorCapabilities) Effective(m DetectorMode) DetectorMode {
 	if !c.CleanPath || !c.CaptureVisibility {
