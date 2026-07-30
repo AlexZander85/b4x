@@ -25,6 +25,9 @@ func TestLegacyConfigGetsPassiveClassifierDefaults(t *testing.T) {
 	if cfg.System.Classifier.Flags.ClassifierV2Enabled || cfg.System.Classifier.Flags.CaptureEnvelopeEnabled {
 		t.Fatal("legacy defaults must not enable runtime classifier/capture")
 	}
+	if cfg.System.Classifier.Runtime.SilentPath.Enabled || cfg.System.Classifier.Runtime.SilentPath.Mode != SilentPathFailureObserve {
+		t.Fatalf("silent-path must remain disabled/observe by default: %+v", cfg.System.Classifier.Runtime.SilentPath)
+	}
 }
 
 func TestClassifierValidationRejectsUnsupportedModes(t *testing.T) {
@@ -123,6 +126,11 @@ func TestClassifierV23RejectsUnsafeRuntimeConfig(t *testing.T) {
 			c.Runtime.Fallback.Enabled = true
 			c.Runtime.Fallback.Policy = FallbackProxy
 			c.Runtime.Fallback.ProxyRouteID = "socks"
+		}},
+		{"silent auto missing proof gates", func(c *ClassifierConfig) {
+			c.Runtime.SilentPath.Enabled = true
+			c.Runtime.SilentPath.Mode = SilentPathFailureAutoCanary
+			c.Runtime.SilentPath.RequireDifferentialForAuto = false
 		}},
 	}
 	for _, tc := range tests {

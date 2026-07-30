@@ -89,6 +89,8 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 	s.outOfRange("system.classifier.runtime.passive_rst.router_pressure_threshold", s.r.PassiveRST.RouterPressureThreshold, 1, 1024)
 	s.outOfRange("system.classifier.runtime.passive_rst.recent_decision_limit", s.r.PassiveRST.RecentDecisionLimit, 16, 4096)
 
+	s.validateSilentPathFailure()
+
 	s.defaultInt(&s.r.Actions.MaxWritesPerHello, s.d.Actions.MaxWritesPerHello)
 	s.defaultInt(&s.r.Actions.MaxFakeBytes, s.d.Actions.MaxFakeBytes)
 	if s.r.Actions.MaxAmplification <= 0 {
@@ -98,6 +100,41 @@ func (s classifierRuntimeValidation) validateFlowControls() {
 	s.outOfRange("system.classifier.runtime.actions.max_fake_bytes", s.r.Actions.MaxFakeBytes, 1, 1024*1024)
 	if s.r.Actions.MaxAmplification < 1 || s.r.Actions.MaxAmplification > 16 {
 		s.v.add("system.classifier.runtime.actions.max_amplification", "out_of_range", "amplification must be in [1,16]", map[string]any{"min": 1, "max": 16})
+	}
+}
+
+func (s classifierRuntimeValidation) validateSilentPathFailure() {
+	r := &s.r.SilentPath
+	d := s.d.SilentPath
+	if r.Mode == "" {
+		r.Mode = d.Mode
+	}
+	switch r.Mode {
+	case SilentPathFailureOff, SilentPathFailureObserve, SilentPathFailureRecommend, SilentPathFailureAutoCanary:
+	default:
+		s.v.add("system.classifier.runtime.silent_path_failure.mode", "unsupported_mode", "mode must be off, observe, recommend, or auto-canary", nil)
+	}
+	s.defaultInt(&r.MinimumGraceSeconds, d.MinimumGraceSeconds)
+	s.defaultInt(&r.RetryWindowSeconds, d.RetryWindowSeconds)
+	s.defaultInt(&r.MinimumIndependentFamilies, d.MinimumIndependentFamilies)
+	s.defaultInt(&r.SuccessBypassWindowSeconds, d.SuccessBypassWindowSeconds)
+	s.defaultInt(&r.MaxAttemptsPerScope, d.MaxAttemptsPerScope)
+	s.defaultInt(&r.CooldownSeconds, d.CooldownSeconds)
+	s.defaultInt(&r.LeaseTTLSeconds, d.LeaseTTLSeconds)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.minimum_grace_seconds", r.MinimumGraceSeconds, 5, 3600)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.retry_window_seconds", r.RetryWindowSeconds, 5, 3600)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.minimum_independent_families", r.MinimumIndependentFamilies, 2, 8)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.success_bypass_window_seconds", r.SuccessBypassWindowSeconds, 1, 3600)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.max_attempts_per_scope", r.MaxAttemptsPerScope, 1, 8)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.cooldown_seconds", r.CooldownSeconds, 1, 86400)
+	s.outOfRange("system.classifier.runtime.silent_path_failure.lease_ttl_seconds", r.LeaseTTLSeconds, 1, 86400)
+	if r.Mode == SilentPathFailureAutoCanary {
+		if !r.RequireDifferentialForAuto || !r.RequireCompleteVisibility || !r.RequireActionAuthorization || !r.RequireControlProbe {
+			s.v.add("system.classifier.runtime.silent_path_failure", "active_safety_gate_required", "auto-canary requires differential proof, complete visibility, action authorization, and a control probe", nil)
+		}
+		if !r.AutoDisableOnVisibilityLoss || !r.AutoDisableOnFalsePositiveBudget {
+			s.v.add("system.classifier.runtime.silent_path_failure", "auto_disable_required", "auto-canary must automatically disable on visibility loss and false-positive budget breach", nil)
+		}
 	}
 }
 

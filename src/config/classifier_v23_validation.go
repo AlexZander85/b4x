@@ -39,6 +39,9 @@ func (c *Config) validateClassifierRuntimeConfig(v *validator) {
 	if reflect.DeepEqual(r.PassiveRST, PassiveRSTRuntimeConfig{}) {
 		r.PassiveRST = d.PassiveRST
 	}
+	if r.SilentPath == (SilentPathFailureRuntimeConfig{}) {
+		r.SilentPath = d.SilentPath
+	}
 	if r.Actions == (ActionBudgetRuntimeConfig{}) {
 		r.Actions = d.Actions
 	}

@@ -37,6 +37,11 @@ const (
 	PassiveRSTConservative           = "conservative"
 	PassiveRSTAggressive             = "aggressive"
 	PassiveRSTAggressiveConfirmation = "PASSIVE_RST_AGGRESSIVE_V1"
+
+	SilentPathFailureOff        = "off"
+	SilentPathFailureObserve    = "observe"
+	SilentPathFailureRecommend  = "recommend"
+	SilentPathFailureAutoCanary = "auto-canary"
 )
 
 const (
@@ -53,22 +58,23 @@ const (
 // classifier/action/discovery pipeline. Runtime packages consume immutable
 // snapshots derived from these values; they must not retain pointers to it.
 type ClassifierRuntimeConfig struct {
-	ClientIdentity ClientIdentityRuntimeConfig `json:"client_identity"`
-	Confidence     ConfidenceRuntimeConfig     `json:"confidence"`
-	Hints          HintStoreRuntimeConfig      `json:"hints"`
-	Capture        CaptureRuntimeConfig        `json:"capture"`
-	Execution      ExecutionRuntimeConfig      `json:"execution"`
-	Reassembly     ReassemblyRuntimeConfig     `json:"reassembly"`
-	HoldReplay     HoldReplayRuntimeConfig     `json:"hold_replay"`
-	PassiveRST     PassiveRSTRuntimeConfig     `json:"passive_rst"`
-	Actions        ActionBudgetRuntimeConfig   `json:"actions"`
-	Discovery      DiscoveryRuntimeConfig      `json:"discovery"`
-	FailureInbox   FailureInboxRuntimeConfig   `json:"failure_inbox"`
-	ClientHelloLab ClientHelloLabRuntimeConfig `json:"clienthello_lab"`
-	Rollout        RolloutRuntimeConfig        `json:"rollout"`
-	Strategies     StrategyCatalogConfig       `json:"strategies"`
-	Fallback       FallbackRuntimeConfig       `json:"fallback"`
-	Privacy        PrivacyRuntimeConfig        `json:"privacy"`
+	ClientIdentity ClientIdentityRuntimeConfig    `json:"client_identity"`
+	Confidence     ConfidenceRuntimeConfig        `json:"confidence"`
+	Hints          HintStoreRuntimeConfig         `json:"hints"`
+	Capture        CaptureRuntimeConfig           `json:"capture"`
+	Execution      ExecutionRuntimeConfig         `json:"execution"`
+	Reassembly     ReassemblyRuntimeConfig        `json:"reassembly"`
+	HoldReplay     HoldReplayRuntimeConfig        `json:"hold_replay"`
+	PassiveRST     PassiveRSTRuntimeConfig        `json:"passive_rst"`
+	SilentPath     SilentPathFailureRuntimeConfig `json:"silent_path_failure"`
+	Actions        ActionBudgetRuntimeConfig      `json:"actions"`
+	Discovery      DiscoveryRuntimeConfig         `json:"discovery"`
+	FailureInbox   FailureInboxRuntimeConfig      `json:"failure_inbox"`
+	ClientHelloLab ClientHelloLabRuntimeConfig    `json:"clienthello_lab"`
+	Rollout        RolloutRuntimeConfig           `json:"rollout"`
+	Strategies     StrategyCatalogConfig          `json:"strategies"`
+	Fallback       FallbackRuntimeConfig          `json:"fallback"`
+	Privacy        PrivacyRuntimeConfig           `json:"privacy"`
 }
 
 type ExecutionRuntimeConfig struct {
@@ -193,6 +199,29 @@ type PassiveRSTRuntimeConfig struct {
 	RecentDecisionLimit         int      `json:"recent_decision_limit"`
 }
 
+// SilentPathFailureRuntimeConfig is the persisted safety contract for silent
+// path observation. Any later recovery state must use an exact authorization
+// scope; this config deliberately has no destination-only key.
+type SilentPathFailureRuntimeConfig struct {
+	Enabled                          bool   `json:"enabled"`
+	Mode                             string `json:"mode"`
+	MinimumGraceSeconds              int    `json:"minimum_grace_seconds"`
+	RetryWindowSeconds               int    `json:"retry_window_seconds"`
+	MinimumIndependentFamilies       int    `json:"minimum_independent_families"`
+	RequireDifferentialForAuto       bool   `json:"require_differential_for_auto"`
+	RequireCompleteVisibility        bool   `json:"require_complete_visibility"`
+	RequireActionAuthorization       bool   `json:"require_action_authorization"`
+	RequireControlProbe              bool   `json:"require_control_probe"`
+	SuccessBypassWindowSeconds       int    `json:"success_bypass_window_seconds"`
+	MaxAttemptsPerScope              int    `json:"max_attempts_per_scope"`
+	CooldownSeconds                  int    `json:"cooldown_seconds"`
+	LeaseTTLSeconds                  int    `json:"lease_ttl_seconds"`
+	FailOpenOnAmbiguity              bool   `json:"fail_open_on_ambiguity"`
+	FailOpenOnDetectorError          bool   `json:"fail_open_on_detector_error"`
+	AutoDisableOnVisibilityLoss      bool   `json:"auto_disable_on_visibility_loss"`
+	AutoDisableOnFalsePositiveBudget bool   `json:"auto_disable_on_false_positive_budget"`
+}
+
 type ActionBudgetRuntimeConfig struct {
 	MaxWritesPerHello int     `json:"max_writes_per_hello"`
 	MaxFakeBytes      int     `json:"max_fake_bytes"`
@@ -305,6 +334,7 @@ var DefaultClassifierRuntimeConfig = ClassifierRuntimeConfig{
 	Reassembly:     ReassemblyRuntimeConfig{MaxFlows: 1024, MaxBytesPerFlow: 32 * 1024, MaxBytesTotal: 4 * 1024 * 1024, MaxSegments: 64, MaxClientHello: 32 * 1024, TimeoutMS: 5000},
 	HoldReplay:     HoldReplayRuntimeConfig{MaxFlows: 256, MaxPacketsPerFlow: 8, MaxBytesTotal: 64 * 1024, TimeoutMS: 750, ReleaseOnPressure: true},
 	PassiveRST:     PassiveRSTRuntimeConfig{Mode: PassiveRSTObserve, MaxFlows: 4096, FlowTTLSeconds: 120, BaselineSamples: 8, BaselineFreshnessSeconds: 60, MinTTLTolerance: 3, TTLSafetyMargin: 2, BurstThreshold: 2, BurstWindowMS: 1500, SuppressionBudgetPerFlow: 2, SuppressionWindowSeconds: 30, GlobalSuppressionsPerMinute: 64, RollbackWindowSeconds: 60, ReconnectFailureThreshold: 3, NoProgressThreshold: 3, ControlFailureThreshold: 1, QueueDropThreshold: 1, RouterPressureThreshold: 1, RecentDecisionLimit: 256},
+	SilentPath:     SilentPathFailureRuntimeConfig{Enabled: false, Mode: SilentPathFailureObserve, MinimumGraceSeconds: 5, RetryWindowSeconds: 120, MinimumIndependentFamilies: 2, RequireDifferentialForAuto: true, RequireCompleteVisibility: true, RequireActionAuthorization: true, RequireControlProbe: true, SuccessBypassWindowSeconds: 30, MaxAttemptsPerScope: 2, CooldownSeconds: 120, LeaseTTLSeconds: 300, FailOpenOnAmbiguity: true, FailOpenOnDetectorError: true, AutoDisableOnVisibilityLoss: true, AutoDisableOnFalsePositiveBudget: true},
 	Actions:        ActionBudgetRuntimeConfig{MaxWritesPerHello: 16, MaxFakeBytes: 64 * 1024, MaxAmplification: 4},
 	Discovery:      DiscoveryRuntimeConfig{SandboxMaxActive: 8, SandboxMaxEvents: 256, MaxProbes: 32, MaxConcurrency: 2, SamplesPerVariant: 1, StableSuccesses: 2, MaxShadowProbes: 3, RequireBaselines: true, NoAutomaticApply: true},
 	FailureInbox:   FailureInboxRuntimeConfig{MaxCandidates: 512, MaxEvidencePerCandidate: 16, MaxSetCandidates: 16, MaxSignals: 8, MaxReasons: 8, RetentionSeconds: 120, MinSYNSentAgeMS: 3000},
