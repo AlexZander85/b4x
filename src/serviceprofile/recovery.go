@@ -40,3 +40,15 @@ type RecoveryHealth struct {
 	DegradedReason, LastRollback  string
 	FalsePositiveBudget           int
 }
+type RecoveryUX struct {
+	Wording           string
+	EvidenceRefs      []string
+	Suppressors       []string
+	LeaseID           string
+	RollbackAvailable bool
+	EffectiveMode     RecoveryMode
+}
+
+func (u RecoveryUX) Truthful() bool {
+	return u.Wording != "" && u.EffectiveMode != "" && (!u.RollbackAvailable || u.LeaseID != "")
+}
