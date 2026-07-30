@@ -109,3 +109,20 @@ func (t *RecommendationTransaction) EnableAfterValidation() error {
 	t.ProductionAuthorized = true
 	return nil
 }
+
+type RecommendationReleaseVerdict struct {
+	State                                                                                    string
+	ABDReferenceReady, ABDProductionReady, DDIProductionReady, WARPBaseReady, WARPTraceReady bool
+	FieldTests                                                                               []string
+	Umbrella                                                                                 []string
+	HardGateViolations                                                                       []string
+	SafetyHash                                                                               string
+}
+
+const ProfileWARPRecommendationReady = "PROFILE_WARP_RECOMMENDATION_READY"
+
+func (v RecommendationReleaseVerdict) Ready() bool {
+	return v.ABDReferenceReady && v.ABDProductionReady && v.DDIProductionReady && v.WARPBaseReady && v.WARPTraceReady && len(v.FieldTests) > 0 && len(v.Umbrella) > 0 && len(v.HardGateViolations) == 0 && v.SafetyHash != ""
+}
+
+type RecommendationMetrics struct{ RecommendedWithoutIP, DestinationIPOnly, OriginDead, UnhealthyControls, CrossService, StaleProfile, WithoutTrace, EnabledWithoutCanary, ReusedTestToken, IgnoredRegression, HiddenFailPolicy, NonRUSuggested, CamouflageSuggested int }
