@@ -49,6 +49,16 @@ type ProtocolEvidence struct {
 	WirePackets, UniqueBytes                                                                              uint64
 	RetransmissionNonProgress                                                                             bool
 }
+type DynamicEvidence struct {
+	ProviderID, CacheKey, ContentHash, NetworkContextID                          string
+	Fresh, OwnershipValidated, Immutable, PrivacyRedacted, NoActionAuthorization bool
+	Families                                                                     int
+	Contradiction                                                                bool
+}
+
+func (e DynamicEvidence) Ready() bool {
+	return e.ProviderID != "" && e.CacheKey != "" && e.ContentHash != "" && e.NetworkContextID != "" && e.Fresh && e.OwnershipValidated && e.Immutable && e.PrivacyRedacted && e.NoActionAuthorization && e.Families >= 2 && !e.Contradiction
+}
 
 func (e ProtocolEvidence) Ready() bool {
 	return e.DNSConsensus && e.TLS12 && e.TLS13 && e.HTTP && e.QUIC && e.TCPComparison && e.L4 && e.MultipleOrigins && e.ControlsHealthy && !e.DNSSpoof && !e.RetransmissionNonProgress
