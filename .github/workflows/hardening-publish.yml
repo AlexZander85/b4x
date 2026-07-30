@@ -13,7 +13,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout publisher controls
         uses: actions/checkout@v4
@@ -51,15 +51,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cp publisher/.hardening/h9-ui-stage.patch.gz /tmp/hardening-stage.patch.gz
-          echo "$(cat publisher/.hardening/archive.sha256)  /tmp/hardening-stage.patch.gz" | sha256sum -c -
-          gzip -dc /tmp/hardening-stage.patch.gz > /tmp/hardening-stage.patch
+          cat publisher/.hardening/h10-stage.*.xzpart > /tmp/hardening-stage.patch.xz
+          echo "$(cat publisher/.hardening/archive.sha256)  /tmp/hardening-stage.patch.xz" | sha256sum -c -
+          xz -dc /tmp/hardening-stage.patch.xz > /tmp/hardening-stage.patch
           echo "$(cat publisher/.hardening/payload.sha256)  /tmp/hardening-stage.patch" | sha256sum -c -
           cd work
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
+
+      - name: H10 manifest and privacy gate
+        working-directory: work
+        run: |
+          python3 tools/field_validation/rst_gso_field_validation.py validate-manifest
+          python3 -m unittest discover -s tools/field_validation -p 'test*_validation.py' -v
+
+      - name: H10 blocked target validation assertion
+        working-directory: work
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          status = json.loads(Path('docs/validation/rst-gso-h10-status.json').read_text())
+          assert status['status'] == 'BLOCKED_TARGET_VALIDATION', status
+          assert status['target_evidence_present'] is False, status
+          assert status['production_ready_claimed'] is False, status
+          print(json.dumps(status, sort_keys=True))
+          PY
 
       - name: Classifier UI contract gate
         working-directory: work/src/http/ui
@@ -90,6 +110,13 @@ jobs:
       - name: Reassembly fuzz smoke
         working-directory: work/src
         run: go test ./classifier -run=^$ -fuzz=FuzzTCPReassemblyNeverPanics -fuzztime=2s
+
+      - name: Hardening benchmark smoke
+        working-directory: work/src
+        run: >-
+          go test ./classifier ./nfq ./action ./runtimecontrol -run=^$
+          -bench='Benchmark(TCPReassemblyObserve|TCPHoldStoreHoldRelease|ActionTokenClaimSuppress|GenerationFingerprint)$'
+          -benchmem -benchtime=100ms -count=1
 
       - name: Push green stage
         working-directory: work
