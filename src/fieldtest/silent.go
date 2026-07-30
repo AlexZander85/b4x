@@ -100,3 +100,16 @@ func (r RecoveryLongRun) Ready() bool {
 	}
 	return r.LeaseCount >= r.RollbackCount
 }
+
+type SilentPromotionGate struct {
+	Observe, Differential, Recovery, Controls, Rollback bool
+	HardGateViolations                                  []string
+	SafetyHash                                          string
+}
+
+func (g SilentPromotionGate) Verdict() PromotionVerdict {
+	if !g.Observe || !g.Differential || !g.Recovery || !g.Controls || !g.Rollback || len(g.HardGateViolations) > 0 || g.SafetyHash == "" {
+		return PromotionBlocked
+	}
+	return PromotionPass
+}
