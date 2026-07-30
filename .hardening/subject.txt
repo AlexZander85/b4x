@@ -1,1 +1,1 @@
-feat(api): expose NFQUEUE GSO and passive RST hardening controls
+feat(ui): add advanced GSO and passive RST diagnostics
