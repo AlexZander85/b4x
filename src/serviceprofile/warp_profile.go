@@ -62,6 +62,27 @@ type WARPHealth struct {
 	ObservedCountry, AttestationAge string
 	DegradedReason                  string
 }
+type PromotionState string
+
+const (
+	PromotionPending      PromotionState = "pending"
+	PromotionReady        PromotionState = "ready"
+	PromotionExperimental PromotionState = "experimental"
+	PromotionBlocked      PromotionState = "blocked"
+)
+
+func PromoteWARP(p WARPProjection, health WARPHealth, targetCanary, controls bool) PromotionState {
+	if !p.Valid() || !targetCanary || !controls {
+		return PromotionBlocked
+	}
+	if health.NonRU == "experimental" {
+		return PromotionExperimental
+	}
+	if health.Base == "healthy" {
+		return PromotionReady
+	}
+	return PromotionPending
+}
 
 type WARPWizardState struct {
 	BaseEnabled       bool
