@@ -1,6 +1,7 @@
 import { apiGet, apiPost } from "./apiClient";
 import type {
   ClassifierConfigEnvelope,
+  ClassifierHardeningStatus,
   ClassifierIsolationStatus,
   ClientHelloProfilesResponse,
   FailureCandidatesResponse,
@@ -50,6 +51,8 @@ export const classifierApi = {
     apiGet<ClassifierConfigEnvelope>("/api/v2/classifier/config"),
   isolation: () =>
     apiGet<ClassifierIsolationStatus>("/api/v2/classifier/isolation"),
+  hardening: () =>
+    apiGet<ClassifierHardeningStatus>("/api/v2/classifier/hardening"),
   issueBundle: () =>
     apiGet<IssueBundle>("/api/diagnostics/issue-bundle"),
   metrics: () =>

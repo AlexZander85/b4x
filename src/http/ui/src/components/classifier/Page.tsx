@@ -14,6 +14,7 @@ import { DiscoveryPanel } from "./DiscoveryPanel";
 import { DryRunPanel } from "./DryRunPanel";
 import { FailureInboxPanel } from "./FailureInboxPanel";
 import { FlowsPanel } from "./FlowsPanel";
+import { HardeningPanel } from "./HardeningPanel";
 import { OverviewPanel } from "./OverviewPanel";
 import { PPEPanel } from "./PPEPanel";
 import { RolloutPanel } from "./RolloutPanel";
@@ -27,6 +28,10 @@ export function ClassifierPage() {
 
   const configQuery = useQuery({ queryKey: ["classifier-v23-config"], queryFn: classifierApi.config });
   const isolationQuery = useQuery({ queryKey: ["classifier-v23-isolation"], queryFn: classifierApi.isolation, refetchInterval: 5000 });
+  const hardeningQuery = useQuery({
+    queryKey: ["classifier-hardening-v1"], queryFn: classifierApi.hardening, enabled: advanced,
+    refetchInterval: advanced ? 5000 : false,
+  });
   const bundleQuery = useQuery({ queryKey: ["classifier-issue-bundle"], queryFn: classifierApi.issueBundle, refetchInterval: 5000 });
   const failuresQuery = useQuery({ queryKey: ["classifier-failures"], queryFn: classifierApi.failures, refetchInterval: 5000 });
   const profilesQuery = useQuery({ queryKey: ["classifier-clienthello"], queryFn: classifierApi.clientHelloProfiles, refetchInterval: 10000 });
@@ -65,6 +70,7 @@ export function ClassifierPage() {
   const refetchAll = () => {
     void Promise.all([
       configQuery.refetch(), isolationQuery.refetch(), bundleQuery.refetch(), failuresQuery.refetch(), profilesQuery.refetch(),
+      ...(advanced ? [hardeningQuery.refetch()] : []),
       discoveryCurrentQuery.refetch(), discoveryHistoryQuery.refetch(),
     ]);
   };
@@ -107,6 +113,14 @@ export function ClassifierPage() {
       {tab === 0 && (
         <Stack gap={2}>
           <PPEPanel advanced={advanced} />
+          {advanced && (
+            <HardeningPanel
+              status={hardeningQuery.data}
+              metrics={bundleQuery.data?.metrics}
+              loading={hardeningQuery.isLoading}
+              error={hardeningQuery.error}
+            />
+          )}
           <OverviewPanel config={configQuery.data} isolation={isolationQuery.data} bundle={bundleQuery.data} advanced={advanced} />
         </Stack>
       )}

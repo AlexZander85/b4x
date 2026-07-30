@@ -472,3 +472,128 @@ export interface RuntimePrepareRequest {
     stop_on_capture_incomplete: boolean;
   };
 }
+
+
+export interface GSOOffloadMetadata {
+  payload_length?: number;
+  original_length?: number;
+  truncated?: boolean;
+  is_gso?: boolean;
+  checksum_not_ready?: boolean;
+  checksum_not_verified?: boolean;
+}
+
+export interface GSOCapabilityStatus {
+  level: "unsupported" | "supported-unvalidated" | "observe-only" | "classify-ready" | "full-action-ready" | "failed" | string;
+  reason?: string;
+  last_observed?: string;
+  last_metadata?: GSOOffloadMetadata;
+}
+
+export interface GSOQueueRange {
+  role: "production" | "discovery" | "candidate" | "normalizer" | string;
+  start: number;
+  threads: number;
+  enabled: boolean;
+}
+
+export interface GSOTopologyPlan {
+  production: GSOQueueRange;
+  discovery: GSOQueueRange;
+  candidate: GSOQueueRange;
+  normalizer: GSOQueueRange;
+  families: { ipv4: boolean; ipv6: boolean };
+  queue_bypass: boolean;
+  normalizer_mechanism: string;
+  estimated_workers: number;
+  estimated_memory_bytes: number;
+  max_workers: number;
+  max_memory_bytes: number;
+  requires_rule_transition: boolean;
+}
+
+export interface GSOPassTokenStats {
+  created: number;
+  reused: number;
+  consumed: number;
+  misses: number;
+  stale: number;
+  expired: number;
+  evicted: number;
+  flow_invalidated: number;
+  generation_invalidated: number;
+  cleared: number;
+}
+
+export interface PassiveRSTStoreStats {
+  created: number;
+  observed: number;
+  rst_observed: number;
+  evicted: number;
+  expired: number;
+  flow_invalidated: number;
+  generation_invalidated: number;
+  cleared: number;
+  passed: number;
+  suppressed: number;
+  fail_open: number;
+  budget_exhausted: number;
+}
+
+export interface PassiveRSTDecisionStatus {
+  flow_id: string;
+  set_id?: string;
+  device_scope?: string;
+  config_generation: number;
+  observed_at: string;
+  decision: string;
+  reason?: string;
+  baseline_quality: string;
+  visibility_complete: boolean;
+  server_progress: boolean;
+  budget_remaining: number;
+  signals?: Array<{ signal: string; strength: string }>;
+}
+
+export interface PassiveRSTRollbackStatus {
+  set_id: string;
+  device_scope: string;
+  config_generation: number;
+  environment: string;
+  from_mode: string;
+  effective_mode: string;
+  reason: string;
+  triggered_at: string;
+}
+
+export interface ClassifierHardeningStatus {
+  api_version: string;
+  classifier_api_version: string;
+  generated_at: string;
+  runtime_generation?: string;
+  gso: {
+    requested_mode: "off" | "observe" | "classify" | "full" | string;
+    execution_policy: "fail-open" | "classify-only" | "normalize-for-action" | string;
+    max_gso_bytes: number;
+    normalize_for_mutation: boolean;
+    tcp_only: boolean;
+    capability: GSOCapabilityStatus;
+    workers: number;
+    topology: GSOTopologyPlan;
+    topology_source: string;
+    token_stats: GSOPassTokenStats;
+    active_tokens: number;
+  };
+  passive_rst: {
+    requested_mode: "off" | "observe" | "conservative" | "aggressive" | string;
+    effective_mode: string;
+    set_scopes?: string[];
+    device_scopes?: string[];
+    visibility_complete: number;
+    visibility_incomplete: number;
+    stats: PassiveRSTStoreStats;
+    recent_decisions?: PassiveRSTDecisionStatus[];
+    recent_rollbacks?: PassiveRSTRollbackStatus[];
+  };
+  warnings?: string[];
+}

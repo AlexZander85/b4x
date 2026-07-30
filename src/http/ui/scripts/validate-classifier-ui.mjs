@@ -16,6 +16,7 @@ const page = [
   "DryRunPanel.tsx",
   "DiscoveryPanel.tsx",
   "FailureInboxPanel.tsx",
+  "HardeningPanel.tsx",
   "ClientHelloPanel.tsx",
   "RolloutPanel.tsx",
   "shared.tsx",
@@ -29,6 +30,7 @@ const handlers = [
   readRepo("http/handler/failure_inbox.go"),
   readRepo("http/handler/clienthello_lab.go"),
   readRepo("http/handler/classifier_v23.go"),
+  readRepo("http/handler/classifier_hardening.go"),
   readRepo("http/handler/runtime_control.go"),
 ].join("\n");
 
@@ -45,6 +47,7 @@ for (const tab of requiredTabs) {
 
 for (const endpoint of [
   "/api/v2/classifier/config",
+  "/api/v2/classifier/hardening",
   "/api/diagnostics/issue-bundle",
   "/api/diagnostics/failures",
   "/api/lab/clienthello",
@@ -73,6 +76,14 @@ assert.match(page, /baseline-none/);
 assert.match(page, /captureCounters/);
 assert.match(page, /actionCounters/);
 assert.match(page, /last_good/);
+assert.match(page + api + model, /ClassifierHardeningStatus|classifier-hardening-v1/);
+assert.match(page, /nfqueue_gso_normalized_total/);
+assert.match(page, /classifier_layout_parity_fail_total/);
+assert.match(page, /passive_rst_rollback_total/);
+assert.match(page, /requested_mode === "full"/);
+assert.match(page, /requested_mode === "aggressive"/);
+assert.ok(en.classifier.hardening.fullWarning);
+assert.ok(ru.classifier.hardening.aggressiveWarning);
 assert.match(page, /setId/);
 assert.match(model, /set or strategy scope is required/);
 assert.match(model, /maxAmplification/);
