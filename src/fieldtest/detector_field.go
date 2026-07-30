@@ -43,3 +43,13 @@ type CleanBaseline struct {
 func (b CleanBaseline) Ready() bool {
 	return b.NetworkContextID != "" && b.ConfigGeneration != "" && b.Visibility && b.NativeDirect && b.ControlsHealthy && !b.DirtyState && !b.ActiveWARP && !b.IncompleteVisibility
 }
+
+type ProtocolEvidence struct {
+	DNSConsensus, DNSSpoof, TLS12, TLS13, HTTP, QUIC, TCPComparison, L4, MultipleOrigins, ControlsHealthy bool
+	WirePackets, UniqueBytes                                                                              uint64
+	RetransmissionNonProgress                                                                             bool
+}
+
+func (e ProtocolEvidence) Ready() bool {
+	return e.DNSConsensus && e.TLS12 && e.TLS13 && e.HTTP && e.QUIC && e.TCPComparison && e.L4 && e.MultipleOrigins && e.ControlsHealthy && !e.DNSSpoof && !e.RetransmissionNonProgress
+}
