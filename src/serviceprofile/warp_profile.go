@@ -52,3 +52,16 @@ type WARPHealth struct {
 	ObservedCountry, AttestationAge string
 	DegradedReason                  string
 }
+
+type WARPWizardState struct {
+	BaseEnabled       bool
+	CamouflageChoice  string
+	ExperimentalNonRU bool
+	Health            WARPHealth
+	TraceVisible      bool
+	SecretsRedacted   bool
+}
+
+func (w WARPWizardState) Honest() bool {
+	return w.SecretsRedacted && (w.Health.Base != "healthy" || w.Health.ObservedCountry != "")
+}
