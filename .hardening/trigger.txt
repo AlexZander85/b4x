@@ -1,1 +1,1 @@
-H9 API schema and observability gate v2
+H9 advanced UI diagnostics gate v1
