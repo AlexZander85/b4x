@@ -60,3 +60,19 @@ func TestPassiveRSTActiveModesRequireScopesAndAggressiveConfirmation(t *testing.
 		t.Fatalf("scopes not normalized: %+v", got)
 	}
 }
+
+func TestPassiveRSTRollbackThresholdDefaultsAndValidation(t *testing.T) {
+	cfg := NewConfig()
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	rst := cfg.System.Classifier.Runtime.PassiveRST
+	if rst.RollbackWindowSeconds != 60 || rst.ReconnectFailureThreshold != 3 || rst.QueueDropThreshold != 1 {
+		t.Fatalf("rollback defaults=%+v", rst)
+	}
+	cfg = NewConfig()
+	cfg.System.Classifier.Runtime.PassiveRST.RollbackWindowSeconds = 1
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unsafe rollback window accepted")
+	}
+}

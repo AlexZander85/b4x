@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -271,6 +272,19 @@ func (r *liveRuntime) finishCanary(pool *nfq.Pool, spec CanarySpec, started time
 		} else {
 			outcome.StopReason = "candidate capture readiness was lost"
 		}
+	}
+	deviceScope := strings.TrimSpace(spec.ClientGroup)
+	if parts := strings.SplitN(deviceScope, ":", 2); len(parts) == 2 {
+		deviceScope = parts[1]
+	}
+	rollback, triggered := pool.RecordPassiveRSTHealth(nfq.PassiveRSTHealthSample{
+		SetID: spec.SetID, DeviceScope: deviceScope, Environment: nfq.PassiveRSTEnvironmentCandidate,
+		ReconnectFailures: int(outcome.Failures), NoProgress: int(incompleteFlows), QueueDrops: int(outcome.QueueDrops),
+		ObservedAt: outcome.CompletedAt,
+	})
+	if triggered {
+		outcome.Passed = false
+		outcome.StopReason = "passive RST scope rolled back to observe: " + rollback.Reason
 	}
 	return outcome, nil
 }

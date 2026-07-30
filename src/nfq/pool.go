@@ -105,6 +105,15 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 	if state == nil {
 		state = newRuntimeState(cfg)
 	}
+	if state.passiveRST != nil && ownsState {
+		environment := PassiveRSTEnvironmentProduction
+		if candidate {
+			environment = PassiveRSTEnvironmentCandidate
+		} else if cfg.Queue.IsDiscovery {
+			environment = PassiveRSTEnvironmentDiscovery
+		}
+		state.passiveRST.SetEnvironment(environment)
+	}
 	var dhcpMgr *dhcp.Manager
 	if startDHCP {
 		dhcpMgr = dhcp.NewManager()
@@ -454,4 +463,38 @@ func (p *Pool) GetFirstWorkerConfig() *config.Config {
 func (w *Worker) GetCacheStats() map[string]interface{} {
 	matcher := w.getMatcher()
 	return matcher.GetCacheStats()
+}
+
+// RecordPassiveRSTHealth feeds scoped canary/baseline regressions into the
+// runtime rollback monitor. Production, candidate and discovery pools own
+// separate stores, so their suppression state cannot mix.
+func (p *Pool) RecordPassiveRSTHealth(sample PassiveRSTHealthSample) (PassiveRSTRollbackState, bool) {
+	if p == nil || p.state == nil || p.state.passiveRST == nil || len(p.Workers) == 0 {
+		return PassiveRSTRollbackState{}, false
+	}
+	cfg, _ := p.Workers[0].cfg.Load().(*config.Config)
+	if cfg == nil {
+		return PassiveRSTRollbackState{}, false
+	}
+	if sample.ConfigGeneration == 0 {
+		sample.ConfigGeneration = dnsHintConfigGeneration(cfg)
+	}
+	if sample.Environment == "" {
+		switch {
+		case p.candidate:
+			sample.Environment = PassiveRSTEnvironmentCandidate
+		case cfg.Queue.IsDiscovery:
+			sample.Environment = PassiveRSTEnvironmentDiscovery
+		default:
+			sample.Environment = PassiveRSTEnvironmentProduction
+		}
+	}
+	return p.state.passiveRST.RecordHealth(cfg.System.Classifier.Runtime.PassiveRST, sample)
+}
+
+func (p *Pool) PassiveRSTRollbacks(limit int) []PassiveRSTRollbackState {
+	if p == nil || p.state == nil || p.state.passiveRST == nil {
+		return nil
+	}
+	return p.state.passiveRST.RecentRollbacks(limit)
 }

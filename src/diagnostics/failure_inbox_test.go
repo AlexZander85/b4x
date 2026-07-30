@@ -181,3 +181,35 @@ func BenchmarkFailureInboxObserve(b *testing.B) {
 		_, _ = inbox.Observe(observation)
 	}
 }
+
+func TestFailureInboxStoresPrivacySafePassiveRSTEvidenceAndOutcome(t *testing.T) {
+	fixed := clock.NewFixed(time.Unix(800, 0))
+	inbox := NewFailureInbox(InboxConfig{Retention: time.Minute}, fixed)
+	client := classifier.ClientKey{L3Family: 4, SourceIP: netip.MustParseAddr("192.0.2.81"), SourceMAC: [6]byte{2, 1, 2, 3, 4, 81}}
+	observation := validFailureObservation(client, SignalPassiveRSTSuppressed, fixed.Now())
+	observation.SetCandidates = []string{"private-youtube"}
+	observation.PassiveRST = &PassiveRSTFailureDetails{
+		FlowID: "raw exact flow", SetID: "private-youtube", DeviceScope: "aa:bb:cc:dd:ee:81", ConfigGeneration: 77,
+		TCPPhase: "post-syn-ack-pre-payload", Signals: []PassiveRSTSignalDetail{{Signal: "sequence-outside", Strength: "strong", Reason: "raw seq 1234"}},
+		BaselineQuality: "stable", BaselineSpread: 2, Sequence: PassiveRSTWindowDetail{Reliable: true, InWindow: false},
+		Acknowledgment: PassiveRSTWindowDetail{Reliable: true, InWindow: true}, OptionFingerprint: "mismatch", Decision: "suppress",
+		RequestedMode: "conservative", EffectiveMode: "conservative",
+	}
+	candidate, err := inbox.Observe(observation)
+	if err != nil || candidate.PassiveRST == nil || candidate.SuggestedAction != ActionScopedCanary {
+		t.Fatalf("candidate=%+v err=%v", candidate, err)
+	}
+	exported := string(mustJSON(*candidate))
+	for _, secret := range []string{"raw exact flow", "private-youtube", "aa:bb:cc:dd:ee:81"} {
+		if strings.Contains(exported, secret) {
+			t.Fatalf("privacy leak %q in %s", secret, exported)
+		}
+	}
+	if !inbox.UpdatePassiveRSTOutcome(client, "203.0.113.10", 443, 6, "server-progress", fixed.Now().Add(time.Second)) {
+		t.Fatal("causal outcome was not attached")
+	}
+	got := inbox.List(1)[0]
+	if got.PassiveRST.PostDecisionOutcome != "server-progress" || got.PassiveRST.Decision != "suppress" {
+		t.Fatalf("outcome changed decision semantics: %+v", got.PassiveRST)
+	}
+}

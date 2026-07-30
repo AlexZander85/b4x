@@ -172,6 +172,12 @@ type PassiveRSTRuntimeConfig struct {
 	SuppressionBudgetPerFlow    int      `json:"suppression_budget_per_flow"`
 	SuppressionWindowSeconds    int      `json:"suppression_window_seconds"`
 	GlobalSuppressionsPerMinute int      `json:"global_suppressions_per_minute"`
+	RollbackWindowSeconds       int      `json:"rollback_window_seconds"`
+	ReconnectFailureThreshold   int      `json:"reconnect_failure_threshold"`
+	NoProgressThreshold         int      `json:"no_progress_threshold"`
+	ControlFailureThreshold     int      `json:"control_failure_threshold"`
+	QueueDropThreshold          int      `json:"queue_drop_threshold"`
+	RouterPressureThreshold     int      `json:"router_pressure_threshold"`
 	RecentDecisionLimit         int      `json:"recent_decision_limit"`
 }
 
@@ -285,7 +291,7 @@ var DefaultClassifierRuntimeConfig = ClassifierRuntimeConfig{
 	Capture:        CaptureRuntimeConfig{OffloadPolicy: OffloadPolicyDetect, NFQueue: NFQueueCaptureConfig{GSOMode: GSOModeOff, MaxGSOBytes: 32 * 1024, NormalizeForMutation: true, TCPOnly: true, NormalizerMechanism: GSONormalizerDirectQueue, NormalizerQueueOffset: 2, NormalizerThreads: 1, DiscoveryQueueOffset: 0, DiscoveryThreads: 1, MaxTopologyWorkers: 32, MaxTopologyMemoryBytes: 64 * 1024 * 1024}, PPE: PPEOffloadConfig{TCPEnabled: true, QUICEnabled: true, TCPPorts: []uint16{80, 443, 2053, 2083, 2087, 2096, 8443}, UDPPorts: []uint16{443}, ConnskipPackets: 30, IPv4: PPEFamilyAuto, IPv6: PPEFamilyAuto, SourceScope: PPESourceManagedDevices, ReassertIntervalSec: 55, SelfTest: PPESelfTestConfig{Mode: PPESelfTestStartupAndChange, TimeoutMS: 5000}}, OutgoingPacketLimit: 20, IncomingPacketLimit: 20, AlwaysQueueSynAck: true, AlwaysQueueFIN: true, AlwaysQueueRST: true, AlwaysQueueQUIC: true, ProcessedMarkMask: 1 << 27, QueueBypass: true, CandidateQueueOffset: 1, ReadinessTimeoutMS: 3000, OffloadSelfCheck: true},
 	Reassembly:     ReassemblyRuntimeConfig{MaxFlows: 1024, MaxBytesPerFlow: 32 * 1024, MaxBytesTotal: 4 * 1024 * 1024, MaxSegments: 64, MaxClientHello: 32 * 1024, TimeoutMS: 5000},
 	HoldReplay:     HoldReplayRuntimeConfig{MaxFlows: 256, MaxPacketsPerFlow: 8, MaxBytesTotal: 64 * 1024, TimeoutMS: 750, ReleaseOnPressure: true},
-	PassiveRST:     PassiveRSTRuntimeConfig{Mode: PassiveRSTObserve, MaxFlows: 4096, FlowTTLSeconds: 120, BaselineSamples: 8, BaselineFreshnessSeconds: 60, MinTTLTolerance: 3, TTLSafetyMargin: 2, BurstThreshold: 2, BurstWindowMS: 1500, SuppressionBudgetPerFlow: 2, SuppressionWindowSeconds: 30, GlobalSuppressionsPerMinute: 64, RecentDecisionLimit: 256},
+	PassiveRST:     PassiveRSTRuntimeConfig{Mode: PassiveRSTObserve, MaxFlows: 4096, FlowTTLSeconds: 120, BaselineSamples: 8, BaselineFreshnessSeconds: 60, MinTTLTolerance: 3, TTLSafetyMargin: 2, BurstThreshold: 2, BurstWindowMS: 1500, SuppressionBudgetPerFlow: 2, SuppressionWindowSeconds: 30, GlobalSuppressionsPerMinute: 64, RollbackWindowSeconds: 60, ReconnectFailureThreshold: 3, NoProgressThreshold: 3, ControlFailureThreshold: 1, QueueDropThreshold: 1, RouterPressureThreshold: 1, RecentDecisionLimit: 256},
 	Actions:        ActionBudgetRuntimeConfig{MaxWritesPerHello: 16, MaxFakeBytes: 64 * 1024, MaxAmplification: 4},
 	Discovery:      DiscoveryRuntimeConfig{SandboxMaxActive: 8, SandboxMaxEvents: 256, MaxProbes: 32, MaxConcurrency: 2, SamplesPerVariant: 1, StableSuccesses: 2, MaxShadowProbes: 3, RequireBaselines: true, NoAutomaticApply: true},
 	FailureInbox:   FailureInboxRuntimeConfig{MaxCandidates: 512, MaxEvidencePerCandidate: 16, MaxSetCandidates: 16, MaxSignals: 8, MaxReasons: 8, RetentionSeconds: 120, MinSYNSentAgeMS: 3000},

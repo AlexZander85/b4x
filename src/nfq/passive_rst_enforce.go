@@ -67,6 +67,10 @@ func (s *PassiveRSTStore) Enforce(cfg config.PassiveRSTRuntimeConfig, evidence P
 	if !passiveRSTScopeMatches(cfg.SetScopes, state.setID) || !passiveRSTScopeMatches(cfg.DeviceScopes, state.deviceScope) {
 		return s.finishEnforcementLocked(evidence, result, PassiveRSTDecisionFailOpen, "set/device scope is not explicitly authorized")
 	}
+	if rollback, ok := s.rollbackForLocked(state.setID, state.deviceScope, state.generation, s.environment); ok {
+		result.EffectiveMode = config.PassiveRSTObserve
+		return s.finishEnforcementLocked(evidence, result, PassiveRSTDecisionObserve, "scope rolled back to observe: "+rollback.Reason)
+	}
 	if !state.visibility || !evidence.Flow.VisibilityComplete {
 		return s.finishEnforcementLocked(evidence, result, PassiveRSTDecisionFailOpen, "incoming visibility is incomplete")
 	}

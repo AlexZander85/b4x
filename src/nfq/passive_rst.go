@@ -211,12 +211,16 @@ type PassiveRSTStore struct {
 	flows             map[classifier.FlowKey]*passiveRSTFlowState
 	endpoints         map[passiveRSTEndpointKey]classifier.FlowKey
 	recent            []PassiveRSTEvidence
+	health            map[passiveRSTHealthKey]*passiveRSTHealthWindow
+	rollbacks         map[passiveRSTHealthKey]PassiveRSTRollbackState
+	rollbackRecent    []PassiveRSTRollbackState
 	cfg               config.PassiveRSTRuntimeConfig
 	clock             clock.Clock
 	order             uint64
 	stats             PassiveRSTStoreStats
 	globalWindowStart time.Time
 	globalSuppressed  int
+	environment       string
 }
 
 func NewPassiveRSTStore(cfg config.PassiveRSTRuntimeConfig, c clock.Clock) *PassiveRSTStore {
@@ -225,11 +229,15 @@ func NewPassiveRSTStore(cfg config.PassiveRSTRuntimeConfig, c clock.Clock) *Pass
 		c = clock.RealClock{}
 	}
 	return &PassiveRSTStore{
-		flows:     make(map[classifier.FlowKey]*passiveRSTFlowState, cfg.MaxFlows),
-		endpoints: make(map[passiveRSTEndpointKey]classifier.FlowKey, cfg.MaxFlows),
-		recent:    make([]PassiveRSTEvidence, 0, cfg.RecentDecisionLimit),
-		cfg:       cfg,
-		clock:     c,
+		flows:          make(map[classifier.FlowKey]*passiveRSTFlowState, cfg.MaxFlows),
+		endpoints:      make(map[passiveRSTEndpointKey]classifier.FlowKey, cfg.MaxFlows),
+		recent:         make([]PassiveRSTEvidence, 0, cfg.RecentDecisionLimit),
+		health:         make(map[passiveRSTHealthKey]*passiveRSTHealthWindow),
+		rollbacks:      make(map[passiveRSTHealthKey]PassiveRSTRollbackState),
+		rollbackRecent: make([]PassiveRSTRollbackState, 0, cfg.RecentDecisionLimit),
+		cfg:            cfg,
+		clock:          c,
+		environment:    PassiveRSTEnvironmentProduction,
 	}
 }
 
@@ -270,6 +278,24 @@ func normalizedPassiveRSTConfig(cfg config.PassiveRSTRuntimeConfig) config.Passi
 	}
 	if cfg.GlobalSuppressionsPerMinute <= 0 {
 		cfg.GlobalSuppressionsPerMinute = d.GlobalSuppressionsPerMinute
+	}
+	if cfg.RollbackWindowSeconds <= 0 {
+		cfg.RollbackWindowSeconds = d.RollbackWindowSeconds
+	}
+	if cfg.ReconnectFailureThreshold <= 0 {
+		cfg.ReconnectFailureThreshold = d.ReconnectFailureThreshold
+	}
+	if cfg.NoProgressThreshold <= 0 {
+		cfg.NoProgressThreshold = d.NoProgressThreshold
+	}
+	if cfg.ControlFailureThreshold <= 0 {
+		cfg.ControlFailureThreshold = d.ControlFailureThreshold
+	}
+	if cfg.QueueDropThreshold <= 0 {
+		cfg.QueueDropThreshold = d.QueueDropThreshold
+	}
+	if cfg.RouterPressureThreshold <= 0 {
+		cfg.RouterPressureThreshold = d.RouterPressureThreshold
 	}
 	if cfg.RecentDecisionLimit <= 0 {
 		cfg.RecentDecisionLimit = d.RecentDecisionLimit
@@ -346,7 +372,7 @@ func (s *PassiveRSTStore) ObserveIncoming(clientIP, serverIP string, clientPort,
 		s.stats.RSTObserved++
 		return clonePassiveRSTEvidence(evidence), true
 	}
-	return PassiveRSTEvidence{}, true
+	return PassiveRSTEvidence{Flow: s.snapshotLocked(state, now), ObservedAt: now}, true
 }
 
 func normalizedObservationTime(got, fallback time.Time) time.Time {
@@ -726,6 +752,16 @@ func (s *PassiveRSTStore) InvalidateGeneration(generation uint64) int {
 			removed++
 		}
 	}
+	for key := range s.health {
+		if key.ConfigGeneration == generation {
+			delete(s.health, key)
+		}
+	}
+	for key := range s.rollbacks {
+		if key.ConfigGeneration == generation {
+			delete(s.rollbacks, key)
+		}
+	}
 	s.stats.GenerationInvalidated += uint64(removed)
 	return removed
 }
@@ -751,7 +787,10 @@ func (s *PassiveRSTStore) Clear() int {
 	removed := len(s.flows)
 	clear(s.flows)
 	clear(s.endpoints)
+	clear(s.health)
+	clear(s.rollbacks)
 	s.recent = s.recent[:0]
+	s.rollbackRecent = s.rollbackRecent[:0]
 	s.stats.Cleared += uint64(removed)
 	return removed
 }
@@ -772,6 +811,17 @@ func (s *PassiveRSTStore) pruneExpiredLocked(now time.Time) int {
 		if !state.lastSeen.Add(ttl).After(now) {
 			s.deleteFlowLocked(flow)
 			removed++
+		}
+	}
+	rollbackTTL := time.Duration(s.cfg.RollbackWindowSeconds) * time.Second
+	for key, window := range s.health {
+		if !window.lastObservedAt.Add(rollbackTTL).After(now) {
+			delete(s.health, key)
+		}
+	}
+	for key, state := range s.rollbacks {
+		if !state.TriggeredAt.Add(time.Duration(s.cfg.FlowTTLSeconds) * time.Second).After(now) {
+			delete(s.rollbacks, key)
 		}
 	}
 	s.stats.Expired += uint64(removed)

@@ -37,6 +37,8 @@ const (
 	SignalBlockedCacheScopeRejected  FailureSignal = "blocked_cache_scope_rejected"
 	SignalRouteScopeRejected         FailureSignal = "route_scope_rejected"
 	SignalQUICActionScopeRejected    FailureSignal = "quic_action_scope_rejected"
+	SignalPassiveRSTSuspicious       FailureSignal = "passive_rst_suspicious"
+	SignalPassiveRSTSuppressed       FailureSignal = "passive_rst_suppressed"
 )
 
 type SuggestedAction string
@@ -70,23 +72,24 @@ type FailureEvidence struct {
 // QUIC and set evidence are redacted at insertion; raw packet bytes and clear
 // ClientHello data are never retained here.
 type FailureCandidate struct {
-	ID               string               `json:"id"`
-	Client           classifier.ClientKey `json:"client"`
-	DestinationIP    netip.Addr           `json:"destination_ip"`
-	DestinationPort  uint16               `json:"destination_port"`
-	Protocol         uint8                `json:"protocol"`
-	ConntrackState   string               `json:"conntrack_state,omitempty"`
-	FirstSeen        time.Time            `json:"first_seen"`
-	LastSeen         time.Time            `json:"last_seen"`
-	ExpiresAt        time.Time            `json:"expires_at"`
-	DNSCandidates    []FailureEvidence    `json:"dns_candidates,omitempty"`
-	QUICCandidates   []FailureEvidence    `json:"quic_candidates,omitempty"`
-	SetCandidates    []string             `json:"set_candidates,omitempty"`
-	FlowRetries      int                  `json:"flow_retries"`
-	SuggestedAction  SuggestedAction      `json:"suggested_action"`
-	AvailableActions []SuggestedAction    `json:"available_actions"`
-	Signals          []FailureSignal      `json:"signals"`
-	Reasons          []string             `json:"reasons,omitempty"`
+	ID               string                    `json:"id"`
+	Client           classifier.ClientKey      `json:"client"`
+	DestinationIP    netip.Addr                `json:"destination_ip"`
+	DestinationPort  uint16                    `json:"destination_port"`
+	Protocol         uint8                     `json:"protocol"`
+	ConntrackState   string                    `json:"conntrack_state,omitempty"`
+	FirstSeen        time.Time                 `json:"first_seen"`
+	LastSeen         time.Time                 `json:"last_seen"`
+	ExpiresAt        time.Time                 `json:"expires_at"`
+	DNSCandidates    []FailureEvidence         `json:"dns_candidates,omitempty"`
+	QUICCandidates   []FailureEvidence         `json:"quic_candidates,omitempty"`
+	SetCandidates    []string                  `json:"set_candidates,omitempty"`
+	FlowRetries      int                       `json:"flow_retries"`
+	SuggestedAction  SuggestedAction           `json:"suggested_action"`
+	AvailableActions []SuggestedAction         `json:"available_actions"`
+	Signals          []FailureSignal           `json:"signals"`
+	Reasons          []string                  `json:"reasons,omitempty"`
+	PassiveRST       *PassiveRSTFailureDetails `json:"passive_rst,omitempty"`
 }
 
 type FailureObservation struct {
@@ -103,6 +106,7 @@ type FailureObservation struct {
 	SetCandidates   []string
 	FlowRetries     int
 	Reason          string
+	PassiveRST      *PassiveRSTFailureDetails
 }
 
 type OffloadObservation struct {
@@ -264,6 +268,9 @@ func (i *FailureInbox) Observe(observation FailureObservation) (*FailureCandidat
 	candidate.SuggestedAction = suggestedAction(observation.Signal)
 	appendUniqueSignal(candidate, observation.Signal, i.config.MaxSignals)
 	appendBoundedReason(candidate, observation.Reason, i.config.MaxReasons)
+	if observation.PassiveRST != nil {
+		candidate.PassiveRST = normalizePassiveRSTFailure(observation.PassiveRST)
+	}
 	for _, setID := range observation.SetCandidates {
 		appendSetCandidate(candidate, setID, i.config.MaxSetCandidates)
 	}
@@ -399,7 +406,7 @@ func validSignal(signal FailureSignal) bool {
 		SignalFlowRetry, SignalQueueDrop, SignalOffloadSuspicion, SignalProbeFailure,
 		SignalCrossServiceScopeViolation, SignalProvisionalSetRevokedBySNI, SignalSharedIPAmbiguous,
 		SignalUnsafeLegacyDomainScope, SignalBlockedCacheScopeRejected, SignalRouteScopeRejected,
-		SignalQUICActionScopeRejected:
+		SignalQUICActionScopeRejected, SignalPassiveRSTSuspicious, SignalPassiveRSTSuppressed:
 		return true
 	default:
 		return false
@@ -534,7 +541,7 @@ func suggestedAction(signal FailureSignal) SuggestedAction {
 		return ActionClientHello
 	case SignalFlowRetry, SignalCrossServiceScopeViolation, SignalSharedIPAmbiguous:
 		return ActionDiscovery
-	case SignalUnsafeLegacyDomainScope, SignalBlockedCacheScopeRejected, SignalRouteScopeRejected, SignalQUICActionScopeRejected:
+	case SignalUnsafeLegacyDomainScope, SignalBlockedCacheScopeRejected, SignalRouteScopeRejected, SignalQUICActionScopeRejected, SignalPassiveRSTSuppressed:
 		return ActionScopedCanary
 	case SignalProbeFailure:
 		return ActionIssueBundle
@@ -558,6 +565,7 @@ func cloneCandidate(in *FailureCandidate) *FailureCandidate {
 	out.AvailableActions = append([]SuggestedAction(nil), in.AvailableActions...)
 	out.Signals = append([]FailureSignal(nil), in.Signals...)
 	out.Reasons = append([]string(nil), in.Reasons...)
+	out.PassiveRST = clonePassiveRSTFailure(in.PassiveRST)
 	return &out
 }
 

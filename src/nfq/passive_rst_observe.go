@@ -2,10 +2,13 @@ package nfq
 
 import (
 	"fmt"
+	"net/netip"
 	"time"
 
 	"github.com/daniellavrushin/b4/capture/ppe"
+	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/diagnostics"
 	"github.com/daniellavrushin/b4/observability"
 )
 
@@ -38,7 +41,10 @@ func (w *Worker) observePassiveRSTOutgoing(cfg *config.Config, pkt *pktInfo, tcp
 	}
 	obs.SetID = passiveRSTSetID(set)
 	obs.DeviceScope = pkt.srcMac
-	w.passiveRST.ObserveOutgoing(flow, dnsHintConfigGeneration(cfg), obs)
+	snapshot := w.passiveRST.ObserveOutgoing(flow, dnsHintConfigGeneration(cfg), obs)
+	if tcp[13]&0x02 != 0 && tcp[13]&0x10 == 0 {
+		updatePassiveRSTFailureOutcome(snapshot.FlowKey, "reconnect-attempt", obs.ObservedAt)
+	}
 }
 
 func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp, payload []byte, sport, dport uint16) (PassiveRSTEnforcementResult, bool) {
@@ -50,6 +56,9 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 		return PassiveRSTEnforcementResult{}, false
 	}
 	evidence, tracked := w.passiveRST.ObserveIncoming(pkt.dstStr, pkt.srcStr, dport, sport, dnsHintConfigGeneration(cfg), obs)
+	if tracked && len(payload) > 0 {
+		updatePassiveRSTFailureOutcome(evidence.Flow.FlowKey, "server-progress", evidence.ObservedAt)
+	}
 	if !tracked || tcp[13]&0x04 == 0 {
 		return PassiveRSTEnforcementResult{}, false
 	}
@@ -82,5 +91,78 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 		Kind:      "passive_rst_decision",
 		Fields:    fields,
 	})
+	reportPassiveRSTFailure(evidence, result)
 	return result, true
+}
+
+func reportPassiveRSTFailure(evidence PassiveRSTEvidence, result PassiveRSTEnforcementResult) {
+	flow := evidence.Flow.FlowKey.Normalize()
+	destination, port, ok := passiveRSTFailureDestination(flow)
+	if !ok || flow.Client.IsZero() {
+		return
+	}
+	signal := diagnostics.SignalPassiveRSTSuspicious
+	if result.Suppress() {
+		signal = diagnostics.SignalPassiveRSTSuppressed
+	}
+	details := &diagnostics.PassiveRSTFailureDetails{
+		FlowID: fmt.Sprintf("%v", flow), SetID: evidence.Flow.SetID, DeviceScope: evidence.Flow.DeviceScope,
+		ConfigGeneration: evidence.Flow.ConfigGeneration, TCPPhase: passiveRSTTCPPhase(evidence.Flow), ServerPayloadProgress: evidence.Flow.ServerPayloadProgress,
+		BaselineQuality: string(evidence.Baseline.Quality), BaselineSpread: evidence.Baseline.Spread,
+		Sequence:          diagnostics.PassiveRSTWindowDetail{Reliable: evidence.Sequence.Reliable, InWindow: evidence.Sequence.InWindow},
+		Acknowledgment:    diagnostics.PassiveRSTWindowDetail{Reliable: evidence.Acknowledgment.Reliable, InWindow: evidence.Acknowledgment.InWindow},
+		OptionFingerprint: passiveRSTOptionResult(evidence), Decision: string(result.Decision), RequestedMode: result.RequestedMode,
+		EffectiveMode: result.EffectiveMode, PostDecisionOutcome: "pending",
+	}
+	for _, observed := range evidence.Signals {
+		details.Signals = append(details.Signals, diagnostics.PassiveRSTSignalDetail{Signal: string(observed.Signal), Strength: string(observed.Strength), Reason: observed.Reason})
+	}
+	_, _ = diagnostics.Default().Observe(diagnostics.FailureObservation{
+		Signal: signal, Client: flow.Client, DestinationIP: destination, DestinationPort: port, Protocol: 6,
+		ObservedAt: evidence.ObservedAt, SetCandidates: []string{evidence.Flow.SetID}, Reason: result.Reason, PassiveRST: details,
+	})
+}
+
+func passiveRSTFailureDestination(flow classifier.FlowKey) (netip.Addr, uint16, bool) {
+	clientIP := flow.Client.SourceIP.Unmap()
+	if !clientIP.IsValid() {
+		return netip.Addr{}, 0, false
+	}
+	if flow.SrcIP.Unmap() == clientIP {
+		return flow.DstIP.Unmap(), flow.DstPort, flow.DstIP.IsValid() && flow.DstPort != 0
+	}
+	return flow.SrcIP.Unmap(), flow.SrcPort, flow.SrcIP.IsValid() && flow.SrcPort != 0
+}
+
+func updatePassiveRSTFailureOutcome(flow classifier.FlowKey, outcome string, observedAt time.Time) {
+	destination, port, ok := passiveRSTFailureDestination(flow.Normalize())
+	if !ok || flow.Client.IsZero() {
+		return
+	}
+	diagnostics.Default().UpdatePassiveRSTOutcome(flow.Client, destination.String(), port, 6, outcome, observedAt)
+}
+
+func passiveRSTTCPPhase(flow PassiveRSTFlowSnapshot) string {
+	switch {
+	case flow.ServerPayloadProgress:
+		return "server-payload-progress"
+	case flow.SYNACKSeen:
+		return "post-syn-ack-pre-payload"
+	case flow.SYNSeen:
+		return "syn-sent"
+	default:
+		return "untracked"
+	}
+}
+
+func passiveRSTOptionResult(evidence PassiveRSTEvidence) string {
+	for _, signal := range evidence.Signals {
+		if signal.Signal == PassiveRSTSignalOptionsMismatch {
+			return "mismatch"
+		}
+	}
+	if evidence.Flow.ServerOptionsKnown && evidence.OptionsFingerprint != 0 {
+		return "match"
+	}
+	return "unknown"
 }
