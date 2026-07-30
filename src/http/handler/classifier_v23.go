@@ -2,6 +2,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,13 +11,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/runtimecontrol"
 )
 
 const classifierConfigAPIPath = "/api/v2/classifier/config"
 
 type classifierConfigEnvelope struct {
 	APIVersion           string                  `json:"api_version"`
+	HardeningAPIVersion  string                  `json:"hardening_api_version"`
 	SchemaVersion        int                     `json:"schema_version"`
 	RuntimeGeneration    string                  `json:"runtime_generation,omitempty"`
 	ExportedAt           time.Time               `json:"exported_at,omitempty"`
@@ -27,15 +31,20 @@ type classifierConfigEnvelope struct {
 }
 
 type classifierSchemaResponse struct {
-	APIVersion      string               `json:"api_version"`
-	SchemaVersion   int                  `json:"schema_version"`
-	DomainOnlyModes []string             `json:"domain_only_modes"`
-	ReassemblyModes []string             `json:"reassembly_modes"`
-	HoldReplayModes []string             `json:"hold_replay_modes"`
-	FallbackModes   []string             `json:"fallback_modes"`
-	PrivacyModes    []string             `json:"privacy_modes"`
-	Groups          []classifierAPIGroup `json:"groups"`
-	Invariants      []string             `json:"invariants"`
+	APIVersion          string               `json:"api_version"`
+	HardeningAPIVersion string               `json:"hardening_api_version"`
+	SchemaVersion       int                  `json:"schema_version"`
+	DomainOnlyModes     []string             `json:"domain_only_modes"`
+	ReassemblyModes     []string             `json:"reassembly_modes"`
+	HoldReplayModes     []string             `json:"hold_replay_modes"`
+	FallbackModes       []string             `json:"fallback_modes"`
+	PrivacyModes        []string             `json:"privacy_modes"`
+	GSOModes            []string             `json:"gso_modes"`
+	GSOPolicies         []string             `json:"gso_policies"`
+	GSOCapabilities     []string             `json:"gso_capabilities"`
+	PassiveRSTModes     []string             `json:"passive_rst_modes"`
+	Groups              []classifierAPIGroup `json:"groups"`
+	Invariants          []string             `json:"invariants"`
 }
 
 type classifierAPIGroup struct {
@@ -51,6 +60,7 @@ func (api *API) RegisterClassifierV23API() {
 	api.mux.HandleFunc("/api/v2/classifier/schema", api.handleClassifierV23Schema)
 	api.mux.HandleFunc("/api/v2/classifier/export", api.handleClassifierV23Export)
 	api.mux.HandleFunc("/api/v2/classifier/import", api.handleClassifierV23Import)
+	api.mux.HandleFunc(classifierHardeningAPIPath, api.handleClassifierHardeningStatus)
 }
 
 func (api *API) handleClassifierV23Config(w http.ResponseWriter, r *http.Request) {
@@ -80,8 +90,11 @@ func (api *API) handleClassifierV23Schema(w http.ResponseWriter, r *http.Request
 		{ID: "confidence", Mutable: true},
 		{ID: "hints", Advanced: true, Mutable: true},
 		{ID: "capture", Advanced: true, Mutable: true},
+		{ID: "execution", Advanced: true, Mutable: true},
 		{ID: "reassembly", Advanced: true, Mutable: true},
 		{ID: "hold_replay", Advanced: true, Mutable: true},
+		{ID: "passive_rst", Advanced: true, Mutable: true},
+		{ID: "hardening_status", Advanced: true, Mutable: false},
 		{ID: "actions", Advanced: true, Mutable: true},
 		{ID: "discovery", Mutable: true},
 		{ID: "failure_inbox", Advanced: true, Mutable: true},
@@ -92,12 +105,16 @@ func (api *API) handleClassifierV23Schema(w http.ResponseWriter, r *http.Request
 		{ID: "privacy", Mutable: true},
 	}
 	sendResponse(w, classifierSchemaResponse{
-		APIVersion: config.ClassifierAPIV23, SchemaVersion: config.ClassifierSchemaV23,
+		APIVersion: config.ClassifierAPIV23, HardeningAPIVersion: config.ClassifierHardeningAPIV1, SchemaVersion: config.ClassifierSchemaV23,
 		DomainOnlyModes: []string{config.DomainStrict, config.DomainScopedHints, config.DomainLegacy, config.DomainDisabled},
 		ReassemblyModes: []string{config.ReassemblyOff, config.ReassemblyObserve},
 		HoldReplayModes: []string{config.HoldReplayOff, config.HoldReplayObserve, config.HoldReplayAuto, config.HoldReplayDebug},
 		FallbackModes:   []string{config.FallbackDirect, config.FallbackGeneric, config.FallbackProxy},
 		PrivacyModes:    []string{config.PrivacyTelemetryRedacted, config.PrivacyTelemetryLocal, config.PrivacyTelemetryOff},
+		GSOModes:        []string{config.GSOModeOff, config.GSOModeObserve, config.GSOModeClassify, config.GSOModeFull},
+		GSOPolicies:     []string{config.GSOPolicyFailOpen, config.GSOPolicyClassifyOnly, config.GSOPolicyNormalizeForAction},
+		GSOCapabilities: []string{"unsupported", "supported-unvalidated", "observe-only", "classify-ready", "full-action-ready", "failed"},
+		PassiveRSTModes: []string{config.PassiveRSTOff, config.PassiveRSTObserve, config.PassiveRSTConservative, config.PassiveRSTAggressive},
 		Groups:          groups,
 		Invariants: []string{
 			"clean SYN without an explicit SYN technique is accepted",
@@ -105,6 +122,8 @@ func (api *API) handleClassifierV23Schema(w http.ResponseWriter, r *http.Request
 			"all hold paths release unchanged packets on timeout, pressure, shutdown, or error",
 			"raw captures are excluded from exports unless explicitly confirmed",
 			"Discovery never applies a production candidate automatically",
+			"full GSO actions and aggressive passive RST require explicit confirmation tokens",
+			"topology-affecting changes are applied only through the runtime transaction",
 		},
 	})
 }
@@ -196,6 +215,18 @@ func (api *API) applyClassifierV23Config(w http.ResponseWriter, classifierCfg co
 	old := cur.Clone()
 	candidate := cur.CloneForRuntimeUpdate()
 	candidate.System.Classifier = classifierCfg
+	if capture.GSOTopologyChanged(old, candidate) {
+		meta := runtimecontrol.GenerationMeta{
+			ID: candidate.RuntimeGeneration, SchemaVersion: config.ClassifierSchemaV23, CreatedAt: time.Now().UTC(),
+			Validation: runtimecontrol.ValidationSummary{Valid: true},
+		}
+		if err := api.ApplyRuntimeControlTopology(context.Background(), old, candidate, meta); err != nil {
+			writeAPIError(w, err)
+			return
+		}
+		api.writeClassifierEnvelope(w, candidate.System.Classifier, nil)
+		return
+	}
 	if err := api.saveAndPushConfig(candidate); err != nil {
 		writeAPIError(w, err)
 		return
@@ -224,7 +255,7 @@ func (api *API) writeClassifierEnvelope(w http.ResponseWriter, classifierCfg con
 	}
 	setJsonHeader(w)
 	_ = json.NewEncoder(w).Encode(classifierConfigEnvelope{
-		APIVersion: config.ClassifierAPIV23, SchemaVersion: config.ClassifierSchemaV23,
+		APIVersion: config.ClassifierAPIV23, HardeningAPIVersion: config.ClassifierHardeningAPIV1, SchemaVersion: config.ClassifierSchemaV23,
 		RuntimeGeneration: generation, ExportedAt: time.Now().UTC(), Config: classifierCfg,
 		RawArtifactsIncluded: false, Warnings: compactStrings(warnings),
 	})

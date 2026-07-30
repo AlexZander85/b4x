@@ -2,8 +2,10 @@ package nfq
 
 import (
 	"encoding/binary"
+	"fmt"
 	"time"
 
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/florianl/go-nfqueue"
 )
 
@@ -99,6 +101,22 @@ func (w *Worker) observeOffloadMetadata(metadata OffloadMetadata) {
 		status.LastObserved = time.Now()
 	}
 	w.gsoCapability.Store(status)
+	if metadata.IsGSO {
+		mode := requestedGSOMode(w.getConfig())
+		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOPackets, map[string]string{"direction": "unknown", "mode": mode}, 1)
+		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOBytes, map[string]string{"direction": "unknown"}, uint64(metadata.OriginalLength))
+		if metadata.Truncated {
+			observability.Default().Metrics.Inc(observability.MetricNFQueueGSOTruncated, nil, 1)
+		}
+		if metadata.ChecksumNotReady {
+			observability.Default().Metrics.Inc(observability.MetricNFQueueGSOCsumNotReady, nil, 1)
+		}
+		observability.Default().Trace.Record(observability.TraceEvent{Timestamp: status.LastObserved, Kind: "nfqueue_gso_metadata", Fields: map[string]string{
+			"mode": mode, "payload_length": fmt.Sprintf("%d", metadata.PayloadLength), "original_length": fmt.Sprintf("%d", metadata.OriginalLength),
+			"truncated": fmt.Sprintf("%t", metadata.Truncated), "checksum_not_ready": fmt.Sprintf("%t", metadata.ChecksumNotReady),
+			"checksum_not_verified": fmt.Sprintf("%t", metadata.ChecksumNotVerified),
+		}})
+	}
 }
 
 func (w *Worker) GSOCapabilityStatus() GSOCapabilityStatus {

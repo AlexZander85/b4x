@@ -27,6 +27,9 @@ func (c *Config) validateClassifierRuntimeConfig(v *validator) {
 	if reflect.DeepEqual(r.Capture, CaptureRuntimeConfig{}) {
 		r.Capture = d.Capture
 	}
+	if r.Execution == (ExecutionRuntimeConfig{}) {
+		r.Execution = d.Execution
+	}
 	if r.Reassembly == (ReassemblyRuntimeConfig{}) {
 		r.Reassembly = d.Reassembly
 	}

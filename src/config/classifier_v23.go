@@ -1,6 +1,7 @@
 package config
 
 const ClassifierAPIV23 = "b4.classifier.v2.3"
+const ClassifierHardeningAPIV1 = "b4.classifier.hardening.v1"
 
 const (
 	OffloadPolicyDetect        = "detect"
@@ -25,6 +26,11 @@ const (
 
 	GSONormalizerDirectQueue = "direct-queue"
 	GSONormalizerNFRepeat    = "nf-repeat"
+
+	GSOPolicyFailOpen           = "fail-open"
+	GSOPolicyClassifyOnly       = "classify-only"
+	GSOPolicyNormalizeForAction = "normalize-for-action"
+	GSOFullConfirmation         = "GSO_FULL_ACTION_V1"
 
 	PassiveRSTOff                    = "off"
 	PassiveRSTObserve                = "observe"
@@ -51,6 +57,7 @@ type ClassifierRuntimeConfig struct {
 	Confidence     ConfidenceRuntimeConfig     `json:"confidence"`
 	Hints          HintStoreRuntimeConfig      `json:"hints"`
 	Capture        CaptureRuntimeConfig        `json:"capture"`
+	Execution      ExecutionRuntimeConfig      `json:"execution"`
 	Reassembly     ReassemblyRuntimeConfig     `json:"reassembly"`
 	HoldReplay     HoldReplayRuntimeConfig     `json:"hold_replay"`
 	PassiveRST     PassiveRSTRuntimeConfig     `json:"passive_rst"`
@@ -62,6 +69,11 @@ type ClassifierRuntimeConfig struct {
 	Strategies     StrategyCatalogConfig       `json:"strategies"`
 	Fallback       FallbackRuntimeConfig       `json:"fallback"`
 	Privacy        PrivacyRuntimeConfig        `json:"privacy"`
+}
+
+type ExecutionRuntimeConfig struct {
+	GSOPolicy           string `json:"gso_policy"`
+	GSOFullConfirmation string `json:"gso_full_confirmation_token,omitempty"`
 }
 
 type ClientIdentityRuntimeConfig struct {
@@ -289,6 +301,7 @@ var DefaultClassifierRuntimeConfig = ClassifierRuntimeConfig{
 	Confidence:     ConfidenceRuntimeConfig{Classify: 55, Mutate: 75, Destructive: 85, ProxyFallback: 35},
 	Hints:          HintStoreRuntimeConfig{MaxEntries: 4096, MaxEntriesPerClient: 64, MaxCandidatesPerKey: 8, MaxBytesPerClient: 64 * 1024, DNSMaxTTLSeconds: 300, QUICTTLSeconds: 60, LearnedTTLSeconds: 60},
 	Capture:        CaptureRuntimeConfig{OffloadPolicy: OffloadPolicyDetect, NFQueue: NFQueueCaptureConfig{GSOMode: GSOModeOff, MaxGSOBytes: 32 * 1024, NormalizeForMutation: true, TCPOnly: true, NormalizerMechanism: GSONormalizerDirectQueue, NormalizerQueueOffset: 2, NormalizerThreads: 1, DiscoveryQueueOffset: 0, DiscoveryThreads: 1, MaxTopologyWorkers: 32, MaxTopologyMemoryBytes: 64 * 1024 * 1024}, PPE: PPEOffloadConfig{TCPEnabled: true, QUICEnabled: true, TCPPorts: []uint16{80, 443, 2053, 2083, 2087, 2096, 8443}, UDPPorts: []uint16{443}, ConnskipPackets: 30, IPv4: PPEFamilyAuto, IPv6: PPEFamilyAuto, SourceScope: PPESourceManagedDevices, ReassertIntervalSec: 55, SelfTest: PPESelfTestConfig{Mode: PPESelfTestStartupAndChange, TimeoutMS: 5000}}, OutgoingPacketLimit: 20, IncomingPacketLimit: 20, AlwaysQueueSynAck: true, AlwaysQueueFIN: true, AlwaysQueueRST: true, AlwaysQueueQUIC: true, ProcessedMarkMask: 1 << 27, QueueBypass: true, CandidateQueueOffset: 1, ReadinessTimeoutMS: 3000, OffloadSelfCheck: true},
+	Execution:      ExecutionRuntimeConfig{GSOPolicy: GSOPolicyFailOpen},
 	Reassembly:     ReassemblyRuntimeConfig{MaxFlows: 1024, MaxBytesPerFlow: 32 * 1024, MaxBytesTotal: 4 * 1024 * 1024, MaxSegments: 64, MaxClientHello: 32 * 1024, TimeoutMS: 5000},
 	HoldReplay:     HoldReplayRuntimeConfig{MaxFlows: 256, MaxPacketsPerFlow: 8, MaxBytesTotal: 64 * 1024, TimeoutMS: 750, ReleaseOnPressure: true},
 	PassiveRST:     PassiveRSTRuntimeConfig{Mode: PassiveRSTObserve, MaxFlows: 4096, FlowTTLSeconds: 120, BaselineSamples: 8, BaselineFreshnessSeconds: 60, MinTTLTolerance: 3, TTLSafetyMargin: 2, BurstThreshold: 2, BurstWindowMS: 1500, SuppressionBudgetPerFlow: 2, SuppressionWindowSeconds: 30, GlobalSuppressionsPerMinute: 64, RollbackWindowSeconds: 60, ReconnectFailureThreshold: 3, NoProgressThreshold: 3, ControlFailureThreshold: 1, QueueDropThreshold: 1, RouterPressureThreshold: 1, RecentDecisionLimit: 256},

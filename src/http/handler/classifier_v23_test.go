@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/nfq"
 )
 
 func newClassifierV23TestAPI(t *testing.T) (*API, *http.ServeMux, *atomic.Pointer[config.Config]) {
@@ -36,8 +37,11 @@ func TestClassifierV23SchemaAndSafeExport(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &schema); err != nil {
 		t.Fatal(err)
 	}
-	if schema.APIVersion != config.ClassifierAPIV23 || len(schema.Groups) < 10 || len(schema.Invariants) == 0 {
+	if schema.APIVersion != config.ClassifierAPIV23 || schema.HardeningAPIVersion != config.ClassifierHardeningAPIV1 || len(schema.Groups) < 10 || len(schema.Invariants) == 0 {
 		t.Fatalf("incomplete schema response: %+v", schema)
+	}
+	if len(schema.GSOModes) != 4 || len(schema.GSOPolicies) != 3 || len(schema.PassiveRSTModes) != 4 {
+		t.Fatalf("hardening schema missing modes: %+v", schema)
 	}
 
 	rr = httptest.NewRecorder()
@@ -52,8 +56,51 @@ func TestClassifierV23SchemaAndSafeExport(t *testing.T) {
 	if envelope.RawArtifactsIncluded || len(envelope.RawArtifacts) != 0 || envelope.Config.Runtime.Privacy.AutomaticRawUpload {
 		t.Fatalf("unsafe export: %+v", envelope)
 	}
+	if envelope.HardeningAPIVersion != config.ClassifierHardeningAPIV1 {
+		t.Fatalf("hardening API version missing: %+v", envelope)
+	}
 	if len(envelope.Warnings) == 0 {
 		t.Fatal("safe export should explain raw artifact exclusion")
+	}
+}
+
+func TestClassifierHardeningStatusIsReadOnlyAndRedacted(t *testing.T) {
+	_, mux, ptr := newClassifierV23TestAPI(t)
+	cfg := ptr.Load().Clone()
+	cfg.System.Classifier.Runtime.PassiveRST.SetScopes = []string{"private-youtube"}
+	cfg.System.Classifier.Runtime.PassiveRST.DeviceScopes = []string{"aa:bb:cc:dd:ee:99"}
+	ptr.Store(cfg)
+	previousPool, previousTopology := globalPool, globalGSOTopology
+	pool := nfq.NewGSOPrimaryPool(cfg, 0)
+	globalPool, globalGSOTopology = pool, nil
+	t.Cleanup(func() {
+		pool.Stop()
+		globalPool, globalGSOTopology = previousPool, previousTopology
+	})
+
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, classifierHardeningAPIPath, nil))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if bytes.Contains(rr.Body.Bytes(), []byte("private-youtube")) || bytes.Contains(rr.Body.Bytes(), []byte("aa:bb:cc:dd:ee:99")) {
+		t.Fatalf("private scope leaked: %s", rr.Body.String())
+	}
+	var status classifierHardeningStatusResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &status); err != nil {
+		t.Fatal(err)
+	}
+	if status.APIVersion != config.ClassifierHardeningAPIV1 || status.GSO.RequestedMode != config.GSOModeOff || status.GSO.ExecutionPolicy != config.GSOPolicyFailOpen {
+		t.Fatalf("incomplete hardening status: %+v", status)
+	}
+	if len(status.PassiveRST.SetScopes) != 1 || status.PassiveRST.SetScopes[0] == "private-youtube" {
+		t.Fatalf("scope not redacted: %+v", status.PassiveRST.SetScopes)
+	}
+
+	rr = httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, classifierHardeningAPIPath, nil))
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("hardening status accepted mutation: %d", rr.Code)
 	}
 }
 

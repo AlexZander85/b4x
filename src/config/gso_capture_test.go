@@ -12,10 +12,13 @@ func TestNFQueueGSOConfigDefaultsOffAndTCPOnly(t *testing.T) {
 	if gso.GSOMode != GSOModeOff || gso.MaxGSOBytes != 32*1024 || !gso.NormalizeForMutation || !gso.TCPOnly {
 		t.Fatalf("unsafe GSO defaults: %+v", gso)
 	}
+	if cfg.System.Classifier.Runtime.Execution.GSOPolicy != GSOPolicyFailOpen {
+		t.Fatalf("unsafe GSO execution default: %+v", cfg.System.Classifier.Runtime.Execution)
+	}
 }
 
 func TestNFQueueGSOConfigValidatesModesAndBounds(t *testing.T) {
-	for _, mode := range []string{GSOModeOff, GSOModeObserve, GSOModeClassify, GSOModeFull} {
+	for _, mode := range []string{GSOModeOff, GSOModeObserve, GSOModeClassify} {
 		cfg := NewConfig()
 		cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = mode
 		if err := cfg.Validate(); err != nil {
@@ -23,6 +26,13 @@ func TestNFQueueGSOConfigValidatesModesAndBounds(t *testing.T) {
 		}
 	}
 	cfg := NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeFull
+	cfg.System.Classifier.Runtime.Execution.GSOPolicy = GSOPolicyNormalizeForAction
+	cfg.System.Classifier.Runtime.Execution.GSOFullConfirmation = GSOFullConfirmation
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("confirmed full mode rejected: %v", err)
+	}
+	cfg = NewConfig()
 	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = "automatic"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("unsupported GSO mode accepted")
@@ -37,6 +47,26 @@ func TestNFQueueGSOConfigValidatesModesAndBounds(t *testing.T) {
 	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeClassify
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("non-TCP GSO mode accepted")
+	}
+}
+
+func TestNFQueueGSOFullModeRequiresPolicyAndConfirmation(t *testing.T) {
+	cfg := NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeFull
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("unconfirmed full GSO mode accepted")
+	}
+	cfg = NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeClassify
+	cfg.System.Classifier.Runtime.Execution.GSOPolicy = GSOPolicyNormalizeForAction
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("normalize-for-action accepted outside full mode")
+	}
+	cfg = NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeObserve
+	cfg.System.Classifier.Runtime.Execution.GSOPolicy = GSOPolicyClassifyOnly
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("classify-only accepted in observe mode")
 	}
 }
 

@@ -203,6 +203,17 @@ func recordObservabilityDecision(decision classifier.ClassificationDecision, str
 	}
 	labels := map[string]string{"phase": decision.Phase.String(), "source": selectedSource}
 	observability.Default().Metrics.Inc(observability.MetricClassifierDecisions, labels, 1)
+	if selectedSource == classifier.EvidenceReassembledSNI.String() {
+		setLabel := observability.RedactIdentifier(selectedSet)
+		result := "selected"
+		if decision.Selected == nil {
+			result = "unselected"
+		}
+		observability.Default().Metrics.Inc(observability.MetricClassifierReassembledSNI, map[string]string{"result": result, "set": setLabel}, 1)
+		if decision.ClientHelloID == 0 {
+			observability.Default().Metrics.Inc(observability.MetricClassifierLayoutParityFail, map[string]string{"reason": "missing-logical-id"}, 1)
+		}
+	}
 	observability.Default().Metrics.Observe(observability.MetricClassifierConfidence, labels, float64(decision.Confidence))
 	if decision.Phase == classifier.PhaseAmbiguous {
 		observability.Default().Metrics.Inc(observability.MetricClassifierAmbiguous, map[string]string{"reason": "multiple-candidates"}, 1)

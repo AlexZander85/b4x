@@ -143,6 +143,10 @@ func (w *Worker) handleGSOFastPath(vc *verdictCtx, pkt *pktInfo, cfg *config.Con
 		return true, vc.accept(), gsoPathAcceptedUnchanged
 	}
 	if gsoRequiresNormalPackets(set) {
+		if cfg.System.Classifier.Runtime.Execution.GSOPolicy != config.GSOPolicyNormalizeForAction {
+			traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "execution.gso_policy does not authorize normalized action", clientHelloID)
+			return true, vc.accept(), gsoPathActionSuppressed
+		}
 		if !cfg.System.Classifier.Runtime.Capture.NFQueue.NormalizeForMutation {
 			traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "normalization disabled by policy", clientHelloID)
 			return true, vc.accept(), gsoPathActionSuppressed
@@ -202,4 +206,27 @@ func traceGSOFastPath(pkt *pktInfo, mode string, result gsoFastPathResult, reaso
 			"checksum_not_ready": fmt.Sprintf("%t", pkt.offload.ChecksumNotReady),
 		},
 	})
+	observability.Default().Metrics.Inc(observability.MetricNFQueueGSODecision, map[string]string{"path": string(result)}, 1)
+	if result == gsoPathNormalizeQueued {
+		observability.Default().Metrics.Inc(observability.MetricNFQueueGSONormalized, map[string]string{"mechanism": config.GSONormalizerDirectQueue}, 1)
+	}
+	if result == gsoPathActionSuppressed {
+		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOActionSuppressed, map[string]string{"reason": sanitizeGSOMetricReason(reason)}, 1)
+	}
+}
+
+func sanitizeGSOMetricReason(reason string) string {
+	reason = strings.ToLower(strings.TrimSpace(reason))
+	switch {
+	case strings.Contains(reason, "execution.gso_policy"):
+		return "execution-policy"
+	case strings.Contains(reason, "normalization disabled"):
+		return "normalization-disabled"
+	case strings.Contains(reason, "token"):
+		return "token"
+	case strings.Contains(reason, "capability"):
+		return "capability"
+	default:
+		return "other"
+	}
 }

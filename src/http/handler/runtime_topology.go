@@ -9,6 +9,7 @@ import (
 	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/nfq"
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/runtimecontrol"
 	"github.com/daniellavrushin/b4/tables"
 )
@@ -21,7 +22,21 @@ var (
 // ApplyRuntimeControlTopology performs a double-buffered listener/rule switch.
 // The candidate queue start is assigned internally and persisted only after the
 // new topology is ready and the old topology has drained.
-func (api *API) ApplyRuntimeControlTopology(ctx context.Context, active, candidate *config.Config, meta runtimecontrol.GenerationMeta) error {
+func (api *API) ApplyRuntimeControlTopology(ctx context.Context, active, candidate *config.Config, meta runtimecontrol.GenerationMeta) (err error) {
+	fromMode, toMode := config.GSOModeOff, config.GSOModeOff
+	if active != nil {
+		fromMode = active.System.Classifier.Runtime.Capture.NFQueue.GSOMode
+	}
+	if candidate != nil {
+		toMode = candidate.System.Classifier.Runtime.Capture.NFQueue.GSOMode
+	}
+	defer func() {
+		result := "success"
+		if err != nil {
+			result = "rollback"
+		}
+		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOTransition, map[string]string{"from": fromMode, "to": toMode, "result": result}, 1)
+	}()
 	if api == nil || active == nil || candidate == nil {
 		return errors.New("runtime topology apply requires active and candidate configs")
 	}

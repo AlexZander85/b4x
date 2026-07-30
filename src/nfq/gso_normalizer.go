@@ -58,6 +58,7 @@ func configSetByClassifierID(cfg *config.Config, setID string) *config.SetConfig
 }
 
 func traceGSONormalizerMiss(flow classifier.FlowKey, clientHelloID, generation uint64, reason string) {
+	observability.Default().Metrics.Inc(observability.MetricNFQueueGSOTokenMiss, map[string]string{"reason": reason}, 1)
 	observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", flow), Kind: "gso_normalizer_secondary", Fields: map[string]string{
 		"result": "fail-open", "reason": reason, "client_hello_id": fmt.Sprintf("%d", clientHelloID), "config_generation": fmt.Sprintf("%d", generation),
 	}})

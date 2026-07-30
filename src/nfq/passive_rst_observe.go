@@ -3,6 +3,7 @@ package nfq
 import (
 	"fmt"
 	"net/netip"
+	"strings"
 	"time"
 
 	"github.com/daniellavrushin/b4/capture/ppe"
@@ -63,6 +64,7 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 		return PassiveRSTEnforcementResult{}, false
 	}
 	result := w.passiveRST.Enforce(cfg.System.Classifier.Runtime.PassiveRST, evidence)
+	recordPassiveRSTMetrics(evidence, result)
 	fields := map[string]string{
 		"decision":                string(result.Decision),
 		"reason":                  result.Reason,
@@ -93,6 +95,51 @@ func (w *Worker) observePassiveRSTIncoming(cfg *config.Config, pkt *pktInfo, tcp
 	})
 	reportPassiveRSTFailure(evidence, result)
 	return result, true
+}
+
+func recordPassiveRSTMetrics(evidence PassiveRSTEvidence, result PassiveRSTEnforcementResult) {
+	mode := result.EffectiveMode
+	if mode == "" {
+		mode = result.RequestedMode
+	}
+	for _, signal := range evidence.Signals {
+		observability.Default().Metrics.Inc(observability.MetricPassiveRSTObserved, map[string]string{"signal": string(signal.Signal), "mode": mode}, 1)
+	}
+	observability.Default().Metrics.Inc(observability.MetricPassiveRSTDecision, map[string]string{"decision": string(result.Decision), "mode": mode}, 1)
+	observability.Default().Metrics.Inc(observability.MetricPassiveRSTBaselineQuality, map[string]string{"quality": string(evidence.Baseline.Quality)}, 1)
+	switch result.Decision {
+	case PassiveRSTDecisionSuppress:
+		scope := observability.RedactIdentifier(evidence.Flow.SetID + ":" + evidence.Flow.DeviceScope)
+		observability.Default().Metrics.Inc(observability.MetricPassiveRSTSuppressed, map[string]string{"scope": scope, "reason": passiveRSTMetricReason(result.Reason)}, 1)
+	case PassiveRSTDecisionFailOpen:
+		reason := passiveRSTMetricReason(result.Reason)
+		observability.Default().Metrics.Inc(observability.MetricPassiveRSTFailOpen, map[string]string{"reason": reason}, 1)
+		if reason == "budget" {
+			observability.Default().Metrics.Inc(observability.MetricPassiveRSTBudgetExhausted, nil, 1)
+		}
+	}
+}
+
+func passiveRSTMetricReason(reason string) string {
+	reason = strings.ToLower(strings.TrimSpace(reason))
+	switch {
+	case strings.Contains(reason, "budget") || strings.Contains(reason, "rate") || strings.Contains(reason, "window expired"):
+		return "budget"
+	case strings.Contains(reason, "visibility"):
+		return "visibility"
+	case strings.Contains(reason, "scope"):
+		return "scope"
+	case strings.Contains(reason, "generation") || strings.Contains(reason, "exact flow"):
+		return "identity"
+	case strings.Contains(reason, "route change"):
+		return "route-change"
+	case strings.Contains(reason, "signal matrix"):
+		return "signal-matrix"
+	case strings.Contains(reason, "server payload") || strings.Contains(reason, "legitimate"):
+		return "legitimate-peer"
+	default:
+		return "other"
+	}
 }
 
 func reportPassiveRSTFailure(evidence PassiveRSTEvidence, result PassiveRSTEnforcementResult) {

@@ -95,7 +95,9 @@ func TestGSOPassTokenStoreBoundedAndLifecycleCleanup(t *testing.T) {
 }
 
 func TestGSONormalizerFirstPassQueuesAndSecondaryConsumesSameIdentityOnce(t *testing.T) {
-	cfg, _ := testGSOFastPathConfig(config.GSOModeClassify, true, false)
+	cfg, _ := testGSOFastPathConfig(config.GSOModeFull, true, false)
+	cfg.System.Classifier.Runtime.Execution.GSOPolicy = config.GSOPolicyNormalizeForAction
+	cfg.System.Classifier.Runtime.Execution.GSOFullConfirmation = config.GSOFullConfirmation
 	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 1988)
 	pkt := testGSOPacket(len(hello), 56000)
 	first := NewWorkerWithQueue(cfg, 0)

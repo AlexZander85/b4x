@@ -42,16 +42,16 @@ type GSOPassTokenStoreConfig struct {
 }
 
 type GSOPassTokenStats struct {
-	Created               uint64
-	Reused                uint64
-	Consumed              uint64
-	Misses                uint64
-	Stale                 uint64
-	Expired               uint64
-	Evicted               uint64
-	FlowInvalidated       uint64
-	GenerationInvalidated uint64
-	Cleared               uint64
+	Created               uint64 `json:"created"`
+	Reused                uint64 `json:"reused"`
+	Consumed              uint64 `json:"consumed"`
+	Misses                uint64 `json:"misses"`
+	Stale                 uint64 `json:"stale"`
+	Expired               uint64 `json:"expired"`
+	Evicted               uint64 `json:"evicted"`
+	FlowInvalidated       uint64 `json:"flow_invalidated"`
+	GenerationInvalidated uint64 `json:"generation_invalidated"`
+	Cleared               uint64 `json:"cleared"`
 }
 
 type gsoPassTokenKey struct {

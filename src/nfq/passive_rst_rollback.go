@@ -131,12 +131,33 @@ func (s *PassiveRSTStore) RecordHealth(cfg config.PassiveRSTRuntimeConfig, sampl
 		}
 	}
 	s.appendRollbackLocked(state)
+	observability.Default().Metrics.Inc(observability.MetricPassiveRSTRollback, map[string]string{"reason": passiveRSTRollbackMetricReason(reason)}, 1)
+	if reason == "reconnect failure regression" {
+		observability.Default().Metrics.Inc(observability.MetricPassiveRSTReconnectRegression, map[string]string{"scope": observability.RedactIdentifier(key.SetID + ":" + key.DeviceScope)}, 1)
+	}
 	observability.Default().Trace.Record(observability.TraceEvent{Timestamp: now, Kind: "passive_rst_rollback", Fields: map[string]string{
 		"set_id": observability.RedactIdentifier(key.SetID), "device_scope": observability.RedactIdentifier(key.DeviceScope),
 		"config_generation": fmt.Sprintf("%d", key.ConfigGeneration), "environment": key.Environment,
 		"from": cfg.Mode, "to": config.PassiveRSTObserve, "reason": reason,
 	}})
 	return state, true
+}
+
+func passiveRSTRollbackMetricReason(reason string) string {
+	switch reason {
+	case "control service regression":
+		return "control"
+	case "NFQUEUE drop regression":
+		return "queue-drop"
+	case "router resource pressure":
+		return "router-pressure"
+	case "reconnect failure regression":
+		return "reconnect"
+	case "no progress after suppression":
+		return "no-progress"
+	default:
+		return "other"
+	}
 }
 
 func passiveRSTRollbackReason(cfg config.PassiveRSTRuntimeConfig, window *passiveRSTHealthWindow) string {

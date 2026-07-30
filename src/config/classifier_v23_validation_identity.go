@@ -44,6 +44,9 @@ func (s classifierRuntimeValidation) validateIdentityHintsCapture() {
 	if s.r.Capture.NFQueue.NormalizerMechanism == "" {
 		s.r.Capture.NFQueue.NormalizerMechanism = s.d.Capture.NFQueue.NormalizerMechanism
 	}
+	if s.r.Execution.GSOPolicy == "" {
+		s.r.Execution.GSOPolicy = s.d.Execution.GSOPolicy
+	}
 	s.defaultInt(&s.r.Capture.NFQueue.NormalizerQueueOffset, s.d.Capture.NFQueue.NormalizerQueueOffset)
 	s.defaultInt(&s.r.Capture.NFQueue.NormalizerThreads, s.d.Capture.NFQueue.NormalizerThreads)
 	s.defaultInt(&s.r.Capture.NFQueue.DiscoveryThreads, s.d.Capture.NFQueue.DiscoveryThreads)
@@ -54,6 +57,28 @@ func (s classifierRuntimeValidation) validateIdentityHintsCapture() {
 	case GSOModeOff, GSOModeObserve, GSOModeClassify, GSOModeFull:
 	default:
 		s.v.add("system.classifier.runtime.capture.nfqueue.gso_mode", "unsupported_mode", "gso_mode must be off, observe, classify, or full", nil)
+	}
+	switch s.r.Execution.GSOPolicy {
+	case GSOPolicyFailOpen, GSOPolicyClassifyOnly, GSOPolicyNormalizeForAction:
+	default:
+		s.v.add("system.classifier.runtime.execution.gso_policy", "unsupported_policy", "gso_policy must be fail-open, classify-only, or normalize-for-action", nil)
+	}
+	if s.r.Execution.GSOPolicy == GSOPolicyClassifyOnly && (s.r.Capture.NFQueue.GSOMode == GSOModeOff || s.r.Capture.NFQueue.GSOMode == GSOModeObserve) {
+		s.v.add("system.classifier.runtime.execution.gso_policy", "mode_policy_mismatch", "classify-only policy requires classify or full GSO mode", nil)
+	}
+	if s.r.Execution.GSOPolicy == GSOPolicyNormalizeForAction && s.r.Capture.NFQueue.GSOMode != GSOModeFull {
+		s.v.add("system.classifier.runtime.execution.gso_policy", "mode_policy_mismatch", "normalize-for-action policy requires full GSO mode", nil)
+	}
+	if s.r.Capture.NFQueue.GSOMode == GSOModeFull {
+		if s.r.Execution.GSOPolicy != GSOPolicyNormalizeForAction {
+			s.v.add("system.classifier.runtime.execution.gso_policy", "full_action_policy_required", "full GSO mode requires normalize-for-action execution policy", nil)
+		}
+		if s.r.Execution.GSOFullConfirmation != GSOFullConfirmation {
+			s.v.add("system.classifier.runtime.execution.gso_full_confirmation_token", "confirmation_required", "full GSO action mode requires the explicit confirmation token", nil)
+		}
+		if !s.r.Capture.NFQueue.NormalizeForMutation {
+			s.v.add("system.classifier.runtime.capture.nfqueue.normalize_for_mutation", "normalization_required", "full GSO mode requires normalization for mutation", nil)
+		}
 	}
 	s.outOfRange("system.classifier.runtime.capture.nfqueue.max_gso_bytes", s.r.Capture.NFQueue.MaxGSOBytes, 1500, 65535)
 	switch s.r.Capture.NFQueue.NormalizerMechanism {
