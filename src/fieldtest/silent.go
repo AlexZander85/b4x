@@ -40,6 +40,16 @@ type FalsePositiveResult struct {
 	ActionID, LeaseID                            string
 	RolledBack, ControlsRecovered, BudgetCharged bool
 }
+type RecoveryLeaseRecord struct {
+	LeaseID, BindingID, ScopeHash, RollbackTarget string
+	ConfigGen                                     uint64
+	TTLSeconds, MaxAttempts                       int
+	Active, RolledBack, CleanupClosed             bool
+}
+
+func (l RecoveryLeaseRecord) Valid() bool {
+	return l.LeaseID != "" && l.BindingID != "" && l.ScopeHash != "" && l.RollbackTarget != "" && l.ConfigGen > 0 && l.TTLSeconds > 0 && l.MaxAttempts > 0 && l.CleanupClosed
+}
 
 func (r FalsePositiveResult) Safe() bool {
 	return r.ActionID != "" && r.LeaseID != "" && r.RolledBack && r.ControlsRecovered
