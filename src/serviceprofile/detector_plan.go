@@ -59,3 +59,18 @@ func CompileDetectorPlan(s DetectorTargetPlanSpec, trusted []string) (DetectorPl
 	controls = append(controls, s.UnrelatedControls...)
 	return DetectorPlan{ComponentID: s.ComponentID, Targets: out, Controls: controls, Mode: s.Mode, SafetyHash: strings.Join(out, "|")}, nil
 }
+
+type DetectorCapabilities struct {
+	DNS, TLS12, TLS13, QUIC, L4, CleanPath, CaptureVisibility bool
+	ResourceDowngrade, PrivacyDowngrade                       string
+}
+
+func (c DetectorCapabilities) Effective(m DetectorMode) DetectorMode {
+	if !c.CleanPath || !c.CaptureVisibility {
+		return DetectorOff
+	}
+	if m == DetectorDeep && (!c.QUIC || c.ResourceDowngrade != "") {
+		return DetectorStandard
+	}
+	return m
+}
