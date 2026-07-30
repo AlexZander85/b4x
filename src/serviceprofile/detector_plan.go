@@ -87,6 +87,23 @@ func (g GuidedPlan) TruthfulSavings() bool {
 	return !g.FallbackUsed && g.QualityDelta >= 0 && len(g.MandatoryBaselines) > 0
 }
 
+type TelegramBridgePolicy struct {
+	Enabled                                    bool
+	FirstBytePolicy, OverflowPolicy            string
+	FailOpen                                   bool
+	SoftDeadlineMS, HardDeadlineMS, MaxPending int
+}
+
+func (p TelegramBridgePolicy) Valid() bool {
+	return p.SoftDeadlineMS > 0 && p.HardDeadlineMS > p.SoftDeadlineMS && p.MaxPending > 0 && (p.OverflowPolicy == "worker-failopen" || p.OverflowPolicy == "fallback")
+}
+
+type TelegramBridgeStatus struct {
+	Pending, Overflow, Fallback       int
+	PrefixPreserved, AndroidValidated bool
+	DegradedReason                    string
+}
+
 func (c DetectorCapabilities) Effective(m DetectorMode) DetectorMode {
 	if !c.CleanPath || !c.CaptureVisibility {
 		return DetectorOff
