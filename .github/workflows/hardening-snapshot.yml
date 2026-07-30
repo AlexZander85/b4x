@@ -1,0 +1,34 @@
+name: RST GSO hardening staging snapshot
+
+on:
+  pull_request:
+    branches:
+      - hardening-publisher-20260730
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout hardening staging branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/rst-gso-hardening-staging
+          fetch-depth: 0
+          path: work
+
+      - name: Build repository snapshot
+        shell: bash
+        run: tar -czf hardening-staging.tar.gz -C work .
+
+      - name: Upload repository snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardening-staging-repository
+          path: hardening-staging.tar.gz
+          if-no-files-found: error
+          retention-days: 1
