@@ -1,1 +1,1 @@
-feat(capture): normalize GSO only for normal-packet action plans
+feat(runtime): transact NFQUEUE GSO topology and mark lifecycle
