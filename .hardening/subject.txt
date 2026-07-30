@@ -1,1 +1,1 @@
-feat(discovery): integrate passive RST evidence canary and rollback
+feat(api): expose NFQUEUE GSO and passive RST hardening controls
