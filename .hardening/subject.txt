@@ -1,1 +1,1 @@
-feat(tcp): add FSM-aware passive RST observation and evidence model
+feat(tcp): enforce bounded conservative passive RST injection defense
