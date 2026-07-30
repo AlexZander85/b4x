@@ -1,1 +1,1 @@
-H4 conditional GSO normalizer token gate v2
+H4 staging snapshot for H5-H10 implementation
