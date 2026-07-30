@@ -38,18 +38,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat \
-            publisher/.hardening/h8.00 \
-            publisher/.hardening/h8.01 \
-            publisher/.hardening/h8.02 \
-            publisher/.hardening/h8.03 \
-            publisher/.hardening/h8.04 \
-            publisher/.hardening/h8.05 \
-            publisher/.hardening/h8.06 \
-            publisher/.hardening/h8.07 \
-            publisher/.hardening/h8.08 \
-            publisher/.hardening/h8.09 \
-            | base64 -d > /tmp/hardening-stage.patch.gz
+          cp publisher/.hardening/h9-api-stage.patch.gz /tmp/hardening-stage.patch.gz
           echo "$(cat publisher/.hardening/archive.sha256)  /tmp/hardening-stage.patch.gz" | sha256sum -c -
           gzip -dc /tmp/hardening-stage.patch.gz > /tmp/hardening-stage.patch
           echo "$(cat publisher/.hardening/payload.sha256)  /tmp/hardening-stage.patch" | sha256sum -c -
@@ -57,11 +46,6 @@ jobs:
           git config user.name "OpenAI Agent"
           git config user.email "344792@gmail.com"
           git am --3way /tmp/hardening-stage.patch
-          base64 -d ../publisher/.hardening/h8.fix.b64 > /tmp/hardening-fix.patch
-          echo "$(cat ../publisher/.hardening/h8.fix.sha256)  /tmp/hardening-fix.patch" | sha256sum -c -
-          git apply /tmp/hardening-fix.patch
-          git add -A
-          git commit --amend --no-edit
           test "$(git log -1 --pretty=%s)" = "$(cat ../publisher/.hardening/subject.txt)"
 
       - name: Go unit and integration gate
