@@ -24,3 +24,16 @@ type DDIConformance struct {
 func (d DDIConformance) Ready() bool {
 	return len(d.Requirements) == 10 && len(d.TestIDs) > 0 && len(d.Artifacts) > 0 && d.Envelope && d.Freshness && d.Revalidation && d.Priors && d.Baselines && d.FullFallback && d.GuidedAB && d.TargetControls && d.ActionAuthorization && d.QualityDelta >= -d.Tolerance && len(d.HardGateViolations) == 0
 }
+
+var TGBRequirements = []string{"TGB-1", "TGB-2", "TGB-3", "TGB-4", "TGB-5", "TGB-6", "TGB-7", "TGB-8", "TGB-9", "TGB-10"}
+
+type TGBConformance struct {
+	Requirements, TestIDs, Artifacts                                                                                                                 []string
+	StructuredOutcome, DelayedFirstData, PendingBudget, PrefixExact, NonRecursiveFallback, AndroidValidated, ExplicitControlSeparated, CleanupClosed bool
+	DestructiveZeroByteDrops                                                                                                                         int
+	HardGateViolations                                                                                                                               []string
+}
+
+func (t TGBConformance) Ready() bool {
+	return len(t.Requirements) == 10 && len(t.TestIDs) > 0 && len(t.Artifacts) > 0 && t.StructuredOutcome && t.DelayedFirstData && t.PendingBudget && t.PrefixExact && t.NonRecursiveFallback && t.AndroidValidated && t.ExplicitControlSeparated && t.CleanupClosed && t.DestructiveZeroByteDrops == 0 && len(t.HardGateViolations) == 0
+}
