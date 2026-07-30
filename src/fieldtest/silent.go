@@ -28,6 +28,10 @@ type SilentObservation struct {
 	Suppressed                                             int
 }
 
+func SuppressedPattern(p ProgressSample) bool {
+	return p.FastParallel || p.HLS || p.Prefetch || p.RecentSuccess
+}
+
 func (o SilentObservation) Ready() bool {
 	return len(o.Samples) > 0 && o.IndependentFamilies >= 2 && o.VisibilityComplete && o.ControlsHealthy
 }
