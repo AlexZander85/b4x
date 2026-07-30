@@ -52,3 +52,14 @@ type RecoveryUX struct {
 func (u RecoveryUX) Truthful() bool {
 	return u.Wording != "" && u.EffectiveMode != "" && (!u.RollbackAvailable || u.LeaseID != "")
 }
+
+type RecoveryLease struct {
+	ID, BindingID, ClientScope, ComponentID string
+	ConfigGeneration                        uint64
+	TTLSeconds, MaxAttempts                 int
+	Active, RolledBack                      bool
+}
+
+func (l RecoveryLease) Valid() bool {
+	return l.ID != "" && l.BindingID != "" && l.ClientScope != "" && l.ComponentID != "" && l.ConfigGeneration > 0 && l.TTLSeconds > 0 && l.MaxAttempts > 0
+}
