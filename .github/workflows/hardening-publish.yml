@@ -67,6 +67,10 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm test:classifier
 
+      - name: Generate UI defaults
+        working-directory: work/src
+        run: go run tools/gendefaults.go
+
       - name: UI production build gate
         working-directory: work/src/http/ui
         run: pnpm build
