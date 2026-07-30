@@ -28,6 +28,7 @@ type Pool struct {
 	tunSrc      *tunSrcResolver
 	canary      *CanaryMonitor
 	candidate   bool
+	ownsState   bool
 }
 
 type PacketInfo struct {

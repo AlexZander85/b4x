@@ -71,7 +71,8 @@ func (api *API) InitializeRuntimeControl(b4Version string) error {
 			}
 			return cfg.Clone()
 		},
-		Apply: api.ApplyRuntimeControlConfig,
+		Apply:         api.ApplyRuntimeControlConfig,
+		ApplyTopology: api.ApplyRuntimeControlTopology,
 	}
 	builder, err := runtimecontrol.NewLiveBuilder(hooks)
 	if err != nil {

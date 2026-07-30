@@ -19,8 +19,9 @@ import (
 // configuration. Apply must either make the complete snapshot active and
 // durable or leave the previous snapshot active.
 type LiveHooks struct {
-	Current func() *config.Config
-	Apply   func(*config.Config) error
+	Current       func() *config.Config
+	Apply         func(*config.Config) error
+	ApplyTopology func(context.Context, *config.Config, *config.Config, GenerationMeta) error
 }
 
 func (h LiveHooks) validate() error {
@@ -62,16 +63,14 @@ func (b *LiveBuilder) Build(ctx context.Context, candidate *config.Config, meta 
 		return nil, errors.New("transactional candidate queues require NFQUEUE mode")
 	}
 	candidateCfg := candidate.Clone()
-	offset := candidateCfg.System.Classifier.Runtime.Capture.CandidateQueueOffset
-	if offset < 1 {
-		return nil, errors.New("candidate queue offset must be positive")
+	topologyPlan, err := capture.PlanGSOTopology(active)
+	if err != nil {
+		return nil, fmt.Errorf("plan candidate NFQUEUE topology: %w", err)
 	}
-	queueStart := active.Queue.StartNum + active.Queue.Threads + offset
-	if queueStart < 0 || queueStart > 65535 {
-		return nil, errors.New("candidate queue start is out of range")
-	}
+	queueStart := int(topologyPlan.Candidate.Start)
+	queueThreads := int(topologyPlan.Candidate.Threads)
 	candidateCfg.Queue.StartNum = queueStart
-	candidateCfg.Queue.Threads = 1
+	candidateCfg.Queue.Threads = queueThreads
 	candidateCfg.Queue.Mark = active.CanaryInjectedMark()
 	candidateCfg.Queue.IsDiscovery = false
 	candidateCfg.System.Tables.SkipSetup = true
@@ -82,7 +81,8 @@ func (b *LiveBuilder) Build(ctx context.Context, candidate *config.Config, meta 
 	}
 	return &liveRuntime{
 		cfg: candidate.Clone(), activeAtBuild: active.Clone(), hooks: b.hooks, pool: pool,
-		queueStart: queueStart, queueThreads: 1, flowMark: active.CanaryFlowMark(), directMark: active.CanaryDirectMark(),
+		topologyChanged: capture.GSOTopologyChanged(active, candidate),
+		queueStart:      queueStart, queueThreads: queueThreads, flowMark: active.CanaryFlowMark(), directMark: active.CanaryDirectMark(),
 		injectedMark: active.CanaryInjectedMark(), meta: meta.clone(),
 	}, nil
 }
@@ -98,22 +98,23 @@ func NewActiveRuntime(cfg *config.Config, hooks LiveHooks) (Runtime, error) {
 }
 
 type liveRuntime struct {
-	mu            sync.Mutex
-	cfg           *config.Config
-	activeAtBuild *config.Config
-	hooks         LiveHooks
-	pool          *nfq.Pool
-	queueStart    int
-	queueThreads  int
-	flowMark      uint
-	directMark    uint
-	injectedMark  uint
-	meta          GenerationMeta
-	steering      *tables.CanarySteeringSpec
-	canaryCancel  context.CancelFunc
-	canaryDone    chan struct{}
-	promoted      bool
-	closed        bool
+	mu              sync.Mutex
+	cfg             *config.Config
+	activeAtBuild   *config.Config
+	hooks           LiveHooks
+	pool            *nfq.Pool
+	queueStart      int
+	queueThreads    int
+	flowMark        uint
+	directMark      uint
+	injectedMark    uint
+	meta            GenerationMeta
+	steering        *tables.CanarySteeringSpec
+	canaryCancel    context.CancelFunc
+	canaryDone      chan struct{}
+	promoted        bool
+	topologyChanged bool
+	closed          bool
 }
 
 func (r *liveRuntime) Readiness(ctx context.Context) (RuntimeReadiness, error) {
@@ -281,7 +282,14 @@ func (r *liveRuntime) Promote(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if err := r.hooks.Apply(r.cfg.Clone()); err != nil {
+	if r.topologyChanged {
+		if r.hooks.ApplyTopology == nil {
+			return errors.New("runtime topology changed but transactional topology hook is unavailable")
+		}
+		if err := r.hooks.ApplyTopology(ctx, r.activeAtBuild.Clone(), r.cfg.Clone(), r.meta.clone()); err != nil {
+			return err
+		}
+	} else if err := r.hooks.Apply(r.cfg.Clone()); err != nil {
 		return err
 	}
 	r.mu.Lock()
@@ -298,6 +306,13 @@ func (r *liveRuntime) Resume(ctx context.Context) error {
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	current := r.hooks.Current()
+	if current != nil && capture.GSOTopologyChanged(current, r.cfg) {
+		if r.hooks.ApplyTopology == nil {
+			return errors.New("runtime topology restore hook is unavailable")
+		}
+		return r.hooks.ApplyTopology(ctx, current, r.cfg.Clone(), r.meta.clone())
 	}
 	return r.hooks.Apply(r.cfg.Clone())
 }

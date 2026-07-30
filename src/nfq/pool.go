@@ -63,14 +63,30 @@ func (p *Pool) UpdateTUNSourceWAN(wanIP string) {
 }
 
 func NewPool(cfg *config.Config) *Pool {
-	return newPool(cfg, false)
+	return newPoolWithState(cfg, false, nil, true, false, 0)
 }
 
 func NewCandidatePool(cfg *config.Config) *Pool {
-	return newPool(cfg, true)
+	return newPoolWithState(cfg, true, nil, true, false, 0)
 }
 
-func newPool(cfg *config.Config, candidate bool) *Pool {
+// NewGSOPrimaryPool builds a production-classifier pool wired to a dedicated
+// secondary normalizer queue. It does not start listeners or install rules.
+func NewGSOPrimaryPool(cfg *config.Config, normalizerQueue uint16) *Pool {
+	return newPoolWithState(cfg, false, nil, false, false, normalizerQueue)
+}
+
+// NewGSONormalizerPool shares immutable flow/action/token state with its
+// primary pool. A token miss accepts unchanged and never falls back to a second
+// classification pass.
+func NewGSONormalizerPool(cfg *config.Config, primary *Pool) *Pool {
+	if primary == nil || primary.state == nil {
+		return nil
+	}
+	return newPoolWithState(cfg, false, primary.state, false, true, 0)
+}
+
+func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, startDHCP, normalizer bool, normalizerQueue uint16) *Pool {
 	threads := cfg.Queue.Threads
 	start := uint16(cfg.Queue.StartNum)
 	if threads < 1 {
@@ -84,9 +100,15 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 		canary = NewCanaryMonitor(0, 0)
 	}
 
-	dhcpMgr := dhcp.NewManager()
-
-	state := newRuntimeState()
+	state := shared
+	ownsState := state == nil
+	if state == nil {
+		state = newRuntimeState()
+	}
+	var dhcpMgr *dhcp.Manager
+	if startDHCP {
+		dhcpMgr = dhcp.NewManager()
+	}
 	ws := make([]*Worker, 0, threads)
 	for i := 0; i < threads; i++ {
 		w := NewWorkerWithQueue(cfg, start+uint16(i))
@@ -103,60 +125,89 @@ func newPool(cfg *config.Config, candidate bool) *Pool {
 		w.dnsHints = hintStore
 		w.canary = canary
 		w.candidateSet.Store("")
+		w.configureGSONormalizer(normalizerQueue, normalizer)
 		ws = append(ws, w)
 	}
 
-	pool := &Pool{Workers: ws, Dhcp: dhcpMgr, stopCleanup: make(chan struct{}), state: state, canary: canary, candidate: candidate}
+	pool := &Pool{Workers: ws, Dhcp: dhcpMgr, stopCleanup: make(chan struct{}), state: state, canary: canary, candidate: candidate, ownsState: ownsState}
 
-	dhcpMgr.OnUpdate(func(ipToMAC map[string]string) {
+	if dhcpMgr != nil {
+		dhcpMgr.OnUpdate(func(ipToMAC map[string]string) {
+			for _, w := range pool.Workers {
+				w.ipToMac.Store(ipToMAC)
+			}
+			log.Infof("DHCP: updated %d IP->MAC mappings", len(ipToMAC))
+		})
+
+		dhcpMgr.SetManualDevices(cfg.Queue.Devices.ManualEntries())
+		dhcpMgr.Start()
+
+		initialMappings := dhcpMgr.GetAllMappings()
 		for _, w := range pool.Workers {
+			w.ipToMac.Store(initialMappings)
+		}
+		log.Infof("DHCP: initial load %d IP->MAC mappings", len(initialMappings))
+	}
+
+	if ownsState {
+		go func() {
+			cleanupTicker := time.NewTicker(30 * time.Second)
+			defer cleanupTicker.Stop()
+			escalationTicker := time.NewTicker(2 * time.Second)
+			defer escalationTicker.Stop()
+			for {
+				select {
+				case <-cleanupTicker.C:
+					pool.state.connState.Cleanup()
+					pool.state.tlsCache.Cleanup()
+					pool.state.destState.Cleanup(300 * time.Second)
+					pool.state.scopedFailures.GC(time.Now())
+					pool.state.routeBindings.GC(time.Now())
+					for _, worker := range pool.Workers {
+						if worker.tcpReassembly != nil {
+							worker.tcpReassembly.GC(time.Now())
+						}
+						if worker.tcpHold != nil {
+							worker.tcpHold.GC(time.Now())
+						}
+						if worker.clientHelloClaims != nil {
+							worker.clientHelloClaims.GC(time.Now())
+						}
+					}
+				case <-escalationTicker.C:
+					metrics.GetMetricsCollector().UpdateEscalations(pool.GetEscalations())
+				case <-pool.stopCleanup:
+					return
+				}
+			}
+		}()
+	}
+
+	return pool
+}
+
+// StartDHCP attaches device identity ownership when a pre-built topology is
+// about to start classifier workers. It is idempotent and intentionally kept
+// separate from topology reservation.
+func (p *Pool) StartDHCP(cfg *config.Config) {
+	if p == nil || cfg == nil || p.Dhcp != nil {
+		return
+	}
+	dhcpMgr := dhcp.NewManager()
+	p.Dhcp = dhcpMgr
+	dhcpMgr.OnUpdate(func(ipToMAC map[string]string) {
+		for _, w := range p.Workers {
 			w.ipToMac.Store(ipToMAC)
 		}
 		log.Infof("DHCP: updated %d IP->MAC mappings", len(ipToMAC))
 	})
-
 	dhcpMgr.SetManualDevices(cfg.Queue.Devices.ManualEntries())
 	dhcpMgr.Start()
-
 	initialMappings := dhcpMgr.GetAllMappings()
-	for _, w := range pool.Workers {
+	for _, w := range p.Workers {
 		w.ipToMac.Store(initialMappings)
 	}
 	log.Infof("DHCP: initial load %d IP->MAC mappings", len(initialMappings))
-
-	go func() {
-		cleanupTicker := time.NewTicker(30 * time.Second)
-		defer cleanupTicker.Stop()
-		escalationTicker := time.NewTicker(2 * time.Second)
-		defer escalationTicker.Stop()
-		for {
-			select {
-			case <-cleanupTicker.C:
-				pool.state.connState.Cleanup()
-				pool.state.tlsCache.Cleanup()
-				pool.state.destState.Cleanup(300 * time.Second)
-				pool.state.scopedFailures.GC(time.Now())
-				pool.state.routeBindings.GC(time.Now())
-				for _, worker := range pool.Workers {
-					if worker.tcpReassembly != nil {
-						worker.tcpReassembly.GC(time.Now())
-					}
-					if worker.tcpHold != nil {
-						worker.tcpHold.GC(time.Now())
-					}
-					if worker.clientHelloClaims != nil {
-						worker.clientHelloClaims.GC(time.Now())
-					}
-				}
-			case <-escalationTicker.C:
-				metrics.GetMetricsCollector().UpdateEscalations(pool.GetEscalations())
-			case <-pool.stopCleanup:
-				return
-			}
-		}
-	}()
-
-	return pool
 }
 
 func (p *Pool) SetCanarySetID(setID string) {

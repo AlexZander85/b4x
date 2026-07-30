@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
@@ -77,12 +78,13 @@ func (m *Runtime) Start(cfg *config.Config) (*StartResult, error) {
 
 	mainStart := cfg.Queue.StartNum
 	mainThreads := cfg.Queue.Threads
-	discoveryThreads := 1
-	discoveryStart := mainStart + mainThreads
-	discoveryEnd := discoveryStart + discoveryThreads - 1
-	if discoveryStart < 0 || discoveryEnd > 65535 {
-		return nil, fmt.Errorf("discovery queue range is out of bounds: %d-%d", discoveryStart, discoveryEnd)
+	topologyPlan, err := capture.PlanGSOTopology(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("plan discovery NFQUEUE topology: %w", err)
 	}
+	discoveryStart := int(topologyPlan.Discovery.Start)
+	discoveryThreads := int(topologyPlan.Discovery.Threads)
+	discoveryEnd := int(topologyPlan.Discovery.End())
 
 	flowMark := cfg.DiscoveryFlowMark()
 	injectedMark := cfg.DiscoveryInjectedMark()

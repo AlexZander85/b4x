@@ -297,38 +297,39 @@ func runB4(cmd *cobra.Command, args []string) error {
 			tables.RoutingSyncConfig(&cfg)
 		}
 	} else {
-		// Setup iptables/nftables rules
+		// Reconcile stale B4-owned rules before binding queues. queue-bypass keeps
+		// any surviving vendor rule fail-open; no new rule is installed until all
+		// listeners are bound.
 		if !cfg.System.Tables.SkipSetup {
-			log.Tracef("Clearing existing iptables/nftables rules")
+			log.Tracef("Reconciling pre-existing B4 firewall rules")
 			tables.ClearRules(&cfg)
 			b4tun.ClearStaleArtifacts(&cfg)
-
-			log.Tracef("Adding tables rules")
-			if err := tables.AddRules(&cfg); err != nil {
-				metrics.RecordEvent("error", fmt.Sprintf("Failed to add tables rules: %v", err))
-				return fmt.Errorf("failed to add tables rules: %w", err)
-			}
-			metrics.TablesStatus = tables.DetectBackend(&cfg)
-			metrics.RecordEvent("info", "Tables rules configured successfully")
-		} else {
-			log.Infof("Skipping tables setup (--skip-tables)")
-			metrics.TablesStatus = "skipped"
 		}
 
-		// Ensure routing runtime state is applied at startup as well.
-		if !cfg.System.Tables.SkipSetup {
-			tproxyMgr.SyncConfig(&cfg)
-			tables.RoutingSyncConfig(&cfg)
-		} else {
-			log.Tracef("Skipping routing sync due to --skip-tables")
-		}
-
-		// Start netfilter queue pool
+		// Start listeners before installing queue targets. This removes the old
+		// unbound-startup window where live rules could point at absent queues.
 		log.Infof("Starting netfilter queue pool (queue: %d, threads: %d)", cfg.Queue.StartNum, cfg.Queue.Threads)
 		if err := pool.Start(); err != nil {
 			metrics.RecordEvent("error", fmt.Sprintf("NFQueue start failed: %v", err))
 			metrics.NFQueueStatus = "error"
 			return fmt.Errorf("netfilter queue start failed: %w", err)
+		}
+
+		if !cfg.System.Tables.SkipSetup {
+			log.Tracef("Installing B4 rules after NFQUEUE listener readiness")
+			if err := tables.AddRules(&cfg); err != nil {
+				pool.Stop()
+				metrics.RecordEvent("error", fmt.Sprintf("Failed to add tables rules: %v", err))
+				return fmt.Errorf("failed to add tables rules: %w", err)
+			}
+			metrics.TablesStatus = tables.DetectBackend(&cfg)
+			metrics.RecordEvent("info", "Tables rules configured after queue readiness")
+			tproxyMgr.SyncConfig(&cfg)
+			tables.RoutingSyncConfig(&cfg)
+		} else {
+			log.Infof("Skipping tables setup (--skip-tables)")
+			metrics.TablesStatus = "skipped"
+			log.Tracef("Skipping routing sync due to --skip-tables")
 		}
 
 		metrics.RecordEvent("info", fmt.Sprintf("NFQueue started with %d threads", cfg.Queue.Threads))

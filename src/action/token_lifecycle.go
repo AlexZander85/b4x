@@ -99,3 +99,18 @@ func (s *ActionTokenStore) pruneExpiredLocked(now time.Time) int {
 	}
 	return removed
 }
+
+// Clear revokes every generation-local action authority. It is used only by
+// topology abort/shutdown where no token may survive into a replacement queue
+// graph.
+func (s *ActionTokenStore) Clear() int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	removed := len(s.entries)
+	clear(s.entries)
+	clear(s.invalidated)
+	return removed
+}

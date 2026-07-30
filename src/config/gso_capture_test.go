@@ -39,3 +39,37 @@ func TestNFQueueGSOConfigValidatesModesAndBounds(t *testing.T) {
 		t.Fatal("non-TCP GSO mode accepted")
 	}
 }
+
+func TestNFQueueGSOTopologyDefaultsAndOverlapValidation(t *testing.T) {
+	cfg := NewConfig()
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	nfq := cfg.System.Classifier.Runtime.Capture.NFQueue
+	if nfq.NormalizerMechanism != GSONormalizerDirectQueue || nfq.NormalizerQueueOffset != 2 || nfq.NormalizerThreads != 1 || nfq.DiscoveryThreads != 1 {
+		t.Fatalf("topology defaults=%+v", nfq)
+	}
+
+	cfg = NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeClassify
+	cfg.System.Classifier.Runtime.Capture.NFQueue.NormalizerQueueOffset = cfg.System.Classifier.Runtime.Capture.CandidateQueueOffset
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("candidate/normalizer queue overlap accepted")
+	}
+}
+
+func TestNFQueueGSOTopologyRejectsUncertifiedRepeatAndResourceOverflow(t *testing.T) {
+	cfg := NewConfig()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = GSOModeClassify
+	cfg.System.Classifier.Runtime.Capture.NFQueue.NormalizerMechanism = GSONormalizerNFRepeat
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("uncertified nf-repeat mode accepted")
+	}
+
+	cfg = NewConfig()
+	cfg.Queue.StartNum = 65534
+	cfg.Queue.Threads = 2
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("topology queue overflow accepted")
+	}
+}
