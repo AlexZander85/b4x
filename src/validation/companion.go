@@ -11,3 +11,16 @@ type ABDConformance struct {
 func (a ABDConformance) Ready() bool {
 	return len(a.Requirements) == 12 && len(a.TestIDs) > 0 && len(a.Artifacts) > 0 && a.TargetPlan && a.CleanBaseline && a.MultiProtocol && a.DynamicControls && a.EvidenceGraph && a.BlockingProfile && a.RouterValidated && a.AndroidValidated && len(a.HardGateViolations) == 0
 }
+
+var DDIRequirements = []string{"DDI-1", "DDI-2", "DDI-3", "DDI-4", "DDI-5", "DDI-6", "DDI-7", "DDI-8", "DDI-9", "DDI-10"}
+
+type DDIConformance struct {
+	Requirements, TestIDs, Artifacts                                                                                  []string
+	Envelope, Freshness, Revalidation, Priors, Baselines, FullFallback, GuidedAB, TargetControls, ActionAuthorization bool
+	QualityDelta, Tolerance                                                                                           float64
+	HardGateViolations                                                                                                []string
+}
+
+func (d DDIConformance) Ready() bool {
+	return len(d.Requirements) == 10 && len(d.TestIDs) > 0 && len(d.Artifacts) > 0 && d.Envelope && d.Freshness && d.Revalidation && d.Priors && d.Baselines && d.FullFallback && d.GuidedAB && d.TargetControls && d.ActionAuthorization && d.QualityDelta >= -d.Tolerance && len(d.HardGateViolations) == 0
+}
