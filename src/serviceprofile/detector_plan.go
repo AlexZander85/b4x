@@ -103,6 +103,15 @@ type TelegramBridgeStatus struct {
 	PrefixPreserved, AndroidValidated bool
 	DegradedReason                    string
 }
+type PackReleaseVerdict struct {
+	ProfileID, ABD, DDI, TGB, SafetyHash string
+	Ready                                bool
+	Reason                               string
+}
+
+func (v PackReleaseVerdict) Valid() bool {
+	return v.ProfileID != "" && v.SafetyHash != "" && v.ABD != "" && v.DDI != "" && v.TGB != ""
+}
 
 func (c DetectorCapabilities) Effective(m DetectorMode) DetectorMode {
 	if !c.CleanPath || !c.CaptureVisibility {
