@@ -55,6 +55,17 @@ type DynamicEvidence struct {
 	Families                                                                     int
 	Contradiction                                                                bool
 }
+type GuidedABResult struct {
+	ProfileID, PriorHash, BaselineWinner, GuidedWinner, FullWinner string
+	GuidedWallMS, FullWallMS                                       int64
+	GuidedProbes, FullProbes                                       int
+	QualityDelta, Tolerance                                        float64
+	Revalidated, ControlsValidated, ActionAuthorized               bool
+}
+
+func (r GuidedABResult) Ready() bool {
+	return r.ProfileID != "" && r.PriorHash != "" && r.BaselineWinner != "" && r.GuidedWinner != "" && r.FullWinner != "" && r.Revalidated && r.ControlsValidated && r.ActionAuthorized && r.QualityDelta >= -r.Tolerance
+}
 
 func (e DynamicEvidence) Ready() bool {
 	return e.ProviderID != "" && e.CacheKey != "" && e.ContentHash != "" && e.NetworkContextID != "" && e.Fresh && e.OwnershipValidated && e.Immutable && e.PrivacyRedacted && e.NoActionAuthorization && e.Families >= 2 && !e.Contradiction
