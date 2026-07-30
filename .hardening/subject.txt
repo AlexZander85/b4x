@@ -1,1 +1,1 @@
-feat(tcp): enforce bounded conservative passive RST injection defense
+feat(discovery): integrate passive RST evidence canary and rollback
