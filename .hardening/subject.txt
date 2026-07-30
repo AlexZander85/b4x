@@ -1,1 +1,1 @@
-feat(ui): add advanced GSO and passive RST diagnostics
+test(field): validate GSO and passive RST hardening on Keenetic and clients
