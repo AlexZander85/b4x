@@ -59,6 +59,18 @@ type RecoveryLease struct {
 	TTLSeconds, MaxAttempts                 int
 	Active, RolledBack                      bool
 }
+type RecoveryPromotion struct {
+	Mode                RecoveryMode
+	EvidenceRefs        []string
+	FieldTests          []string
+	FalsePositiveBudget int
+	Validated           bool
+	InvalidReason       string
+}
+
+func (p RecoveryPromotion) Ready() bool {
+	return p.Validated && len(p.EvidenceRefs) >= 2 && len(p.FieldTests) > 0 && p.FalsePositiveBudget > 0
+}
 
 func (l RecoveryLease) Valid() bool {
 	return l.ID != "" && l.BindingID != "" && l.ClientScope != "" && l.ComponentID != "" && l.ConfigGeneration > 0 && l.TTLSeconds > 0 && l.MaxAttempts > 0
