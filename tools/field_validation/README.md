@@ -70,3 +70,20 @@ python3 tools/field_validation/b4_field_validation.py certify \
 Certification requires every preflight gate, every scenario and every required coverage tag. Queue drops, collateral failures, unclassified first flows and cross-client leakage must be zero. A logical ClientHello may receive at most one action. ECH must resolve through scoped DNS or QUIC evidence. CPU, memory, body and throughput are checked against the target budgets supplied at initialization.
 
 Raw packets, raw ClientHello bytes, IP addresses and MAC addresses are excluded or redacted from run files and reports.
+
+## RST/GSO hardening H10
+
+The post-v2.3 RST/GSO addendum uses a separate fail-closed matrix because Stage 36 Android scenarios do not prove kernel GSO metadata, normalizer topology or passive-RST safety.
+
+```sh
+python3 tools/field_validation/rst_gso_field_validation.py validate-manifest
+python3 tools/field_validation/rst_gso_field_validation.py init --help
+```
+
+See:
+
+- `docs/validation/rst-gso-h10.md` for the workflow and current blocked verdict;
+- `tools/field_validation/rst_gso_target_commands.md` for command/artifact templates;
+- `tools/field_validation/rst_gso_manifest.json` for the normative 45-scenario matrix.
+
+A missing physical target run is reported as `BLOCKED_TARGET_VALIDATION`, never as PASS.

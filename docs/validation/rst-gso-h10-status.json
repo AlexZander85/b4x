@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "stage": "H10",
+  "status": "BLOCKED_TARGET_VALIDATION",
+  "target_evidence_present": false,
+  "production_ready_claimed": false,
+  "harness_implemented": true,
+  "manifest": "tools/field_validation/rst_gso_manifest.json",
+  "runner": "tools/field_validation/rst_gso_field_validation.py",
+  "blocking_requirements": [
+    "real network namespace and veth GSO skb captures",
+    "target Keenetic command, NFQUEUE, firewall, PPE, CPU, RAM and queue-drop evidence",
+    "Android official YouTube, ReVanced and control-service evidence",
+    "Chrome cold-run A/B traces with reset state",
+    "passive RST legitimate and forged packet captures",
+    "combined rollback, restart and sustained-pressure evidence",
+    "raw unit, integration, race, fuzz, benchmark and UI build logs indexed by SHA-256"
+  ],
+  "policy": "No H10 PASS and no production-ready claim until every manifest gate and scenario passes for the exact deployed commit and config generation."
+}

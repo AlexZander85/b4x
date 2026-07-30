@@ -1,0 +1,3354 @@
+{
+  "schema_version": 1,
+  "stage": "H10",
+  "blocked_verdict": "BLOCKED_TARGET_VALIDATION",
+  "required_code_gates": [
+    {
+      "id": "unit",
+      "required_artifacts": [
+        "test-log"
+      ]
+    },
+    {
+      "id": "integration",
+      "required_artifacts": [
+        "test-log"
+      ]
+    },
+    {
+      "id": "race",
+      "required_artifacts": [
+        "test-log"
+      ]
+    },
+    {
+      "id": "fuzz",
+      "required_artifacts": [
+        "test-log"
+      ]
+    },
+    {
+      "id": "benchmark",
+      "required_artifacts": [
+        "benchmark"
+      ]
+    },
+    {
+      "id": "ui_contract",
+      "required_artifacts": [
+        "test-log"
+      ]
+    },
+    {
+      "id": "ui_build",
+      "required_artifacts": [
+        "build-log"
+      ]
+    }
+  ],
+  "required_preflight": [
+    {
+      "id": "target_keenetic",
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics"
+      ]
+    },
+    {
+      "id": "android_chrome",
+      "required_artifacts": [
+        "android-log",
+        "chrome-trace"
+      ]
+    },
+    {
+      "id": "exact_commit_generation",
+      "required_artifacts": [
+        "config",
+        "router-diagnostics"
+      ]
+    },
+    {
+      "id": "hardening_api_available",
+      "required_artifacts": [
+        "router-diagnostics"
+      ]
+    },
+    {
+      "id": "raw_artifact_retention",
+      "required_artifacts": [
+        "artifact-index"
+      ]
+    },
+    {
+      "id": "no_pending_runtime",
+      "required_artifacts": [
+        "router-diagnostics"
+      ]
+    },
+    {
+      "id": "resource_budgets_defined",
+      "required_artifacts": []
+    }
+  ],
+  "allowed_artifact_kinds": [
+    "android-log",
+    "artifact-index",
+    "benchmark",
+    "build-log",
+    "chrome-trace",
+    "command-log",
+    "config",
+    "discovery-report",
+    "metrics",
+    "packet-capture",
+    "resource-sample",
+    "restart-log",
+    "rollback-log",
+    "router-diagnostics",
+    "test-log"
+  ],
+  "required_coverage": [
+    "budget_exhaustion",
+    "candidate_queue_rst_isolation",
+    "chrome_cold_ab",
+    "clienthello_16384",
+    "clienthello_1988",
+    "clienthello_32768",
+    "clienthello_4096",
+    "cloudflare_control",
+    "cloudflare_reconnect_control",
+    "config_generation_change",
+    "direct_queue_or_nf_repeat",
+    "discovery_reproducibility_ab",
+    "ecmp_anycast_variation",
+    "facebook_control",
+    "forged_pre_response_rst",
+    "gso_classify_rst_observe",
+    "gso_normalize_rst_held_first_flight",
+    "gso_token_timeout_rst",
+    "hold_timeout",
+    "hot_topology_rollback_active_flows",
+    "impossible_seq_ack",
+    "incomplete_ppe_visibility",
+    "instagram_control",
+    "iptables",
+    "ipv4",
+    "ipv4_ttl",
+    "ipv6",
+    "ipv6_hop_limit",
+    "keenetic_resources",
+    "layout_parity",
+    "legitimate_after_server_progress",
+    "legitimate_after_synack_rst",
+    "legitimate_closed_port_rst",
+    "multi_rst_burst",
+    "mutation_normalization",
+    "network_namespace",
+    "nfqa_cap_len",
+    "nfqa_skb_csum_not_ready",
+    "nftables",
+    "official_youtube",
+    "ppe_deoffload_window_gso",
+    "ppe_visibility",
+    "production_candidate_discovery_isolation",
+    "queue_bypass",
+    "queue_listener_crash",
+    "real_gso_skb",
+    "revanced",
+    "rollback_reconnect_regression",
+    "route_change_baseline",
+    "router_restart_stale_cleanup",
+    "rst_without_ack",
+    "shutdown_cleanup",
+    "single_action_token",
+    "stable_baseline",
+    "sustained_load_memory_pressure",
+    "tcp_option_mismatch",
+    "token_consume_once",
+    "truncation_fail_open",
+    "ttl_match",
+    "ttl_mismatch",
+    "unchanged_nf_accept",
+    "unknown_flow",
+    "valid_seq_ack",
+    "veth"
+  ],
+  "scenarios": [
+    {
+      "id": "gso_netns_real_skb",
+      "suite": "gso",
+      "title": "Network namespace real GSO skb",
+      "instructions": "Create network namespaces and a veth pair, prove a real GSO skb reaches NFQUEUE, and retain commands plus packet capture.",
+      "tags": [
+        "network_namespace",
+        "veth",
+        "real_gso_skb"
+      ],
+      "required_metrics": [
+        "gso_packets",
+        "real_gso_verified",
+        "nfqueue_seen",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "gso_packets",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "real_gso_verified",
+          "op": "true"
+        },
+        {
+          "metric": "nfqueue_seen",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_clienthello_1988",
+      "suite": "gso",
+      "title": "ClientHello 1988 B",
+      "instructions": "Send the same logical ClientHello at 1988 B through MSS and GSO layouts and compare classification/action identity.",
+      "tags": [
+        "clienthello_1988",
+        "layout_parity",
+        "single_action_token"
+      ],
+      "required_metrics": [
+        "decision_parity",
+        "selected_set_parity",
+        "actions_per_logical_clienthello",
+        "layout_parity_failures",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "decision_parity",
+          "op": "true"
+        },
+        {
+          "metric": "selected_set_parity",
+          "op": "true"
+        },
+        {
+          "metric": "actions_per_logical_clienthello",
+          "op": "lte",
+          "value": 1
+        },
+        {
+          "metric": "layout_parity_failures",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_clienthello_4096",
+      "suite": "gso",
+      "title": "ClientHello 4 KiB",
+      "instructions": "Send the same logical ClientHello at 4 KiB through MSS and GSO layouts and compare classification/action identity.",
+      "tags": [
+        "clienthello_4096",
+        "layout_parity",
+        "single_action_token"
+      ],
+      "required_metrics": [
+        "decision_parity",
+        "selected_set_parity",
+        "actions_per_logical_clienthello",
+        "layout_parity_failures",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "decision_parity",
+          "op": "true"
+        },
+        {
+          "metric": "selected_set_parity",
+          "op": "true"
+        },
+        {
+          "metric": "actions_per_logical_clienthello",
+          "op": "lte",
+          "value": 1
+        },
+        {
+          "metric": "layout_parity_failures",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_clienthello_16384",
+      "suite": "gso",
+      "title": "ClientHello 16 KiB",
+      "instructions": "Send the same logical ClientHello at 16 KiB through MSS and GSO layouts and compare classification/action identity.",
+      "tags": [
+        "clienthello_16384",
+        "layout_parity",
+        "single_action_token"
+      ],
+      "required_metrics": [
+        "decision_parity",
+        "selected_set_parity",
+        "actions_per_logical_clienthello",
+        "layout_parity_failures",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "decision_parity",
+          "op": "true"
+        },
+        {
+          "metric": "selected_set_parity",
+          "op": "true"
+        },
+        {
+          "metric": "actions_per_logical_clienthello",
+          "op": "lte",
+          "value": 1
+        },
+        {
+          "metric": "layout_parity_failures",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_clienthello_32768",
+      "suite": "gso",
+      "title": "ClientHello 32 KiB",
+      "instructions": "Send the same logical ClientHello at 32 KiB through MSS and GSO layouts and compare classification/action identity.",
+      "tags": [
+        "clienthello_32768",
+        "layout_parity",
+        "single_action_token"
+      ],
+      "required_metrics": [
+        "decision_parity",
+        "selected_set_parity",
+        "actions_per_logical_clienthello",
+        "layout_parity_failures",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "decision_parity",
+          "op": "true"
+        },
+        {
+          "metric": "selected_set_parity",
+          "op": "true"
+        },
+        {
+          "metric": "actions_per_logical_clienthello",
+          "op": "lte",
+          "value": 1
+        },
+        {
+          "metric": "layout_parity_failures",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_caplen_csum_metadata",
+      "suite": "gso",
+      "title": "NFQA_CAP_LEN and checksum metadata",
+      "instructions": "Exercise truncated packet copies and NFQA_SKB_CSUMNOTREADY; prove fail-open or completed bounded reassembly without packet-local false classification.",
+      "tags": [
+        "nfqa_cap_len",
+        "nfqa_skb_csum_not_ready",
+        "truncation_fail_open"
+      ],
+      "required_metrics": [
+        "cap_len_seen",
+        "csum_not_ready_seen",
+        "truncated_false_classifications",
+        "unsafe_actions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "cap_len_seen",
+          "op": "true"
+        },
+        {
+          "metric": "csum_not_ready_seen",
+          "op": "true"
+        },
+        {
+          "metric": "truncated_false_classifications",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "unsafe_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_unchanged_accept",
+      "suite": "gso",
+      "title": "Unchanged NF_ACCEPT",
+      "instructions": "Verify an accept-only GSO packet leaves NFQUEUE unchanged with identical length/hash and no secondary action.",
+      "tags": [
+        "unchanged_nf_accept"
+      ],
+      "required_metrics": [
+        "accepted",
+        "payload_hash_equal",
+        "packet_length_equal",
+        "secondary_actions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "accepted",
+          "op": "true"
+        },
+        {
+          "metric": "payload_hash_equal",
+          "op": "true"
+        },
+        {
+          "metric": "packet_length_equal",
+          "op": "true"
+        },
+        {
+          "metric": "secondary_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_normalization_lifecycle",
+      "suite": "gso",
+      "title": "Mutation requiring normalization",
+      "instructions": "Exercise a normal-packet ActionPlan through the certified direct-queue or NF_REPEAT mechanism and prove consume-once token lifecycle.",
+      "tags": [
+        "mutation_normalization",
+        "direct_queue_or_nf_repeat",
+        "token_consume_once"
+      ],
+      "required_metrics": [
+        "normalization_requested",
+        "normalization_completed",
+        "action_executions",
+        "token_consumptions",
+        "duplicate_classifications",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "normalization_requested",
+          "op": "true"
+        },
+        {
+          "metric": "normalization_completed",
+          "op": "true"
+        },
+        {
+          "metric": "action_executions",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "metric": "token_consumptions",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "metric": "duplicate_classifications",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_hold_shutdown_cleanup",
+      "suite": "gso",
+      "title": "Hold timeout and shutdown cleanup",
+      "instructions": "Force hold timeout and daemon shutdown while normalization state exists; packets must release unchanged and all transient state must clear.",
+      "tags": [
+        "hold_timeout",
+        "shutdown_cleanup"
+      ],
+      "required_metrics": [
+        "released_unchanged",
+        "terminal_verdicts",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "released_unchanged",
+          "op": "true"
+        },
+        {
+          "metric": "terminal_verdicts",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_queue_listener_crash",
+      "suite": "gso",
+      "title": "Queue listener crash",
+      "instructions": "Crash the classifier or normalizer listener under active traffic and prove queue-bypass/fail-open, reconciliation and no leak.",
+      "tags": [
+        "queue_listener_crash",
+        "queue_bypass"
+      ],
+      "required_metrics": [
+        "traffic_fail_open",
+        "listener_reconciled",
+        "queue_drops",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "traffic_fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "listener_reconciled",
+          "op": "true"
+        },
+        {
+          "metric": "queue_drops",
+          "op": "lte_budget",
+          "budget": "max_queue_drops"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_ipv4_iptables",
+      "suite": "gso",
+      "title": "IPv4 with iptables",
+      "instructions": "Run classify and normalized-action cases on IPv4 using B4-owned iptables rules.",
+      "tags": [
+        "ipv4",
+        "iptables"
+      ],
+      "required_metrics": [
+        "classification_pass",
+        "normalization_pass",
+        "owned_rules_only",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "classification_pass",
+          "op": "true"
+        },
+        {
+          "metric": "normalization_pass",
+          "op": "true"
+        },
+        {
+          "metric": "owned_rules_only",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_ipv6_nftables",
+      "suite": "gso",
+      "title": "IPv6 with nftables",
+      "instructions": "Run classify and normalized-action cases on IPv6 using B4-owned nftables rules.",
+      "tags": [
+        "ipv6",
+        "nftables"
+      ],
+      "required_metrics": [
+        "classification_pass",
+        "normalization_pass",
+        "owned_rules_only",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "classification_pass",
+          "op": "true"
+        },
+        {
+          "metric": "normalization_pass",
+          "op": "true"
+        },
+        {
+          "metric": "owned_rules_only",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_scope_isolation",
+      "suite": "gso",
+      "title": "Production/candidate/discovery isolation",
+      "instructions": "Run simultaneous production, candidate and Discovery traffic; prove queue, token, action and evidence state never cross scopes.",
+      "tags": [
+        "production_candidate_discovery_isolation"
+      ],
+      "required_metrics": [
+        "cross_scope_actions",
+        "cross_scope_tokens",
+        "cross_scope_evidence",
+        "queue_overlap",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "cross_scope_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "cross_scope_tokens",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "cross_scope_evidence",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_overlap",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_ppe_visibility",
+      "suite": "gso",
+      "title": "PPE visibility",
+      "instructions": "Verify PPE deoffload and incoming progress visibility are complete enough for classify/action gates; incomplete windows must fail open.",
+      "tags": [
+        "ppe_visibility"
+      ],
+      "required_metrics": [
+        "ppe_visibility_complete",
+        "incomplete_window_actions",
+        "incoming_progress_visible",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "ppe_visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "incomplete_window_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "incoming_progress_visible",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_keenetic_resources",
+      "suite": "gso",
+      "title": "Keenetic CPU, RAM and queue drops",
+      "instructions": "Run sustained target load and retain bounded CPU/RAM/queue-drop evidence.",
+      "tags": [
+        "keenetic_resources"
+      ],
+      "required_metrics": [
+        "cpu_peak_pct",
+        "memory_peak_bytes",
+        "queue_drops",
+        "throughput_bps",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "resource-sample"
+      ],
+      "assertions": [
+        {
+          "metric": "cpu_peak_pct",
+          "op": "lte_budget",
+          "budget": "max_cpu_pct"
+        },
+        {
+          "metric": "memory_peak_bytes",
+          "op": "lte_budget",
+          "budget": "max_memory_bytes"
+        },
+        {
+          "metric": "queue_drops",
+          "op": "lte_budget",
+          "budget": "max_queue_drops"
+        },
+        {
+          "metric": "throughput_bps",
+          "op": "gte_budget",
+          "budget": "min_throughput_bps"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_chrome_cold_ab",
+      "suite": "gso",
+      "title": "Chrome cold-run A/B",
+      "instructions": "Run cold Chrome profiles with DNS/conntrack/B4 state reset and compare baseline versus hardening completion milestones.",
+      "tags": [
+        "chrome_cold_ab"
+      ],
+      "required_metrics": [
+        "cold_reset_verified",
+        "baseline_success",
+        "candidate_success",
+        "latency_regression_pct",
+        "control_regressions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "android-log",
+        "chrome-trace"
+      ],
+      "assertions": [
+        {
+          "metric": "cold_reset_verified",
+          "op": "true"
+        },
+        {
+          "metric": "baseline_success",
+          "op": "true"
+        },
+        {
+          "metric": "candidate_success",
+          "op": "true"
+        },
+        {
+          "metric": "latency_regression_pct",
+          "op": "lte_budget",
+          "budget": "max_latency_regression_pct"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_android_youtube_revanced",
+      "suite": "gso",
+      "title": "Official YouTube and ReVanced",
+      "instructions": "Exercise official YouTube and ReVanced cold starts, first API/UI/video flows and sustained playback.",
+      "tags": [
+        "official_youtube",
+        "revanced"
+      ],
+      "required_metrics": [
+        "official_youtube_pass",
+        "revanced_pass",
+        "first_flow_actions_max",
+        "queue_drops",
+        "control_regressions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "android-log",
+        "chrome-trace"
+      ],
+      "assertions": [
+        {
+          "metric": "official_youtube_pass",
+          "op": "true"
+        },
+        {
+          "metric": "revanced_pass",
+          "op": "true"
+        },
+        {
+          "metric": "first_flow_actions_max",
+          "op": "lte",
+          "value": 1
+        },
+        {
+          "metric": "queue_drops",
+          "op": "lte_budget",
+          "budget": "max_queue_drops"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_control_services",
+      "suite": "gso",
+      "title": "Instagram, Facebook and Cloudflare controls",
+      "instructions": "Run negative-control services and prove no unrelated action, route, RST suppression or reconnect regression.",
+      "tags": [
+        "instagram_control",
+        "facebook_control",
+        "cloudflare_control"
+      ],
+      "required_metrics": [
+        "instagram_pass",
+        "facebook_pass",
+        "cloudflare_pass",
+        "unrelated_actions",
+        "unrelated_rst_suppressions",
+        "control_regressions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "android-log",
+        "chrome-trace"
+      ],
+      "assertions": [
+        {
+          "metric": "instagram_pass",
+          "op": "true"
+        },
+        {
+          "metric": "facebook_pass",
+          "op": "true"
+        },
+        {
+          "metric": "cloudflare_pass",
+          "op": "true"
+        },
+        {
+          "metric": "unrelated_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "unrelated_rst_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "gso_discovery_repro_ab",
+      "suite": "gso",
+      "title": "Discovery reproducibility A/B",
+      "instructions": "Repeat baseline/candidate Discovery probes with identical generation and environment; suppression cannot be standalone success proof.",
+      "tags": [
+        "discovery_reproducibility_ab"
+      ],
+      "required_metrics": [
+        "baseline_reproducible",
+        "candidate_reproducible",
+        "suppression_only_successes",
+        "control_regressions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "discovery-report"
+      ],
+      "assertions": [
+        {
+          "metric": "baseline_reproducible",
+          "op": "true"
+        },
+        {
+          "metric": "candidate_reproducible",
+          "op": "true"
+        },
+        {
+          "metric": "suppression_only_successes",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_legitimate_closed_port",
+      "suite": "passive_rst",
+      "title": "Legitimate closed-port RST before SYN-ACK",
+      "instructions": "Connect to a known closed port and prove the legitimate pre-SYN-ACK RST is passed.",
+      "tags": [
+        "legitimate_closed_port_rst"
+      ],
+      "required_metrics": [
+        "rst_passed",
+        "rst_suppressed",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "rst_passed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_legitimate_after_synack",
+      "suite": "passive_rst",
+      "title": "Legitimate server RST after SYN-ACK",
+      "instructions": "Establish SYN/SYN-ACK without app payload and trigger a legitimate server reset; it must pass.",
+      "tags": [
+        "legitimate_after_synack_rst"
+      ],
+      "required_metrics": [
+        "synack_seen",
+        "rst_passed",
+        "rst_suppressed",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "synack_seen",
+          "op": "true"
+        },
+        {
+          "metric": "rst_passed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_legitimate_after_progress",
+      "suite": "passive_rst",
+      "title": "Legitimate RST after server payload progress",
+      "instructions": "Trigger reset after inbound application payload; server progress must force pass and flow cleanup.",
+      "tags": [
+        "legitimate_after_server_progress"
+      ],
+      "required_metrics": [
+        "server_progress",
+        "rst_passed",
+        "rst_suppressed",
+        "flow_state_after",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "server_progress",
+          "op": "true"
+        },
+        {
+          "metric": "rst_passed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "flow_state_after",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_forged_pre_response",
+      "suite": "passive_rst",
+      "title": "Exact-flow forged pre-response RST",
+      "instructions": "Inject an exact-flow pre-response RST satisfying the conservative strong+corroborating matrix and prove bounded suppression.",
+      "tags": [
+        "forged_pre_response_rst"
+      ],
+      "required_metrics": [
+        "strong_signals",
+        "corroborating_signals",
+        "rst_suppressed",
+        "server_progress",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "strong_signals",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "corroborating_signals",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "server_progress",
+          "op": "false"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_multi_burst",
+      "suite": "passive_rst",
+      "title": "Multi-RST burst",
+      "instructions": "Inject a bounded burst and prove burst evidence, suppression budget and non-sliding window behavior.",
+      "tags": [
+        "multi_rst_burst"
+      ],
+      "required_metrics": [
+        "burst_detected",
+        "rst_suppressed",
+        "suppression_budget_exceeded",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "burst_detected",
+          "op": "true"
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "suppression_budget_exceeded",
+          "op": "false"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_ttl_match_mismatch",
+      "suite": "passive_rst",
+      "title": "Matching and mismatching TTL",
+      "instructions": "Compare RSTs matching the robust baseline and safely mismatching it; TTL alone must not suppress.",
+      "tags": [
+        "ttl_match",
+        "ttl_mismatch"
+      ],
+      "required_metrics": [
+        "matching_ttl_passed",
+        "mismatching_ttl_observed",
+        "ttl_only_suppressions",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "matching_ttl_passed",
+          "op": "true"
+        },
+        {
+          "metric": "mismatching_ttl_observed",
+          "op": "true"
+        },
+        {
+          "metric": "ttl_only_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_stable_route_change_baseline",
+      "suite": "passive_rst",
+      "title": "Stable and route-change TTL baseline",
+      "instructions": "Build a stable baseline, change the route and prove stale/route-change quality disables active suppression.",
+      "tags": [
+        "stable_baseline",
+        "route_change_baseline"
+      ],
+      "required_metrics": [
+        "stable_baseline_seen",
+        "route_change_seen",
+        "route_change_suppressions",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "stable_baseline_seen",
+          "op": "true"
+        },
+        {
+          "metric": "route_change_seen",
+          "op": "true"
+        },
+        {
+          "metric": "route_change_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_ecmp_anycast",
+      "suite": "passive_rst",
+      "title": "ECMP and anycast path variation",
+      "instructions": "Exercise legitimate ECMP/anycast variation and prove the robust spread does not systematically drop valid resets.",
+      "tags": [
+        "ecmp_anycast_variation"
+      ],
+      "required_metrics": [
+        "path_variants",
+        "legitimate_rst_pass_rate_pct",
+        "false_positive_suppressions",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "path_variants",
+          "op": "gte",
+          "value": 2
+        },
+        {
+          "metric": "legitimate_rst_pass_rate_pct",
+          "op": "gte",
+          "value": 99
+        },
+        {
+          "metric": "false_positive_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_seq_ack",
+      "suite": "passive_rst",
+      "title": "Impossible and valid SEQ/ACK",
+      "instructions": "Test valid in-window resets and cryptographically impossible/out-of-window resets on the same FSM model.",
+      "tags": [
+        "impossible_seq_ack",
+        "valid_seq_ack"
+      ],
+      "required_metrics": [
+        "valid_rst_passed",
+        "impossible_rst_suppressed",
+        "valid_rst_suppressed",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "valid_rst_passed",
+          "op": "true"
+        },
+        {
+          "metric": "impossible_rst_suppressed",
+          "op": "true"
+        },
+        {
+          "metric": "valid_rst_suppressed",
+          "op": "false"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_tcp_options",
+      "suite": "passive_rst",
+      "title": "TCP option mismatch",
+      "instructions": "Change the reset packet TCP option fingerprint and prove it is corroborating only, never standalone suppression proof.",
+      "tags": [
+        "tcp_option_mismatch"
+      ],
+      "required_metrics": [
+        "option_mismatch_seen",
+        "option_only_suppressions",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "option_mismatch_seen",
+          "op": "true"
+        },
+        {
+          "metric": "option_only_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_without_ack",
+      "suite": "passive_rst",
+      "title": "RST without ACK",
+      "instructions": "Exercise a reset without ACK in legitimate and forged contexts and prove FSM-aware handling.",
+      "tags": [
+        "rst_without_ack"
+      ],
+      "required_metrics": [
+        "no_ack_cases",
+        "legitimate_no_ack_passed",
+        "forged_no_ack_bounded",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "no_ack_cases",
+          "op": "gte",
+          "value": 2
+        },
+        {
+          "metric": "legitimate_no_ack_passed",
+          "op": "true"
+        },
+        {
+          "metric": "forged_no_ack_bounded",
+          "op": "true"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_ipv4_ipv6_hop",
+      "suite": "passive_rst",
+      "title": "IPv4 TTL and IPv6 hop-limit",
+      "instructions": "Validate baseline quality and decision parity for IPv4 TTL and IPv6 hop-limit.",
+      "tags": [
+        "ipv4_ttl",
+        "ipv6_hop_limit"
+      ],
+      "required_metrics": [
+        "ipv4_pass",
+        "ipv6_pass",
+        "family_decision_parity",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "ipv4_pass",
+          "op": "true"
+        },
+        {
+          "metric": "ipv6_pass",
+          "op": "true"
+        },
+        {
+          "metric": "family_decision_parity",
+          "op": "true"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_incomplete_ppe_visibility",
+      "suite": "passive_rst",
+      "title": "Incomplete PPE visibility",
+      "instructions": "Create an incomplete PPE visibility window; active suppression must be impossible and the reset must fail open.",
+      "tags": [
+        "incomplete_ppe_visibility"
+      ],
+      "required_metrics": [
+        "visibility_complete",
+        "rst_suppressed",
+        "fail_open",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "visibility_complete",
+          "op": "false"
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_unknown_flow",
+      "suite": "passive_rst",
+      "title": "Unknown flow",
+      "instructions": "Send a reset with no exact-flow FSM entry; it must fail open without creating suppression state.",
+      "tags": [
+        "unknown_flow"
+      ],
+      "required_metrics": [
+        "unknown_flow_seen",
+        "rst_suppressed",
+        "fail_open",
+        "new_state_entries",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "unknown_flow_seen",
+          "op": "true"
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "new_state_entries",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_budget_exhaustion",
+      "suite": "passive_rst",
+      "title": "Budget exhaustion",
+      "instructions": "Exhaust the per-flow/global suppression budget; subsequent resets must fail open and the window must not slide.",
+      "tags": [
+        "budget_exhaustion"
+      ],
+      "required_metrics": [
+        "budget_exhausted",
+        "post_budget_suppressions",
+        "post_budget_fail_open",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "budget_exhausted",
+          "op": "true"
+        },
+        {
+          "metric": "post_budget_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "post_budget_fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_generation_change",
+      "suite": "passive_rst",
+      "title": "Config generation change",
+      "instructions": "Change the active config generation with tracked flows; old evidence and budgets must not authorize new-generation suppression.",
+      "tags": [
+        "config_generation_change"
+      ],
+      "required_metrics": [
+        "generation_changed",
+        "cross_generation_suppressions",
+        "old_state_entries",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "generation_changed",
+          "op": "true"
+        },
+        {
+          "metric": "cross_generation_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "old_state_entries",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_rollback_reconnect",
+      "suite": "passive_rst",
+      "title": "Rollback on reconnect regression",
+      "instructions": "Cause reconnect/no-progress regression inside one exact scope and prove automatic rollback to observe while last-good remains intact.",
+      "tags": [
+        "rollback_reconnect_regression"
+      ],
+      "required_metrics": [
+        "regression_detected",
+        "rollback_proven",
+        "effective_mode_observe",
+        "last_good_preserved",
+        "unrelated_scope_rollbacks",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture",
+        "rollback-log"
+      ],
+      "assertions": [
+        {
+          "metric": "regression_detected",
+          "op": "true"
+        },
+        {
+          "metric": "rollback_proven",
+          "op": "true"
+        },
+        {
+          "metric": "effective_mode_observe",
+          "op": "true"
+        },
+        {
+          "metric": "last_good_preserved",
+          "op": "true"
+        },
+        {
+          "metric": "unrelated_scope_rollbacks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "rst_cloudflare_controls",
+      "suite": "passive_rst",
+      "title": "Cloudflare reconnect/control scenarios",
+      "instructions": "Exercise Cloudflare reconnect and control flows; legitimate resets and reconnects must not regress.",
+      "tags": [
+        "cloudflare_reconnect_control"
+      ],
+      "required_metrics": [
+        "cloudflare_control_pass",
+        "cloudflare_reconnect_pass",
+        "unrelated_rst_suppressions",
+        "visibility_complete",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "android-log",
+        "chrome-trace",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "cloudflare_control_pass",
+          "op": "true"
+        },
+        {
+          "metric": "cloudflare_reconnect_pass",
+          "op": "true"
+        },
+        {
+          "metric": "unrelated_rst_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "visibility_complete",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_classify_observe",
+      "suite": "combined",
+      "title": "GSO classify plus passive RST observe",
+      "instructions": "Run GSO classification while passive RST remains observe-only; decisions must not alter packets.",
+      "tags": [
+        "gso_classify_rst_observe"
+      ],
+      "required_metrics": [
+        "gso_classified",
+        "rst_observed",
+        "rst_suppressed",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "gso_classified",
+          "op": "true"
+        },
+        {
+          "metric": "rst_observed",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "rst_suppressed",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_normalize_held_rst",
+      "suite": "combined",
+      "title": "GSO normalize with RST during held first flight",
+      "instructions": "Inject RST while first-flight packets are held for normalization; terminal verdict and transient cleanup must remain correct.",
+      "tags": [
+        "gso_normalize_rst_held_first_flight"
+      ],
+      "required_metrics": [
+        "normalization_started",
+        "rst_seen_during_hold",
+        "terminal_verdicts",
+        "duplicate_actions",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "normalization_started",
+          "op": "true"
+        },
+        {
+          "metric": "rst_seen_during_hold",
+          "op": "true"
+        },
+        {
+          "metric": "terminal_verdicts",
+          "op": "gte",
+          "value": 1
+        },
+        {
+          "metric": "duplicate_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_token_timeout_rst",
+      "suite": "combined",
+      "title": "GSO token timeout plus RST",
+      "instructions": "Expire the GSO token before secondary delivery and inject RST; both paths must fail open and clear state.",
+      "tags": [
+        "gso_token_timeout_rst"
+      ],
+      "required_metrics": [
+        "token_expired",
+        "secondary_fail_open",
+        "rst_fail_open",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "token_expired",
+          "op": "true"
+        },
+        {
+          "metric": "secondary_fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "rst_fail_open",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_candidate_rst_isolation",
+      "suite": "combined",
+      "title": "Candidate queue and RST suppression isolation",
+      "instructions": "Run candidate traffic with suppression evidence and prove production mode, budgets and audit state remain unchanged.",
+      "tags": [
+        "candidate_queue_rst_isolation"
+      ],
+      "required_metrics": [
+        "candidate_observed",
+        "production_suppressions",
+        "cross_scope_health_samples",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "candidate_observed",
+          "op": "true"
+        },
+        {
+          "metric": "production_suppressions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "cross_scope_health_samples",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_ppe_deoffload_gso",
+      "suite": "combined",
+      "title": "PPE deoffload window plus GSO",
+      "instructions": "Exercise the transition from PPE deoffload to complete GSO visibility; unsafe actions must stay suppressed during the window.",
+      "tags": [
+        "ppe_deoffload_window_gso"
+      ],
+      "required_metrics": [
+        "deoffload_window_seen",
+        "unsafe_window_actions",
+        "post_window_classification",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture"
+      ],
+      "assertions": [
+        {
+          "metric": "deoffload_window_seen",
+          "op": "true"
+        },
+        {
+          "metric": "unsafe_window_actions",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "post_window_classification",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_hot_topology_rollback",
+      "suite": "combined",
+      "title": "Hot topology rollback with active flows",
+      "instructions": "Fail a hot topology transition while flows are active; old rules/workers/generation must remain authoritative.",
+      "tags": [
+        "hot_topology_rollback_active_flows"
+      ],
+      "required_metrics": [
+        "transition_failed",
+        "rollback_proven",
+        "old_generation_active",
+        "flows_released_unchanged",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "packet-capture",
+        "rollback-log"
+      ],
+      "assertions": [
+        {
+          "metric": "transition_failed",
+          "op": "true"
+        },
+        {
+          "metric": "rollback_proven",
+          "op": "true"
+        },
+        {
+          "metric": "old_generation_active",
+          "op": "true"
+        },
+        {
+          "metric": "flows_released_unchanged",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_restart_cleanup",
+      "suite": "combined",
+      "title": "Router restart with stale rules/tokens/marks",
+      "instructions": "Restart with deliberately present transient topology state and prove startup reconciliation removes only B4-owned stale state.",
+      "tags": [
+        "router_restart_stale_cleanup"
+      ],
+      "required_metrics": [
+        "restart_completed",
+        "owned_rules_reconciled",
+        "foreign_rules_preserved",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "restart-log"
+      ],
+      "assertions": [
+        {
+          "metric": "restart_completed",
+          "op": "true"
+        },
+        {
+          "metric": "owned_rules_reconciled",
+          "op": "true"
+        },
+        {
+          "metric": "foreign_rules_preserved",
+          "op": "true"
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    },
+    {
+      "id": "combined_sustained_pressure",
+      "suite": "combined",
+      "title": "Sustained load and memory pressure",
+      "instructions": "Run sustained Android/control traffic under memory/queue pressure and prove bounded fail-open degradation and resource use.",
+      "tags": [
+        "sustained_load_memory_pressure"
+      ],
+      "required_metrics": [
+        "cpu_peak_pct",
+        "memory_peak_bytes",
+        "queue_drops",
+        "throughput_bps",
+        "new_normalizations_under_pressure",
+        "new_holds_under_pressure",
+        "passive_rst_mode_escalations",
+        "queue_leaks",
+        "stale_marks",
+        "token_leaks",
+        "held_packets_leaked",
+        "control_regressions"
+      ],
+      "required_artifacts": [
+        "command-log",
+        "router-diagnostics",
+        "metrics",
+        "resource-sample",
+        "android-log"
+      ],
+      "assertions": [
+        {
+          "metric": "cpu_peak_pct",
+          "op": "lte_budget",
+          "budget": "max_cpu_pct"
+        },
+        {
+          "metric": "memory_peak_bytes",
+          "op": "lte_budget",
+          "budget": "max_memory_bytes"
+        },
+        {
+          "metric": "queue_drops",
+          "op": "lte_budget",
+          "budget": "max_queue_drops"
+        },
+        {
+          "metric": "throughput_bps",
+          "op": "gte_budget",
+          "budget": "min_throughput_bps"
+        },
+        {
+          "metric": "new_normalizations_under_pressure",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "new_holds_under_pressure",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "passive_rst_mode_escalations",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "queue_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "stale_marks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "token_leaks",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "held_packets_leaked",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "metric": "control_regressions",
+          "op": "eq",
+          "value": 0
+        }
+      ]
+    }
+  ]
+}
