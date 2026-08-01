@@ -122,3 +122,38 @@
 | src\validation | нет | meta-suite Ready() (не вызывается) | BLOCKED_TARGET_VALIDATION const | нет |
 | src\capture\ppe | да | механизм (safety gate, self-test), 0 счётчиков | VerdictPASS/INCONCLUSIVE mapping | да, широко |
 | src\crossservice | да | 1 (unrelated_control_action_total) | PromotionAllowed | да |
+
+## 6. Актуализация 2026-08-01 (FB-03 фаза D: аудит producers исправлен)
+
+Первоначальный аудит (разделы 2–5, 2026-07-31) использовал поиск по строковым литералам имён метрик. Это дало **ложный результат** для RST/GSO/PPE: producers инкрементят счётчики через **константы** `observability.Metric*` (`Metrics.Inc(observability.MetricX, ...)`), а не через строковые имена, и PowerShell `**` в `Select-String -Path` не раскрывает подкаталоги (`src/http/handler/runtime_topology.go` не попадал в поиск). Полный рекурсивный обход Inc-сайтов (2026-08-01) показал: **все 24 producer записи FB-03 scope реализованы** (9 zero-tolerance + 15 telemetry).
+
+### 6.1 Verified Inc-сайты (29 sites, все 24 метрики)
+
+| Метрика | Файл:строка |
+|---|---|
+| b4_capture_visibility_degrade_total, b4_hold_disabled_visibility_total | src\capture\ppe\product_service.go:110,111 |
+| b4_ppe_self_test_total | src\capture\ppe\product_service.go:348 |
+| b4_ppe_rule_reapply_total | src\capture\ppe\product_service.go:513 |
+| nfqueue_gso_transition_total | src\http\handler\runtime_topology.go:38 |
+| classifier_layout_parity_fail_total | src\nfq\classifier_decision.go:205,212,214,219,229 |
+| nfqueue_gso_packets/bytes/decision_total | src\nfq\gso_fastpath.go:209,211,214 |
+| nfqueue_gso_token_miss_total | src\nfq\gso_normalizer.go:61 |
+| nfqueue_gso_truncated/csum_not_ready_total | src\nfq\offload.go:106,107,109,112 |
+| passive_rst_observed/decision/suppressed/rollback/baseline_quality/budget_exhausted_total | src\nfq\passive_rst_observe.go:106,108,109,113,116,118 |
+| passive_rst_fail_open/reconnect_regression_total | src\nfq\passive_rst_rollback.go:134,136 |
+| unrelated_control_action_total | src\crossservice\validation.go:392 |
+
+Производственные вызовы подтверждены: `handlePacket` → `DecodeOffloadMetadata`/`observeOffloadMetadata` (http\handler\handler.go:54–55), `traceGSOFastPath` (gso_fastpath.go:69), `recordObservabilityDecision`, `pool.go:468` → `RecordHealth`, `ApplyRuntimeControlTopology` (defer, runtime_topology.go:38), `NewProductService` (PPE). 24-я метрика `nfqueue_gso_transition_total` (ранее «не найдена») реализована в runtime_topology.go:38.
+
+### 6.2 Исполненные проверки (фаза D)
+
+- **10 executed fixtures** (3 новых файла): src\nfq\hard_gate_producers_test.go (6 тестов), src\capture\ppe\hard_gate_producers_test.go (3), src\http\handler\hard_gate_producers_test.go (1) — все зелёные в Docker.
+- **9 executed mutation runs** (по одному на zero-tolerance gate): удаление Inc → целевой negative fixture FAIL → восстановление; маркеров MUTATION-RUN = 0; production-файлы не изменены. Удалялись: validation.go:265 (CSI, ранее), offload.go:109, offload.go:112, gso_normalizer.go:61, classifier_decision.go:214, passive_rst_observe.go:116, passive_rst_rollback.go:136, product_service.go:110, product_service.go:111.
+- Реестр: 24/282 verified с полными machine-readable цепочками (runtime_producer + verdict_consumer/aggregation_observer + test_producer + mutation_test + evidence_artifact); `gen_hard_gates_registry.py --check` OK.
+- Полный Docker `go build/vet/test -count=1` — зелёный.
+
+### 6.3 Корректировка выводов разделов 3–5 (не удалены — история)
+
+- «Реально исполняемых в бинаре: 1 из 160» → **неверно для RST/GSO/PPE/CSI scope**: исполняемы **24 из 24** метрик FB-03 scope (9 zero-tolerance + 15 telemetry) с verified producers.
+- «nfqueue_gso_transition_total не найден» → **неверно**: реализован (runtime_topology.go:38).
+- Выводы по WARP (56), SPF (22), FT §26 (82) и IV meta-suite остаются в силе: эти пакеты не в production-графе (0 импортеров), их счётчики вне FB-03 scope и покрываются другими задачами (FB-02, FB-14 и т.д.). Реестр фиксирует их как zero-tolerance по умолчанию (fail-closed BLOCKED при applicability).

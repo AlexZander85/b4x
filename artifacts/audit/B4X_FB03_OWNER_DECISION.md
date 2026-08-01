@@ -78,3 +78,16 @@
 5. **Интеграционный тест** `TestMissingProducerBlocksPromotionEndToEnd` (fieldtest): RSTGSO scope + missing zero-tolerance producer → BLOCKED → promotion rejected → нет committed side effect → clean stop/cleanup.
 6. **Mutation-прогон (executed):** удаление `report.UnrelatedControlActionTotal++` (validation.go:265) → `TestValidateRejectsYouTubeStateOnGmailSharedIPFlow` FAIL (`UnrelatedControlActionTotal:0` вместо 1) → восстановлено → suite зелёный. Зафиксировано в реестре как `mutation_test` у verified-записи.
 7. **FB-03 статус: IN_PROGRESS (НЕ COMPLETE).** REGISTRY_SCHEMA: PARTIAL/PASS; PRODUCER_AUDIT: PASS_WITH_FINDINGS (1/282 verified, 15 telemetry, 266 missing); RUNTIME_PRODUCERS: FAIL/IN_PROGRESS (блокирован FB-27, PPE wiring); VERDICT_CONSUMERS: INCOMPLETE (цепочка только у verified); MUTATION_COVERAGE: INCOMPLETE. Промежуточный коммит «FB-03 phase A» допустим.
+
+## Дополнение фаза D (2026-08-01, producers verified — аудит исправлен)
+
+**Важная корректировка фазы C:** вывод «266 missing, FAIL/IN_PROGRESS» был **ложным**. Producers инкрементят счётчики через константы `observability.Metric*` (а не строковые литералы), и PowerShell `**` не раскрывал подкаталоги. Полный рекурсивный обход Inc-сайтов: **все 24 записи FB-03 scope реализованы** (9 zero-tolerance + 15 telemetry), включая `nfqueue_gso_transition_total` (http\handler\runtime_topology.go:38), ранее считавшийся отсутствующим.
+
+1. **PRODUCER_AUDIT: PASS** — 24/24 verified (29 Inc-сайтов, список в hard_gates_audit.md §6.1); production callers подтверждены (handlePacket/observeOffloadMetadata, traceGSOFastPath, RecordHealth, ApplyRuntimeControlTopology, NewProductService).
+2. **RUNTIME_PRODUCERS: PASS** — все 19 RST/GSO + 4 PPE + 1 CSI producers существуют и подключены; реализационной работы по этим метрикам не осталось.
+3. **VERDICT_CONSUMERS: PASS** — machine-readable цепочки (runtime_producer + verdict_consumer {promotion_blocker|aggregation_blocker|aggregation_observer|http_report} + test_producer + mutation_test + evidence_artifact) для всех 24 verified записей; `EXPECTED_PRODUCER_LOCATION` пуст (нет missing в scope).
+4. **MUTATION_COVERAGE: PASS** — 9 executed mutation runs (1 CSI + 8 RST/GSO/PPE): удаление Inc → целевой negative fixture FAIL → восстановление; маркеров нет, suite зелёный.
+5. **10 новых executed fixtures** (src\nfq\, src\capture\ppe\, src\http\handler\hard_gate_producers_test.go); meta.go Reproducible = 282/24; ApplicableHardGates = 24.
+6. **Классификация kinds остаётся ASSUMPTION** (15 telemetry / 9 zero-tolerance) — требуется подтверждение владельца (норматив перечисляет метрики без классификации; применён fail-closed дефолт).
+7. **Открытым остаётся только критерий 4** («/metrics, API и report консистентны») — Prometheus export consistency против реестра (PARTIAL; validation API уже потребляет live snapshot).
+8. **FB-03 статус: IN_PROGRESS (готов к закрытию)** — все пункты, кроме criteria 4 (PARTIAL) и owner-подтверждения kinds. Коммиты: `7c0be90f` (phase A), `1f083b5e` (enum kinds), `bd9db5d5` (all-24-producers-verified + fixtures + mutation runs), `7f6a3499`/`89a9d671` (verified_commit pin). Полный Docker build/vet/test зелёный; `gen_hard_gates_registry.py --check` OK (282 gates, 9 families).
