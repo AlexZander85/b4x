@@ -160,11 +160,21 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {
     "passive_rst_suppressed_total": "nfq/passive_rst_observe.go",
 }
 
+# Verified-commit SHA recorded in the registry when a producer_status
+# flips to verified (producer audited + negative fixture + mutation run in
+# this commit). Filled by REGISTER_VERIFIED_COMMIT below.
+REGISTER_VERIFIED_COMMIT = "7c0be90f"  # FB-03 phase A commit (2026-08-01)
+
 # Gate kinds (owner-decision pending; classification is an ASSUMPTION,
 # fail-closed by default — see artifacts/audit/B4X_FB03_OWNER_DECISION.md):
-#   telemetry_counter               — operational telemetry, NOT a blocker
-#   zero_tolerance_violation_counter — violation counter, verified == 0
-# Only zero_tolerance_violation_counter gates may block promotion.
+#   telemetry_counter                 — operational telemetry, NOT a blocker
+#   zero_tolerance_violation_counter  — violation counter, verified == 0
+#   threshold_violation_counter       — blocks above an owner-defined threshold
+#   current_generation_readiness_state — readiness state bound to generation
+#   required_evidence                 — evidence artifact required, not a counter
+#   derived_blocker                   — derived verdict blocker (aggregation)
+# Only zero_tolerance_violation_counter (and, when normatively justified,
+# threshold/readiness/evidence/derived) may block promotion.
 GATE_KINDS: dict[str, str] = {
     # --- telemetry (operational counters, never block) ---
     "classifier_reassembled_sni_total": "telemetry_counter",
@@ -345,6 +355,7 @@ def build_gates() -> tuple[dict[str, list[dict]], dict[str, str]]:
                     "kind": kind,
                     "producer_status": "verified" if producer else "missing",
                     "runtime_producer": producer,
+                    "verified_commit": REGISTER_VERIFIED_COMMIT if producer else None,
                     "expected_producer_location": EXPECTED_PRODUCER_LOCATION.get(name),
                     "verdict_consumer": VERDICT_CONSUMERS.get(name),
                     "promotion_blocker": kind == "zero_tolerance_violation_counter",
@@ -440,6 +451,8 @@ def main() -> int:
                 # Verified producers must carry machine-readable consumers,
                 # tests and evidence (FB-03 verdict-consumer chain).
                 if g.get("producer_status") == "verified":
+                    if not g.get("verified_commit"):
+                        errors.append(f"COMMIT: {gid!r} verified producer has no verified_commit")
                     vc = g.get("verdict_consumer")
                     if not vc:
                         errors.append(f"CONSUMER: {gid!r} verified producer has no verdict_consumer")
