@@ -188,6 +188,19 @@ func (api *API) handleRuntimeControlCanary(w http.ResponseWriter, r *http.Reques
 		writeJsonError(w, http.StatusConflict, err.Error())
 		return
 	}
+	// Canary uses the same evaluation as PromotePending (FB-03 phase E2):
+	// the current TestSession/ValidationRun window. Only PASS (or
+	// NOT_APPLICABLE with no enabled subsystem, matching fieldtest.
+	// CanaryEligible(nil)) admits a canary rollout.
+	if pending, ok := manager.Pending(); ok {
+		eval := evaluateProductionGates(api.getCfg(), pending.Generation.ID)
+		if eval.Verdict != validation.GatePass && eval.Verdict != validation.GateNotApplicable {
+			writeJsonError(w, http.StatusConflict, fmt.Sprintf(
+				"hard-gate evaluation does not admit canary: verdict %s (%d violations, %d missing, %d counter resets)",
+				eval.Verdict, len(eval.Violations), len(eval.Missing), len(eval.CounterReset)))
+			return
+		}
+	}
 	outcome, err := manager.RunCanary(r.Context())
 	if err != nil {
 		writeRuntimeControlError(w, err)
@@ -465,6 +478,8 @@ func writeRuntimeControlError(w http.ResponseWriter, err error) {
 // hardGateScope projects the canonical hard-gate release scope (FB-03) from
 // the active configuration:
 //   - WARPBase: classifier v2 pipeline
+//   - RSTGSO: classifier/GSO/passive-RST pipeline (same v2 pipeline)
+//   - PPE: capture visibility (PPE offload enabled)
 //   - CSI: cross-service isolation (wired to promotion via RequirePromotion)
 //
 // Families without an enabled owning subsystem are NOT_APPLICABLE.
@@ -472,32 +487,32 @@ func hardGateScope(cfg *config.Config) validation.ReleaseScope {
 	if cfg == nil {
 		return validation.ReleaseScope{}
 	}
+	classifierV2 := cfg.System.Classifier.Flags.ClassifierV2Enabled
+	ppeEnabled := classifierV2 &&
+		(cfg.System.Classifier.Runtime.Capture.PPE.TCPEnabled || cfg.System.Classifier.Runtime.Capture.PPE.QUICEnabled)
 	return validation.ReleaseScope{
-		WARPBase: cfg.System.Classifier.Flags.ClassifierV2Enabled,
+		WARPBase: classifierV2,
 		CSI:      true,
+		RSTGSO:   classifierV2,
+		PPE:      ppeEnabled,
 	}
 }
 
-// checkHardGates evaluates the canonical hard-gate registry (FB-03) against
-// the live metrics snapshot as the final promotion gate for a candidate
-// generation. Any non-PASS verdict fails the promotion transaction
+// checkHardGates evaluates the canonical hard-gate registry (FB-03) as the
+// final promotion gate for a candidate generation. It uses the single
+// production evaluation path (evaluateProductionGates): the delta of the
+// current TestSession/ValidationRun window, never the process-lifetime
+// wrapper. Any non-PASS verdict fails the promotion transaction
 // (StagePromote).
 func checkHardGates(cfg *config.Config, generationID string) error {
 	scope := hardGateScope(cfg)
 	if !scope.Enabled() {
 		return nil // nothing enabled => NOT_APPLICABLE, not a failure
 	}
-	snap := observability.Default().Metrics.Snapshot(time.Now().UTC())
-	counters := make(map[string]uint64, len(snap.Counters))
-	produced := make(map[string]bool, len(snap.Counters))
-	for _, s := range snap.Counters {
-		counters[s.Name] += s.Value
-		produced[s.Name] = true
-	}
-	eval := validation.EvaluateHardGates(scope, nil, "", validation.GenerationSet{}, counters, produced)
+	eval := evaluateProductionGates(cfg, generationID)
 	if eval.Verdict == validation.GatePass {
 		return nil
 	}
-	return fmt.Errorf("hard-gate check failed for generation %s: verdict %s (%d violations, %d missing)",
-		observability.RedactIdentifier(generationID), eval.Verdict, len(eval.Violations), len(eval.Missing))
+	return fmt.Errorf("hard-gate check failed for generation %s: verdict %s (%d violations, %d missing, %d counter resets)",
+		observability.RedactIdentifier(generationID), eval.Verdict, len(eval.Violations), len(eval.Missing), len(eval.CounterReset))
 }

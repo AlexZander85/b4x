@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/validation"
 )
 
@@ -18,16 +17,36 @@ const validationGatesAPIPath = "/api/v2/validation/gates"
 // artifacts are hashed from the working tree when available (registry YAML
 // and generated Go reference), otherwise EvidenceIntegrity is false.
 type gateSnapshot struct {
-	Scope      validation.ReleaseScope   `json:"scope"`
-	Evaluation validation.GateEvaluation `json:"evaluation"`
-	Meta       validation.MetaResult     `json:"meta"`
-	CheckedAt  time.Time                 `json:"checked_at"`
+	Scope      validation.ReleaseScope        `json:"scope"`
+	Evaluation validation.GateEvaluation      `json:"evaluation"`
+	Readiness  validation.ReadinessEvaluation `json:"readiness"`
+	Window     validation.WindowInfo          `json:"window"`
+	Meta       validation.MetaResult          `json:"meta"`
+	CheckedAt  time.Time                      `json:"checked_at"`
 }
 
 // RegisterValidationAPI wires the canonical hard-gate evaluation and the
 // meta-suite into the HTTP API (FB-03 §4: validation API/CLI consumer).
 func (api *API) RegisterValidationAPI() {
 	api.mux.HandleFunc(validationGatesAPIPath, api.handleValidationGates)
+}
+
+// currentGenerationID returns the generation of the active TestSession/
+// ValidationRun when runtime control is initialized, so the validation API
+// evaluates the same window as canary/PromotePending (FB-03 phase E2).
+func (api *API) currentGenerationID() string {
+	manager := api.getRuntimeControlManager()
+	if manager == nil {
+		return ""
+	}
+	status := manager.Status()
+	if status.Active != nil {
+		return status.Active.ID
+	}
+	if status.Pending != nil {
+		return status.Pending.Generation.ID
+	}
+	return ""
 }
 
 func (api *API) handleValidationGates(w http.ResponseWriter, r *http.Request) {
@@ -37,16 +56,17 @@ func (api *API) handleValidationGates(w http.ResponseWriter, r *http.Request) {
 	}
 	cfg := api.getCfg()
 	scope := hardGateScope(cfg)
-	snap := observability.Default().Metrics.Snapshot(time.Now().UTC())
-	counters := make(map[string]uint64, len(snap.Counters))
-	produced := make(map[string]bool, len(snap.Counters))
-	for _, s := range snap.Counters {
-		counters[s.Name] += s.Value
-		produced[s.Name] = true
-	}
-	eval := validation.EvaluateHardGates(scope, nil, "", validation.GenerationSet{}, counters, produced)
+	eval := evaluateProductionGates(cfg, api.currentGenerationID())
+	readiness := validation.EvaluateReadiness(eval.ReadinessInputs, productionOwnerStates())
 	meta := validation.RunMetaSuite(evidenceArtifacts())
-	sendResponse(w, gateSnapshot{Scope: scope, Evaluation: eval, Meta: meta, CheckedAt: snap.GeneratedAt})
+	sendResponse(w, gateSnapshot{
+		Scope:      scope,
+		Evaluation: eval,
+		Readiness:  readiness,
+		Window:     validation.ProductionWindowInfo(),
+		Meta:       meta,
+		CheckedAt:  time.Now().UTC(),
+	})
 }
 
 // evidenceArtifacts hashes the canonical registry sources from the working

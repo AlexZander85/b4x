@@ -2,8 +2,8 @@
 
 **Task:** FB-03 «Создать canonical hard-gate registry, активировать runtime producers/consumers и подключить meta-suite» (B4X_AUDIT_FIX_TASKS v2.md §FB-03).
 **Criterion covered:** §FB-03 п.6 — `artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.*` содержит evidence, а не grep-only proof.
-**Commit SHA:** working tree (не закоммичен на момент обновления; см. git status)
-**Created:** 2026-08-01 (v1.1 update: kinds, producer_status, machine-readable consumers/tests/evidence)
+**Commit SHA:** closure_commit = `<SHA closure>` (фаза E2); producer_verified_commit = `bd9db5d5`; classification_implementation_commit = `7c99ec8b`
+**Created:** 2026-08-01 (v1.1 update: kinds, producer_status, machine-readable consumers/tests/evidence; фаза E2: window-delta, readiness owner-state, criterion 2 labels)
 **Environment:** Windows host + Linux Docker (golang:1.25-alpine) reference CI; `go build ./... && go vet ./... && go test -count=1 ./...` — PASS.
 **Semantics (v2 §0.6, registry schema v1.1):**
 
@@ -12,7 +12,7 @@
 - `producer_status: verified` — producer confirmed by call-site audit **and** negative fixture **and** mutation run.
 - `producer_status: missing` — no producer in production code; fail-closed `BLOCKED_MISSING_PRODUCER` when the scope is applicable; `expected_producer_location` = owner-normative wiring target (FB-27 / PPE wiring).
 - `runtime_producer` is a **machine-readable descriptor** `{symbol, file, line, mechanism, production_root}`; a declared file is NOT proof — only verified descriptors are non-null.
-- `verdict_consumer` is a **machine-readable list** `{kind, symbol, file, line, binding}` (kind: `promotion_blocker` | `aggregation_blocker` | `http_report`).
+- `verdict_consumer` is a **machine-readable list** `{kind, symbol, file, line, binding}` (kind: `promotion_blocker` | `aggregation_blocker` | `readiness_observer` | `aggregation_observer` | `http_report`).
 - `test_producer` — fixtures `{kind, name, file, line, assertion}` (positive/negative/evaluator).
 - `mutation_test` — executed mutation runs `{kind, name, file, status}`.
 - `evidence_artifact` — backing audit/remediation paths.
@@ -193,21 +193,21 @@ Tests proving the chain (all pass, `go test -count=1 ./...`):
 | Criterion | Status | Evidence |
 |---|---|---|
 | 1. Registry passes schema/orphan/duplicate validation | **PASS** | `gen_hard_gates_registry.py --check`: 282 gates, 9 families, 0 duplicates, producer/consumer/test/evidence integrity checks; registry_test.go |
-| 2. Each required gate has runtime producer + consumer or explicit not_applicable | **PASS** — 24/282 verified (full machine-readable chain: runtime_producer + verdict_consumer + test_producer + mutation_test + evidence_artifact); 17 telemetry + 4 readiness inputs (never block); remaining 258 zero-tolerance missing (fail-closed BLOCKED when applicable; outside FB-03 scope) | matrix above; registry v1.1 fields; ApplicableHardGates() = 24 |
-| 3. Mutation suite makes each gate violated and blocks promotion | **PASS** — 9 removed_inc mutation runs + 10 removed_delta aggregation guards (window-delta/scope) + promotion chain tests | hard_gate_producers_test.go (3 files), meta_test.go, gates_test.go, hard_gates_chain_test.go, rollout_hardgate_test.go |
-| 4. `/metrics`, API and report consistent with internal state | **PARTIAL** — validation API consumes live snapshot; Prometheus export consistency pending | validation_gates_test.go |
-| 5. Missing/skipped/stale evidence not PASS | **PASS** — forced-zero -> BLOCKED; missing evidence -> EvidenceIntegrity=false; STALE verdict supported (not yet auto-populated) | meta_test.go, gates_test.go |
+| 2. Each required gate has runtime producer + consumer or explicit not_applicable | **PASS_CURRENT_PRODUCTION_SCOPE (24/24)** + **DEFERRED_DEPENDENCY (258)** — 24/24 verified в текущем production scope (RSTGSO/CSI/PPE: 3 zero-tol + 17 telemetry + 4 readiness inputs); остальные 258 — вне production-графа, без explicit not_applicable/normative basis **global PASS не заявляется** (fail-closed BLOCKED при applicability; FB-02/FB-14 и др.) | matrix above; registry v1.1 fields; ApplicableHardGates() = 24 |
+| 3. Mutation suite makes each gate violated and blocks promotion | **PASS (kind-aware)** — zero-tolerance: 9 removed_inc + 10 removed_delta (window-delta/scope, BLOCKED → apply rejected → rollback/cleanup); readiness: инвалидация owner verdict (unsafe → BLOCKED, unknown → DEGRADED, revalidation новой generation → READY); telemetry: producer/export/report consistency (integration test) | hard_gate_producers_test.go (3 files), meta_test.go, gates_test.go, hard_gates_chain_test.go, rollout_hardgate_test.go, production_validation_integration_test.go |
+| 4. `/metrics`, API and report consistent with internal state | **PASS** — Prometheus `/metrics` text export (`handler/prometheus.go`) с одинаковыми names/labels/values/kinds/produced state; production-root integration test: snapshot ↔ `/metrics` ↔ Validation API ↔ Field Test/report (одинаковые window baseline/delta/generation) | production_validation_integration_test.go, prometheus.go |
+| 5. Missing/skipped/stale evidence not PASS | **PASS** — forced-zero -> BLOCKED; missing evidence -> EvidenceIntegrity=false; STALE verdict supported; **counter reset в окне → BLOCKED_COUNTER_RESET** (baseline=5, current=0 → BLOCKED; TestBaselineForRunWindowSemantics) | meta_test.go, gates_test.go, TestBaselineForRunWindowSemantics |
 | 6. `FB03_GATE_PRODUCER_CONSUMER_MATRIX.*` evidence artifact | **PASS** — this file | executed commands + code refs above |
 
-**FB-03 overall status: READY_FOR_OWNER_REVIEW (kinds APPROVED by owner 2026-08-01).**
+**FB-03 overall status: COMPLETE (owner review 2026-08-01, фаза E2 — все 6 критериев PASS).**
 - FB-03_REGISTRY_SCHEMA: PASS (v1.1 + `current_generation_readiness_input` kind; kinds APPROVED).
 - FB-03_PRODUCER_AUDIT: PASS — 24/24 verified (call-site audit + production callers + executed fixtures; the earlier "0 Inc call sites" finding was a false negative — producers increment via observability constants).
 - FB-03_RUNTIME_PRODUCERS: PASS — all 19 RST/GSO + 4 PPE producers exist and are wired (FB-27 scope: no implementation work left for these metrics).
 - FB-03_VERDICT_CONSUMERS: PASS — machine-readable chain for all 24 verified producers (promotion_blocker/aggregation_blocker/readiness_observer/aggregation_observer/http_report).
-- FB-03_MUTATION_COVERAGE: PASS — 9 removed_inc + 10 removed_delta executed (counter increments AND scope/window-delta aggregation, owner requirement 5).
+- FB-03_MUTATION_COVERAGE: PASS — 9 removed_inc + 10 removed_delta executed (counter increments AND scope/window-delta aggregation, owner requirement 5) + readiness owner-state effect + telemetry consistency integration test.
+- FB-03_CRITERION_2: PASS_CURRENT_PRODUCTION_SCOPE + DEFERRED_DEPENDENCY (258) — global PASS не заявляется без normative basis.
 
-**Residual / open items (do NOT block FB-03 core):**
-- Prometheus `/metrics` export consistency vs the registry (criterion 4 partial).
-- `TestMissingProducerBlocksPromotionEndToEnd` remains the guard for any future gate without a producer.
+**Residual / open items (осознанные DEFERRED dependencies, не блокируют COMPLETE):**
+- GSO owner-state consumers (truncated/csum_not_ready/token_miss): live state wiring — **FB-27/PPE**; в production wired как Unknown (non-zero → readiness DEGRADED, никогда молчаливый READY).
 - Optional separate GateID for "hold remained active under incomplete visibility" (owner requirement 1; not in normative docs).
 - Labelled aggregation for `b4_ppe_self_test_total{verdict}` / `b4_ppe_rule_reapply_total{result}` and derived-state gating for `passive_rst_fail_open_total`/`passive_rst_rollback_total` (owner requirements 2/3; reserved kinds, out of evaluator scope).

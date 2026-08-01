@@ -26,35 +26,56 @@ func newValidationGatesTestAPI(t *testing.T) (*API, *http.ServeMux) {
 
 func TestValidationGatesEndpointEvaluatesScopeAndExposesMeta(t *testing.T) {
 	// Production-root: a real violation recorded through observability must
-	// surface as FAIL in the validation API snapshot.
+	// surface as FAIL in the validation API snapshot. The first call captures
+	// the window baseline; a new violation after the baseline appears as the
+	// window delta (FB-03 phase E2: one evaluation of the current
+	// TestSession/ValidationRun, never process-lifetime totals).
 	observability.Default().Metrics.Inc(observability.MetricUnrelatedControlAction, map[string]string{"service": "gmail"}, 1)
 	t.Cleanup(func() {
 		observability.Default().Metrics.Reset()
+		validation.ResetProductionWindow()
 	})
 
 	_, mux := newValidationGatesTestAPI(t)
+
+	// First call: captures the baseline of the current window.
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, validationGatesAPIPath, nil))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var got gateSnapshot
-	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+	var first gateSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if !got.Scope.WARPBase || !got.Scope.CSI {
-		t.Fatalf("scope not projected from config: %+v", got.Scope)
+	if !first.Scope.WARPBase || !first.Scope.CSI || !first.Scope.RSTGSO {
+		t.Fatalf("scope not projected from config: %+v", first.Scope)
 	}
-	if got.Evaluation.Verdict != validation.GateFail {
-		t.Fatalf("expected FAIL verdict for unrelated-control violation, got %v", got.Evaluation.Verdict)
+	if !first.Evaluation.WindowBaseline || !first.Window.Active {
+		t.Fatalf("window must be active with baseline: %+v / %+v", first.Evaluation, first.Window)
 	}
-	if !got.Meta.RegistryComplete || !got.Meta.Reproducible {
-		t.Fatalf("meta-suite must pass on canonical registry: %+v", got.Meta)
+	if !first.Meta.RegistryComplete || !first.Meta.Reproducible {
+		t.Fatalf("meta-suite must pass on canonical registry: %+v", first.Meta)
 	}
 	// Working-tree evidence is absent in tests => integrity must be false,
 	// never silently PASS (missing evidence is not PASS).
-	if got.Meta.EvidenceIntegrity {
-		t.Fatalf("evidence integrity must be false without artifacts: %+v", got.Meta)
+	if first.Meta.EvidenceIntegrity {
+		t.Fatalf("evidence integrity must be false without artifacts: %+v", first.Meta)
+	}
+
+	// New violation inside the same window: delta 1, verdict FAIL.
+	observability.Default().Metrics.Inc(observability.MetricUnrelatedControlAction, map[string]string{"service": "gmail"}, 1)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, validationGatesAPIPath, nil))
+	var second gateSnapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &second); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if second.Evaluation.Verdict != validation.GateFail {
+		t.Fatalf("expected FAIL verdict for window-delta violation, got %v", second.Evaluation.Verdict)
+	}
+	if len(second.Evaluation.Violations) != 1 || second.Evaluation.Violations[0].Count != 1 {
+		t.Fatalf("violations = %+v, want window delta 1 (baseline captured on first call)", second.Evaluation.Violations)
 	}
 }
 

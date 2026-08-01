@@ -252,13 +252,29 @@ func TestEvaluateHardGatesWindowDelta(t *testing.T) {
 		t.Fatalf("violations = %+v, want single violation with delta count 2", violated.Violations)
 	}
 
-	// Counter reset during the window (current < baseline) saturates: the
-	// full current value is the delta since the reset.
+	// Counter reset inside the window (current < baseline) is
+	// BLOCKED_COUNTER_RESET: the delta is undefined and a reset must not hide
+	// violations accumulated in the same session. Owner requirement: add
+	// baseline=5, current=0 -> BLOCKED test.
 	reset := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{},
 		map[string]uint64{"unrelated_control_action_total": 3},
 		map[string]uint64{"unrelated_control_action_total": 10}, produced)
-	if reset.Verdict != GateFail || len(reset.Violations) != 1 || reset.Violations[0].Count != 3 {
-		t.Fatalf("reset window = %+v, want FAIL with delta 3 (saturating)", reset)
+	if reset.Verdict != GateBlocked {
+		t.Fatalf("reset window verdict = %s, want BLOCKED (BLOCKED_COUNTER_RESET)", reset.Verdict)
+	}
+	if len(reset.CounterReset) != 1 || reset.CounterReset[0] != "unrelated_control_action_total" {
+		t.Fatalf("CounterReset = %+v, want [unrelated_control_action_total]", reset.CounterReset)
+	}
+	if len(reset.Violations) != 0 {
+		t.Fatalf("violations = %+v, want none (reset is not a delta violation)", reset.Violations)
+	}
+
+	// Owner-mandated exact case: baseline=5, current=0 -> BLOCKED_COUNTER_RESET.
+	resetExact := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 0},
+		map[string]uint64{"unrelated_control_action_total": 5}, produced)
+	if resetExact.Verdict != GateBlocked || len(resetExact.CounterReset) != 1 {
+		t.Fatalf("baseline=5,current=0 = %+v, want BLOCKED_COUNTER_RESET", resetExact)
 	}
 
 	// No baseline: window spans the process lifetime, delta == current.
@@ -279,18 +295,18 @@ func TestEvaluateHardGatesReadinessInputsNeverBlock(t *testing.T) {
 	// ReadinessInputs and never flip the verdict on their own.
 	scope := ReleaseScope{RSTGSO: true, PPE: true}
 	counters := map[string]uint64{
-		"nfqueue_gso_truncated_total":          5,
-		"nfqueue_gso_csum_not_ready_total":     3,
-		"nfqueue_gso_token_miss_total":         1,
-		"b4_capture_visibility_degrade_total":  2,
-		"nfqueue_gso_packets_total":            100,
-		"b4_hold_disabled_visibility_total":    4,
-		"b4_ppe_rule_reapply_total":            1,
-		"b4_ppe_self_test_total":               1,
-		"passive_rst_fail_open_total":          1,
-		"classifier_layout_parity_fail_total":  0,
+		"nfqueue_gso_truncated_total":            5,
+		"nfqueue_gso_csum_not_ready_total":       3,
+		"nfqueue_gso_token_miss_total":           1,
+		"b4_capture_visibility_degrade_total":    2,
+		"nfqueue_gso_packets_total":              100,
+		"b4_hold_disabled_visibility_total":      4,
+		"b4_ppe_rule_reapply_total":              1,
+		"b4_ppe_self_test_total":                 1,
+		"passive_rst_fail_open_total":            1,
+		"classifier_layout_parity_fail_total":    0,
 		"passive_rst_reconnect_regression_total": 0,
-		"passive_rst_observed_total":           50,
+		"passive_rst_observed_total":             50,
 	}
 	produced := make(map[string]bool, len(counters))
 	for name := range counters {
@@ -336,12 +352,12 @@ func TestEvaluateHardGatesScopeIsolation(t *testing.T) {
 	// the evaluation: only gates of enabled families are selected.
 	scope := ReleaseScope{CSI: true}
 	counters := map[string]uint64{
-		"classifier_layout_parity_fail_total":  9, // rst_gso family, not in scope
-		"unrelated_control_action_total":       0,
+		"classifier_layout_parity_fail_total": 9, // rst_gso family, not in scope
+		"unrelated_control_action_total":      0,
 	}
 	produced := map[string]bool{
-		"classifier_layout_parity_fail_total":  true,
-		"unrelated_control_action_total":       true,
+		"classifier_layout_parity_fail_total": true,
+		"unrelated_control_action_total":      true,
 	}
 	eval := EvaluateHardGates(scope, nil, "", GenerationSet{}, counters, produced)
 	if eval.Verdict != GatePass {
@@ -349,5 +365,147 @@ func TestEvaluateHardGatesScopeIsolation(t *testing.T) {
 	}
 	if len(eval.Violations) != 0 {
 		t.Fatalf("violations = %+v, want none (out-of-scope counter ignored)", eval.Violations)
+	}
+}
+
+func TestEvaluateReadinessOwnerStateEffect(t *testing.T) {
+	// Owner requirement (phase E2): for the 4 readiness inputs prove the
+	// owner-state effect — non-zero input + applicable unsafe owner state
+	// -> DEGRADED/BLOCKED; successful revalidation of a new generation
+	// (owner state back to safe) restores readiness.
+	inputs := []GateViolation{
+		{GateID: "nfqueue_gso_truncated_total", Metric: "nfqueue_gso_truncated_total", Count: 5},
+		{GateID: "nfqueue_gso_csum_not_ready_total", Metric: "nfqueue_gso_csum_not_ready_total", Count: 3},
+		{GateID: "nfqueue_gso_token_miss_total", Metric: "nfqueue_gso_token_miss_total", Count: 1},
+		{GateID: "b4_capture_visibility_degrade_total", Metric: "b4_capture_visibility_degrade_total", Count: 2},
+	}
+
+	// 1) Unsafe owner states: every non-zero input blocks current-generation
+	// readiness. The GSO trio is a DEFERRED dependency (FB-27/PPE) and is
+	// wired as Unknown in production => DEGRADED; capture visibility is wired
+	// and Unsafe => BLOCKED.
+	unsafe := EvaluateReadiness(inputs, map[GateID]OwnerReadinessState{
+		"nfqueue_gso_truncated_total":         OwnerStateUnknown,
+		"nfqueue_gso_csum_not_ready_total":    OwnerStateUnknown,
+		"nfqueue_gso_token_miss_total":        OwnerStateUnknown,
+		"b4_capture_visibility_degrade_total": OwnerStateUnsafe,
+	})
+	if unsafe.Verdict != ReadinessBlocked {
+		t.Fatalf("verdict = %s, want BLOCKED (unsafe owner state)", unsafe.Verdict)
+	}
+	got := map[string]ReadinessStatus{}
+	for _, g := range unsafe.Gates {
+		got[g.Metric] = g.Status
+	}
+	if got["b4_capture_visibility_degrade_total"] != ReadinessBlocked {
+		t.Fatalf("visibility degrade must be BLOCKED with unsafe owner: %+v", got)
+	}
+	for _, m := range []string{"nfqueue_gso_truncated_total", "nfqueue_gso_csum_not_ready_total", "nfqueue_gso_token_miss_total"} {
+		if got[m] != ReadinessDegraded {
+			t.Fatalf("%s must be DEGRADED with unknown owner (DEFERRED): %+v", m, got)
+		}
+	}
+
+	// 2) All-unsafe: BLOCKED across the board.
+	allUnsafe := EvaluateReadiness(inputs, map[GateID]OwnerReadinessState{
+		"nfqueue_gso_truncated_total": OwnerStateUnsafe, "nfqueue_gso_csum_not_ready_total": OwnerStateUnsafe,
+		"nfqueue_gso_token_miss_total": OwnerStateUnsafe, "b4_capture_visibility_degrade_total": OwnerStateUnsafe,
+	})
+	if allUnsafe.Verdict != ReadinessBlocked {
+		t.Fatalf("all-unsafe verdict = %s, want BLOCKED", allUnsafe.Verdict)
+	}
+
+	// 3) Successful revalidation of a new generation: owner state returns to
+	// safe (visibility complete after revalidation, GSO re-observed) and
+	// readiness is restored even though inputs remain non-zero.
+	revalidated := EvaluateReadiness(inputs, map[GateID]OwnerReadinessState{
+		"nfqueue_gso_truncated_total":         OwnerStateSafe,
+		"nfqueue_gso_csum_not_ready_total":    OwnerStateSafe,
+		"nfqueue_gso_token_miss_total":        OwnerStateSafe,
+		"b4_capture_visibility_degrade_total": OwnerStateSafe,
+	})
+	if revalidated.Verdict != ReadinessReady {
+		t.Fatalf("revalidation verdict = %s, want READY (owner state restored)", revalidated.Verdict)
+	}
+	for _, g := range revalidated.Gates {
+		if g.Status != ReadinessReady {
+			t.Fatalf("gate %s = %s, want READY after revalidation", g.Metric, g.Status)
+		}
+	}
+
+	// 4) Zero inputs are always READY regardless of owner state.
+	zeroInputs := []GateViolation{
+		{GateID: "nfqueue_gso_truncated_total", Metric: "nfqueue_gso_truncated_total", Count: 0},
+		{GateID: "nfqueue_gso_csum_not_ready_total", Metric: "nfqueue_gso_csum_not_ready_total", Count: 0},
+		{GateID: "nfqueue_gso_token_miss_total", Metric: "nfqueue_gso_token_miss_total", Count: 0},
+		{GateID: "b4_capture_visibility_degrade_total", Metric: "b4_capture_visibility_degrade_total", Count: 0},
+	}
+	zero := EvaluateReadiness(zeroInputs, map[GateID]OwnerReadinessState{
+		"nfqueue_gso_truncated_total": OwnerStateUnsafe, "b4_capture_visibility_degrade_total": OwnerStateUnsafe,
+	})
+	for _, g := range zero.Gates {
+		if g.Input != 0 || g.Status != ReadinessReady {
+			t.Fatalf("zero-input gate %+v must be READY", g)
+		}
+	}
+	if zero.Verdict != ReadinessReady {
+		t.Fatalf("zero-input verdict = %s, want READY", zero.Verdict)
+	}
+}
+
+func TestBaselineForRunWindowSemantics(t *testing.T) {
+	// Production window store (phase E2): the same generation reuses the same
+	// baseline; a new process/run/generation starts a new baseline. A counter
+	// reset inside the same session must surface as BLOCKED_COUNTER_RESET, not
+	// as a rebaseline (rebase is allowed only for a new process/run/generation).
+	ResetProductionWindow()
+	t.Cleanup(ResetProductionWindow)
+
+	scope := ReleaseScope{CSI: true}
+	produced := map[string]bool{"unrelated_control_action_total": true}
+
+	// First evaluation of generation "gen-1": baseline captured at 5.
+	b1 := BaselineForRun("gen-1", map[string]uint64{"unrelated_control_action_total": 5})
+	eval1 := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{}, map[string]uint64{"unrelated_control_action_total": 7}, b1, produced)
+	if eval1.Verdict != GateFail || eval1.Violations[0].Count != 2 {
+		t.Fatalf("gen-1 first eval = %+v, want FAIL delta 2", eval1)
+	}
+	if info := ProductionWindowInfo(); !info.Active || info.Generation != "gen-1" {
+		t.Fatalf("window info = %+v, want active gen-1", info)
+	}
+
+	// Retry of the same generation keeps the baseline: the delta accumulates.
+	b2 := BaselineForRun("gen-1", map[string]uint64{"unrelated_control_action_total": 9})
+	eval2 := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{}, map[string]uint64{"unrelated_control_action_total": 9}, b2, produced)
+	if eval2.Verdict != GateFail || eval2.Violations[0].Count != 4 {
+		t.Fatalf("gen-1 retry = %+v, want FAIL delta 4 (same baseline reused)", eval2)
+	}
+
+	// Counter reset in the same session is NOT a rebaseline: BLOCKED.
+	b3 := BaselineForRun("gen-1", map[string]uint64{"unrelated_control_action_total": 0})
+	eval3 := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{}, map[string]uint64{"unrelated_control_action_total": 0}, b3, produced)
+	if eval3.Verdict != GateBlocked || len(eval3.CounterReset) != 1 {
+		t.Fatalf("reset in same session = %+v, want BLOCKED_COUNTER_RESET", eval3)
+	}
+
+	// New generation "gen-2" starts a new window: baseline at 2, delta 0.
+	b4 := BaselineForRun("gen-2", map[string]uint64{"unrelated_control_action_total": 2})
+	eval4 := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{}, map[string]uint64{"unrelated_control_action_total": 2}, b4, produced)
+	if eval4.Verdict != GatePass {
+		t.Fatalf("gen-2 clean window = %+v, want PASS (new generation => new baseline)", eval4)
+	}
+	if info := ProductionWindowInfo(); info.Generation != "gen-2" {
+		t.Fatalf("window info = %+v, want gen-2", info)
+	}
+
+	// Process restart (ResetProductionWindow): fresh baseline allowed.
+	ResetProductionWindow()
+	if info := ProductionWindowInfo(); info.Active {
+		t.Fatalf("window must be inactive after reset: %+v", info)
+	}
+	b5 := BaselineForRun("gen-2", map[string]uint64{"unrelated_control_action_total": 10})
+	eval5 := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{}, map[string]uint64{"unrelated_control_action_total": 10}, b5, produced)
+	if eval5.Verdict != GatePass {
+		t.Fatalf("fresh window = %+v, want PASS", eval5)
 	}
 }

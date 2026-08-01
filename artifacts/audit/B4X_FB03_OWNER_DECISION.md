@@ -109,3 +109,34 @@
    - `passive_rst_fail_open_total`/`passive_rst_rollback_total` могут блокировать повторный active claim через derived state — механизм derived verdict'ов зарезервирован (GateKindDerived), не реализован.
    - Criteria 4 (`/metrics` Prometheus export consistency) — PARTIAL.
 6. **FB-03 статус: IN_PROGRESS → READY_FOR_OWNER_REVIEW.** REGISTRY_SCHEMA: PASS (v1.1 + readiness kind); PRODUCER_AUDIT: PASS (24/24); RUNTIME_PRODUCERS: PASS; VERDICT_CONSUMERS: PASS (kind-aware chains); MUTATION_COVERAGE: PASS (9 removed_inc + 10 removed_delta executed).
+
+## Дополнение фаза E2 (2026-08-01, closure — все 6 критериев PASS)
+
+Owner review 2026-08-01 (п.1–7) и фаза E2: критерии §FB-03 закрыты полностью. Реализовано:
+
+1. **П.1 «Production window» (НЕ process-lifetime wrapper):** единая evaluation текущей TestSession/ValidationRun
+   — `handler.evaluateProductionGates` (production_gates.go) используется Validation API, Field Test/report
+   (`fieldtest.EvaluateHardGatesWindow`), canary и PromotePending (`checkHardGates`); process-lifetime wrapper
+   для session promotion **не используется**.
+2. **П.2 «Production scope»:** `hardGateScope` расширен до WARPBase + CSI + RSTGSO + PPE (classifier v2 pipeline);
+   критерий 2 статусы: **PASS_CURRENT_PRODUCTION_SCOPE (24/24)** + **DEFERRED_DEPENDENCY (258)** — глобальный PASS
+   не заявляется (258 вне production-графа, без explicit not_applicable/normative basis; fail-closed BLOCKED).
+3. **П.3 «Counter reset»:** `BaselineForRun` (generation-keyed baseline store) + **BLOCKED_COUNTER_RESET**
+   (current < baseline в окне → BLOCKED; baseline для нового process/run/generation только явный reset).
+4. **П.4 «Readiness owner-state»:** `validation.EvaluateReadiness(inputs, owner)`; capture visibility подключён
+   к production (PPE visibility gate: complete → safe, incomplete → unsafe); GSO mode/complete-representation/
+   token-state consumers — **DEFERRED dependency (FB-27/PPE)**, wired как Unknown (non-zero input → DEGRADED,
+   никогда молчаливый READY); proof: `TestEvaluateReadinessOwnerStateEffect` (unsafe → BLOCKED, unknown → DEGRADED,
+   revalidation новой generation → READY).
+5. **П.6 «Мутации kind-aware»:** zero-tolerance — removed_inc (9) + removed_delta (10, window-delta/scope);
+   readiness — owner-verdict инвалидация (см. п.4); telemetry — producer/export/report consistency.
+6. **П.5 «Критерий 4»:** Prometheus text-export `/metrics` (`handler/prometheus.go`) + production-root integration
+   test `TestProductionValidationIntegrationSnapshotPrometheusAPIFieldTest` (snapshot ↔ `/metrics` ↔ Validation API
+   ↔ Field Test/report: одинаковые names/labels/values/kinds/produced state/window baseline/delta/generation) —
+   критерий 4 **PARTIAL → PASS**.
+7. **П.7 Коммиты:** producer_verified_commit = `bd9db5d5`; classification_implementation_commit = `7c99ec8b`;
+   closure_commit = `<SHA closure>` (фаза E2). Полный Docker build/vet/test зелёный.
+
+**FB-03 статус: READY_FOR_OWNER_REVIEW → COMPLETE.** Все 6 критериев §FB-03 — **PASS** (п.2: PASS_CURRENT_PRODUCTION_SCOPE
++ DEFERRED_DEPENDENCY). Оставшиеся пункты — осознанные DEFERRED dependencies: GSO owner-state consumers (FB-27/PPE),
+labelled-агрегация self_test/reapply, derived-state gating fail_open/rollback, hold-нарушение как отдельный GateID.

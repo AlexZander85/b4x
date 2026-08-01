@@ -90,8 +90,9 @@ type GateEvaluation struct {
 	Verdict         GateVerdict     `json:"verdict"`
 	Violations      []GateViolation `json:"violations,omitempty"`
 	Missing         []GateID        `json:"missing,omitempty"`          // applicable zero-tolerance gate without producer
-	Telemetry       []GateViolation `json:"telemetry,omitempty"`         // observed telemetry counters (never block)
-	ReadinessInputs []GateViolation `json:"readiness_inputs,omitempty"`  // current_generation_readiness_input (never block directly)
+	CounterReset    []GateID        `json:"counter_reset,omitempty"`    // applicable zero-tolerance gate whose counter reset inside the window (BLOCKED_COUNTER_RESET)
+	Telemetry       []GateViolation `json:"telemetry,omitempty"`        // observed telemetry counters (never block)
+	ReadinessInputs []GateViolation `json:"readiness_inputs,omitempty"` // current_generation_readiness_input (never block directly)
 	Stale           []GateID        `json:"stale,omitempty"`
 	NotRun          []GateID        `json:"not_run,omitempty"`
 	Applicable      int             `json:"applicable"`
@@ -204,6 +205,11 @@ func RequiredHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 //
 //   - zero-tolerance gate, produced, window delta == 0  -> ok
 //   - zero-tolerance gate, produced, window delta != 0  -> FAIL (violation)
+//   - zero-tolerance gate, produced, counter reset inside the window
+//     (current < baseline)                             -> BLOCKED_COUNTER_RESET
+//     (BLOCKED; the delta is undefined and a reset must never hide
+//     violations accumulated in the same session — a new baseline is allowed
+//     only for a new process/run/generation)
 //   - zero-tolerance gate, applicable, no producer      -> BLOCKED (missing; v2 §0.6.3)
 //   - telemetry counter                                 -> informational (Telemetry),
 //     never blocks promotion (registry kind = telemetry_counter)
@@ -252,6 +258,14 @@ func EvaluateHardGatesWindow(scope ReleaseScope, caps CapabilitySet, claim Verdi
 			continue
 		}
 		eval.Produced++
+		if windowed && current[name] < baseline[name] {
+			// Counter reset inside the same validation window: the delta is
+			// undefined and the reset must not hide violations accumulated
+			// since the baseline (fail-closed). BLOCKED_COUNTER_RESET; a new
+			// baseline is allowed only for a new process/run/generation.
+			eval.CounterReset = append(eval.CounterReset, gid)
+			continue
+		}
 		if count != 0 {
 			eval.Violations = append(eval.Violations, GateViolation{
 				GateID: gid, Metric: name, Count: count,
@@ -261,6 +275,8 @@ func EvaluateHardGatesWindow(scope ReleaseScope, caps CapabilitySet, claim Verdi
 	switch {
 	case len(eval.Violations) > 0:
 		eval.Verdict = GateFail
+	case len(eval.CounterReset) > 0:
+		eval.Verdict = GateBlocked // BLOCKED_COUNTER_RESET
 	case len(eval.Missing) > 0:
 		eval.Verdict = GateBlocked
 	case len(eval.Stale) > 0:
@@ -273,10 +289,11 @@ func EvaluateHardGatesWindow(scope ReleaseScope, caps CapabilitySet, claim Verdi
 
 // deltaCount returns the counter delta for the current validation window.
 // Without a baseline the window spans the process lifetime, so the delta is
-// the current value; with a baseline the delta is current - baseline. If the
-// counter was reset during the window (current < baseline) the delta since
-// the reset is the full current value: reset must not hide violations
-// accumulated inside the window (fail-closed, no false negatives).
+// the current value; with a baseline the delta is current - baseline.
+// current <= baseline yields 0 here; a counter reset inside the window
+// (current < baseline) is handled at the evaluator level as
+// BLOCKED_COUNTER_RESET for zero-tolerance gates, and as "no new input since
+// the baseline" (0) for telemetry/readiness inputs.
 func deltaCount(current, baseline uint64, windowed bool) uint64 {
 	if !windowed {
 		return current
@@ -284,10 +301,7 @@ func deltaCount(current, baseline uint64, windowed bool) uint64 {
 	if current > baseline {
 		return current - baseline
 	}
-	if current == baseline {
-		return 0
-	}
-	return current
+	return 0
 }
 
 // EvaluateHardGates is the convenience wrapper for callers evaluating over

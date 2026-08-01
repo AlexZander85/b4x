@@ -157,3 +157,11 @@
 - «Реально исполняемых в бинаре: 1 из 160» → **неверно для RST/GSO/PPE/CSI scope**: исполняемы **24 из 24** метрик FB-03 scope (17 telemetry + 3 zero-tolerance + 4 readiness inputs) с verified producers; классификация kinds APPROVED владельцем 2026-08-01 (17/3/4).
 - «nfqueue_gso_transition_total не найден» → **неверно**: реализован (runtime_topology.go:38).
 - Выводы по WARP (56), SPF (22), FT §26 (82) и IV meta-suite остаются в силе: эти пакеты не в production-графе (0 импортеров), их счётчики вне FB-03 scope и покрываются другими задачами (FB-02, FB-14 и т.д.). Реестр фиксирует их как zero-tolerance по умолчанию (fail-closed BLOCKED при applicability).
+
+### 6.4 Фаза E2 (2026-08-01, closure — FB-03 COMPLETE)
+
+- **Production window** (`validation.BaselineForRun`, generation-keyed store): Validation API / Field Test / canary / PromotePending используют единую evaluation текущей TestSession/ValidationRun (`handler.evaluateProductionGates`); **BLOCKED_COUNTER_RESET** при current < baseline в окне (fail-closed; сброс только для нового process/run/generation).
+- **Readiness owner-state** (`validation.EvaluateReadiness(inputs, owner)`): PPE capture visibility подключён к production; GSO mode/complete-representation/token-state — DEFERRED (FB-27/PPE), wired как Unknown (non-zero → DEGRADED, никогда молчаливый READY); proof — `TestEvaluateReadinessOwnerStateEffect`.
+- **Критерий 4 (PASS):** Prometheus text-export `/metrics` (`http/handler/prometheus.go`) + `TestProductionValidationIntegrationSnapshotPrometheusAPIFieldTest` (snapshot ↔ `/metrics` ↔ Validation API ↔ Field Test/report: одинаковые names/labels/values/kinds/produced state/window baseline/delta/generation).
+- **Мутации kind-aware:** zero-tolerance — removed_inc (9) + removed_delta (10); readiness — owner-verdict инвалидация; telemetry — producer/export/report consistency.
+- **Статусы критериев §FB-03:** п.1 PASS; п.2 PASS_CURRENT_PRODUCTION_SCOPE (24/24) + DEFERRED_DEPENDENCY (258, global PASS не заявляется); п.3 PASS (kind-aware); п.4 PASS; п.5 PASS (включая BLOCKED_COUNTER_RESET); п.6 PASS. Коммиты: `bd9db5d5` (producers), `7c99ec8b` (kinds E), `<SHA closure>` (фаза E2).

@@ -26,6 +26,16 @@ func EvaluateHardGates(scope validation.ReleaseScope, caps validation.Capability
 	return validation.EvaluateHardGates(scope, caps, claim, generation, counters, produced)
 }
 
+// EvaluateHardGatesWindow exposes the windowed evaluator for Field Test /
+// release reports and canary eligibility (FB-03 owner decision 2026-08-01):
+// reports evaluate the delta of the current TestSession/ValidationRun, never
+// process-lifetime totals. The baseline is the shared production window
+// (validation.BaselineForRun) so the report attests the same evaluation as
+// the validation API and PromotePending.
+func EvaluateHardGatesWindow(scope validation.ReleaseScope, caps validation.CapabilitySet, claim validation.VerdictID, generation validation.GenerationSet, current, baseline map[string]uint64, produced map[string]bool) validation.GateEvaluation {
+	return validation.EvaluateHardGatesWindow(scope, caps, claim, generation, current, baseline, produced)
+}
+
 type StageReport struct {
 	Stage, Verdict, SourceAddendumHash string
 	Requirements                       []string
