@@ -1,0 +1,55 @@
+# github.com/daniellavrushin/b4/capture/ppe [github.com/daniellavrushin/b4/capture/ppe.test]
+capture/ppe/product_bundle_test.go:100:62: cannot use cfg (variable of struct type config.Config) as *config.Config value in return statement
+capture/ppe/product_bundle_test.go:101:57: cannot use cfg (variable of struct type config.Config) as *config.Config value in argument to service.ApplyConfig
+?   	github.com/daniellavrushin/b4	[no test files]
+ok  	github.com/daniellavrushin/b4/action	0.010s
+ok  	github.com/daniellavrushin/b4/ai	0.447s
+ok  	github.com/daniellavrushin/b4/capture	0.009s
+FAIL	github.com/daniellavrushin/b4/capture/ppe [build failed]
+ok  	github.com/daniellavrushin/b4/classifier	0.015s
+ok  	github.com/daniellavrushin/b4/clock	0.030s
+ok  	github.com/daniellavrushin/b4/config	0.081s
+ok  	github.com/daniellavrushin/b4/crossservice	0.007s
+ok  	github.com/daniellavrushin/b4/detector	0.009s
+ok  	github.com/daniellavrushin/b4/dhcp	0.006s
+ok  	github.com/daniellavrushin/b4/diagnostics	0.016s
+ok  	github.com/daniellavrushin/b4/discord	0.009s
+ok  	github.com/daniellavrushin/b4/discovery	0.754s
+ok  	github.com/daniellavrushin/b4/dns	0.163s
+?   	github.com/daniellavrushin/b4/engine	[no test files]
+ok  	github.com/daniellavrushin/b4/fieldtest	0.006s
+ok  	github.com/daniellavrushin/b4/fixtures	0.005s
+?   	github.com/daniellavrushin/b4/geodat	[no test files]
+ok  	github.com/daniellavrushin/b4/http	0.013s
+ok  	github.com/daniellavrushin/b4/http/handler	0.246s
+ok  	github.com/daniellavrushin/b4/http/ws	0.825s
+ok  	github.com/daniellavrushin/b4/lab	0.018s
+?   	github.com/daniellavrushin/b4/leaktest	[no test files]
+ok  	github.com/daniellavrushin/b4/log	0.013s
+?   	github.com/daniellavrushin/b4/metrics	[no test files]
+ok  	github.com/daniellavrushin/b4/monitor	0.012s
+ok  	github.com/daniellavrushin/b4/mtproto	0.848s
+ok  	github.com/daniellavrushin/b4/netprobe	1.523s
+ok  	github.com/daniellavrushin/b4/nfq	0.042s
+ok  	github.com/daniellavrushin/b4/observability	0.006s
+ok  	github.com/daniellavrushin/b4/packetmark	0.005s
+?   	github.com/daniellavrushin/b4/quic	[no test files]
+ok  	github.com/daniellavrushin/b4/routing	0.006s
+ok  	github.com/daniellavrushin/b4/runtimecontrol	0.027s
+ok  	github.com/daniellavrushin/b4/serviceprofile	0.005s
+?   	github.com/daniellavrushin/b4/serviceprofile/schema	[no test files]
+ok  	github.com/daniellavrushin/b4/serviceprofile/validate	0.006s
+ok  	github.com/daniellavrushin/b4/silentpath	0.020s
+ok  	github.com/daniellavrushin/b4/sni	0.030s
+ok  	github.com/daniellavrushin/b4/sock	0.009s
+ok  	github.com/daniellavrushin/b4/socks5	0.124s
+?   	github.com/daniellavrushin/b4/stun	[no test files]
+ok  	github.com/daniellavrushin/b4/tables	0.030s
+ok  	github.com/daniellavrushin/b4/tlsgen	0.006s
+ok  	github.com/daniellavrushin/b4/tproxy	0.006s
+ok  	github.com/daniellavrushin/b4/tun	0.006s
+ok  	github.com/daniellavrushin/b4/utils	0.008s
+ok  	github.com/daniellavrushin/b4/validation	0.006s
+ok  	github.com/daniellavrushin/b4/warp	0.004s
+ok  	github.com/daniellavrushin/b4/watchdog	0.006s
+FAIL

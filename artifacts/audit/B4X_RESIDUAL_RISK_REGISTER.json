@@ -1,0 +1,16 @@
+{
+  "audit_date": "2026-07-31",
+  "risks": [
+    {"id": "RR-01", "risk": "Product layer shipped without integration (silent no-op from UI)", "prob": "H", "impact": "H", "mitigation": "FB-02", "residual": "H"},
+    {"id": "RR-02", "risk": "Silent Telegram connection loss (#277)", "prob": "H", "impact": "H", "mitigation": "FB-04 + bridge metrics + e2e test", "residual": "M"},
+    {"id": "RR-03", "risk": "False-green validation (declarative verdicts, inactive hard gates)", "prob": "H", "impact": "H", "mitigation": "FB-03 + meta-suite in CI", "residual": "H"},
+    {"id": "RR-04", "risk": "Regressions in live subsystems (no -race/vet CI, broken ppe tests)", "prob": "M", "impact": "H", "mitigation": "FB-01, FB-06", "residual": "M"},
+    {"id": "RR-05", "risk": "runtimecontrol global lock held across canary (up to 1h)", "prob": "M", "impact": "M", "mitigation": "FB-08 + lock monitoring", "residual": "M"},
+    {"id": "RR-06", "risk": "Cross-document contradictions (14) cause misinterpretation", "prob": "H", "impact": "M", "mitigation": "FB-14 + unified requirements registry", "residual": "M"},
+    {"id": "RR-07", "risk": "ABD schema mismatch (v1 vs v2) breaks future detector clients", "prob": "M", "impact": "M", "mitigation": "FB-14/FB-03 + versioned schema tests", "residual": "M"},
+    {"id": "RR-08", "risk": "Dead code in production paths (ensureProcessPPE order, decorative flags)", "prob": "L", "impact": "M", "mitigation": "FB-11 + server.go review", "residual": "L"},
+    {"id": "RR-09", "risk": "cp866 encoding in 2 docs corrupts norms in tooling", "prob": "M", "impact": "L", "mitigation": "FB-16", "residual": "L"},
+    {"id": "RR-10", "risk": "Fresh clone cannot build (generated UI assets)", "prob": "M", "impact": "M", "mitigation": "FB-15", "residual": "M"},
+    {"id": "RR-11", "risk": "ARCH v2.4 / IV v1.5 not article-level audited", "prob": "M", "impact": "M", "mitigation": "FB-18", "residual": "M"}
+  ]
+}

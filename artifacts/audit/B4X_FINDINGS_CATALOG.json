@@ -1,0 +1,31 @@
+{
+  "repository": "AlexZander85/b4x",
+  "branch": "agent/classifier-v2.3-capture-envelope",
+  "audit_date": "2026-07-31",
+  "findings": [
+    {"id": "B4X-AUDIT-001", "severity": "BLOCKER", "title": "Dead product layer: warp/serviceprofile/fieldtest/silentpath not wired", "status": "verified", "evidence": ["grep 'warp.|serviceprofile.|fieldtest.|silentpath.' in src = 0", "go list -deps ./ excludes them", "no API endpoints in http/handler"], "requirements": ["WARP-1..12", "SP-20..32", "FT-AC..AE", "SPF-1..74"]},
+    {"id": "B4X-AUDIT-002", "severity": "BLOCKER", "title": "Hard gates inactive: 1 of 160 counters in production", "status": "verified", "evidence": ["crossservice/validation.go:265,392 unrelated_control_action_total", "fieldtest/cleanup.go:36 WARP_CAUSAL_TRACE_READY const only", "validation/verdict.go:9 BLOCKED_TARGET_VALIDATION const only", "validation/meta.go + fieldtest/hard_gates.go uncalled"], "requirements": ["WARP 73B", "SPF-57", "FT 26", "IV-11"]},
+    {"id": "B4X-AUDIT-003", "severity": "BLOCKER", "title": "capture/ppe tests do not compile", "status": "verified", "evidence": ["capture/ppe/product_bundle_test.go:100-101", "go test ./... FAIL ppe [build failed] (linux/amd64, also -race)"], "requirements": ["PPE-24", "PPE-26"]},
+    {"id": "B4X-AUDIT-004", "severity": "BLOCKER", "title": "MON v1.0 strangler not started", "status": "verified", "evidence": ["watchdog/applier.go:18 applyBatchResults active", "no /api/monitor/v1"], "requirements": ["MON-1..12"]},
+    {"id": "B4X-AUDIT-005", "severity": "BLOCKER", "title": "Telegram #277/#278 alive", "status": "verified", "evidence": ["mtproto/transparent.go:97-104,157 zero-byte and dial-fail return true,nil", "discovery/hint_planner.go:56 _ = prior"], "requirements": ["DDI-1..10", "TGB-1..10"]},
+    {"id": "B4X-AUDIT-006", "severity": "MAJOR", "title": "CI without -race and go vet", "status": "verified", "evidence": [".github/workflows/release.yml:90-92", "goleak in 3 files"], "requirements": []},
+    {"id": "B4X-AUDIT-007", "severity": "MAJOR", "title": "Norm deviations in live subsystems", "status": "verified", "evidence": ["nfq/gso_token.go:25-36 CSI-15 missing fields", "nfq/tcp_hold_config.go:17-18 dead FIN/RST aborts", "runtimecontrol/rollout_manager_apply.go:33-34 mu held for canary (1h)", "config/types.go:106 CaptureEnvelopeEnabled decorative", "capture/ppe reconciler.go:122 no self-test autostart", "warp/geo.go:52 TTL 300s vs 120s", "warp/isolation.go:16 InnerRevokedBeforeParent unchecked"], "requirements": ["CSI-15", "H4", "SP-16", "SP-27", "SP-4"]},
+    {"id": "B4X-AUDIT-008", "severity": "MAJOR", "title": "14 cross-document contradictions", "status": "doc", "evidence": ["findings_draft.md section C"], "requirements": []},
+    {"id": "B4X-AUDIT-009", "severity": "MINOR", "title": "Build/encoding/toolchain issues", "status": "verified", "evidence": ["ui/dist+defaults.json gitignored, make build broken on fresh clone", "PATCH_PLAN and WARP v1.2 in cp866", "pnpm 9.15.9 vs pinned 10.29.2, Node 22.11 vs vite 22.12"], "requirements": []}
+  ],
+  "coverage": {
+    "WARP_v1.2": {"total": 44, "implemented": 0, "partial": 32, "absent": 12},
+    "ABD_v1.2": {"total": 26, "implemented": 2, "partial": 20, "absent": 4},
+    "MON_v1.0": {"total": 32, "implemented": 0, "partial": 13, "absent": 19},
+    "DDI_TGB_v1.0": {"total": 30, "implemented": 0, "partial": 14, "absent": 16},
+    "PPE": {"total": 49, "implemented": 38, "partial": 3, "absent": 8},
+    "RST_GSO": {"total": 34, "implemented": 27, "partial": 2, "absent": 5},
+    "CSI": {"total": 32, "implemented": 25, "partial": 0, "absent": 7},
+    "SPF_v1.0": {"total": 74, "implemented": 26, "partial": 25, "absent": 23},
+    "SP_v1.6": {"total": 22, "implemented": 9, "partial": 9, "absent": 4},
+    "FT_v1.5": {"total": 14, "implemented": 8, "partial": 6, "absent": 0},
+    "PATCH_PLAN": {"total": 36, "implemented": 26, "partial": 7, "absent": 0},
+    "ARCH_v2.4": {"total": 40, "status": "blocked"},
+    "IV_v1.5": {"total": 39, "status": "blocked"}
+  }
+}

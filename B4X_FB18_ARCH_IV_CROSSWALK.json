@@ -1,0 +1,103 @@
+{
+  "meta": {
+    "name": "B4X FB-18A ARCH v2.4 <-> IV v1.5 static crosswalk",
+    "generated_from": "B4X_FB14_CONFLICTS_RESOLVED.md, section 5.2",
+    "date": "2026-07-31",
+    "status": "STATIC_CROSSWALK_DONE_FB18B_PENDING",
+    "documents": {
+      "architecture": {
+        "file": "B4_FORK_ARCHITECTURE_v2.4.md",
+        "sha256": "815d1069d210e95bbc38fbdda68b93d1ffb106a7ceecfa46c9056fc868cb5e0f"
+      },
+      "implementation_validation": {
+        "file": "B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md",
+        "sha256": "b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7"
+      }
+    },
+    "summary": {
+      "MAPPED": 23,
+      "PARTIAL": 9,
+      "MISSING": 5,
+      "SEMANTIC_MISMATCH": 3,
+      "total_arch_clauses_106_145": 40,
+      "incomplete": 17
+    },
+    "notes": [
+      "MAPPED in FB-18A is NOT a runtime PASS; FB-18B executable production crosswalk is mandatory.",
+      "The number 40 refers to consolidated architecture clauses 106..145 only. Main invariants 5.1..5.17 and hold/replay 42..45 are ADDITIONAL requirements (see additional_requirements) and MUST also be covered by FB-18B.",
+      "The manual IV total '39' is not a reproducible canonical total; all totals are computed from the canonical Exact Source-Stage Registry (FB-33).",
+      "ARCH 144 is titled 'Recommended file order' (chapter XXXVII 'Consolidated Implementation Order'); its content is a file reading order, not an implementation-order requirement. Mapping to IV 54/58 is not content-accurate; registry consolidation belongs to FB-33.",
+      "Final verification remains FINAL_VERIFICATION_BLOCKED until FB-18B is complete (see B4X_FB14_CONFLICTS_RESOLVED.md section 5.5)."
+    ]
+  },
+  "crosswalk": [
+    { "arch": 106, "title": "Effective domain policy", "iv_coverage": "26.1, 36.2, AC 15-17", "status": "MAPPED", "action": "Keep FB-14 strict/scoped-hints decisions; update stale AC-15 reference to Architecture v2.4." },
+    { "arch": 107, "title": "Candidate and authorization split", "iv_coverage": "26.1-26.2, AC 16-19, hard gates", "status": "MAPPED", "action": "Mandate integration test through real matcher/authorization path." },
+    { "arch": 108, "title": "Scoped side effects", "iv_coverage": "26.3-26.4, AC 20/23, CSI gates", "status": "MAPPED", "action": "Check full keys in all maps/caches/routes, not only classifier." },
+    { "arch": 109, "title": "Cross-service negative controls", "iv_coverage": "26.5, 36.3, 42.6, AC 18/36", "status": "MAPPED", "action": "Same-client controls must be release-blocking." },
+    { "arch": 110, "title": "Reassembly correctness path", "iv_coverage": "26.2, 27.2, AC 19/32", "status": "MAPPED", "action": "Confirm real production reachability reassembled SNI -> authorization." },
+    { "arch": 111, "title": "GSO capability model", "iv_coverage": "27.1-27.6, 42.4, AC 32-33", "status": "MAPPED", "action": "Keep separate observe/classify/action verdicts." },
+    { "arch": 112, "title": "Transactional topology", "iv_coverage": "27.5, 34.1, AC 28/33", "status": "MAPPED", "action": "Mixed generation and temporary token/queue leaks remain blocking." },
+    { "arch": 113, "title": "Passive RST", "iv_coverage": "28.1-28.4, 42.5, AC 26/34", "status": "MAPPED", "action": "Aggregate observe and active modes separately." },
+    { "arch": 114, "title": "PPE policy", "iv_coverage": "35.1-35.5, AC 30-31", "status": "MAPPED", "action": "Default exclude and return of established flows to offload need target evidence." },
+    { "arch": 115, "title": "PPE capability and self-test", "iv_coverage": "35.1/35.3, AC 30-31", "status": "MAPPED", "action": "Model name is not evidence; dependent active modes require current complete visibility." },
+    { "arch": 116, "title": "PPE lifecycle", "iv_coverage": "35.2-35.4", "status": "MAPPED", "action": "Add foreign-resource and NDM-regeneration proof to release bundle." },
+    { "arch": 117, "title": "Useful progress", "iv_coverage": "38B.3-38B.6, 42.11, AC 70", "status": "MAPPED", "action": "Unique-range semantics and GSO/MSS parity mandatory." },
+    { "arch": 118, "title": "Suppressors and differential proof", "iv_coverage": "38B.2-38B.8, AC 72-76", "status": "MAPPED", "action": "Every suppressor must have positive/negative/mutation test." },
+    { "arch": 119, "title": "Recovery planner", "iv_coverage": "38B.4-38B.8, 42.12, AC 78-81", "status": "MAPPED", "action": "Lease scope/TTL/generation/rollback target and no-recursion release-blocking." },
+    { "arch": 120, "title": "Monitoring evolutionary replacement", "iv_coverage": "none", "status": "MISSING", "action": "Add IV-18 and MON-1..MON-12; verify strangler cutover and direct-apply removal." },
+    { "arch": 121, "title": "Monitor model", "iv_coverage": "none", "status": "MISSING", "action": "Register schemas, full scope key, independent health/diagnostic axes, persistence lifecycle." },
+    { "arch": 122, "title": "Temporal evidence", "iv_coverage": "none", "status": "MISSING", "action": "Add bounded temporal/recovery/source-independence tests and demand intake budgets." },
+    { "arch": 123, "title": "Trigger planner", "iv_coverage": "none", "status": "MISSING", "action": "Add quick/deep trigger matrix, WAN/visibility/resource suppressors, ban direct profile/config creation." },
+    { "arch": 124, "title": "Authoritative active diagnosis", "iv_coverage": "49-51, IV-14, AC 90-97", "status": "MAPPED", "action": "Overlay cannot remove mandatory controls/baselines." },
+    { "arch": 125, "title": "Resolution and address outcomes", "iv_coverage": "partial: DNS differential only", "status": "PARTIAL", "action": "Add two separate experiment types and per-address A/AAAA outcome; first success must not hide siblings." },
+    { "arch": 126, "title": "Evidence authority and attribution", "iv_coverage": "partial: AC 92/97/98", "status": "PARTIAL", "action": "Validate passive/provisional/authoritative/android authority and separate ProbeFailureCode/Attribution/Hypothesis/Recommendation." },
+    { "arch": 127, "title": "Stage-aware observers", "iv_coverage": "none", "status": "MISSING", "action": "Add capability-declared observers; unavailable = NO_OPINION; higher-layer verdict requires matching capability." },
+    { "arch": 128, "title": "BlockingProfile and DDI", "iv_coverage": "49.1, IV-15, AC 98-100", "status": "MAPPED", "action": "Align ownership with FB-14 item 1; DDI does not compile raw evidence." },
+    { "arch": 129, "title": "Guided search", "iv_coverage": "50.3-50.7, IV-15, AC 100-102", "status": "MAPPED", "action": "Mandatory baselines/full fallback/controls cannot be removed by prior." },
+    { "arch": 130, "title": "Transport candidates", "iv_coverage": "partial: 33, IV-15 generic", "status": "PARTIAL", "action": "Add normative failure-family -> candidate-family matrix; ban broad WARP escalation by DNS/QUIC-only hints." },
+    { "arch": 131, "title": "Telegram bridge", "iv_coverage": "IV-16, 50, 51, AC 104-109", "status": "MAPPED", "action": "PASS only via TPROXY listener production path and field evidence, not standalone helpers." },
+    { "arch": 132, "title": "Base WARP architecture", "iv_coverage": "38A, 42.8, IV-17", "status": "MAPPED", "action": "Bundled/pinned implementation and no runtime download remain blocking." },
+    { "arch": 133, "title": "WARP scope and path proof", "iv_coverage": "38A, IV-17, AC 121-124", "status": "MAPPED", "action": "Route existence does not replace counter/binding/application proof." },
+    { "arch": 134, "title": "WARP camouflage", "iv_coverage": "42.9, IV-17, AC 133-134", "status": "MAPPED", "action": "Separate authorization and cutoff; zero established-payload mutation." },
+    { "arch": 135, "title": "Nested WARP and non-RU", "iv_coverage": "42.10, IV-17, AC 125-132", "status": "MAPPED", "action": "Separate optional verdict; fresh parent/geo/DNS/IPv6 proof." },
+    { "arch": 136, "title": "Causal observability and cleanup", "iv_coverage": "IV-17/52 mixed with optional capabilities", "status": "SEMANTIC_MISMATCH", "action": "Apply FB-14 item 9: narrow composable causal verdict; optional capability verdicts separate." },
+    { "arch": 137, "title": "Declarative Service Profiles", "iv_coverage": "36.1, 41.5", "status": "MAPPED", "action": "Compiler only into ordinary B4 objects; preserve manual/pinned/excluded." },
+    { "arch": 138, "title": "Capability projection", "iv_coverage": "partial: 36.2, SP-13/16/20", "status": "PARTIAL", "action": "Project all readiness verdicts; profile may only narrow capability." },
+    { "arch": 139, "title": "Beginner recommendations", "iv_coverage": "partial: 36.5/41", "status": "PARTIAL", "action": "Register SP-30..SP-32; verify fresh BlockingProfile, controls, causal readiness, Android/path proof, explicit geo requirement." },
+    { "arch": 140, "title": "Profile release rule", "iv_coverage": "partial: 42.6, SP-19/23", "status": "PARTIAL", "action": "Single gate: target + unrelated controls + exact scope + current representation/transport proof + rollback readiness." },
+    { "arch": 141, "title": "Capability dependency graph", "iv_coverage": "53.3 run ordering puts WARP before ABD, skips MON", "status": "SEMANTIC_MISMATCH", "action": "Separate execution scheduling and verdict dependencies; aggregation must follow ARCH graph; TGB may run in parallel." },
+    { "arch": 142, "title": "Principal verdicts", "iv_coverage": "52 partial, differing names", "status": "SEMANTIC_MISMATCH", "action": "Canonical verdict registry with alias mapping and dependency expressions for all ARCH principal verdicts." },
+    { "arch": 143, "title": "Global hard-gate classes", "iv_coverage": "partial: 51 metrics only", "status": "PARTIAL", "action": "Each gate: global class + owner + runtime producer + verdict consumer + reset semantics + mutant; FB-03 prerequisite." },
+    { "arch": 144, "title": "Recommended file order (chapter XXXVII 'Consolidated Implementation Order')", "iv_coverage": "not a validation requirement; file reading order", "status": "PARTIAL", "action": "Section is a file order, not an implementation-order requirement; registry consolidation is FB-33. Correct mapping before FB-18B." },
+    { "arch": 145, "title": "No flag-day migration", "iv_coverage": "partial: L8 generic migration checks", "status": "PARTIAL", "action": "Per-subsystem shadow/canary/cutover/rollback tests and reverse-reachability of legacy paths after cutover." }
+  ],
+  "additional_requirements": {
+    "note": "Requirements from the audit index (req_index_part3.md) NOT covered by the 106..145 clause table; MUST be covered by FB-18B as well.",
+    "main_invariants": [
+      { "id": "5.1", "type": "inv", "title": "Classification before action" },
+      { "id": "5.2", "type": "inv", "title": "Clean SYN + empty payload -> NF_ACCEPT" },
+      { "id": "5.3", "type": "inv", "title": "Fail-open: release unchanged, clear state, record reason" },
+      { "id": "5.4", "type": "inv", "title": "Source scope: DNS/QUIC evidence includes client identity" },
+      { "id": "5.5", "type": "inv", "title": "Logical first-flight idempotency: one ClientHello - one ActionToken" },
+      { "id": "5.6", "type": "inv", "title": "Config generation safety: no mutable config pointers in flow/hint state" },
+      { "id": "5.7", "type": "inv", "title": "Bounded resources: memory/per-client/per-flow limits, TTL, eviction, fail-open" },
+      { "id": "5.8", "type": "inv", "title": "Provenance mark for every injected/replayed packet" },
+      { "id": "5.9", "type": "inv", "title": "CaptureCandidate != ActionAuthorization" },
+      { "id": "5.10", "type": "inv", "title": "Full service scope: ClientKey+SetID+Component+NetworkContext+ConfigGeneration" },
+      { "id": "5.11", "type": "inv", "title": "Observation != diagnosis != action; recurrence not a replacement for independent evidence families" },
+      { "id": "5.12", "type": "inv", "title": "Visibility before inference: incomplete bidirectional visibility blocks hold/auto-recovery/promotion" },
+      { "id": "5.13", "type": "inv", "title": "Useful progress: ACK-only/dup/retransmission insufficient for silent recovery" },
+      { "id": "5.14", "type": "inv", "title": "Exact client-resolution binding" },
+      { "id": "5.15", "type": "inv", "title": "Transport path proof: promotion requires causal chain ClientKey->Binding->counters->generation->milestone" },
+      { "id": "5.16", "type": "inv", "title": "Capability projection, not ownership" },
+      { "id": "5.17", "type": "inv", "title": "No recursive fallback; transport/recovery graph acyclic" }
+    ],
+    "hold_replay": [
+      { "id": "42", "type": "schema", "title": "HeldPacket structure; holding only in bounded reassembly mode" },
+      { "id": "43", "type": "MUST", "title": "Abort/release paths: complete/timeout/FIN-RST/pressure/malformed/shutdown/generation-change all release unchanged or fail-open" },
+      { "id": "44", "type": "schema", "title": "Stream-to-packet map: planner in logical stream offsets, executor -> TCP sequence ranges" },
+      { "id": "45", "type": "schema", "title": "Semantic markers ClientHello/SNI/host/SLD; resolver only on complete parsed ClientHello; ECH -> unavailable" }
+    ]
+  }
+}

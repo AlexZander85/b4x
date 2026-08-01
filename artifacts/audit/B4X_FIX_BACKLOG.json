@@ -1,0 +1,23 @@
+{
+  "audit_date": "2026-07-31",
+  "items": [
+    {"id": "FB-01", "priority": "P0", "title": "Fix capture/ppe test compilation", "finding": "B4X-AUDIT-003", "files": ["src/capture/ppe/product_bundle_test.go"], "effort": "S", "deps": []},
+    {"id": "FB-02", "priority": "P0", "title": "Integrate or explicitly deactivate warp/serviceprofile/fieldtest/silentpath", "finding": "B4X-AUDIT-001", "files": ["src/warp", "src/serviceprofile", "src/fieldtest", "src/silentpath"], "effort": "XL", "deps": []},
+    {"id": "FB-03", "priority": "P0", "title": "Implement hard-gate counters and verdicts (WARP 58, SPF 22, FT 82); wire meta-suite", "finding": "B4X-AUDIT-002", "files": ["src/warp", "src/silentpath", "src/fieldtest", "src/validation", "src/observability"], "effort": "XL", "deps": []},
+    {"id": "FB-04", "priority": "P0", "title": "#277: no silent drop in mtproto transparent bridge (zero-byte/dial-fail)", "finding": "B4X-AUDIT-005", "files": ["src/mtproto/transparent.go"], "effort": "M", "deps": []},
+    {"id": "FB-05", "priority": "P0", "title": "#278: use detector prior in discovery hint_planner", "finding": "B4X-AUDIT-005", "files": ["src/discovery/hint_planner.go"], "effort": "M", "deps": []},
+    {"id": "FB-06", "priority": "P1", "title": "CI: add go vet and go test -race; goleak checks", "finding": "B4X-AUDIT-006", "files": [".github/workflows/release.yml"], "effort": "S", "deps": []},
+    {"id": "FB-07", "priority": "P1", "title": "MON v1.0 strangler shadow/cutover implementation", "finding": "B4X-AUDIT-004", "files": ["src/monitor", "src/watchdog", "src/http/handler"], "effort": "XL", "deps": []},
+    {"id": "FB-08", "priority": "P1", "title": "Do not hold runtimecontrol m.mu across canary transaction", "finding": "B4X-AUDIT-007", "files": ["src/runtimecontrol/rollout_manager_apply.go"], "effort": "M", "deps": []},
+    {"id": "FB-09", "priority": "P1", "title": "Implement hold abort on FIN/RST", "finding": "B4X-AUDIT-007", "files": ["src/nfq/tcp_hold_config.go", "src/nfq/handler.go"], "effort": "M", "deps": []},
+    {"id": "FB-10", "priority": "P1", "title": "GSOPassToken: add Authorization/EffectivePolicy/CandidateDisposition (CSI-15)", "finding": "B4X-AUDIT-007", "files": ["src/nfq/gso_token.go"], "effort": "M", "deps": []},
+    {"id": "FB-11", "priority": "P1", "title": "Wire CaptureEnvelopeEnabled to actual packet processing or remove", "finding": "B4X-AUDIT-007", "files": ["src/config/types.go", "src/capture", "src/tables/iptables.go"], "effort": "M", "deps": []},
+    {"id": "FB-12", "priority": "P1", "title": "PPE self-test autostart on startup-and-change mode", "finding": "B4X-AUDIT-007", "files": ["src/capture/ppe/reconciler.go"], "effort": "M", "deps": []},
+    {"id": "FB-13", "priority": "P1", "title": "Fix fieldtest/session.go json tag collision", "finding": "A2", "files": ["src/fieldtest/session.go"], "effort": "S", "deps": []},
+    {"id": "FB-14", "priority": "P1", "title": "Resolve 14 cross-document contradictions (reissue docs)", "finding": "B4X-AUDIT-008", "files": ["docs"], "effort": "M", "deps": []},
+    {"id": "FB-15", "priority": "P2", "title": "Makefile build depends on build-ui+gen-defaults or commit ui/dist", "finding": "B4X-AUDIT-009", "files": ["Makefile", "src/http/ui"], "effort": "S", "deps": []},
+    {"id": "FB-16", "priority": "P2", "title": "Re-encode PATCH_PLAN and WARP v1.2 to UTF-8", "finding": "B4X-AUDIT-009", "files": ["B4_FORK_PATCH_PLAN.md", "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md"], "effort": "S", "deps": []},
+    {"id": "FB-17", "priority": "P2", "title": "WARP package norm fixes: geo TTL 120s, InnerRevokedBeforeParent, ExpiresAt", "finding": "B4X-AUDIT-007", "files": ["src/warp/geo.go", "src/warp/isolation.go", "src/warp/selection.go"], "effort": "S", "deps": ["FB-02"]},
+    {"id": "FB-18", "priority": "P2", "title": "Article-level audit of ARCH v2.4 (40) and IV v1.5 (39)", "finding": "BLOCKED", "files": [], "effort": "L", "deps": []}
+  ]
+}

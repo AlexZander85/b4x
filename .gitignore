@@ -48,3 +48,6 @@ tspu-docs/
 # Python field-validation artifacts
 __pycache__/
 *.pyc
+
+# Agent session state
+/.ag/

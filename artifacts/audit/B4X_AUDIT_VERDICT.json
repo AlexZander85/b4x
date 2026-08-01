@@ -1,0 +1,45 @@
+{
+  "audit_artifact": "B4X_AUDIT_VERDICT",
+  "date": "2026-07-31",
+  "verdict": "B4X_NOT_COMPLIANT",
+  "repository": "AlexZander85/b4x",
+  "branch_declared": "agent/classifier-v2.3-capture-envelope",
+  "base_commit": "7160ee8f066bbbed1c713b4d0114db4e8acbc882 (B4 1.73.0)",
+  "working_tree": "D:\\b4x = HEAD 49a73e177601f33f067fbdc8ed91317fe51eef10 + 33 untracked; read-only audit",
+  "coverage_complete": true,
+  "documents_audited": 14,
+  "scope": "472+ atomic requirements, 783 Go files, Linux verification in Docker (golang:1.25-alpine / golang:1.25-bookworm); go build / go vet / go test / go test -race executed",
+  "requirements_by_doc": {
+    "WARP_v1.2": {"total": 44, "implemented": 0, "partial": 32, "absent": 12},
+    "ABD_v1.2": {"total": 26, "implemented": 2, "partial": 20, "absent": 4},
+    "MON_v1.0": {"total": 32, "implemented": 0, "partial": 13, "absent": 19},
+    "DDI_TGB_v1.0": {"total": 30, "implemented": 0, "partial": 14, "absent": 16},
+    "PPE": {"total": 49, "implemented": 38, "partial": 3, "absent": 8},
+    "RST_GSO": {"total": 34, "implemented": 27, "partial": 2, "absent": 5},
+    "CSI": {"total": 32, "implemented": 25, "partial": 0, "absent": 7},
+    "SPF_v1.0": {"total": 74, "implemented": 26, "partial": 25, "absent": 23},
+    "SP_v1.6": {"total": 22, "implemented": 9, "partial": 9, "absent": 4},
+    "FT_v1.5": {"total": 14, "implemented": 8, "partial": 6, "absent": 0},
+    "PATCH_PLAN": {"total": 36, "implemented": 26, "partial": 7, "absent": 0},
+    "ARCH_v2.4": {"total": 40, "status": "BLOCKED (indexed; article-level audit pending, FB-18)"},
+    "IV_v1.5": {"total": 39, "status": "BLOCKED (indexed; article-level audit pending, FB-18)"}
+  },
+  "findings": {
+    "BLOCKER": ["B4X-AUDIT-001", "B4X-AUDIT-002", "B4X-AUDIT-003", "B4X-AUDIT-004", "B4X-AUDIT-005"],
+    "MAJOR": ["B4X-AUDIT-006", "B4X-AUDIT-007", "B4X-AUDIT-008"],
+    "MINOR": ["B4X-AUDIT-009"]
+  },
+  "blocker_summary": [
+    "B4X-AUDIT-001: warp/serviceprofile/fieldtest/silentpath have 0 importers; 4 product docs not executed",
+    "B4X-AUDIT-002: only 1 of 160 hard-gate counters active; verdicts declarative; meta-suite uncalled",
+    "B4X-AUDIT-003: capture/ppe tests do not compile (product_bundle_test.go:100-101); sole FAIL of 42 packages",
+    "B4X-AUDIT-004: MON v1.0 strangler not started; legacy applyBatchResults active; /api/monitor/v1 absent",
+    "B4X-AUDIT-005: #277 (transparent.go:97-104,157 silent drop) and #278 (hint_planner.go:56 _ = prior) alive"
+  ],
+  "audit_limitations": [
+    "ARCH v2.4 and IV v1.5 indexed, not article-level audited (covered indirectly; see B4X_BLOCKED_VALIDATIONS.json)",
+    "Windows host: full build/tests only for linux/amd64 (log package is Unix-only)",
+    "Not a git repository: PR decomposition not verifiable; normalized blob comparison used"
+  ],
+  "recommendation": "Branch not release-ready. Fix order: (1) integrate or deactivate warp/serviceprofile/fieldtest/silentpath; (2) activate hard gates + meta-suite; (3) fix capture/ppe tests; (4) CI -race + vet; (5) #277/#278; (6) runtimecontrol mutex + abort hold FIN/RST. See B4X_FIX_BACKLOG.md."
+}

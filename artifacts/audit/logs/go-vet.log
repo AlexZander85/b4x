@@ -1,0 +1,7 @@
+# github.com/daniellavrushin/b4/fieldtest
+# [github.com/daniellavrushin/b4/fieldtest]
+fieldtest/session.go:59:13: struct field RouteGen repeats json tag "config_gen" also at session.go:59
+fieldtest/session.go:59:23: struct field SessionGen repeats json tag "config_gen" also at session.go:59
+# github.com/daniellavrushin/b4/capture/ppe
+# [github.com/daniellavrushin/b4/capture/ppe]
+vet: capture/ppe/product_bundle_test.go:100:62: cannot use cfg (variable of struct type config.Config) as *config.Config value in return statement

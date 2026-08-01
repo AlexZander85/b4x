@@ -1,0 +1,26 @@
+{
+  "audit_artifact": "00_REPOSITORY_BASELINE",
+  "date": "2026-07-31",
+  "git": {
+    "declared_branch": "agent/classifier-v2.3-capture-envelope",
+    "actual_git_dir_present": false,
+    "verified_commit_sha": null,
+    "commit_timestamp": null,
+    "working_tree_state": "D:\\b4x contains source files; no git index",
+    "staged_files": "CANNOT_VERIFY",
+    "modified_files": "CANNOT_VERIFY",
+    "untracked_files": "CANNOT_VERIFY",
+    "commit_history": "CANNOT_VERIFY"
+  },
+  "toolchain": {
+    "go_installed": false,
+    "go_version_declared": "1.25.3",
+    "staticcheck_available": false,
+    "git_available": true
+  },
+  "normative_documents": 13,
+  "go_source_files": 783,
+  "packages": 46,
+  "production_root": "src/main.go",
+  "findings": ["B4X-AUDIT-0001", "B4X-AUDIT-0002", "B4X-AUDIT-0003", "B4X-AUDIT-0004", "B4X-AUDIT-0005", "B4X-AUDIT-0006"]
+}

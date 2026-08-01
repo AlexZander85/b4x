@@ -1,0 +1,15 @@
+{
+  "audit_artifact": "B4X_BLOCKED_VALIDATIONS",
+  "date": "2026-07-31",
+  "blockers": [
+    {"id": "BV-01", "validation": "Article-level audit of ARCH v2.4 (40 requirements)", "reason": "Indexed only; covered indirectly (42-45 hold, 132-136 WARP)", "status": "BLOCKED", "followup": "FB-18 (P2)"},
+    {"id": "BV-02", "validation": "Article-level audit of IV v1.5 (39 records, criteria 1-86)", "reason": "Indexed only; criteria require executable hard gates (B4X-AUDIT-002)", "status": "BLOCKED", "followup": "FB-18 (P2)"},
+    {"id": "BV-03", "validation": "PR decomposition of PATCH_PLAN 1487-1543", "reason": "D:\\b4x is not a git repository; no PR history", "status": "BLOCKED"},
+    {"id": "BV-04", "validation": "Build/tests on Windows", "reason": "log/syslog and unix.Dup2 are Unix-only; target platform is Linux", "status": "NOT_APPLICABLE", "followup": "verified for linux/amd64"},
+    {"id": "BV-05", "validation": "go test -race for capture/ppe", "reason": "Tests do not compile (B4X-AUDIT-003)", "status": "BLOCKED", "followup": "FB-01 (P0)"},
+    {"id": "BV-06", "validation": "Router e2e (Stage 36: 14 Android scenarios)", "reason": "No hardware; fieldtest unwired (B4X-AUDIT-001)", "status": "BLOCKED"},
+    {"id": "BV-07", "validation": "4 RST/GSO requirements marked NOT-VERIFIED", "reason": "Could not be matched to code within audit scope (see csi_ppe_rstgso_audit.md)", "status": "BLOCKED", "followup": "clarify with maintainer"},
+    {"id": "BV-08", "validation": "Integration execution of src/fieldtest, src/silentpath", "reason": "Packages unwired; no integration tests", "status": "BLOCKED", "followup": "FB-02 (P0)"},
+    {"id": "BV-09", "validation": "Live NFQUEUE behavior of PPE", "reason": "Requires root/network capabilities; Docker verified compile + unit tests only", "status": "BLOCKED", "followup": "FB-01 (P0)"}
+  ]
+}

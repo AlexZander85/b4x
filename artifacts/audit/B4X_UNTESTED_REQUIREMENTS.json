@@ -1,0 +1,18 @@
+{
+  "audit_date": "2026-07-31",
+  "groups": [
+    {"requirements": "WARP v1.2 all 44", "reason": "package unwired; tests cover models only", "source": "warp_audit.md"},
+    {"requirements": "MON-1..12 (33)", "reason": "strangler not implemented; no tests", "source": "mon_abd_ddi_audit.md"},
+    {"requirements": "DDI-1..10, TGB-1..10 (30)", "reason": "detector priority ignored; #277/#278 alive; no tests", "source": "mon_abd_ddi_audit.md"},
+    {"requirements": "ABD v1.2 (24 of 26)", "reason": "schemas mismatch (SchemaVersion=1 vs 2); authority not used in runtime", "source": "mon_abd_ddi_audit.md"},
+    {"requirements": "SPF v1.0 (48 of 74)", "reason": "package unwired; detection chain absent; 17/21 hard gates", "source": "sp_ft_spf_audit.md"},
+    {"requirements": "SP v1.6 (13 of 22)", "reason": "package unwired; warp_recommendation YAML absent", "source": "sp_ft_spf_audit.md"},
+    {"requirements": "FT v1.5 FT-AC/AD/AE mutants", "reason": "package unwired; controller does not call HardGatesPass", "source": "sp_ft_spf_audit.md"},
+    {"requirements": "PPE (52 tests)", "reason": "tests do not compile (B4X-AUDIT-003)", "source": "test_quality_audit.md"},
+    {"requirements": "CSI-15", "reason": "GSOPassToken fields missing - FAIL", "source": "csi_ppe_rstgso_audit.md"},
+    {"requirements": "RST/GSO (4 NOT-VERIFIED)", "reason": "could not verify", "source": "csi_ppe_rstgso_audit.md"},
+    {"requirements": "IV criteria 1-86", "reason": "not executable without active hard gates and meta-suite", "source": "hard_gates_audit.md"},
+    {"requirements": "ARCH 42-45, 132-136", "reason": "hold partial; WARP dead", "source": "patch_plan_quality.md"},
+    {"requirements": "geodat, quic, metrics", "reason": "no tests (metrics package empty)", "source": "wiring_analysis.md"}
+  ]
+}
