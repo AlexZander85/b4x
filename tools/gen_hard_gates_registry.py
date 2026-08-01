@@ -306,7 +306,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "7c0be90f"  # FB-03 phase A commit (2026-08-01)
+REGISTER_VERIFIED_COMMIT = "bd9db5d5"  # FB-03 all-24-producers-verified commit (2026-08-01)
 
 # Gate kinds (owner-decision pending; classification is an ASSUMPTION,
 # fail-closed by default — see artifacts/audit/B4X_FB03_OWNER_DECISION.md):
