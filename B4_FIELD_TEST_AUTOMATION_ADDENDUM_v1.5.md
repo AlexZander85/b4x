@@ -12,17 +12,17 @@
 ## Нормативная последовательность
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → завершённый B4_FORK_PATCH_PLAN.md Stage 1–36
 → завершённый B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
 → B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md v1.2
 → B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
 → B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md v1.0
-→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.0
+→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.2
 → B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM.md v1.0
 → этот Field Test Automation & Trace Contract v1.5
-→ B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM v1.5
+→ B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM v1.6
 → B4_IMPLEMENTATION_VALIDATION_ADDENDUM v1.5
 → candidate/profile production promotion
 ```
@@ -3149,7 +3149,7 @@ Release verdict:
 WARP_CAUSAL_TRACE_READY
 ```
 
-requires `FT-AC`, `FT-AD` and `FT-AE` PASS, all applicable WARP v1.2 hard gates zero, real Keenetic path-counter proof and real Android forwarded-flow correlation.
+`WARP_CAUSAL_TRACE_READY` — **узкий composable causal-trace verdict** (FB-14 решение 9): подтверждает только полную причинную связь `TransportAuthorization → BindingID → RouteTokenID → route/rule/mark ownership → socket/TUN/MASQUE path → target flow → required control flows → cleanup/rollback events`. Требует: все required events присутствуют; ordering непротиворечив; IDs и ConfigGeneration согласованы; trace-derived state совпадает с runtime/API state; target и controls различимы; route/path counters подтверждают выбранный path; cleanup/rollback закрывает все owned resources; missing/skipped/unknown/stale evidence не считается PASS. Nested/geo/non-RU, camouflage и Android field validation имеют отдельные verdicts и в causal verdict автоматически не входят.
 
 # 26. Field hard gates редакции 1.5
 
@@ -3240,7 +3240,7 @@ warp_trace_generation_mismatch_total == 0
 warp_trace_state_mismatch_total == 0
 ```
 
-`WARP_CAUSAL_TRACE_READY` дополнительно требует complete required-event set, trace/runtime consistency, current-generation route proof, Android binding correlation, nested dependency proof и cleanup ownership closure.
+`WARP_CAUSAL_TRACE_READY` — узкий causal verdict (FB-14 решение 9): требуются полный required-event set, ordering consistency, ID/generation согласованность, trace/runtime consistency, target/controls distinction, route/path counter proof и cleanup ownership closure. Android binding correlation и nested dependency proof — отдельные verdicts (`WARP_ANDROID_VALIDATED`, `WARP_NESTED_READY`) и в causal verdict автоматически не входят.
 
 # 27. Дополнительные acceptance criteria редакции 1.5
 

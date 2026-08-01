@@ -2554,6 +2554,34 @@ B4X должен уметь ответить на пять разных вопр
 strict | scoped-hints | legacy | disabled
 ```
 
+### `strict` (FB-14 решение 13)
+
+Используется для destructive/production authorization и требует authoritative target identity:
+
+```text
+clear SNI
++ complete reassembled SNI
++ explicit static exact target
++ иной эквивалентный strong identity proof, если он отдельно формализован
+```
+
+### `scoped-hints` (FB-14 решение 13)
+
+Свежие DNS/QUIC hints допускаются только для:
+
+```text
+capture candidate selection
++ flow correlation
++ provisional classification
++ diagnostics
++ candidate generation/ranking
++ bounded test eligibility
+```
+
+Hints должны быть exact-scoped по ClientKey/FlowKey, ServiceProfileID/SetID, ComponentID/TargetRole, destination+protocol, NetworkContextID, ConfigGeneration и TTL/freshness. Обязательны ambiguity handling, contradiction handling и negative-SNI revocation.
+
+**Критическая граница:** DNS/QUIC hint сам по себе никогда не создаёт destructive `ActionAuthorization`, WARP `TransportAuthorization`, production route binding или promotion. IP/CIDR/port остаются capture-only hints в обоих режимах. Managed profile может использовать `scoped-hints` для first-flow/ECH/QUIC coverage, но переход к destructive action требует дополнительного authoritative/differential proof. User override может ужесточить policy, но не ослабить minimum safety policy.
+
 Global legacy default не может молча расширять новый classifier v2 profile. Migration validator MUST помечать unsafe combinations.
 
 ## 107. Candidate and authorization split

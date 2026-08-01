@@ -1,7 +1,7 @@
 # Патч-план B4 Flow Classifier v2.3
 
 **База:** B4 `1.73.0`, commit `7160ee8f066bbbed1c713b4d0114db4e8acbc882`  
-**Архитектурный источник истины:** `B4_FORK_ARCHITECTURE.md` редакции 2.3  
+**Архитектурный источник истины:** `B4_FORK_ARCHITECTURE.md` редакции 2.4  
 **Статус:** последовательный implementation plan для coding-агента  
 
 Этот план заменяет редакции 2.0–2.2 и отдельный файл предлагаемых дополнений 2.3.
@@ -539,6 +539,8 @@ feat(classifier): hand off source-scoped QUIC identity to TCP fallback
 - legacy;
 - disabled.
 
+Условия выбора режима и границы `strict`/`scoped-hints` — authoritative: `B4_FORK_ARCHITECTURE.md` v2.4 §106 (FB-14 решение 13): `strict` требует authoritative target identity (clear SNI, complete reassembled SNI, explicit static exact target); `scoped-hints` — только provisional/correlation evidence (capture candidate, flow correlation, provisional classification, diagnostics, candidate ranking, bounded test eligibility), exact-scoped и с negative-SNI revocation; DNS/QUIC hint никогда не создаёт destructive `ActionAuthorization`, WARP `TransportAuthorization`, production route binding или promotion; IP/CIDR/port — capture-only hints в обоих режимах.
+
 ### Compatibility
 
 Existing boolean config migrates to equivalent legacy mode.
@@ -924,7 +926,7 @@ feat(discovery): add isolated baseline and candidate NFQUEUE sandboxes
 
 ### Body policy
 
-- success threshold > typical 16 KiB cutoff;
+- success threshold НЕ определяется типичным 16 KiB cutoff: `16 KiB` — bounded memory budget per flow, а не protocol/DPI граница (FB-14 решение 11); допускается configurable validated maximum с per-flow/per-client/global/segment/timeout/concurrent bounds;
 - configurable read cap;
 - exact offset persisted;
 - near-16k is classifier label, not hard-coded success logic.

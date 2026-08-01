@@ -28,7 +28,7 @@
 | № | Тема | Решение владельца | Обязательное действие |
 |---:|---|---|---|
 | 1 | DDI-4 ownership evidence → BlockingProfile | Compiler принадлежит ABD; DDI хранит, валидирует и доставляет immutable profile | Удалить DDI-owned compiler semantics |
-| 2 | ADR-WARP 1..7 vs changelog 1..6 | Нормативны ADR-WARP-1…7 | Исправить changelog |
+| 2 | ~~ADR-WARP 1..7 vs changelog 1..6~~ | СНЯТ: changelog-секции в WARP v1.2 не существует (ложное срабатывание) | Правок не требуется; нормативны ADR-WARP-1…7 |
 | 3 | Legacy `/api/watchdog/*` | Event-driven cutover; mutating API отключается при authoritative Monitoring | Исключить два mutating source of truth |
 | 4 | Два `GSOPassToken` | Один компактный canonical token с immutable IDs/digests | Удалить второй schema/type |
 | 5 | WARP/RST-GSO/PPE/SPF order | Не одна цепочка; отдельно data plane, control plane и transport escalation | Переписать конфликтующие dependency diagrams |
@@ -88,7 +88,7 @@ DDI может отклонить stale/incompatible profile, но не пере
 
 **РЕШЕНИЕ ВЛАДЕЛЬЦА:**
 
-Нормативны `ADR-WARP-1`…`ADR-WARP-7`, включая geo-attestation ADR. Changelog содержит редакционную ошибку и должен быть дополнен.
+СНЯТ (ложное срабатывание): changelog-секции в WARP addendum v1.2 не существует (grep «changelog» — 0 совпадений); утверждение «changelog v1.2 говорит 1..6» (findings_draft.md:45) ошибочно. Нормативны `ADR-WARP-1`…`ADR-WARP-7`, включая geo-attestation ADR (строки 398-1454). Правок не требуется.
 
 Changelog не является источником, способным отменить ADR.
 

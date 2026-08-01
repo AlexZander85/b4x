@@ -24,7 +24,7 @@
 При конфликте требований для подсистем GSO, RST и reassembled-SNI действует следующий порядок приоритета:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → этот addendum
 → B4_FORK_PATCH_PLAN.md v2.3
 → implementation notes и historical documents
@@ -346,6 +346,27 @@ feat(capture): add NFQUEUE GSO and checksum offload metadata
 
 ### Classify
 
+`gso_mode=classify` разрешён только при **current-generation verdict `GSO_CLASSIFY_READY`** (FB-14 решение 12):
+
+```text
+READY → classify разрешён
+UNKNOWN/STALE/FAIL → автоматический downgrade в observe
+```
+
+`GSO_CLASSIFY_READY` требует:
+
+```text
+корректный NFQUEUE/GSO metadata envelope
++ отсутствие truncation/length/checksum ambiguity
++ GSO ↔ equivalent MSS classification parity
++ IPv4/IPv6 coverage
++ retransmission/out-of-order/idempotency tests
++ queue/user drop budgets
++ CPU/RAM/held-packet budgets
++ current visibility proof, когда PPE включён
++ production reachability через реальный packet entry point
+```
+
 При `gso_mode=classify`:
 
 - complete GSO ClientHello проходит через тот же classifier API, что reassembled ClientHello;
@@ -353,6 +374,18 @@ feat(capture): add NFQUEUE GSO and checksum offload metadata
 - `ActionPlan` обязан объявить требуемую packet representation;
 - неизвестная representation или missing capability приводит к fail-open/suppress, а не direct mutation;
 - GSO fast path не создаёт второй `ClientHelloID`.
+
+`classify` разрешает **только classification на представлении GSO**. Он **не разрешает normalization или packet mutation**. Normalization/action дополнительно требуют:
+
+```text
+current ActionAuthorization
++ single-use GSOPassToken
++ GSO_RUNTIME_READY
++ strategy compatibility
++ rollback/cleanup readiness
+```
+
+> **superseded (FB-14 решение 12):** прежняя формулировка «gso_mode=classify как рекомендуемый production mode» без разрешающего gate заменена verdict-gated моделью настоящего пункта.
 
 ### Tests
 
@@ -374,19 +407,38 @@ feat(capture): add capability-gated NFQUEUE GSO classification fast path
 
 ## H4. Conditional GSO normalizer и first-pass token
 
-### Token
+### Token — canonical `GSOPassToken` (FB-14 решение 4)
+
+Единственный canonical `GSOPassToken` принадлежит GSO/runtime boundary и содержит compact immutable references (крупные mutable `Authorization`/`EffectivePolicy` объекты в token НЕ копируются — они разрешаются по ID/digest в current generation):
 
 ```go
 type GSOPassToken struct {
-    FlowKey        classifier.FlowKey
-    ClientHelloID  uint64
-    ConfigGen      uint64
-    Decision       classifier.ClassificationDecision
-    StrategyID     string
-    RequiresAction bool
-    ExpiresAt      time.Time
+    TokenID             string
+    FlowKey             classifier.FlowKey
+    ClientHelloID       uint64
+    ConfigGeneration    uint64
+    Decision            classifier.ClassificationDecision
+    StrategyID          string
+    RequiresAction      bool
+    AuthorizationID     string // или AuthorizationDigest
+    EffectivePolicyID   string // или EffectivePolicyDigest
+    CandidateDisposition string
+    CreatedAt           time.Time
+    ExpiresAt           time.Time
+    ConsumedAt          *time.Time
 }
 ```
+
+Обязательные свойства:
+
+- single-use consume;
+- exact generation binding;
+- flow/client scope binding;
+- TTL/expiry;
+- replay rejection;
+- no reclassification/re-authorization on secondary pass;
+- cleanup при generation retirement;
+- bounded memory/cardinality.
 
 Token store MUST быть:
 
@@ -396,6 +448,8 @@ Token store MUST быть:
 - очищаемым по completion, timeout, FIN, RST, shutdown и generation change;
 - недоступным между production и candidate/discovery scopes;
 - без mutable config pointers.
+
+> **superseded (FB-14):** расширенная схема token с вложенными `ActionAuthorization`/`EffectivePolicy` объектами (бывш. CSI addendum §18) удалена как duplicate schema. CSI ссылается на canonical `GSOPassToken` настоящего пункта.
 
 ### First pass
 

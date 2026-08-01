@@ -46,7 +46,7 @@ ABD-1 … ABD-12
 ### 0.1. Нормативная последовательность
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → B4_FORK_PATCH_PLAN.md Stage 1–36
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
 → B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
@@ -73,7 +73,7 @@ B4_FORK_ARCHITECTURE.md v2.3
 При расхождении требований в Detector/Discovery subsystem действует следующий порядок:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → Cross-Service Isolation для scope и authorization
 → RST/GSO + PPE для capture correctness и visibility
 → Silent Path Failure для stall inference и false-positive suppression

@@ -36,7 +36,7 @@ Tracks независимы по runtime-коду и MAY реализовыва�
 ### 0.1. Нормативная последовательность
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → B4_FORK_PATCH_PLAN.md Stage 1–36
 → B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
@@ -59,7 +59,7 @@ B4_FORK_ARCHITECTURE.md v2.3
 При расхождении требований действует следующий приоритет:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → Cross-Service Isolation для scope/authorization
 → RST/GSO и PPE для packet visibility/correctness
 → Silent Path Failure для inference/recovery safety
@@ -950,23 +950,46 @@ Semantics:
 
 ### 16.2. Zero-byte behavior
 
-Default policy:
+Soft и hard deadlines разделены (FB-14 решение 14).
+
+#### Soft deadline
 
 ```text
-zero bytes at soft deadline
-→ park within PendingHandshakeManager
+zero bytes
+→ не closed
+→ не handled/claimed
+→ park в bounded PendingHandshakeManager
 → wait until first byte or hard deadline
-→ re-enter normal bridge classification on data
 ```
 
-At hard deadline:
+Первый байт до hard deadline возвращает connection в normal handshake classification с сохранением prefix и без duplication/loss.
+
+#### Hard deadline
+
+Zero-byte connection может быть завершён только как observable:
 
 ```text
 no bytes
 → close as idle_preconnect_expired
 → explicit metric/event
-→ never log as unsupported MTProto
+→ reason
+→ correct socket cleanup
+→ pending-budget release
+→ не unsupported MTProto
+→ не successful handle
+→ не silent drop
 ```
+
+Запрещено:
+
+```text
+fixed 5-second deadline
+→ head == 0
+→ handled=true
+→ nil connection
+```
+
+> **superseded (FB-14 решение 14):** прежняя формулировка «close as idle_preconnect_expired» (962-969) уточнена разделением soft/hard deadline и явным запретом silent fixed-5s drop; DoD «never silently claimed and dropped after five seconds» сохраняется. Field proof должен включать delayed-first-byte > 5 s, partial prefix, client close, cancellation, reload/shutdown и pending-budget exhaustion.
 
 Optional policy MAY hand off to a lazy worker route at soft timeout, but MUST NOT dial an upstream until first client byte unless explicitly configured.
 
@@ -1665,15 +1688,21 @@ Deliverables:
 - context-change invalidation;
 - privacy tests.
 
-## DDI-4 — Profile compiler and persistence
+## DDI-4 — Profile envelope, persistence and delivery (consumer of ABD-compiled `BlockingProfile`)
 
 Deliverables:
 
-- raw suite → profile compiler;
-- evidence provenance/confidence;
+- profile envelope/versioning вокруг immutable `BlockingProfile` payload (компиляция — `ABD-10`, не DDI);
+- freshness и expiry;
+- `NetworkContextID`/`ConfigGeneration` compatibility;
 - atomic bounded profile store;
-- legacy history handling;
+- revalidation (отклонение stale/incompatible, без перекомпиляции evidence);
+- selection и delivery в guided Discovery;
 - revoke/delete lifecycle.
+
+**Ownership (FB-14 решение 1):** DDI не реализует второй compiler `raw evidence → BlockingProfile` и не меняет semantics `BlockingProfile`. DDI владеет только envelope/freshness/persistence/revalidation/selection/delivery и может отклонить stale/incompatible profile, но не перекомпилирует evidence и не повышает confidence.
+
+> **superseded:** прежняя формулировка «raw suite → profile compiler» (до FB-14) удалена. Компиляция raw evidence → `BlockingProfile` принадлежит исключительно ABD (`ABD-10`, см. `B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md` §0.3).
 
 ## DDI-5 — Fast revalidation
 

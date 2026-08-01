@@ -26,7 +26,7 @@
 Порядок выполнения документов:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → завершённый B4_FORK_PATCH_PLAN.md v2.3 (Stage 1–36)
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
 → B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
@@ -36,7 +36,7 @@ B4_FORK_ARCHITECTURE.md v2.3
 При пересечении требований действует приоритет:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → этот addendum для scope/DomainOnly/cross-service semantics
 → RST/GSO hardening addendum для GSO и passive RST specifics
 → implementation notes и historical documents
@@ -1141,6 +1141,8 @@ no YouTube action
 
 `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md` начинается только после прохождения `CSI-1`–`CSI-10` либо после документированного доказательства эквивалентной реализации.
 
+> **FB-14 решение 5 (уточнение):** данный порядок является **release sequencing** (последовательностью реализации/валидации документов), а не runtime dependency chain. Runtime-цепочки определяются плоскостями по SPF §0.1 (data plane / diagnostic-control plane / transport escalation). Универсальная линейная цепочка WARP→RST/GSO→PPE→SPF не существует.
+
 Причины:
 
 - GSO ускоряет раннюю классификацию, но не должен ускорять неправильный IP-based action;
@@ -1150,24 +1152,13 @@ no YouTube action
 - reconnect rollback monitor должен отличать YouTube flow от Gmail/Google flow;
 - reassembled-SNI integration должна быть исправлена до GSO parity tests.
 
-## 18. GSOPassToken extension
+## 18. GSOPassToken reference
 
-Последующий GSO token MUST включать минимум:
+CSI использует **canonical `GSOPassToken`** из `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md` (H4, FB-14 решение 4). Отдельная CSI-owned token schema не существует.
 
-```go
-type GSOPassToken struct {
-    FlowKey             classifier.FlowKey
-    ClientHelloID       uint64
-    ConfigGen           uint64
-    Decision            classifier.ClassificationDecision
-    Authorization       ActionAuthorization
-    EffectivePolicy     DomainPolicy
-    CandidateDisposition CandidateDisposition
-    StrategyID          string
-    RequiresAction      bool
-    ExpiresAt           time.Time
-}
-```
+Canonical token содержит compact immutable references (TokenID, FlowKey, ClientHelloID, ConfigGeneration, Decision, StrategyID, RequiresAction, AuthorizationID/Digest, EffectivePolicyID/Digest, CandidateDisposition, CreatedAt, ExpiresAt, ConsumedAt) и обладает single-use consume, exact generation binding, flow/client scope binding, TTL/expiry, replay rejection и cleanup при generation retirement.
+
+> **superseded (FB-14):** прежняя расширенная schema с вложенными `Authorization ActionAuthorization` и `EffectivePolicy DomainPolicy` объектами удалена как duplicate canonical schema. `Authorization`/`EffectivePolicy` разрешаются по immutable ID/digest в current generation и в token не копируются.
 
 Secondary worker MUST NOT:
 

@@ -47,7 +47,7 @@ cloudflare-warp-masque
 ### 0.1. Обязательный порядок реализации
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → завершённый B4_FORK_PATCH_PLAN.md Stage 1–36
 → завершённый B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md (CSI-1…CSI-10)
@@ -80,7 +80,7 @@ Destination IP, CIDR, ASN, порт `443`, прежний flow или shared CDN
 ### 0.2. Приоритет требований
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → Cross-Service Isolation Addendum для authorization/scope
 → этот addendum для WARP/MASQUE, bounded transport camouflage и nested non-RU transport
 → RST/GSO Addendum для direct packet execution
@@ -3675,15 +3675,33 @@ Release verdict:
 WARP_CAUSAL_TRACE_READY
 ```
 
-requires:
+`WARP_CAUSAL_TRACE_READY` — **узкий composable verdict** (FB-14 решение 9), подтверждающий только полную причинную связь:
 
-- all hard-gate counters equal zero;
-- trace schema compatibility tests;
-- validation-of-observability mutant tests;
-- real router route-counter proof;
-- real Android forwarded-flow correlation;
-- nested parent/child and geo-gate causal chain;
-- cleanup ownership proof after crash, restart and rollback.
+```text
+TransportAuthorization
+→ BindingID
+→ RouteTokenID
+→ route/rule/mark ownership
+→ socket/TUN/MASQUE path
+→ target flow
+→ required control flows
+→ cleanup/rollback events
+```
+
+Обязательные условия:
+
+- все required events присутствуют;
+- ordering непротиворечив;
+- IDs и ConfigGeneration согласованы;
+- trace-derived state совпадает с runtime/API state;
+- target и controls различимы;
+- route/path counters подтверждают выбранный path;
+- cleanup/rollback закрывает все owned resources;
+- missing/skipped/unknown/stale evidence не считается PASS.
+
+Nested WARP, geo/non-RU, camouflage и Android field validation имеют отдельные verdicts (`WARP_BASE_TRANSPORT_READY`, `WARP_CAMOUFLAGE_READY`, `WARP_NESTED_READY`, `WARP_NON_RU_READY`, `WARP_ANDROID_VALIDATED`) и в causal-trace verdict автоматически не входят; `WARP_PRODUCTION_READY` агрегирует только применимые verdicts для заявленного release scope.
+
+> **superseded (FB-14 решение 9):** прежний расширенный состав verdict (Android forwarded-flow correlation, nested parent/child и geo-gate causal chain как обязательные условия causal verdict) заменён узким causal-trace составом настоящего пункта.
 
 ## 74. Promotion verdict
 

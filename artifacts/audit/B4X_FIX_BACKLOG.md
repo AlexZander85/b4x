@@ -24,7 +24,7 @@
 | FB-11 | CaptureEnvelope: подключить флаг к фактической обработке (first-N/SYN-ACK/FIN/RST/QUIC контур) или удалить | B4X-AUDIT-007 | src/config/types.go:106, src/capture, src/tables/iptables.go:361-362 | M |
 | FB-12 | PPE self-test: авто-старт при mode=startup-and-change (не только через HTTP) | B4X-AUDIT-007 | src/capture/ppe/reconciler.go:122 | M |
 | FB-13 | fieldtest/session.go:59 — исправить коллизию json-тегов (RouteGen, SessionGen → свои теги) | A2 | src/fieldtest/session.go | S |
-| FB-14 | Устранить 14 меж-документных противоречий (переиздать документы): DDI-4 ownership, ADR-WARP 1..7, GSOPassToken, WARP_CAUSAL_TRACE_READY, acceptance 86 vs 77, registry §23.1, цепочки v1.5/v2.3, 16 KiB, zero-byte close | B4X-AUDIT-008 | документы | M |
+| FB-14 | Устранить 14 меж-документных противоречий (переиздать документы): DDI-4 ownership, ADR-WARP 1..7 (changelog-часть снята: секции в WARP v1.2 нет), GSOPassToken, WARP_CAUSAL_TRACE_READY, acceptance 86 vs 77, registry §23.1, цепочки v1.5/v2.3, 16 KiB, zero-byte close | B4X-AUDIT-008 | документы | M |
 
 ## P2
 

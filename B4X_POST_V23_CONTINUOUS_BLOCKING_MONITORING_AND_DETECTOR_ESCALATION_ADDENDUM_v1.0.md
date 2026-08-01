@@ -106,7 +106,7 @@ MON-1 … MON-12
 ## 1. Место в post-v2.3 последовательности
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → B4_FORK_PATCH_PLAN.md Stage 1–36
 → Cross-Service Isolation
 → RST/GSO hardening
@@ -241,6 +241,33 @@ InfrastructureIntegrityMonitor
 - изменение существующего set без baseline/control/canary;
 - `SkipDNS: true` без client-resolution provenance;
 - один `StatusHealthy/Degraded/Escalating` enum как полная модель.
+
+### 5.1. 16 KiB — bounded memory budget, не protocol threshold (FB-14 решение 11)
+
+`16 KiB` в legacy watchdog («читает до фиксированных 16 KiB», §5) и в availability-проверках является **безопасным default memory budget `max_reassembly_bytes_per_flow`** для Keenetic/OpenWrt-class targets, а не универсальной границей ClientHello, DPI или application data.
+
+Допускается configurable повышение (например, до `32 KiB` или иного validated maximum) только при одновременных bounds:
+
+```text
+per-flow
++ per-client
++ global memory
++ segment count
++ timeout
++ concurrent reassemblies
+```
+
+При превышении configured bound:
+
+```text
+explicit bounded abort
++ metric/event
++ safe fail-open/ambiguity result
+```
+
+Запрещён ложный `complete` verdict.
+
+> **superseded (FB-14 решение 11):** формулировки «фиксированные 16 KiB» (строка 214) и «fixed 16 KiB universal availability test» (строка 237) трактуются в соответствии с настоящим пунктом; validation matrix должна включать small, boundary, above-boundary и configured-maximum cases, включая fragmented/out-of-order/retransmission layouts.
 
 ## 6. Failure Inbox: переиспользовать как intake/projection
 
@@ -1463,6 +1490,47 @@ They translate to MON:
 | disable | pause pinned source; passive global source policy separate |
 | force check | submit bounded quick diagnostic |
 | status | project MonitorAssessment into legacy fields |
+
+### 57.1. Legacy API lifetime — event-driven cutover (FB-14 решение 3)
+
+Cutover является **событийным**, а не привязанным к календарной дате. `legacy_watchdog_api=true` допускается только как shadow/read-only compatibility surface:
+
+Legacy endpoint НЕ имеет права:
+
+```text
+- менять config;
+- создавать sets;
+- запускать direct Discovery apply;
+- владеть scheduler/state;
+- выполнять promotion/rollback;
+- служить вторым mutating source of truth.
+```
+
+Cutover разрешён только после одновременного прохождения:
+
+```text
+Monitoring shadow parity
++ scheduler readiness
++ ABD/DDI integration readiness
++ transactional apply path readiness
++ rollback readiness
++ API migration tests
+```
+
+После cutover:
+
+```text
+- любые legacy POST/PUT/PATCH/DELETE /api/watchdog/* возвращают 410 Gone
+  или стабильную migration error;
+- read-only GET alias разрешён максимум один совместимый minor release;
+- read-only alias читает Monitoring state и не хранит собственный state;
+- затем маршруты полностью удаляются;
+- одновременно никогда не допускаются два mutating sources of truth.
+```
+
+`MON_PRODUCTION_READY` запрещён, если хотя бы один legacy mutating path достижим из production router.
+
+> **superseded (FB-14):** прежняя формулировка §57 «Legacy endpoints remain initially» без явного события cutover уточнена настоящим пунктом; правило §60 (Phases A–F) сохраняется как механизм, но его входные условия определяются §57.1.
 
 ## 58. Status projection
 

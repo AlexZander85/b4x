@@ -11,7 +11,7 @@
 | № | Конфликтующие места (документ:строки/секции) | Суть конфликта | Решение (кратко; полный текст — RESOLVED.md раздел 2) |
 |---:|---|---|---|
 | 1 | `B4_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md` (DDI/TGB) :1668-1676 vs `ABD v1.2` :129 | Кто компилирует raw evidence → BlockingProfile | ABD — единственный compiler; DDI — только envelope/freshness/persistence/revalidation/delivery. Удалить DDI-owned compiler semantics |
-| 2 | WARP addendum v1.2: changelog «ADR-WARP 1..6» vs секции ADR-WARP-1…7 (включая geo-attestation) | Четыре ADR или семь | Нормативны ADR-WARP-1…7; changelog дополнить (редакционная ошибка) |
+| 2 | ~~WARP addendum v1.2: changelog «ADR-WARP 1..6»~~ — СНЯТ (ложное срабатывание): changelog-секции в WARP v1.2 не существует (grep «changelog» — 0 совпадений); секции ADR-WARP-1…7 присутствуют (398/463/509/632/889/1199/1379) | — | Правок не требуется; нормативны ADR-WARP-1…7 |
 | 3 | `B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING..._v1.0.md` §57 «Compatibility strategy» (1443+), MON-11 (2315-2444) | Срок жизни legacy `/api/watchdog/*` не задан | Event-driven cutover; до cutover — shadow/read-only; после — 410 Gone; мутирующие sources of truth не сосуществуют |
 | 4 | `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md` H4 (379-398) vs CSI addendum §18 (1153-1178) | Два определения GSOPassToken | Один compact canonical token с ID/digest (перечень полей — RESOLVED.md п.4); второе определение удалить |
 | 5 | CSI-14 (1142) vs `SPF v1.0` §0.1 (71-93) vs SPF:1217 | Единая линейная цепочка WARP→RST/GSO→PPE→SPF | Универсальная цепочка запрещена; отдельные flow: data plane, diagnostic/control plane, transport escalation (диаграммы в RESOLVED.md п.5) |

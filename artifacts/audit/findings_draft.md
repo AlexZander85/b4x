@@ -42,7 +42,7 @@
 
 ## C. Меж-документные расхождения (D) — кандидаты в findings
 1. DDI-4 ownership: ABD v1.2:129 требует делегирование компиляции raw evidence→BlockingProfile в ABD-10; DDI/TGB:1668–1676 описывает её как свой deliverable. Документ не обновлён.
-2. ADR-WARP пронумерованы 1..7, changelog v1.2 говорит 1..6 (ADR-WARP-7 geo attestation не отражён).
+2. ~~ADR-WARP пронумерованы 1..7, changelog v1.2 говорит 1..6 (ADR-WARP-7 geo attestation не отражён)~~ — ОШИБКА ЗАПИСИ: changelog-секции в WARP v1.2 не существует; конфликт снят (см. CONFLICTS_MAP №2).
 3. MON §57: legacy /api/watchdog/* — срок существования адаптера не задан (MON-11 single source of truth без deadline).
 4. GSOPassToken определён дважды: RST/GSO H4 (379–398) vs CSI §18 (1153–1178) — в CSI добавлены Authorization/EffectivePolicy/Disposition; субординация неявная.
 5. Порядок цепочек: CSI-14 (1142) — RST/GSO после CSI-1..10 без упоминания WARP/PPE; SPF §0.1 (71–93) — WARP→RST/GSO→PPE→SPF; SPF требует PPE-proof (1217) — позиция PPE в цепочке разорвана.

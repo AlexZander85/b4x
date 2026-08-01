@@ -1,7 +1,7 @@
 # B4 Service Profiles, Transport Profiles & Beginner UX Addendum
 
-**Статус:** нормативное post-v2.3 companion-дополнение к `B4_FORK_ARCHITECTURE.md`, завершённому `B4_FORK_PATCH_PLAN.md`, `B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md`, `B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md` v1.2, `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md`, `B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md` v1.0, `B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md` v1.1, `B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM.md` v1.0, `B4_FIELD_TEST_AUTOMATION_ADDENDUM` v1.5 и `B4_AGENT_PROMPT.md` v2.3  
-**Редакция:** 1.6 — полностью сохраняет редакции 1.1–1.5; синхронизируется с WARP/MASQUE v1.2, ABD v1.1, Field Test v1.5 и Implementation Validation v1.5; добавляет evidence-gated рекомендацию base WARP при подтверждённой IP/SYN/CIDR path blocking, scoped WARP validation UX и stages `SP-30`–`SP-32`  
+**Статус:** нормативное post-v2.3 companion-дополнение к `B4_FORK_ARCHITECTURE.md` v2.4, завершённому `B4_FORK_PATCH_PLAN.md`, `B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md`, `B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md` v1.2, `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md`, `B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md` v1.0, `B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md` v1.2, `B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM.md` v1.0, `B4_FIELD_TEST_AUTOMATION_ADDENDUM` v1.5 и `B4_AGENT_PROMPT.md` v2.3  
+**Редакция:** 1.6 — полностью сохраняет редакции 1.1–1.5; синхронизируется с WARP/MASQUE v1.2, ABD v1.2, Field Test v1.5 и Implementation Validation v1.5; добавляет evidence-gated рекомендацию base WARP при подтверждённой IP/SYN/CIDR path blocking, scoped WARP validation UX и stages `SP-30`–`SP-32`  
 **Дата:** 2026-07-30  
 **Назначение:** добавить предустановленные профили сервисов, транспортные профили и простой режим настройки без внесения service-specific логики в packet engine B4X, гарантируя cross-service isolation, безопасную проекцию WARP/MASQUE, false-positive-safe scoped recovery, target-oriented Detector v2/guided Discovery, evidence-gated предложение base WARP для IP-level path blocking и bounded transparent Telegram bridge lifecycle.  
 **Порядок выполнения:** исходные Stage 1–36 и PPE stages считаются завершёнными. Runtime optimized profiles допускается после CSI; WARP profiles и WARP recommendations — после применимых WARP/WARP-C и causal-trace gates; silent active recovery — только после применимых SPF/FT/IV gates; Detector-guided search — после ABD/DDI clean-baseline и target-validation gates; transparent Telegram bridge — после TGB resource/prefix/Android gates; GSO-active и Passive-RST-active возможности — после соответствующих RST/GSO gates.
@@ -12,14 +12,14 @@
 ## Нормативная последовательность
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → завершённый B4_FORK_PATCH_PLAN.md Stage 1–36
 → завершённый B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
-→ B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md v1.1
+→ B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md v1.2
 → B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
 → B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md v1.0
-→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.0
+→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.2
 → B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM.md v1.0
 → B4_FIELD_TEST_AUTOMATION_ADDENDUM v1.5
 → этот Service Profiles / Beginner UX addendum v1.6
@@ -3252,6 +3252,42 @@ Recommendation compiler MUST prefer the least disruptive causal family:
 
 The compiler MUST NOT recommend nested `НЕ РФ` merely because an IP block was found. `nested-nonru` appears only when the user/profile independently declares a geo constraint and all non-RU gates are available.
 
+### 28A.4.1. Canonical causal decision matrix (FB-14 решение 10)
+
+Нормы §28A.4 и SP-30 DoD объединяются в одну canonical causal decision matrix; SP-30 не отменяет базовый запрет §28A.4.
+
+При **любом** из условий:
+
+```text
+unhealthy controls
++ origin dead/unreachable
++ reference path unhealthy или inconclusive
++ stale/cross-network/cross-generation evidence
++ visibility unknown
++ scope ambiguity
+```
+
+результат может быть только:
+
+```text
+blocked-by-safety
++ rejected
++ inconclusive
+```
+
+Запрещены:
+
+```text
+eligible-to-test при unhealthy controls
++ ActionAuthorization
++ TransportAuthorization
++ production apply/promotion
+```
+
+Fresh scoped evidence при здоровых controls может дать `eligible-to-test`, но это только разрешение на bounded diagnostic/canary, не production action.
+
+> **superseded (FB-14 решение 10):** толкование «SP-30 DoD допускает рекомендацию при unhealthy controls» отклонено; матрица настоящего пункта является единственным canonical решением границы unhealthy controls.
+
 WARP Transport Camouflage is also separate. Target IP blocking MAY justify testing base WARP, but it does not justify camouflage of the WARP control flow. Camouflage is considered only when the WARP enrollment/MASQUE control path itself shows compatible DPI evidence.
 
 ## 28A.5. WARP readiness gates
@@ -3662,6 +3698,8 @@ DoD: profile packs cannot advertise automatic WARP recommendation until all dete
 90. Profile health is invalidated after material target-plan, detector, network-context, DDI or TGB capability changes.
 
 # 32. Итог редакции 1.5
+
+> **historical/non-normative (FB-14 решение 8):** настоящий раздел — историческая сводка редакции v1.5; действующие нормы — актуальная редакция v1.6.
 
 Service Profiles v1.5 делает идеальный пользовательский сценарий декларативным и безопасным:
 

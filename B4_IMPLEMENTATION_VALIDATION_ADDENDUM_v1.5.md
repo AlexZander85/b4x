@@ -8,17 +8,17 @@
 Нормативная последовательность для реализации и проверки:
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → завершённый B4_FORK_PATCH_PLAN.md Stage 1–36
 → завершённый B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
 → B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
 → B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md v1.2
 → B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
 → B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM.md v1.0
-→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.0
+→ B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM.md v1.2
 → B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM.md v1.0
 → B4_FIELD_TEST_AUTOMATION_ADDENDUM v1.5
-→ B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM v1.5
+→ B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM v1.6
 → B4_IMPLEMENTATION_VALIDATION_ADDENDUM v1.5
 ```
 
@@ -1099,10 +1099,12 @@ not implemented capability
 
 ## 23.1. Источники требований
 
-Validation Controller обязан построить machine-readable registry требований из:
+> **superseded (FB-14 решение 7):** настоящий раздел больше НЕ является самостоятельным Exact Source-Stage Registry. Единственный canonical registry — machine-readable **Exact Source-Stage Registry** (FB-33), который включает все действующие требования и acceptance criteria: ARCH v2.4, PLAN Stage 1–36, CSI-1…CSI-10, H1…H10, PPE-1…PPE-8, FT-A…FT-L + FT-AC…FT-AE + FT-MON-A…J, SP-1…SP-15 + SP-20…SP-23 + SP-30…SP-32, IV-1…IV-17, MON-1…MON-12. Перечисленные ниже списки — только generated views с явным фильтром (например, `view=v1.5-added`).
+
+Validation Controller обязан построить machine-readable registry требований из canonical Exact Source-Stage Registry (см. FB-33):
 
 ```text
-ARCH-v2.3
+ARCH-v2.4
 PLAN-v2.3 Stage 1–36
 CSI-1…CSI-10
 H1…H10
@@ -2403,7 +2405,7 @@ Validate:
 - WARP API/schema/CLI/UI parity;
 - v1.0→v1.1→v1.2 configuration compatibility;
 - Field Test v1.5 contract including `FT-AC…FT-AE`;
-- Service Profiles v1.5 compiler and UI;
+- Service Profiles v1.6 compiler and UI;
 - validation registry coverage;
 - report/artifact completeness;
 - secret-safe export;
@@ -2478,19 +2480,35 @@ warp_trace_state_mismatch_total == 0
 
 A not-run, skipped, unsupported or artifact-missing hard gate is not zero and cannot be aggregated as `PASS`.
 
-`WARP_CAUSAL_TRACE_READY` additionally requires:
+`WARP_CAUSAL_TRACE_READY` — **узкий composable verdict** (FB-14 решение 9). Подтверждает только полную причинную связь:
 
 ```text
-FT-AC PASS
-+ FT-AD PASS
-+ FT-AE PASS
-+ trace schema compatibility
-+ trace-derived/runtime state parity
-+ real router route-counter proof
-+ real Android forwarded-flow correlation
-+ nested parent/child and geo-gate proof
-+ cleanup ownership closure
+TransportAuthorization
+→ BindingID
+→ RouteTokenID
+→ route/rule/mark ownership
+→ socket/TUN/MASQUE path
+→ target flow
+→ required control flows
+→ cleanup/rollback events
 ```
+
+Обязательные условия:
+
+```text
+все required events присутствуют
++ ordering непротиворечив
++ IDs и ConfigGeneration согласованы
++ trace-derived state совпадает с runtime/API state
++ target и controls различимы
++ route/path counters подтверждают выбранный path
++ cleanup/rollback закрывает все owned resources
++ missing/skipped/unknown/stale evidence не считается PASS
+```
+
+Nested WARP, geo/non-RU, camouflage и Android field validation **не входят автоматически** в causal-trace verdict; они имеют отдельные verdicts (`WARP_BASE_TRANSPORT_READY`, `WARP_CAMOUFLAGE_READY`, `WARP_NESTED_READY`, `WARP_NON_RU_READY`, `WARP_ANDROID_VALIDATED`, `WARP_PRODUCTION_READY`). `WARP_PRODUCTION_READY` агрегирует только применимые verdicts для заявленного release scope.
+
+> **superseded (FB-14 решение 9):** прежний расширенный состав (FT-AC…FT-AE + Android correlation + nested/geo/DNS/IPv6 consistency) заменён узким causal-trace составом настоящего пункта.
 
 # 38B. Validation Suite: Silent Path Failure and Scoped Recovery v1.0
 
@@ -3015,7 +3033,9 @@ validation-results/<run-id>/
 | FT-AD | route/path proof and forwarded Android binding correlation |
 | FT-AE | nested dependency, geo quorum, DNS/IPv6 path and cleanup ownership |
 
-## 41.8. Service Profiles v1.5 additions
+## 41.8. Service Profiles additions (SP-16…SP-19; введены v1.5, действуют в v1.6)
+
+> **FB-14 решение 8:** заголовок обновлён — SP-16…SP-19 остаются действующими в Service Profiles v1.6; версия «v1.5» в названии — исторический контекст введения (non-normative).
 
 | Stage | Mandatory coverage |
 |---|---|
@@ -3351,11 +3371,13 @@ DoD: no full-fork PASS while declared Silent Path scope has an orphan stage, mis
 
 # 45. Расширенные acceptance criteria редакции 1.3
 
+> **superseded (FB-14 решение 6):** ручные totals в заголовках и списках (включая «77», «86», «146») не являются нормативной истиной. Единственный источник — machine-readable **Exact Source-Stage Registry** (FB-33): `criteria_total = count(valid canonical registry entries)`. Total в заголовках, summary, reports и UI генерируется автоматически; CI падает при `declared_total != computed_total`. До исправления registry финальная validation считается `BLOCKED`. Исторические counts допустимы только в changelog с явной версией.
+
 К исходным criteria 1–12 добавляются:
 
 13. Every Stage 1–36 has explicit requirement-to-test coverage.
 14. Every CSI/H/PPE/FT/SP companion stage has explicit coverage and verdict.
-15. DomainOnly `strict` and `scoped-hints` semantics match Architecture v2.3.
+15. DomainOnly `strict` and `scoped-hints` semantics match Architecture v2.4.
 16. Shared IP/CIDR/port alone never authorizes a DomainOnly service action.
 17. Clear/reassembled non-target SNI revokes provisional target candidate.
 18. `unrelated_control_action_total == 0` for required Gmail/Google controls.
@@ -3914,8 +3936,8 @@ WARP_CAUSAL_TRACE_READY
 - `TGB_PRODUCTION_READY` требует state/resource/prefix/route/target proof;
 - `ISSUE_277_RESOLVED` требует delayed-first-byte Android/controlled reproduction и нулевой destructive drop;
 - ни один issue verdict не выводится из compilation/unit tests alone;
-- `WARP_CAUSAL_TRACE_READY` требует `FT-AC…FT-AE`, current-generation path proofs, Android correlation, nested/geo/DNS/IPv6 consistency and cleanup closure;
-- WARP base, camouflage, non-RU and causal-trace verdicts не выводятся транзитивно друг из друга.
+- `WARP_CAUSAL_TRACE_READY` — узкий causal-trace verdict по FB-14 решение 9 (полный перечень условий см. §38A): required-event set, ordering, ID/generation consistency, trace/runtime parity, target/controls distinction, route/path counters, cleanup closure; missing/skipped/unknown/stale evidence не считается PASS. Nested/non-RU/camouflage/Android имеют отдельные verdicts;
+- WARP base, camouflage, non-RU и causal-trace verdicts не выводятся транзитивно друг из друга.
 
 ## 52.1. Blocked verdicts
 

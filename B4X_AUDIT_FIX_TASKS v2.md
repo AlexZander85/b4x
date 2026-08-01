@@ -656,7 +656,7 @@ GSOPassToken {
 #### Обязательные 14 решения
 
 1. **DDI-4 ownership:** ABD — единственный compiler raw evidence → `BlockingProfile`; DDI только envelope/freshness/persistence/revalidation/delivery.
-2. **ADR-WARP:** нормативны ADR-WARP-1…7; changelog исправить.
+2. **ADR-WARP:** нормативны ADR-WARP-1…7 (строки 398/463/509/632/889/1199/1379); «changelog 1..6» — ложное срабатывание аудита: changelog-секции в WARP v1.2 не существует (grep «changelog» — 0 совпадений); конфликт снят, правок не требуется.
 3. **Legacy Watchdog API:** event-driven cutover; после authoritative Monitoring mutating routes недоступны, read-only alias ограничен одним minor release.
 4. **GSOPassToken:** один compact immutable token с IDs/digests, single-use и generation binding.
 5. **Subsystem order:** разделить data plane, diagnostic/control plane и transport escalation; универсальная `WARP→RST/GSO→PPE→SPF` запрещена.
@@ -1541,7 +1541,7 @@ CANONICAL_REGISTRY_INCOMPLETE
 > ### FB-14. Устранить 14 меж-документных противоречий [M]
 > - **Что сделать:** для каждого пункта — выбрать редакцию (дефолт указан), внести правку в документ (переиздать с пометкой), обновить код/тесты при необходимости. Полный список:
 >   1. DDI-4 ownership: делегирование компиляции raw evidence→BlockingProfile — ABD v1.2:129 vs DDI/TGB:1668-1676. Дефолт: ABD v1.2 (кто владеет компиляцией — зафиксировать).
->   2. ADR-WARP 1..7 vs changelog v1.2 «1..6» (ADR-WARP-7 geo attestation не отражён). Дефолт: 1..7.
+>   2. ADR-WARP 1..7 (историческая формулировка «changelog v1.2 1..6» снята как ложное срабатывание: changelog-секции в WARP v1.2 не существует). Дефолт: 1..7.
 >   3. MON §57: срок жизни legacy `/api/watchdog/*` не задан (MON-11 без deadline). Дефолт: задать дату cutover в MON §57.
 >   4. GSOPassToken два определения (RST/GSO H4 vs CSI §18). Дефолт: CSI §18 главный (см. FB-10).
 >   5. Порядок цепочек: CSI-14 (1142) без WARP/PPE vs SPF §0.1 (71-93) WARP→RST/GSO→PPE→SPF vs SPF:1217 (PPE-proof). Дефолт: единая цепочка SPF §0.1.

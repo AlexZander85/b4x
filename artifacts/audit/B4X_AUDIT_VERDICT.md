@@ -40,7 +40,7 @@ Strangler-замена Watchdog (shadow/cutover, 6 фаз) не начата: `w
 - WARP-пакет: geo TTL 300s vs 120s (`geo.go:52`); `InnerRevokedBeforeParent` не проверяется (`isolation.go:16`).
 
 ### B4X-AUDIT-008 (MAJOR) — Меж-документные противоречия
-14 задокументированных расхождений (DDI-4 ownership; ADR-WARP 1..7 vs changelog 1..6; GSOPassToken два определения; WARP_CAUSAL_TRACE_READY в 2 документах неидентичен; acceptance criteria 86 vs 77; §23.1 registry устарел; цепочки ссылаются на SP v1.5/ARCH v2.3; порог 16 KiB; gso_mode=classify gate не формализован; zero-byte close: idle_preconnect_expired vs never silently claimed и др.) — см. findings_draft.md секция C.
+13 подтверждённых + 1 снятое как ложное (DDI-4 ownership; ADR-WARP 1..7 — «changelog 1..6» снято: changelog-секции в WARP v1.2 нет; GSOPassToken два определения; WARP_CAUSAL_TRACE_READY в 2 документах неидентичен; acceptance criteria 86 vs 77; §23.1 registry устарел; цепочки ссылаются на SP v1.5/ARCH v2.3; порог 16 KiB; gso_mode=classify gate не формализован; zero-byte close: idle_preconnect_expired vs never silently claimed и др.) — см. findings_draft.md секция C.
 
 ### B4X-AUDIT-009 (MINOR) — Сборка и окружение
 - Свежий клон не собирается: `ui/dist` и `defaults.json` gitignored; Makefile `build` не вызывает `build-ui`; требуется `go run tools/gendefaults.go` (Linux) + `pnpm build`.

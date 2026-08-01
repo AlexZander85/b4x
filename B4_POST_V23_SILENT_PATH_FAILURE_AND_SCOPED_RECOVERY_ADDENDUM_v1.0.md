@@ -3,7 +3,7 @@
 **Версия:** 1.0  
 **Дата:** 2026-07-29  
 **Статус:** обязательный post-v2.3 companion addendum для обнаружения «тихих» отказов пути и безопасного scoped recovery  
-**База:** завершённые `B4_FORK_PATCH_PLAN.md` Stage 1–36, `B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md`, `B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md` v1.1, `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md` и `B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md`  
+**База:** завершённые `B4_FORK_PATCH_PLAN.md` Stage 1–36, `B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md`, `B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md` v1.2, `B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md` и `B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md`  
 **Область:** passive flow-progress observation, silent path failure suspicion, false-positive suppression, differential proof, bounded strategy/transport recovery, Failure Inbox, canary/promote/rollback, Android/Keenetic validation  
 **Главный принцип:** одиночный timeout, stall или повторный ClientHello никогда не является достаточным основанием для автоматического fallback  
 **Default:** `observe`  
@@ -68,34 +68,67 @@ recovery_rolled_back
 - требует отдельной production promotion для каждого service/component/network cohort;
 - требует обновить Field Test, Service Profiles и Implementation Validation после завершения `SPF-10`.
 
-### 0.1. Обязательный порядок реализации
+### 0.1. Обязательный порядок реализации (FB-14 решение 5)
+
+Универсальная линейная цепочка `WARP → RST/GSO → PPE → SPF` **запрещена**: подсистемы принадлежат разным плоскостям с отдельными порядками зависимостей.
+
+#### 5.1. Data plane (обычный router flow)
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
-→ завершённый B4_FORK_PATCH_PLAN.md Stage 1–36
-→ B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md
-→ B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM.md v1.1
-→ B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
-→ B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
-→ этот addendum SPF-1…SPF-10
-→ Field Test Automation update
-→ Service Profiles / Beginner UX update
-→ Implementation Validation update
-→ production promotion
+PPE capability/visibility decision
+→ capture path (NFQUEUE/TUN/TPROXY)
+→ GSO/GRO representation handling при необходимости
+→ packet parsing и flow identity
+→ CSI-scoped classification
+→ authorized RST/packet action при наличии gate
+→ TCP/TLS/application progress observation
+→ SPF observation
 ```
 
-Причины такого порядка:
+- PPE определяет, видит ли B4X необходимые пакеты; при необходимости flow временно исключается из offload.
+- GSO — packet representation concern, а не доменная policy.
+- RST action возможен только после classification/authorization; passive RST observation может происходить в ходе progress tracking.
+- SPF зависит от достаточной visibility, но не требует физического наличия PPE на платформах без PPE.
 
-1. CSI задаёт точный scope и запрещает cross-service side effects.
-2. WARP предоставляет optional transport recovery target.
-3. RST/GSO задаёт корректный bidirectional packet representation и progress accounting.
-4. PPE addendum доказывает visibility либо переводит capability в observe-only.
-5. Только после этого silent detector может безопасно влиять на runtime routing/strategy.
+#### 5.2. Diagnostic/control plane
+
+```text
+SPF и Continuous Monitoring
+→ MonitorAssessment
+→ ABD diagnostics
+→ BlockingProfile
+→ DDI-guided Discovery
+→ mandatory baselines/controls
+→ scoped canary
+→ transactional promotion или rollback
+```
+
+#### 5.3. Transport escalation
+
+```text
+подтверждённая scoped failure
++ healthy controls
++ valid TransportAuthorization
+→ optional scoped WARP/MASQUE binding
+→ route/path proof
+→ progress observation через SPF/MON
+```
+
+WARP не является глобальным prerequisite SPF. SPF обязан наблюдать progress как direct path, так и уже авторизованный WARP path.
+
+`require_ppe_proof=true` применяется только когда:
+
+- PPE capability заявлена/включена; и
+- решение зависит от bidirectional packet visibility.
+
+Отсутствие PPE на неподдерживаемой платформе переводит proof requirement на эквивалентный capture path, а не блокирует SPF целиком.
+
+> **superseded (FB-14):** прежняя единственная цепочка «CSI → WARP → RST/GSO → PPE → SPF» (§0.1 до FB-14) заменена трёхплоскостной моделью настоящего пункта. Порядок физической реализации документов (CSI → WARP → RST/GSO → PPE → SPF) сохраняется как release sequencing, но не является runtime dependency chain.
 
 ### 0.2. Приоритет требований
 
 ```text
-B4_FORK_ARCHITECTURE.md v2.3
+B4_FORK_ARCHITECTURE.md v2.4
 → Cross-Service Isolation Addendum для scope/authorization
 → RST/GSO Addendum для packet representation и visibility
 → WARP Addendum для transport fallback
