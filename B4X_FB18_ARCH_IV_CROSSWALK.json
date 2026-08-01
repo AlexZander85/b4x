@@ -2,16 +2,16 @@
   "meta": {
     "name": "B4X FB-18A ARCH v2.4 <-> IV v1.5 static crosswalk",
     "generated_from": "B4X_FB14_CONFLICTS_RESOLVED.md, section 5.2",
-    "date": "2026-07-31",
+    "date": "2026-08-01",
     "status": "STATIC_CROSSWALK_DONE_FB18B_PENDING",
     "documents": {
       "architecture": {
         "file": "B4_FORK_ARCHITECTURE_v2.4.md",
-        "sha256": "815d1069d210e95bbc38fbdda68b93d1ffb106a7ceecfa46c9056fc868cb5e0f"
+        "sha256": "6df1c1a245158addd7837296c3e927a714970bb761e3f1e7e68064fbecbdc73b"
       },
       "implementation_validation": {
         "file": "B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md",
-        "sha256": "b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7"
+        "sha256": "aae0c3e63fb1c2b1fd2fdaa3f9b27662132521cd50a8862240c3f0eea60484b5"
       }
     },
     "summary": {
@@ -23,10 +23,14 @@
       "incomplete": 17
     },
     "notes": [
+      "Recalculated on 2026-08-01 after FB-14 (commit 026ea485): document hashes updated to post-FB-14 values.",
+      "All 40 consolidated ARCH clauses 106..145 re-verified against current B4_FORK_ARCHITECTURE_v2.4.md headings (exactly 40 '## NNN.' sections, no duplicates/gaps); clause titles use chapter context (114-116 = PPE chapter XXIX, 132 = built-in WARP transport chapter XXXIV, 137 = Service Profiles chapter XXXV).",
+      "Main invariants 5.1..5.17 (ARCH lines 205-341) and hold/replay 42..45 (ARCH lines 1215-1263) verified present; they remain additional_requirements for FB-18B.",
       "MAPPED in FB-18A is NOT a runtime PASS; FB-18B executable production crosswalk is mandatory.",
       "The number 40 refers to consolidated architecture clauses 106..145 only. Main invariants 5.1..5.17 and hold/replay 42..45 are ADDITIONAL requirements (see additional_requirements) and MUST also be covered by FB-18B.",
       "The manual IV total '39' is not a reproducible canonical total; all totals are computed from the canonical Exact Source-Stage Registry (FB-33).",
       "ARCH 144 is titled 'Recommended file order' (chapter XXXVII 'Consolidated Implementation Order'); its content is a file reading order, not an implementation-order requirement. Mapping to IV 54/58 is not content-accurate; registry consolidation belongs to FB-33.",
+      "Actions below map to remediation tasks: ARCH 106 stale AC-15 reference already updated to 'Architecture v2.4' in IV v1.5 (section 45, item 15); ARCH 128 ownership aligned by FB-14 item 1; ARCH 136 causal verdict narrowed by FB-14 item 9; remaining actions are covered by FB-28..FB-36 and FB-03 (see B4X_AUDIT_FIX_TASKS v2.md).",
       "Final verification remains FINAL_VERIFICATION_BLOCKED until FB-18B is complete (see B4X_FB14_CONFLICTS_RESOLVED.md section 5.5)."
     ]
   },

@@ -602,14 +602,16 @@ FB-14 считается закрытым только если одноврем
 # 5. FB-18A — постатейная сверка Architecture v2.4 ↔ Implementation Validation v1.5
 **Статус:** выполнена статическая двусторонняя сверка consolidated architecture clauses `ARCH-106…ARCH-145` с полным текстом `B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md`.
 
-**Проверенные документы:**
+**Проверенные документы** (хэши пересчитаны 01.08.2026 после FB-14, commit `026ea485`):
 
 ```text
 B4_FORK_ARCHITECTURE_v2.4.md
-sha256: 815d1069d210e95bbc38fbdda68b93d1ffb106a7ceecfa46c9056fc868cb5e0f
+sha256: 6df1c1a245158addd7837296c3e927a714970bb761e3f1e7e68064fbecbdc73b
+(до FB-14: 815d1069d210e95bbc38fbdda68b93d1ffb106a7ceecfa46c9056fc868cb5e0f)
 
 B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
-sha256: b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7
+sha256: aae0c3e63fb1c2b1fd2fdaa3f9b27662132521cd50a8862240c3f0eea60484b5
+(до FB-14: b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7)
 ```
 
 **Важно:** число `40` подтверждено для consolidated architecture clauses `§106…§145`. Число `39` для IV не является воспроизводимым canonical total: IV v1.5 одновременно содержит старые и новые suites, stages `IV-1…IV-17`, acceptance criteria до `146` и неполный delta-registry в §58. До создания единого generated registry любые ручные totals считаются informational, а не нормативными.

@@ -1,6 +1,6 @@
 # B4 Implementation Validation v1.5
 
-Source addendum SHA-256: `b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7`
+Source addendum SHA-256: `aae0c3e63fb1c2b1fd2fdaa3f9b27662132521cd50a8862240c3f0eea60484b5` (пересчитано 01.08.2026 после FB-14; до FB-14: `b5ee991995b4a56674204da6e0645245adcc7d01ad53b3baabe6e889af9961b7`)
 
 Implemented IV-1…IV-17 in `src/validation`:
 
