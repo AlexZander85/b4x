@@ -308,16 +308,21 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
 REGISTER_VERIFIED_COMMIT = "bd9db5d5"  # FB-03 all-24-producers-verified commit (2026-08-01)
 
-# Gate kinds (owner-decision pending; classification is an ASSUMPTION,
-# fail-closed by default — see artifacts/audit/B4X_FB03_OWNER_DECISION.md):
-#   telemetry_counter                 — operational telemetry, NOT a blocker
-#   zero_tolerance_violation_counter  — violation counter, verified == 0
-#   threshold_violation_counter       — blocks above an owner-defined threshold
-#   current_generation_readiness_state — readiness state bound to generation
-#   required_evidence                 — evidence artifact required, not a counter
-#   derived_blocker                   — derived verdict blocker (aggregation)
+# Gate kinds (owner decision 2026-08-01, APPROVED —
+# artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
+#   telemetry_counter                    — operational telemetry, NOT a blocker
+#   zero_tolerance_violation_counter     — violation counter, evaluated on the
+#                                          current validation-window delta
+#                                          (never on lifetime absolute total)
+#   current_generation_readiness_input   — invalidates/limits current-generation
+#                                          readiness ONLY together with owner
+#                                          state and applicability; never blocks
+#                                          directly
+#   threshold_violation_counter          — blocks above an owner-defined threshold
+#   required_evidence                    — evidence artifact required, not a counter
+#   derived_blocker                      — derived verdict blocker (aggregation)
 # Only zero_tolerance_violation_counter (and, when normatively justified,
-# threshold/readiness/evidence/derived) may block promotion.
+# threshold/evidence/derived) may block promotion.
 GATE_KINDS: dict[str, str] = {
     # --- telemetry (operational counters, never block) ---
     "classifier_reassembled_sni_total": "telemetry_counter",
@@ -335,16 +340,18 @@ GATE_KINDS: dict[str, str] = {
     "passive_rst_budget_exhausted_total": "telemetry_counter",
     "b4_ppe_rule_reapply_total": "telemetry_counter",
     "b4_ppe_self_test_total": "telemetry_counter",
-    # --- zero-tolerance violation counters (verified == 0) ---
+    # safe-degradation / safety-guard telemetry (owner decision: not violations)
+    "passive_rst_fail_open_total": "telemetry_counter",
+    "b4_hold_disabled_visibility_total": "telemetry_counter",
+    # --- zero-tolerance violation counters (window delta == 0) ---
     "unrelated_control_action_total": "zero_tolerance_violation_counter",
     "classifier_layout_parity_fail_total": "zero_tolerance_violation_counter",
-    "nfqueue_gso_truncated_total": "zero_tolerance_violation_counter",
-    "nfqueue_gso_csum_not_ready_total": "zero_tolerance_violation_counter",
-    "nfqueue_gso_token_miss_total": "zero_tolerance_violation_counter",
-    "passive_rst_fail_open_total": "zero_tolerance_violation_counter",
     "passive_rst_reconnect_regression_total": "zero_tolerance_violation_counter",
-    "b4_capture_visibility_degrade_total": "zero_tolerance_violation_counter",
-    "b4_hold_disabled_visibility_total": "zero_tolerance_violation_counter",
+    # --- current-generation readiness inputs (never block directly) ---
+    "nfqueue_gso_truncated_total": "current_generation_readiness_input",
+    "nfqueue_gso_csum_not_ready_total": "current_generation_readiness_input",
+    "nfqueue_gso_token_miss_total": "current_generation_readiness_input",
+    "b4_capture_visibility_degrade_total": "current_generation_readiness_input",
 }
 
 # Verdict consumers wired in production (2026-08-01): metric name -> list of
@@ -385,23 +392,19 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "nfqueue_gso_truncated_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "readiness_observer", "symbol": "EvaluateHardGatesWindow readiness branch", "file": "src/validation/gates.go", "line": 244, "binding": "window delta; owner-state bound; never blocks directly"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "nfqueue_gso_csum_not_ready_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "readiness_observer", "symbol": "EvaluateHardGatesWindow readiness branch", "file": "src/validation/gates.go", "line": 244, "binding": "window delta; owner-state bound; never blocks directly"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "nfqueue_gso_token_miss_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "readiness_observer", "symbol": "EvaluateHardGatesWindow readiness branch", "file": "src/validation/gates.go", "line": 244, "binding": "window delta; owner-state bound; never blocks directly"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "passive_rst_fail_open_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGatesWindow telemetry branch", "file": "src/validation/gates.go", "line": 239, "binding": "safe degradation telemetry (derived state may gate re-claim)"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "passive_rst_reconnect_regression_total": [
@@ -410,13 +413,11 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "b4_capture_visibility_degrade_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.ppe; fail-closed"},
+        {"kind": "readiness_observer", "symbol": "EvaluateHardGatesWindow readiness branch", "file": "src/validation/gates.go", "line": 244, "binding": "window delta; current capture visibility; never blocks directly"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "b4_hold_disabled_visibility_total": [
-        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
-        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.ppe; fail-closed"},
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGatesWindow telemetry branch", "file": "src/validation/gates.go", "line": 239, "binding": "safety-guard trigger telemetry (not a violation; separate GateID for hold-active-under-incomplete-visibility if needed)"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "classifier_reassembled_sni_total": [
@@ -589,30 +590,45 @@ MUTATION_TESTS: dict[str, list[dict]] = {
             "line": 40,
             "status": "executed",
         },
+        {
+            "kind": "removed_delta",
+            "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)",
+            "file": "src/validation/gates_test.go",
+            "line": 224,
+            "status": "executed",
+        },
     ],
     "nfqueue_gso_truncated_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
     "nfqueue_gso_csum_not_ready_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
     "nfqueue_gso_token_miss_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_GSOTokenMiss (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 90, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
     "classifier_layout_parity_fail_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_ClassifierLayoutParity (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 175, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)", "file": "src/validation/gates_test.go", "line": 224, "status": "executed"},
     ],
     "passive_rst_fail_open_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_PassiveRSTMetrics (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (safe-degradation telemetry)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
     "passive_rst_reconnect_regression_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_PassiveRSTRollback (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 141, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)", "file": "src/validation/gates_test.go", "line": 224, "status": "executed"},
     ],
     "b4_capture_visibility_degrade_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
     "b4_hold_disabled_visibility_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "status": "executed"},
+        {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (safety-guard telemetry)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
 }
 
@@ -732,8 +748,9 @@ def build_gates() -> tuple[dict[str, list[dict]], dict[str, str]]:
                     "expected_producer_location": EXPECTED_PRODUCER_LOCATION.get(name),
                     "verdict_consumer": VERDICT_CONSUMERS.get(name),
                     "promotion_blocker": kind == "zero_tolerance_violation_counter",
-                    "reset_semantics": ("increment-only; verified == 0" if kind == "zero_tolerance_violation_counter"
-                                        else "telemetry; not a blocker"),
+                    "reset_semantics": ("increment-only; window-delta == 0" if kind == "zero_tolerance_violation_counter"
+                                        else ("increment-only; readiness input (window delta + owner state)" if kind == "current_generation_readiness_input"
+                                              else "telemetry; not a blocker")),
                     "expiry_generation_binding": None,
                     "applicability": f"family:{family}",
                     "test_producer": TEST_PRODUCERS.get(name),
@@ -852,9 +869,9 @@ def main() -> int:
                 if g.get("producer_status") == "missing" and gid in EXPECTED_PRODUCER_LOCATION:
                     if not g.get("expected_producer_location"):
                         errors.append(f"PRODUCER: {gid!r} missing but no expected_producer_location")
-                # Telemetry counters must not block promotion.
-                if g.get("kind") == "telemetry_counter" and g.get("promotion_blocker"):
-                    errors.append(f"KIND: {gid!r} is telemetry_counter but blocks promotion")
+                # Telemetry / readiness-input counters must not block promotion.
+                if g.get("kind") in ("telemetry_counter", "current_generation_readiness_input") and g.get("promotion_blocker"):
+                    errors.append(f"KIND: {gid!r} is {g.get('kind')!r} but blocks promotion")
         # FT view coverage.
         view = build_ft_view(index)
         orphan_ft = [v for v in view if v["canonical_owner"] is None]

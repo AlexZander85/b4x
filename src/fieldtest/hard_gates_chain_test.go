@@ -124,10 +124,11 @@ func TestControllerRecordsGateEvaluation(t *testing.T) {
 // committed side effect and a clean stop/cleanup path (v2 §0.6.3).
 func TestMissingProducerBlocksPromotionEndToEnd(t *testing.T) {
 	scope := validation.ReleaseScope{RSTGSO: true, CSI: true}
-	// RST/GSO declares zero-tolerance gates (e.g.
-	// nfqueue_gso_csum_not_ready_total) with producer_status=missing in the
-	// canonical registry; telemetry counters (b4_ppe_self_test_total > 0 is
-	// normal) must NOT block promotion.
+	// RST/GSO declares zero-tolerance gates (classifier_layout_parity_fail_total,
+	// passive_rst_reconnect_regression_total) whose producers are not part of
+	// this fixture; readiness inputs (nfqueue_gso_csum_not_ready_total) and
+	// telemetry counters (b4_ppe_self_test_total > 0 is normal) must NOT
+	// block promotion (owner decision 2026-08-01).
 	counters := map[string]uint64{
 		"unrelated_control_action_total": 0,
 		"b4_ppe_self_test_total":         3, // telemetry: > 0 is normal operation
@@ -142,14 +143,22 @@ func TestMissingProducerBlocksPromotionEndToEnd(t *testing.T) {
 		t.Fatalf("verdict=%s, want BLOCKED (missing RST/GSO producers); violations=%d telemetry=%d",
 			eval.Verdict, len(eval.Violations), len(eval.Telemetry))
 	}
-	foundMissing := false
-	for _, m := range eval.Missing {
-		if m == "nfqueue_gso_csum_not_ready_total" {
-			foundMissing = true
+	for _, want := range []validation.GateID{"classifier_layout_parity_fail_total", "passive_rst_reconnect_regression_total"} {
+		foundMissing := false
+		for _, m := range eval.Missing {
+			if m == want {
+				foundMissing = true
+			}
+		}
+		if !foundMissing {
+			t.Fatalf("missing list %v must include %s", eval.Missing, want)
 		}
 	}
-	if !foundMissing {
-		t.Fatalf("missing list %v must include nfqueue_gso_csum_not_ready_total", eval.Missing)
+	// Readiness inputs must NOT appear as missing zero-tolerance gates.
+	for _, m := range eval.Missing {
+		if m == "nfqueue_gso_csum_not_ready_total" {
+			t.Fatalf("readiness input must not be a missing zero-tolerance gate: %s", m)
+		}
 	}
 	// Telemetry must be informational only: reported in Telemetry, never in
 	// Violations, and must not suppress the BLOCKED verdict.

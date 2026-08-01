@@ -48,14 +48,14 @@ fixture + mutation run prove the verdict flips when the producer is removed.
 | Owner-state producer | owner-owned state (report field, readiness state, evidence ledger) incremented in the owner path | `unrelated_control_action_total` (report.UnrelatedControlActionTotal++ validation.go:265) |
 | Typed wrapper / event reducer | typed method / event reducer that ultimately increments the counter | `recordObservabilityDecision`, `traceGSOFastPath`, `traceGSONormalizerMiss`, `recordPassiveRSTMetrics`, `RecordHealth`, `productLifecycleMetrics.Reapply`, `ProductService.RunSelfTest`, gate.SubscribeBlocked callback, `ApplyRuntimeControlTopology` defer |
 | Production callers | call path from production root (handler/control plane) to the increment | nfq.handlePacket / handleGSOFastPath / observePassiveRSTIncoming / pool.RecordPassiveRSTHealth / API.ApplyRuntimeControlTopology / visibility gate Degrade / lifecycle reapply / self-test controller |
-| Executed negative fixture | a test that asserts the violation verdict when the gate fires | 9 zero-tolerance gates: hard_gate_producers_test.go negative fixtures (see table) |
-| Executed mutation run | removing the producer flips the verdict (test fails), then restored | 9 zero-tolerance gates: 8 mutation runs executed 2026-08-01 (see Mutation verification) + 1 for unrelated_control_action_total |
+| Executed negative fixture | a test that asserts the violation verdict when the gate fires | 3 zero-tolerance gates (owner decision 2026-08-01): hard_gate_producers_test.go negative fixtures; 4 readiness + 13 telemetry gates carry producer fixtures (violation recorded, never blocks) |
+| Executed mutation run | removing the producer flips the verdict (test fails), then restored | 9 removed_inc runs executed 2026-08-01 (one per previously zero-tolerance gate) + 10 removed_delta aggregation tests (window-delta/scope, gates_test.go) |
 
 ## Matrix (24 rst_gso/ppe/csi gates, registry schema v1.1)
 
 All 24 producers are **verified** (2026-08-01): every metric has a real
 `Metrics.Inc` site reached from a production root, an executed fixture, and
-the 9 zero-tolerance gates additionally have an executed mutation run.
+every gate has an executed mutation record (removed_inc and/or removed_delta).
 (Note: the previous "constant only; 0 Inc call sites" rows were a **false
 negative** — producers call `Metrics.Inc(observability.Metric*, ...)` via
 constants, and the earlier grep searched metric-name literals instead.)
@@ -67,30 +67,35 @@ constants, and the earlier grep searched metric-name literals instead.)
 | 3 | `classifier_layout_parity_fail_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/classifier_decision.go:214 | negative fixture + mutation run (executed) | yes |
 | 4 | `nfqueue_gso_packets_total` | rst_gso | telemetry_counter | **verified** | nfq/offload.go:106 (observeOffloadMetadata) | positive fixture TestHardGateProducer_GSOOffloadMetadata | no |
 | 5 | `nfqueue_gso_bytes_total` | rst_gso | telemetry_counter | **verified** | nfq/offload.go:107 | positive fixture (same) | no |
-| 6 | `nfqueue_gso_truncated_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/offload.go:109 | negative fixture + mutation run (executed) | yes |
-| 7 | `nfqueue_gso_csum_not_ready_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/offload.go:112 | negative fixture + mutation run (executed) | yes |
+| 6 | `nfqueue_gso_truncated_total` | rst_gso | current_generation_readiness_input | **verified** | nfq/offload.go:109 | producer fixture + readiness never-blocks (executed) | no |
+| 7 | `nfqueue_gso_csum_not_ready_total` | rst_gso | current_generation_readiness_input | **verified** | nfq/offload.go:112 | producer fixture + readiness never-blocks (executed) | no |
 | 8 | `nfqueue_gso_decision_total` | rst_gso | telemetry_counter | **verified** | nfq/gso_fastpath.go:209 (traceGSOFastPath) | positive fixture TestHardGateProducer_GSOFastPathDecisions | no |
 | 9 | `nfqueue_gso_normalized_total` | rst_gso | telemetry_counter | **verified** | nfq/gso_fastpath.go:211 | positive fixture (same) | no |
 | 10 | `nfqueue_gso_action_suppressed_total` | rst_gso | telemetry_counter | **verified** | nfq/gso_fastpath.go:214 | positive fixture (same) | no |
-| 11 | `nfqueue_gso_token_miss_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/gso_normalizer.go:61 (traceGSONormalizerMiss) | negative fixture + mutation run (executed) | yes |
+| 11 | `nfqueue_gso_token_miss_total` | rst_gso | current_generation_readiness_input | **verified** | nfq/gso_normalizer.go:61 (traceGSONormalizerMiss) | producer fixture + readiness never-blocks (executed) | no |
 | 12 | `nfqueue_gso_transition_total` | rst_gso | telemetry_counter | **verified** | http/handler/runtime_topology.go:38 (ApplyRuntimeControlTopology defer) | positive fixture TestHardGateProducer_GSOTransition | no |
 | 13 | `passive_rst_observed_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:106 (recordPassiveRSTMetrics) | positive fixture TestHardGateProducer_PassiveRSTMetrics | no |
 | 14 | `passive_rst_decision_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:108 | positive fixture (same) | no |
 | 15 | `passive_rst_suppressed_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:113 | positive fixture (same) | no |
-| 16 | `passive_rst_fail_open_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/passive_rst_observe.go:116 | negative fixture + mutation run (executed) | yes |
+| 16 | `passive_rst_fail_open_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:116 | producer fixture + safe-degradation telemetry (executed) | no |
 | 17 | `passive_rst_baseline_quality_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:109 | positive fixture (same) | no |
 | 18 | `passive_rst_budget_exhausted_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_observe.go:118 | positive fixture (same) | no |
 | 19 | `passive_rst_rollback_total` | rst_gso | telemetry_counter | **verified** | nfq/passive_rst_rollback.go:134 (RecordHealth) | positive fixture TestHardGateProducer_PassiveRSTRollback | no |
 | 20 | `passive_rst_reconnect_regression_total` | rst_gso | zero_tolerance_violation_counter | **verified** | nfq/passive_rst_rollback.go:136 | negative fixture + mutation run (executed) | yes |
 | 21 | `b4_ppe_rule_reapply_total` | ppe | telemetry_counter | **verified** | capture/ppe/product_service.go:513 (productLifecycleMetrics.Reapply) | positive fixture TestHardGateProducer_PPERuleReapply | no |
 | 22 | `b4_ppe_self_test_total` | ppe | telemetry_counter | **verified** | capture/ppe/product_service.go:348 (RunSelfTest) | positive fixture TestHardGateProducer_PPESelfTest | no |
-| 23 | `b4_capture_visibility_degrade_total` | ppe | zero_tolerance_violation_counter | **verified** | capture/ppe/product_service.go:110 (gate.SubscribeBlocked) | negative fixture + mutation run (executed) | yes |
-| 24 | `b4_hold_disabled_visibility_total` | ppe | zero_tolerance_violation_counter | **verified** | capture/ppe/product_service.go:111 | negative fixture + mutation run (executed) | yes |
+| 23 | `b4_capture_visibility_degrade_total` | ppe | current_generation_readiness_input | **verified** | capture/ppe/product_service.go:110 (gate.SubscribeBlocked) | producer fixture + readiness never-blocks (executed) | no |
+| 24 | `b4_hold_disabled_visibility_total` | ppe | telemetry_counter | **verified** | capture/ppe/product_service.go:111 | producer fixture + safety-guard telemetry (executed) | no |
 
-Zero-tolerance gates evaluate to **FAIL** on any non-zero count; telemetry
-gates aggregate into informational `Telemetry` and never block. When the
-RSTGSO/PPE scope is enabled, all applicable gates now evaluate with real
-producers (no BLOCKED_MISSING_PRODUCER remains in the FB-03 scope).
+Zero-tolerance gates evaluate to **FAIL** on any non-zero window delta
+(owner decision 2026-08-01: delta of the current validation window, never a
+lifetime absolute total; `EvaluateHardGatesWindow` with baseline); readiness
+inputs aggregate into informational `ReadinessInputs` and never block
+directly (they invalidate current-generation readiness only together with
+owner state/applicability); telemetry gates aggregate into informational
+`Telemetry` and never block. When the RSTGSO/PPE scope is enabled, all
+applicable gates now evaluate with real producers (no BLOCKED_MISSING_PRODUCER
+remains in the FB-03 scope).
 
 ## Machine-readable consumer chain (registry v1.1, verified)
 
@@ -164,7 +169,7 @@ Tests proving the chain (all pass, `go test -count=1 ./...`):
 ## Mutation verification (2026-08-01, executed)
 
 1. **Producer mutation (real code, executed):** removed `report.UnrelatedControlActionTotal++` (validation.go:265) -> `TestValidateRejectsYouTubeStateOnGmailSharedIPFlow` FAILS (`UnrelatedControlActionTotal:0` instead of 1) -> restored from backup -> full suite green. Recorded in registry as `mutation_test: [{kind: removed_inc, status: executed}]`.
-2. **Producer mutations for the 8 remaining zero-tolerance gates (real code, executed 2026-08-01):** each `Metrics.Inc` site was disabled one at a time and the corresponding negative fixture FAILED on that exact gate, then the site was restored:
+2. **Producer mutations for the other zero-tolerance-classified gates (real code, executed 2026-08-01):** each `Metrics.Inc` site was disabled one at a time and the corresponding fixture FAILED on that exact gate, then the site was restored:
    - `nfqueue_gso_truncated_total` (offload.go:109) -> TestHardGateProducer_GSOOffloadMetadata FAIL
    - `nfqueue_gso_csum_not_ready_total` (offload.go:112) -> FAIL
    - `nfqueue_gso_token_miss_total` (gso_normalizer.go:61) -> TestHardGateProducer_GSOTokenMiss FAIL
@@ -174,29 +179,35 @@ Tests proving the chain (all pass, `go test -count=1 ./...`):
    - `b4_capture_visibility_degrade_total` (product_service.go:110) -> TestHardGateProducer_CaptureVisibilityDegrade FAIL
    - `b4_hold_disabled_visibility_total` (product_service.go:111) -> FAIL
    Restore verified: no `MUTATION-RUN` markers left, full suite green. All recorded in the registry as `mutation_test: [{kind: removed_inc, status: executed}]`.
-3. **Registry mutation:** removed a gate from `specs/registries/hard_gates.yaml` -> `python tools/gen_hard_gates_registry.py --check` fails (removed-gate detection); registry restored by regeneration.
-4. **Forced zero (no producer, no counter)** -> `EvaluateHardGates` returns BLOCKED, not PASS (meta-suite `VerdictMutationDetected`).
-5. **Violation fixture (non-zero produced counter)** -> FAIL, never PASS (meta-suite `FalseNegativeDetected`).
+3. **Aggregation mutations (window-delta / scope, executed; owner requirement 5):** the aggregation semantics themselves are mutation-guarded in `src/validation/gates_test.go`:
+   - `TestEvaluateHardGatesWindowDelta` — clean window (lifetime 5, baseline 5) must PASS: removing the baseline subtraction flips it to FAIL; delta 2 -> FAIL with count 2; counter reset in-window -> delta = current (fail-closed).
+   - `TestEvaluateHardGatesReadinessInputsNeverBlock` — 4 readiness inputs + 17 telemetry non-zero must yield PASS with them reported in `ReadinessInputs`/`Telemetry`: turning any readiness input into a blocker fails the test.
+   - `TestEvaluateHardGatesScopeIsolation` — a zero-tolerance violation in a non-applicable scope must not affect the verdict.
+   Recorded in the registry as `mutation_test: [{kind: removed_delta, status: executed}]` for the 3 zero-tolerance gates and the 7 reclassified gates.
+4. **Registry mutation:** removed a gate from `specs/registries/hard_gates.yaml` -> `python tools/gen_hard_gates_registry.py --check` fails (removed-gate detection); registry restored by regeneration.
+5. **Forced zero (no producer, no counter)** -> `EvaluateHardGates` returns BLOCKED, not PASS (meta-suite `VerdictMutationDetected`).
+6. **Violation fixture (non-zero produced counter)** -> FAIL, never PASS (meta-suite `FalseNegativeDetected`).
 
 ## Honest status vs FB-03 criteria
 
 | Criterion | Status | Evidence |
 |---|---|---|
 | 1. Registry passes schema/orphan/duplicate validation | **PASS** | `gen_hard_gates_registry.py --check`: 282 gates, 9 families, 0 duplicates, producer/consumer/test/evidence integrity checks; registry_test.go |
-| 2. Each required gate has runtime producer + consumer or explicit not_applicable | **PASS** — 24/282 verified (full machine-readable chain: runtime_producer + verdict_consumer + test_producer + mutation_test + evidence_artifact); 15 telemetry (never block); remaining 258 zero-tolerance missing (fail-closed BLOCKED when applicable; outside FB-03 scope) | matrix above; registry v1.1 fields; ApplicableHardGates() = 24 |
-| 3. Mutation suite makes each gate violated and blocks promotion | **PASS** — 9 executed mutation runs (1 CSI + 8 RST/GSO/PPE zero-tolerance) + evaluator mutation checks + promotion chain tests | hard_gate_producers_test.go (3 files), meta_test.go, gates_test.go, hard_gates_chain_test.go, rollout_hardgate_test.go |
+| 2. Each required gate has runtime producer + consumer or explicit not_applicable | **PASS** — 24/282 verified (full machine-readable chain: runtime_producer + verdict_consumer + test_producer + mutation_test + evidence_artifact); 17 telemetry + 4 readiness inputs (never block); remaining 258 zero-tolerance missing (fail-closed BLOCKED when applicable; outside FB-03 scope) | matrix above; registry v1.1 fields; ApplicableHardGates() = 24 |
+| 3. Mutation suite makes each gate violated and blocks promotion | **PASS** — 9 removed_inc mutation runs + 10 removed_delta aggregation guards (window-delta/scope) + promotion chain tests | hard_gate_producers_test.go (3 files), meta_test.go, gates_test.go, hard_gates_chain_test.go, rollout_hardgate_test.go |
 | 4. `/metrics`, API and report consistent with internal state | **PARTIAL** — validation API consumes live snapshot; Prometheus export consistency pending | validation_gates_test.go |
 | 5. Missing/skipped/stale evidence not PASS | **PASS** — forced-zero -> BLOCKED; missing evidence -> EvidenceIntegrity=false; STALE verdict supported (not yet auto-populated) | meta_test.go, gates_test.go |
 | 6. `FB03_GATE_PRODUCER_CONSUMER_MATRIX.*` evidence artifact | **PASS** — this file | executed commands + code refs above |
 
-**FB-03 overall status: IN_PROGRESS (blocked only by remaining work below).**
-- FB-03_REGISTRY_SCHEMA: PASS (v1.1: kinds, producer_status, machine-readable consumers/tests/evidence, verified_commit).
+**FB-03 overall status: READY_FOR_OWNER_REVIEW (kinds APPROVED by owner 2026-08-01).**
+- FB-03_REGISTRY_SCHEMA: PASS (v1.1 + `current_generation_readiness_input` kind; kinds APPROVED).
 - FB-03_PRODUCER_AUDIT: PASS — 24/24 verified (call-site audit + production callers + executed fixtures; the earlier "0 Inc call sites" finding was a false negative — producers increment via observability constants).
 - FB-03_RUNTIME_PRODUCERS: PASS — all 19 RST/GSO + 4 PPE producers exist and are wired (FB-27 scope: no implementation work left for these metrics).
-- FB-03_VERDICT_CONSUMERS: PASS — machine-readable chain for all 24 verified producers.
-- FB-03_MUTATION_COVERAGE: PASS — 9 executed mutation runs (all zero-tolerance gates in scope).
+- FB-03_VERDICT_CONSUMERS: PASS — machine-readable chain for all 24 verified producers (promotion_blocker/aggregation_blocker/readiness_observer/aggregation_observer/http_report).
+- FB-03_MUTATION_COVERAGE: PASS — 9 removed_inc + 10 removed_delta executed (counter increments AND scope/window-delta aggregation, owner requirement 5).
 
-**Residual / open items (do NOT block FB-03 core, but keep it IN_PROGRESS):**
+**Residual / open items (do NOT block FB-03 core):**
 - Prometheus `/metrics` export consistency vs the registry (criterion 4 partial).
 - `TestMissingProducerBlocksPromotionEndToEnd` remains the guard for any future gate without a producer.
-- Owner confirmation of the gate-kind classification (ASSUMPTION, fail-closed default; B4X_FB03_OWNER_DECISION.md).
+- Optional separate GateID for "hold remained active under incomplete visibility" (owner requirement 1; not in normative docs).
+- Labelled aggregation for `b4_ppe_self_test_total{verdict}` / `b4_ppe_rule_reapply_total{result}` and derived-state gating for `passive_rst_fail_open_total`/`passive_rst_rollback_total` (owner requirements 2/3; reserved kinds, out of evaluator scope).

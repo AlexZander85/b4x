@@ -87,15 +87,17 @@ type GateViolation struct {
 
 // GateEvaluation is the structured evaluator result (replaces bool PASS).
 type GateEvaluation struct {
-	Verdict    GateVerdict     `json:"verdict"`
-	Violations []GateViolation `json:"violations,omitempty"`
-	Missing    []GateID        `json:"missing,omitempty"`   // applicable zero-tolerance gate without producer
-	Telemetry  []GateViolation `json:"telemetry,omitempty"` // observed telemetry counters (never block)
-	Stale      []GateID        `json:"stale,omitempty"`
-	NotRun     []GateID        `json:"not_run,omitempty"`
-	Applicable int             `json:"applicable"`
-	Produced   int             `json:"produced"`
-	Scanned    int             `json:"scanned"`
+	Verdict         GateVerdict     `json:"verdict"`
+	Violations      []GateViolation `json:"violations,omitempty"`
+	Missing         []GateID        `json:"missing,omitempty"`          // applicable zero-tolerance gate without producer
+	Telemetry       []GateViolation `json:"telemetry,omitempty"`         // observed telemetry counters (never block)
+	ReadinessInputs []GateViolation `json:"readiness_inputs,omitempty"`  // current_generation_readiness_input (never block directly)
+	Stale           []GateID        `json:"stale,omitempty"`
+	NotRun          []GateID        `json:"not_run,omitempty"`
+	Applicable      int             `json:"applicable"`
+	Produced        int             `json:"produced"`
+	Scanned         int             `json:"scanned"`
+	WindowBaseline  bool            `json:"window_baseline,omitempty"` // delta-window evaluation applied (baseline supplied)
 }
 
 // LegacyGateAliases maps the pre-FB-03 hand-written gate names to canonical
@@ -195,22 +197,35 @@ func RequiredHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 	return out, nil
 }
 
-// EvaluateHardGates applies the selection to observed counters.
+// EvaluateHardGatesWindow applies the selection to observed counters, scoring
+// zero-tolerance gates on the delta of the current validation window
+// (current minus baseline) — never on lifetime absolute totals
+// (owner decision 2026-08-01).
 //
-//   - zero-tolerance gate, produced and zero     -> ok
-//   - zero-tolerance gate, produced and non-zero -> FAIL (violation)
-//   - zero-tolerance gate, applicable, no producer -> BLOCKED (missing; v2 §0.6.3)
-//   - telemetry counter                          -> informational (Telemetry),
+//   - zero-tolerance gate, produced, window delta == 0  -> ok
+//   - zero-tolerance gate, produced, window delta != 0  -> FAIL (violation)
+//   - zero-tolerance gate, applicable, no producer      -> BLOCKED (missing; v2 §0.6.3)
+//   - telemetry counter                                 -> informational (Telemetry),
 //     never blocks promotion (registry kind = telemetry_counter)
-//   - generation mismatch                        -> STALE
-//   - no applicable gates                        -> NOT_APPLICABLE
-//   - otherwise                                  -> PASS
-func EvaluateHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, generation GenerationSet, counters map[string]uint64, produced map[string]bool) GateEvaluation {
+//   - readiness input (current_generation_readiness_input) -> informational
+//     (ReadinessInputs): never blocks directly; invalidates/limits
+//     current-generation readiness only together with owner state and
+//     applicability (derived verdicts, out of scope here)
+//   - generation mismatch                               -> STALE
+//   - no applicable gates                               -> NOT_APPLICABLE
+//   - otherwise                                         -> PASS
+//
+// A nil baseline means the window spans the whole process lifetime
+// (in-process counters), which is a valid delta window: lifetime total ==
+// delta since process start. Supplying a baseline makes the window explicit
+// (e.g. snapshot taken at the start of a validation window).
+func EvaluateHardGatesWindow(scope ReleaseScope, caps CapabilitySet, claim VerdictID, generation GenerationSet, current, baseline map[string]uint64, produced map[string]bool) GateEvaluation {
 	required, err := RequiredHardGates(scope, caps, claim, generation)
 	if err != nil {
 		return GateEvaluation{Verdict: GateNotApplicable, Applicable: 0, Scanned: len(hardGates)}
 	}
-	eval := GateEvaluation{Applicable: len(required), Scanned: len(hardGates)}
+	eval := GateEvaluation{Applicable: len(required), Scanned: len(hardGates), WindowBaseline: baseline != nil}
+	windowed := baseline != nil
 	for _, gid := range required {
 		name := string(gid)
 		g, ok := HardGateByName(name)
@@ -219,9 +234,16 @@ func EvaluateHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 			// producer is treated as a missing zero-tolerance gate.
 			g = Gate{Kind: GateKindZeroTol}
 		}
-		if g.Kind == GateKindTelemetry {
+		count := deltaCount(current[name], baseline[name], windowed)
+		switch g.Kind {
+		case GateKindTelemetry:
 			eval.Telemetry = append(eval.Telemetry, GateViolation{
-				GateID: gid, Metric: name, Count: counters[name],
+				GateID: gid, Metric: name, Count: count,
+			})
+			continue
+		case GateKindReadinessInput:
+			eval.ReadinessInputs = append(eval.ReadinessInputs, GateViolation{
+				GateID: gid, Metric: name, Count: count,
 			})
 			continue
 		}
@@ -230,9 +252,9 @@ func EvaluateHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 			continue
 		}
 		eval.Produced++
-		if counters[name] != 0 {
+		if count != 0 {
 			eval.Violations = append(eval.Violations, GateViolation{
-				GateID: gid, Metric: name, Count: counters[name],
+				GateID: gid, Metric: name, Count: count,
 			})
 		}
 	}
@@ -247,6 +269,32 @@ func EvaluateHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 		eval.Verdict = GatePass
 	}
 	return eval
+}
+
+// deltaCount returns the counter delta for the current validation window.
+// Without a baseline the window spans the process lifetime, so the delta is
+// the current value; with a baseline the delta is current - baseline. If the
+// counter was reset during the window (current < baseline) the delta since
+// the reset is the full current value: reset must not hide violations
+// accumulated inside the window (fail-closed, no false negatives).
+func deltaCount(current, baseline uint64, windowed bool) uint64 {
+	if !windowed {
+		return current
+	}
+	if current > baseline {
+		return current - baseline
+	}
+	if current == baseline {
+		return 0
+	}
+	return current
+}
+
+// EvaluateHardGates is the convenience wrapper for callers evaluating over
+// the process-lifetime window (baseline == nil); it is equivalent to
+// EvaluateHardGatesWindow with no baseline.
+func EvaluateHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, generation GenerationSet, counters map[string]uint64, produced map[string]bool) GateEvaluation {
+	return EvaluateHardGatesWindow(scope, caps, claim, generation, counters, nil, produced)
 }
 
 // HardGatesPass is the low-level convenience wrapper kept for callers that

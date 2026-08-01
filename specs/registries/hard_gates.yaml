@@ -19,7 +19,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -39,7 +39,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -59,7 +59,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -79,7 +79,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -99,7 +99,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -119,7 +119,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -139,7 +139,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -159,7 +159,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -179,7 +179,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -199,7 +199,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -219,7 +219,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -239,7 +239,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -259,7 +259,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -279,7 +279,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -299,7 +299,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -319,7 +319,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -339,7 +339,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -359,7 +359,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -379,7 +379,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -399,7 +399,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -419,7 +419,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -439,7 +439,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -459,7 +459,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -479,7 +479,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -499,7 +499,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -519,7 +519,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -539,7 +539,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -559,7 +559,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -579,7 +579,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -599,7 +599,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -619,7 +619,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -639,7 +639,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -659,7 +659,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -679,7 +679,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -699,7 +699,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -719,7 +719,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -739,7 +739,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -759,7 +759,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -779,7 +779,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -799,7 +799,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -819,7 +819,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -839,7 +839,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -859,7 +859,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -879,7 +879,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -899,7 +899,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -919,7 +919,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -939,7 +939,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -959,7 +959,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -979,7 +979,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -999,7 +999,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1019,7 +1019,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1039,7 +1039,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1059,7 +1059,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1079,7 +1079,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1099,7 +1099,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1119,7 +1119,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
     test_producer: null
@@ -1140,7 +1140,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1160,7 +1160,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1180,7 +1180,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1200,7 +1200,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1220,7 +1220,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1240,7 +1240,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1260,7 +1260,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1280,7 +1280,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1300,7 +1300,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1320,7 +1320,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1340,7 +1340,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1360,7 +1360,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1380,7 +1380,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1400,7 +1400,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1420,7 +1420,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1440,7 +1440,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1460,7 +1460,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1480,7 +1480,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1500,7 +1500,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1520,7 +1520,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1540,7 +1540,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1560,7 +1560,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
     test_producer: null
@@ -1581,7 +1581,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1601,7 +1601,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1621,7 +1621,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1641,7 +1641,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1661,7 +1661,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1681,7 +1681,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1701,7 +1701,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1721,7 +1721,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1741,7 +1741,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1761,7 +1761,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1781,7 +1781,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1801,7 +1801,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1821,7 +1821,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1841,7 +1841,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1861,7 +1861,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1881,7 +1881,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1901,7 +1901,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1921,7 +1921,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1941,7 +1941,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1961,7 +1961,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -1981,7 +1981,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2001,7 +2001,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2021,7 +2021,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2041,7 +2041,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2061,7 +2061,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2081,7 +2081,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2101,7 +2101,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2121,7 +2121,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2141,7 +2141,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2161,7 +2161,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2181,7 +2181,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2201,7 +2201,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2221,7 +2221,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2241,7 +2241,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2261,7 +2261,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2281,7 +2281,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2301,7 +2301,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2321,7 +2321,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2341,7 +2341,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2361,7 +2361,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2381,7 +2381,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2401,7 +2401,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2421,7 +2421,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2441,7 +2441,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2461,7 +2461,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2481,7 +2481,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2501,7 +2501,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2521,7 +2521,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2541,7 +2541,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2561,7 +2561,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2581,7 +2581,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2601,7 +2601,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2621,7 +2621,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2641,7 +2641,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2661,7 +2661,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2681,7 +2681,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2701,7 +2701,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
     test_producer: null
@@ -2722,7 +2722,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2742,7 +2742,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2762,7 +2762,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2782,7 +2782,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2802,7 +2802,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2822,7 +2822,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2842,7 +2842,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2862,7 +2862,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2882,7 +2882,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2902,7 +2902,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2922,7 +2922,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2942,7 +2942,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2962,7 +2962,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -2982,7 +2982,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3002,7 +3002,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3022,7 +3022,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3042,7 +3042,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3062,7 +3062,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3082,7 +3082,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3102,7 +3102,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3122,7 +3122,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3142,7 +3142,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3162,7 +3162,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3182,7 +3182,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3202,7 +3202,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3222,7 +3222,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3242,7 +3242,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3262,7 +3262,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3282,7 +3282,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3302,7 +3302,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3322,7 +3322,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3342,7 +3342,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3362,7 +3362,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3382,7 +3382,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3402,7 +3402,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3422,7 +3422,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3442,7 +3442,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3462,7 +3462,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3482,7 +3482,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3502,7 +3502,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3522,7 +3522,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3542,7 +3542,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3562,7 +3562,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3582,7 +3582,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3602,7 +3602,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3622,7 +3622,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3642,7 +3642,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3662,7 +3662,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3682,7 +3682,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3702,7 +3702,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3722,7 +3722,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3742,7 +3742,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3762,7 +3762,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3782,7 +3782,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3802,7 +3802,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3822,7 +3822,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3842,7 +3842,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3862,7 +3862,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3882,7 +3882,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3902,7 +3902,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3922,7 +3922,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3942,7 +3942,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3962,7 +3962,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -3982,7 +3982,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4002,7 +4002,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4022,7 +4022,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4042,7 +4042,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4062,7 +4062,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4082,7 +4082,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4102,7 +4102,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4122,7 +4122,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4142,7 +4142,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4162,7 +4162,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4182,7 +4182,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4202,7 +4202,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4222,7 +4222,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4242,7 +4242,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4262,7 +4262,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4282,7 +4282,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4302,7 +4302,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4322,7 +4322,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4342,7 +4342,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4362,7 +4362,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4382,7 +4382,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4402,7 +4402,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
     test_producer: null
@@ -4423,7 +4423,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4443,7 +4443,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4463,7 +4463,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4483,7 +4483,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4503,7 +4503,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4523,7 +4523,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4543,7 +4543,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4563,7 +4563,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4583,7 +4583,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4603,7 +4603,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4623,7 +4623,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4643,7 +4643,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4663,7 +4663,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4683,7 +4683,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4703,7 +4703,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4723,7 +4723,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4743,7 +4743,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4763,7 +4763,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4783,7 +4783,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4803,7 +4803,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4823,7 +4823,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4843,7 +4843,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4863,7 +4863,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4883,7 +4883,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
     test_producer: null
@@ -4904,7 +4904,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -4924,7 +4924,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -4944,7 +4944,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -4964,7 +4964,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -4984,7 +4984,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5004,7 +5004,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5024,7 +5024,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5044,7 +5044,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5064,7 +5064,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5084,7 +5084,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5104,7 +5104,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5124,7 +5124,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5144,7 +5144,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5164,7 +5164,7 @@ families:
     expected_producer_location: null
     verdict_consumer: null
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
     test_producer: null
@@ -5205,7 +5205,7 @@ families:
       line: 0
       binding: live snapshot
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:csi
     test_producer:
@@ -5229,6 +5229,11 @@ families:
       name: TestValidateRejectsYouTubeStateOnGmailSharedIPFlow (producer removed)
       file: src/crossservice/validation_test.go
       line: 40
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesWindowDelta (window-delta aggregation)
+      file: src/validation/gates_test.go
+      line: 224
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -5313,7 +5318,7 @@ families:
       line: 0
       binding: live snapshot
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -5327,6 +5332,11 @@ families:
       name: TestHardGateProducer_ClassifierLayoutParity (producer removed)
       file: src/nfq/hard_gate_producers_test.go
       line: 175
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesWindowDelta (window-delta aggregation)
+      file: src/validation/gates_test.go
+      line: 224
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -5428,7 +5438,7 @@ families:
     owner_stage: apply
     source_doc: B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: current_generation_readiness_input
     producer_status: verified
     runtime_producer:
       symbol: observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOTruncated)
@@ -5439,23 +5449,18 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
+    - kind: readiness_observer
+      symbol: EvaluateHardGatesWindow readiness branch
       file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
-      file: src/validation/gates.go
-      line: 239
-      binding: scope.rstgso; fail-closed
+      line: 244
+      binding: window delta; owner-state bound; never blocks directly
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: increment-only; readiness input (window delta + owner state)
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -5470,6 +5475,11 @@ families:
       file: src/nfq/hard_gate_producers_test.go
       line: 37
       status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)
+      file: src/validation/gates_test.go
+      line: 275
+      status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
     - artifacts/audit/csi_ppe_rstgso_audit.md
@@ -5482,7 +5492,7 @@ families:
     owner_stage: apply
     source_doc: B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: current_generation_readiness_input
     producer_status: verified
     runtime_producer:
       symbol: observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOCsumNotReady)
@@ -5493,23 +5503,18 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
+    - kind: readiness_observer
+      symbol: EvaluateHardGatesWindow readiness branch
       file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
-      file: src/validation/gates.go
-      line: 239
-      binding: scope.rstgso; fail-closed
+      line: 244
+      binding: window delta; owner-state bound; never blocks directly
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: increment-only; readiness input (window delta + owner state)
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -5523,6 +5528,11 @@ families:
       name: TestHardGateProducer_GSOOffloadMetadata (producer removed)
       file: src/nfq/hard_gate_producers_test.go
       line: 37
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)
+      file: src/validation/gates_test.go
+      line: 275
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -5668,7 +5678,7 @@ families:
     owner_stage: apply
     source_doc: B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: current_generation_readiness_input
     producer_status: verified
     runtime_producer:
       symbol: traceGSONormalizerMiss -> Metrics.Inc(MetricNFQueueGSOTokenMiss)
@@ -5679,23 +5689,18 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
+    - kind: readiness_observer
+      symbol: EvaluateHardGatesWindow readiness branch
       file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
-      file: src/validation/gates.go
-      line: 239
-      binding: scope.rstgso; fail-closed
+      line: 244
+      binding: window delta; owner-state bound; never blocks directly
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: increment-only; readiness input (window delta + owner state)
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -5709,6 +5714,11 @@ families:
       name: TestHardGateProducer_GSOTokenMiss (producer removed)
       file: src/nfq/hard_gate_producers_test.go
       line: 90
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)
+      file: src/validation/gates_test.go
+      line: 275
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -5898,7 +5908,7 @@ families:
     owner_stage: apply
     source_doc: B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: telemetry_counter
     producer_status: verified
     runtime_producer:
       symbol: recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTFailOpen)
@@ -5909,23 +5919,18 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
-      file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
+    - kind: aggregation_observer
+      symbol: EvaluateHardGatesWindow telemetry branch
       file: src/validation/gates.go
       line: 239
-      binding: scope.rstgso; fail-closed
+      binding: safe degradation telemetry (derived state may gate re-claim)
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: telemetry; not a blocker
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -5939,6 +5944,11 @@ families:
       name: TestHardGateProducer_PassiveRSTMetrics (producer removed)
       file: src/nfq/hard_gate_producers_test.go
       line: 102
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (safe-degradation telemetry)
+      file: src/validation/gates_test.go
+      line: 275
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -6111,7 +6121,7 @@ families:
       line: 0
       binding: live snapshot
     promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:rst_gso
     test_producer:
@@ -6125,6 +6135,11 @@ families:
       name: TestHardGateProducer_PassiveRSTRollback (producer removed)
       file: src/nfq/hard_gate_producers_test.go
       line: 141
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesWindowDelta (window-delta aggregation)
+      file: src/validation/gates_test.go
+      line: 224
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
@@ -6227,7 +6242,7 @@ families:
     owner_stage: apply
     source_doc: B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: current_generation_readiness_input
     producer_status: verified
     runtime_producer:
       symbol: NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricCaptureVisibilityDegrade)
@@ -6238,23 +6253,18 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
+    - kind: readiness_observer
+      symbol: EvaluateHardGatesWindow readiness branch
       file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
-      file: src/validation/gates.go
-      line: 239
-      binding: scope.ppe; fail-closed
+      line: 244
+      binding: window delta; current capture visibility; never blocks directly
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: increment-only; readiness input (window delta + owner state)
     expiry_generation_binding: null
     applicability: family:ppe
     test_producer:
@@ -6269,6 +6279,11 @@ families:
       file: src/capture/ppe/hard_gate_producers_test.go
       line: 31
       status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)
+      file: src/validation/gates_test.go
+      line: 275
+      status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md
     - artifacts/audit/csi_ppe_rstgso_audit.md
@@ -6281,7 +6296,7 @@ families:
     owner_stage: apply
     source_doc: B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md
     source_section: metrics
-    kind: zero_tolerance_violation_counter
+    kind: telemetry_counter
     producer_status: verified
     runtime_producer:
       symbol: NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricHoldDisabledVisibility)
@@ -6292,23 +6307,19 @@ families:
     verified_commit: bd9db5d5
     expected_producer_location: null
     verdict_consumer:
-    - kind: promotion_blocker
-      symbol: EvaluateHardGates zero-tolerance branch
-      file: src/validation/gates.go
-      line: 233
-      binding: count != 0 -> GateFail
-    - kind: aggregation_blocker
-      symbol: EvaluateHardGates verdict aggregation
+    - kind: aggregation_observer
+      symbol: EvaluateHardGatesWindow telemetry branch
       file: src/validation/gates.go
       line: 239
-      binding: scope.ppe; fail-closed
+      binding: safety-guard trigger telemetry (not a violation; separate GateID for hold-active-under-incomplete-visibility
+        if needed)
     - kind: http_report
       symbol: GET /api/v2/validation/gates
       file: src/http/handler/validation_gates.go
       line: 0
       binding: live snapshot
-    promotion_blocker: true
-    reset_semantics: increment-only; verified == 0
+    promotion_blocker: false
+    reset_semantics: telemetry; not a blocker
     expiry_generation_binding: null
     applicability: family:ppe
     test_producer:
@@ -6322,6 +6333,11 @@ families:
       name: TestHardGateProducer_CaptureVisibilityDegrade (producer removed)
       file: src/capture/ppe/hard_gate_producers_test.go
       line: 31
+      status: executed
+    - kind: removed_delta
+      name: TestEvaluateHardGatesReadinessInputsNeverBlock (safety-guard telemetry)
+      file: src/validation/gates_test.go
+      line: 275
       status: executed
     evidence_artifact:
     - artifacts/audit/hard_gates_audit.md

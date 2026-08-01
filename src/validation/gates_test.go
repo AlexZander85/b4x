@@ -220,3 +220,134 @@ func TestEvaluateHardGatesAliasDoesNotDoubleCount(t *testing.T) {
 		}
 	}
 }
+
+func TestEvaluateHardGatesWindowDelta(t *testing.T) {
+	// Owner decision 2026-08-01: zero-tolerance evaluation is performed on
+	// the delta of the current validation window, never on the lifetime
+	// absolute total. This test is the mutation guard for the window-delta
+	// aggregation: if the baseline subtraction is removed, the "clean
+	// window" case below FAILs instead of PASSing.
+	scope := ReleaseScope{CSI: true}
+	produced := map[string]bool{"unrelated_control_action_total": true}
+
+	// Lifetime total 5, window baseline 5 => delta 0 => PASS.
+	clean := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 5},
+		map[string]uint64{"unrelated_control_action_total": 5}, produced)
+	if clean.Verdict != GatePass {
+		t.Fatalf("clean window verdict = %s, want PASS (lifetime 5, delta 0)", clean.Verdict)
+	}
+	if !clean.WindowBaseline {
+		t.Fatal("WindowBaseline must be true when a baseline is supplied")
+	}
+
+	// Lifetime total 7, window baseline 5 => delta 2 => FAIL with delta count.
+	violated := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 7},
+		map[string]uint64{"unrelated_control_action_total": 5}, produced)
+	if violated.Verdict != GateFail {
+		t.Fatalf("dirty window verdict = %s, want FAIL (lifetime 7, delta 2)", violated.Verdict)
+	}
+	if len(violated.Violations) != 1 || violated.Violations[0].Count != 2 {
+		t.Fatalf("violations = %+v, want single violation with delta count 2", violated.Violations)
+	}
+
+	// Counter reset during the window (current < baseline) saturates: the
+	// full current value is the delta since the reset.
+	reset := EvaluateHardGatesWindow(scope, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 3},
+		map[string]uint64{"unrelated_control_action_total": 10}, produced)
+	if reset.Verdict != GateFail || len(reset.Violations) != 1 || reset.Violations[0].Count != 3 {
+		t.Fatalf("reset window = %+v, want FAIL with delta 3 (saturating)", reset)
+	}
+
+	// No baseline: window spans the process lifetime, delta == current.
+	lifetime := EvaluateHardGates(scope, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 2}, produced)
+	if lifetime.Verdict != GateFail || lifetime.Violations[0].Count != 2 {
+		t.Fatalf("lifetime window = %+v, want FAIL with count 2", lifetime)
+	}
+	if lifetime.WindowBaseline {
+		t.Fatal("WindowBaseline must be false without a baseline")
+	}
+}
+
+func TestEvaluateHardGatesReadinessInputsNeverBlock(t *testing.T) {
+	// current_generation_readiness_input gates (GSO offload/checksum/token,
+	// capture visibility degrade) are inputs to current-generation readiness,
+	// not lifetime zero-tolerance blockers: they are reported in
+	// ReadinessInputs and never flip the verdict on their own.
+	scope := ReleaseScope{RSTGSO: true, PPE: true}
+	counters := map[string]uint64{
+		"nfqueue_gso_truncated_total":          5,
+		"nfqueue_gso_csum_not_ready_total":     3,
+		"nfqueue_gso_token_miss_total":         1,
+		"b4_capture_visibility_degrade_total":  2,
+		"nfqueue_gso_packets_total":            100,
+		"b4_hold_disabled_visibility_total":    4,
+		"b4_ppe_rule_reapply_total":            1,
+		"b4_ppe_self_test_total":               1,
+		"passive_rst_fail_open_total":          1,
+		"classifier_layout_parity_fail_total":  0,
+		"passive_rst_reconnect_regression_total": 0,
+		"passive_rst_observed_total":           50,
+	}
+	produced := make(map[string]bool, len(counters))
+	for name := range counters {
+		produced[name] = true
+	}
+	eval := EvaluateHardGates(scope, nil, "", GenerationSet{}, counters, produced)
+	if eval.Verdict != GatePass {
+		t.Fatalf("verdict = %s, want PASS (readiness inputs + telemetry never block; violations=%d missing=%d)",
+			eval.Verdict, len(eval.Violations), len(eval.Missing))
+	}
+	if len(eval.ReadinessInputs) != 4 {
+		t.Fatalf("ReadinessInputs = %+v, want 4 readiness inputs", eval.ReadinessInputs)
+	}
+	got := map[string]uint64{}
+	for _, v := range eval.ReadinessInputs {
+		got[v.Metric] = v.Count
+	}
+	if got["nfqueue_gso_truncated_total"] != 5 || got["nfqueue_gso_csum_not_ready_total"] != 3 ||
+		got["nfqueue_gso_token_miss_total"] != 1 || got["b4_capture_visibility_degrade_total"] != 2 {
+		t.Fatalf("readiness counts = %+v, want truncated=5 csum=3 token=1 degrade=2", got)
+	}
+	// Telemetry is reported separately and never blocks either: all 17
+	// telemetry counters of the RSTGSO+PPE scope are observed (count 0 when
+	// not produced yet).
+	if len(eval.Telemetry) != 17 {
+		t.Fatalf("Telemetry has %d entries, want 17 (RSTGSO+PPE telemetry)", len(eval.Telemetry))
+	}
+	telemetrySeen := map[string]bool{}
+	for _, v := range eval.Telemetry {
+		telemetrySeen[v.Metric] = true
+	}
+	// Safe-degradation / safety-guard counters must be informational
+	// telemetry (owner decision 2026-08-01), never violations.
+	for _, name := range []string{"passive_rst_fail_open_total", "b4_hold_disabled_visibility_total"} {
+		if !telemetrySeen[name] {
+			t.Fatalf("telemetry %q missing from Telemetry report", name)
+		}
+	}
+}
+
+func TestEvaluateHardGatesScopeIsolation(t *testing.T) {
+	// A zero-tolerance violation in a non-applicable scope must not affect
+	// the evaluation: only gates of enabled families are selected.
+	scope := ReleaseScope{CSI: true}
+	counters := map[string]uint64{
+		"classifier_layout_parity_fail_total":  9, // rst_gso family, not in scope
+		"unrelated_control_action_total":       0,
+	}
+	produced := map[string]bool{
+		"classifier_layout_parity_fail_total":  true,
+		"unrelated_control_action_total":       true,
+	}
+	eval := EvaluateHardGates(scope, nil, "", GenerationSet{}, counters, produced)
+	if eval.Verdict != GatePass {
+		t.Fatalf("verdict = %s, want PASS (rst_gso violation outside CSI scope)", eval.Verdict)
+	}
+	if len(eval.Violations) != 0 {
+		t.Fatalf("violations = %+v, want none (out-of-scope counter ignored)", eval.Violations)
+	}
+}

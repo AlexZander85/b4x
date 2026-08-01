@@ -125,7 +125,7 @@
 
 ## 6. Актуализация 2026-08-01 (FB-03 фаза D: аудит producers исправлен)
 
-Первоначальный аудит (разделы 2–5, 2026-07-31) использовал поиск по строковым литералам имён метрик. Это дало **ложный результат** для RST/GSO/PPE: producers инкрементят счётчики через **константы** `observability.Metric*` (`Metrics.Inc(observability.MetricX, ...)`), а не через строковые имена, и PowerShell `**` в `Select-String -Path` не раскрывает подкаталоги (`src/http/handler/runtime_topology.go` не попадал в поиск). Полный рекурсивный обход Inc-сайтов (2026-08-01) показал: **все 24 producer записи FB-03 scope реализованы** (9 zero-tolerance + 15 telemetry).
+Первоначальный аудит (разделы 2–5, 2026-07-31) использовал поиск по строковым литералам имён метрик. Это дало **ложный результат** для RST/GSO/PPE: producers инкрементят счётчики через **константы** `observability.Metric*` (`Metrics.Inc(observability.MetricX, ...)`), а не через строковые имена, и PowerShell `**` в `Select-String -Path` не раскрывает подкаталоги (`src/http/handler/runtime_topology.go` не попадал в поиск). Полный рекурсивный обход Inc-сайтов (2026-08-01) показал: **все 24 producer записи FB-03 scope реализованы** (17 telemetry + 3 zero-tolerance + 4 current_generation_readiness_input; kinds APPROVED владельцем, фаза E).
 
 ### 6.1 Verified Inc-сайты (29 sites, все 24 метрики)
 
@@ -154,6 +154,6 @@
 
 ### 6.3 Корректировка выводов разделов 3–5 (не удалены — история)
 
-- «Реально исполняемых в бинаре: 1 из 160» → **неверно для RST/GSO/PPE/CSI scope**: исполняемы **24 из 24** метрик FB-03 scope (9 zero-tolerance + 15 telemetry) с verified producers.
+- «Реально исполняемых в бинаре: 1 из 160» → **неверно для RST/GSO/PPE/CSI scope**: исполняемы **24 из 24** метрик FB-03 scope (17 telemetry + 3 zero-tolerance + 4 readiness inputs) с verified producers; классификация kinds APPROVED владельцем 2026-08-01 (17/3/4).
 - «nfqueue_gso_transition_total не найден» → **неверно**: реализован (runtime_topology.go:38).
 - Выводы по WARP (56), SPF (22), FT §26 (82) и IV meta-suite остаются в силе: эти пакеты не в production-графе (0 импортеров), их счётчики вне FB-03 scope и покрываются другими задачами (FB-02, FB-14 и т.д.). Реестр фиксирует их как zero-tolerance по умолчанию (fail-closed BLOCKED при applicability).

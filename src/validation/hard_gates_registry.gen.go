@@ -6,17 +6,20 @@
 package validation
 
 // GateKind classifies what a registry entry actually is.
-// Only zero_tolerance_violation_counter gates may block promotion;
-// telemetry_counter entries are operational counters, not gates.
-// threshold/readiness/evidence/derived kinds are reserved for
+// Only zero_tolerance_violation_counter gates may block promotion
+// (evaluated on the current validation-window delta);
+// telemetry_counter and current_generation_readiness_input entries
+// are operational inputs, never direct blockers (owner decision 2026-08-01).
+// threshold/evidence/derived kinds are reserved for
 // owner-justified gates (no entries yet, 2026-08-01).
 const (
-	GateKindTelemetry = "telemetry_counter"
-	GateKindZeroTol   = "zero_tolerance_violation_counter"
-	GateKindThreshold = "threshold_violation_counter"
-	GateKindReadiness = "current_generation_readiness_state"
-	GateKindEvidence  = "required_evidence"
-	GateKindDerived   = "derived_blocker"
+	GateKindTelemetry      = "telemetry_counter"
+	GateKindZeroTol        = "zero_tolerance_violation_counter"
+	GateKindThreshold      = "threshold_violation_counter"
+	GateKindReadinessInput = "current_generation_readiness_input"
+	GateKindReadiness      = "current_generation_readiness_state"
+	GateKindEvidence       = "required_evidence"
+	GateKindDerived        = "derived_blocker"
 )
 
 // ProducerRef is a machine-readable verified producer descriptor.
@@ -29,7 +32,7 @@ type ProducerRef struct {
 }
 
 // ConsumerRef is a machine-readable verdict consumer descriptor.
-// Kind: promotion_blocker | aggregation_blocker | http_report.
+// Kind: promotion_blocker | aggregation_blocker | readiness_observer | http_report.
 type ConsumerRef struct {
 	Kind    string `json:"kind"`
 	Symbol  string `json:"symbol"`
@@ -64,7 +67,7 @@ type Gate struct {
 	OwnerStage               string        // stage the gate is enforced at
 	SourceDoc                string        // owner addendum file
 	SourceSection            string        // owner addendum section
-	Kind                     string        // telemetry_counter | zero_tolerance_violation_counter
+	Kind                     string        // telemetry_counter | zero_tolerance_violation_counter | current_generation_readiness_input
 	ProducerStatus           string        // verified | missing
 	RuntimeProducer          ProducerRef   // verified producer (zero value = not verified)
 	VerifiedCommit           string        // commit SHA at verification time, empty = not verified
@@ -97,7 +100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -117,7 +120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -137,7 +140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -157,7 +160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -177,7 +180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -197,7 +200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -217,7 +220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -237,7 +240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -257,7 +260,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -277,7 +280,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -297,7 +300,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -317,7 +320,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -337,7 +340,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -357,7 +360,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -377,7 +380,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -397,7 +400,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -417,7 +420,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -437,7 +440,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -457,7 +460,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -477,7 +480,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -497,7 +500,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -517,7 +520,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -537,7 +540,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -557,7 +560,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -577,7 +580,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -597,7 +600,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -617,7 +620,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -637,7 +640,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -657,7 +660,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -677,7 +680,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -697,7 +700,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -717,7 +720,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -737,7 +740,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -757,7 +760,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -777,7 +780,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -797,7 +800,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -817,7 +820,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -837,7 +840,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -857,7 +860,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -877,7 +880,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -897,7 +900,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -917,7 +920,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -937,7 +940,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -957,7 +960,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -977,7 +980,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -997,7 +1000,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1017,7 +1020,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1037,7 +1040,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1057,7 +1060,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1077,7 +1080,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1097,7 +1100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1117,7 +1120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1137,7 +1140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1157,7 +1160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1177,7 +1180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1197,7 +1200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:warp",
 	},
 	{
@@ -1217,7 +1220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1237,7 +1240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1257,7 +1260,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1277,7 +1280,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1297,7 +1300,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1317,7 +1320,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1337,7 +1340,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1357,7 +1360,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1377,7 +1380,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1397,7 +1400,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1417,7 +1420,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1437,7 +1440,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1457,7 +1460,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1477,7 +1480,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1497,7 +1500,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1517,7 +1520,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1537,7 +1540,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1557,7 +1560,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1577,7 +1580,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1597,7 +1600,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1617,7 +1620,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1637,7 +1640,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:spf",
 	},
 	{
@@ -1657,7 +1660,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1677,7 +1680,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1697,7 +1700,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1717,7 +1720,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1737,7 +1740,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1757,7 +1760,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1777,7 +1780,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1797,7 +1800,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1817,7 +1820,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1837,7 +1840,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1857,7 +1860,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1877,7 +1880,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1897,7 +1900,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1917,7 +1920,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1937,7 +1940,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1957,7 +1960,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1977,7 +1980,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -1997,7 +2000,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2017,7 +2020,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2037,7 +2040,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2057,7 +2060,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2077,7 +2080,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2097,7 +2100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2117,7 +2120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2137,7 +2140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2157,7 +2160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2177,7 +2180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2197,7 +2200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2217,7 +2220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2237,7 +2240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2257,7 +2260,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2277,7 +2280,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2297,7 +2300,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2317,7 +2320,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2337,7 +2340,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2357,7 +2360,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2377,7 +2380,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2397,7 +2400,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2417,7 +2420,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2437,7 +2440,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2457,7 +2460,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2477,7 +2480,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2497,7 +2500,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2517,7 +2520,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2537,7 +2540,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2557,7 +2560,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2577,7 +2580,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2597,7 +2600,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2617,7 +2620,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2637,7 +2640,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2657,7 +2660,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2677,7 +2680,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2697,7 +2700,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2717,7 +2720,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2737,7 +2740,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2757,7 +2760,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2777,7 +2780,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:mon",
 	},
 	{
@@ -2797,7 +2800,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2817,7 +2820,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2837,7 +2840,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2857,7 +2860,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2877,7 +2880,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2897,7 +2900,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2917,7 +2920,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2937,7 +2940,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2957,7 +2960,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2977,7 +2980,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -2997,7 +3000,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3017,7 +3020,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3037,7 +3040,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3057,7 +3060,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3077,7 +3080,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3097,7 +3100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3117,7 +3120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3137,7 +3140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3157,7 +3160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3177,7 +3180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3197,7 +3200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3217,7 +3220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3237,7 +3240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3257,7 +3260,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3277,7 +3280,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3297,7 +3300,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3317,7 +3320,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3337,7 +3340,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3357,7 +3360,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3377,7 +3380,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3397,7 +3400,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3417,7 +3420,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3437,7 +3440,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3457,7 +3460,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3477,7 +3480,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3497,7 +3500,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3517,7 +3520,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3537,7 +3540,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3557,7 +3560,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3577,7 +3580,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3597,7 +3600,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3617,7 +3620,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3637,7 +3640,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3657,7 +3660,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3677,7 +3680,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3697,7 +3700,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3717,7 +3720,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3737,7 +3740,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3757,7 +3760,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3777,7 +3780,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3797,7 +3800,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3817,7 +3820,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3837,7 +3840,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3857,7 +3860,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3877,7 +3880,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3897,7 +3900,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3917,7 +3920,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3937,7 +3940,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3957,7 +3960,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3977,7 +3980,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -3997,7 +4000,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4017,7 +4020,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4037,7 +4040,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4057,7 +4060,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4077,7 +4080,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4097,7 +4100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4117,7 +4120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4137,7 +4140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4157,7 +4160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4177,7 +4180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4197,7 +4200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4217,7 +4220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4237,7 +4240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4257,7 +4260,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4277,7 +4280,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4297,7 +4300,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4317,7 +4320,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4337,7 +4340,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4357,7 +4360,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4377,7 +4380,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4397,7 +4400,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4417,7 +4420,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4437,7 +4440,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4457,7 +4460,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4477,7 +4480,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:abd",
 	},
 	{
@@ -4497,7 +4500,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4517,7 +4520,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4537,7 +4540,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4557,7 +4560,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4577,7 +4580,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4597,7 +4600,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4617,7 +4620,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4637,7 +4640,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4657,7 +4660,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4677,7 +4680,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4697,7 +4700,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4717,7 +4720,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4737,7 +4740,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4757,7 +4760,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4777,7 +4780,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4797,7 +4800,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4817,7 +4820,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4837,7 +4840,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4857,7 +4860,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4877,7 +4880,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4897,7 +4900,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4917,7 +4920,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4937,7 +4940,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4957,7 +4960,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:ddi_tgb",
 	},
 	{
@@ -4977,7 +4980,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -4997,7 +5000,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5017,7 +5020,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5037,7 +5040,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5057,7 +5060,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5077,7 +5080,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5097,7 +5100,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5117,7 +5120,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5137,7 +5140,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5157,7 +5160,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5177,7 +5180,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5197,7 +5200,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5217,7 +5220,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5237,7 +5240,7 @@ var hardGates = []Gate{
 		MutationTests:            nil,
 		EvidenceArtifacts:        nil,
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:sp",
 	},
 	{
@@ -5250,14 +5253,14 @@ var hardGates = []Gate{
 		Kind:                     "zero_tolerance_violation_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "UnrelatedControlActionTotal++ (validate) -> observability.Metrics.Inc(MetricUnrelatedControlAction) (store)", File: "src/crossservice/validation.go", Line: 392, Mechanism: "increment-only counter via observability; report field incremented at validation.go:265", ProductionRoot: "crossservice.Validate() / (*Store).ValidateAndStore (CSI-18 same-client negative control)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "Validate() report.Passed / Store.RequirePromotion", File: "src/crossservice/validation.go", Line: 312, Binding: "generation; family:csi"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates", File: "src/validation/gates.go", Line: 205, Binding: "scope.csi; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestValidatePassingMatrixAllowsPromotion", File: "src/crossservice/validation_test.go", Line: 29, Assertion: "UnrelatedControlActionTotal == 0 && PromotionAllowed == true"}, TestRef{Kind: "negative_fixture", Name: "TestValidateRejectsYouTubeStateOnGmailSharedIPFlow", File: "src/crossservice/validation_test.go", Line: 40, Assertion: "UnrelatedControlActionTotal == 1 && PromotionAllowed == false"}, TestRef{Kind: "evaluator_fixture", Name: "TestEvaluateHardGatesViolation", File: "src/validation/gates_test.go", Line: 117, Assertion: "counter != 0 -> GateFail"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestValidateRejectsYouTubeStateOnGmailSharedIPFlow (producer removed)", File: "src/crossservice/validation_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestValidateRejectsYouTubeStateOnGmailSharedIPFlow (producer removed)", File: "src/crossservice/validation_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesWindowDelta (window-delta aggregation)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"},
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:csi",
 	},
 	{
@@ -5270,7 +5273,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordObservabilityDecision -> Metrics.Inc(MetricClassifierReassembledSNI)", File: "src/nfq/classifier_decision.go", Line: 212, Mechanism: "increment-only counter via observability (label result=selected|unselected)", ProductionRoot: "nfq.handleTCPPacket -> traceNFQDecision (reassembled-TCP-SNI evidence selected)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_ClassifierLayoutParity", File: "src/nfq/hard_gate_producers_test.go", Line: 175, Assertion: "reassembled-SNI selection -> counter > 0"}},
@@ -5290,14 +5293,14 @@ var hardGates = []Gate{
 		Kind:                     "zero_tolerance_violation_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordObservabilityDecision -> Metrics.Inc(MetricClassifierLayoutParityFail)", File: "src/nfq/classifier_decision.go", Line: 214, Mechanism: "increment-only counter via observability (reassembled SNI without logical ID)", ProductionRoot: "nfq.handleTCPPacket -> traceNFQDecision (layout parity violation)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_ClassifierLayoutParity", File: "src/nfq/hard_gate_producers_test.go", Line: 175, Assertion: "reassembled-SNI without logical ID -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_ClassifierLayoutParity (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_ClassifierLayoutParity (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesWindowDelta (window-delta aggregation)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5310,7 +5313,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOPackets)", File: "src/nfq/offload.go", Line: 106, Mechanism: "increment-only counter via observability (per GSO-flagged packet)", ProductionRoot: "nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOOffloadMetadata", File: "src/nfq/hard_gate_producers_test.go", Line: 37, Assertion: "IsGSO metadata -> counter > 0"}},
@@ -5330,7 +5333,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOBytes)", File: "src/nfq/offload.go", Line: 107, Mechanism: "increment-only byte counter via observability", ProductionRoot: "nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOOffloadMetadata", File: "src/nfq/hard_gate_producers_test.go", Line: 37, Assertion: "IsGSO metadata -> counter > 0"}},
@@ -5347,17 +5350,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "current_generation_readiness_input",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOTruncated)", File: "src/nfq/offload.go", Line: 109, Mechanism: "increment-only counter via observability (OriginalLength > PayloadLength)", ProductionRoot: "nfq.handlePacket -> DecodeOffloadMetadata (truncated GSO envelope)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "readiness_observer", Symbol: "EvaluateHardGatesWindow readiness branch", File: "src/validation/gates.go", Line: 244, Binding: "window delta; owner-state bound; never blocks directly"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_GSOOffloadMetadata", File: "src/nfq/hard_gate_producers_test.go", Line: 37, Assertion: "truncated metadata -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOOffloadMetadata (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOOffloadMetadata (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "increment-only; readiness input (window delta + owner state)",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5367,17 +5370,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "current_generation_readiness_input",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOCsumNotReady)", File: "src/nfq/offload.go", Line: 112, Mechanism: "increment-only counter via observability (NFQA_SKB_CSUMNOTREADY)", ProductionRoot: "nfq.handlePacket -> DecodeOffloadMetadata (unverified checksum GSO)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "readiness_observer", Symbol: "EvaluateHardGatesWindow readiness branch", File: "src/validation/gates.go", Line: 244, Binding: "window delta; owner-state bound; never blocks directly"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_GSOOffloadMetadata", File: "src/nfq/hard_gate_producers_test.go", Line: 37, Assertion: "checksum-not-ready metadata -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOOffloadMetadata (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOOffloadMetadata (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "increment-only; readiness input (window delta + owner state)",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5390,7 +5393,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSODecision)", File: "src/nfq/gso_fastpath.go", Line: 209, Mechanism: "increment-only counter via observability (label path=result)", ProductionRoot: "nfq.handleGSOFastPath (GSO fast-path verdict)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOFastPathDecisions", File: "src/nfq/hard_gate_producers_test.go", Line: 66, Assertion: "fast-path verdict -> counter > 0"}},
@@ -5410,7 +5413,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSONormalized)", File: "src/nfq/gso_fastpath.go", Line: 211, Mechanism: "increment-only counter via observability (normalize-queued path)", ProductionRoot: "nfq.handleGSOFastPath (normalizer direct queue)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOFastPathDecisions", File: "src/nfq/hard_gate_producers_test.go", Line: 66, Assertion: "normalize-queued path -> counter > 0"}},
@@ -5430,7 +5433,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSOActionSuppressed)", File: "src/nfq/gso_fastpath.go", Line: 214, Mechanism: "increment-only counter via observability (action-suppressed result)", ProductionRoot: "nfq.handleGSOFastPath (suppression budget)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOFastPathDecisions", File: "src/nfq/hard_gate_producers_test.go", Line: 66, Assertion: "action-suppressed path -> counter > 0"}},
@@ -5447,17 +5450,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "current_generation_readiness_input",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "traceGSONormalizerMiss -> Metrics.Inc(MetricNFQueueGSOTokenMiss)", File: "src/nfq/gso_normalizer.go", Line: 61, Mechanism: "increment-only counter via observability (secondary-pass fail-open)", ProductionRoot: "nfq GSO normalizer secondary pass (pass-token miss)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "readiness_observer", Symbol: "EvaluateHardGatesWindow readiness branch", File: "src/validation/gates.go", Line: 244, Binding: "window delta; owner-state bound; never blocks directly"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_GSOTokenMiss", File: "src/nfq/hard_gate_producers_test.go", Line: 90, Assertion: "normalizer secondary miss -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOTokenMiss (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_GSOTokenMiss (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "increment-only; readiness input (window delta + owner state)",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5470,7 +5473,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "ApplyRuntimeControlTopology defer -> Metrics.Inc(MetricNFQueueGSOTransition)", File: "src/http/handler/runtime_topology.go", Line: 38, Mechanism: "increment-only counter via observability (deferred; result=success|rollback)", ProductionRoot: "http API ApplyRuntimeControlTopology (double-buffered GSO topology switch)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_GSOTransition", File: "src/http/handler/hard_gate_producers_test.go", Line: 34, Assertion: "topology apply defer -> counter > 0"}},
@@ -5490,7 +5493,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTObserved)", File: "src/nfq/passive_rst_observe.go", Line: 106, Mechanism: "increment-only counter via observability (per signal)", ProductionRoot: "nfq.observePassiveRSTIncoming/Outgoing (passive RST observation)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "2 signals -> counter == 2"}},
@@ -5510,7 +5513,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTDecision)", File: "src/nfq/passive_rst_observe.go", Line: 108, Mechanism: "increment-only counter via observability (label decision=...)", ProductionRoot: "nfq.observePassiveRSTIncoming (enforcement decision)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "enforcement decision -> counter > 0"}},
@@ -5530,7 +5533,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTSuppressed)", File: "src/nfq/passive_rst_observe.go", Line: 113, Mechanism: "increment-only counter via observability (suppress decision)", ProductionRoot: "nfq.observePassiveRSTIncoming (suppression)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "suppress decision -> counter > 0"}},
@@ -5547,17 +5550,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTFailOpen)", File: "src/nfq/passive_rst_observe.go", Line: 116, Mechanism: "increment-only counter via observability (fail-open decision)", ProductionRoot: "nfq.observePassiveRSTIncoming (fail-open enforcement)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGatesWindow telemetry branch", File: "src/validation/gates.go", Line: 239, Binding: "safe degradation telemetry (derived state may gate re-claim)"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "fail-open decision -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_PassiveRSTMetrics (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_PassiveRSTMetrics (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (safe-degradation telemetry)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "telemetry; not a blocker",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5570,7 +5573,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTBaselineQuality)", File: "src/nfq/passive_rst_observe.go", Line: 109, Mechanism: "increment-only counter via observability (label quality=...)", ProductionRoot: "nfq.observePassiveRSTIncoming (baseline quality)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "baseline quality -> counter > 0"}},
@@ -5590,7 +5593,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTBudgetExhausted)", File: "src/nfq/passive_rst_observe.go", Line: 118, Mechanism: "increment-only counter via observability (fail-open reason=budget)", ProductionRoot: "nfq.observePassiveRSTIncoming (suppression budget exhausted)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTMetrics", File: "src/nfq/hard_gate_producers_test.go", Line: 102, Assertion: "budget fail-open -> counter > 0"}},
@@ -5610,7 +5613,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "PassiveRSTStore.RecordHealth -> Metrics.Inc(MetricPassiveRSTRollback)", File: "src/nfq/passive_rst_rollback.go", Line: 134, Mechanism: "increment-only counter via observability (scoped rollback commit)", ProductionRoot: "pool.RecordPassiveRSTHealth -> PassiveRSTStore.RecordHealth (scope-local rollback)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PassiveRSTRollback", File: "src/nfq/hard_gate_producers_test.go", Line: 141, Assertion: "RecordHealth triggered -> counter > 0"}},
@@ -5630,14 +5633,14 @@ var hardGates = []Gate{
 		Kind:                     "zero_tolerance_violation_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "PassiveRSTStore.RecordHealth -> Metrics.Inc(MetricPassiveRSTReconnectRegression)", File: "src/nfq/passive_rst_rollback.go", Line: 136, Mechanism: "increment-only counter via observability (reason=reconnect failure regression)", ProductionRoot: "pool.RecordPassiveRSTHealth (reconnect failure regression)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.rstgso; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_PassiveRSTRollback", File: "src/nfq/hard_gate_producers_test.go", Line: 141, Assertion: "reconnect regression -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_PassiveRSTRollback (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_PassiveRSTRollback (producer removed)", File: "src/nfq/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesWindowDelta (window-delta aggregation)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/nfq/hard_gate_producers_test.go"},
 		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		ResetSemantics:           "increment-only; window-delta == 0",
 		Applicability:            "family:rst_gso",
 	},
 	{
@@ -5650,7 +5653,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "productLifecycleMetrics.Reapply -> Metrics.Inc(MetricPPERuleReapply)", File: "src/capture/ppe/product_service.go", Line: 513, Mechanism: "increment-only counter via observability (label result=success|failure)", ProductionRoot: "PPE lifecycle reapply (reconciler Assert/Reapply loop)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PPERuleReapply", File: "src/capture/ppe/hard_gate_producers_test.go", Line: 85, Assertion: "lifecycle Reapply -> counter > 0"}},
@@ -5670,7 +5673,7 @@ var hardGates = []Gate{
 		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "ProductService.RunSelfTest -> Metrics.Inc(MetricPPESelfTest)", File: "src/capture/ppe/product_service.go", Line: 348, Mechanism: "increment-only counter via observability (label verdict=...)", ProductionRoot: "PPE self-test controller run (visibility A/B probe)"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
 		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGates telemetry branch", File: "src/validation/gates.go", Line: 222, Binding: "informational aggregation"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "positive_fixture", Name: "TestHardGateProducer_PPESelfTest", File: "src/capture/ppe/hard_gate_producers_test.go", Line: 52, Assertion: "RunSelfTest -> counter > 0"}},
@@ -5687,17 +5690,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "current_generation_readiness_input",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricCaptureVisibilityDegrade)", File: "src/capture/ppe/product_service.go", Line: 110, Mechanism: "increment-only counter via observability (visibility gate degradation)", ProductionRoot: "visibility gate Degrade -> ProductService subscriber"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.ppe; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "readiness_observer", Symbol: "EvaluateHardGatesWindow readiness branch", File: "src/validation/gates.go", Line: 244, Binding: "window delta; current capture visibility; never blocks directly"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_CaptureVisibilityDegrade", File: "src/capture/ppe/hard_gate_producers_test.go", Line: 31, Assertion: "gate Degrade -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", File: "src/capture/ppe/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", File: "src/capture/ppe/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/capture/ppe/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "increment-only; readiness input (window delta + owner state)",
 		Applicability:            "family:ppe",
 	},
 	{
@@ -5707,17 +5710,17 @@ var hardGates = []Gate{
 		OwnerStage:               "apply",
 		SourceDoc:                "B4_KEENETIC_PPE_PER_FLOW_OFFLOAD_ADDENDUM.md",
 		SourceSection:            "metrics",
-		Kind:                     "zero_tolerance_violation_counter",
+		Kind:                     "telemetry_counter",
 		ProducerStatus:           "verified",
 		RuntimeProducer:          ProducerRef{Symbol: "NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricHoldDisabledVisibility)", File: "src/capture/ppe/product_service.go", Line: 111, Mechanism: "increment-only counter via observability (hold disabled while visibility degraded)", ProductionRoot: "visibility gate Degrade -> ProductService subscriber"},
-		VerifiedCommit:           "7c0be90f",
+		VerifiedCommit:           "bd9db5d5",
 		ExpectedProducerLocation: "",
-		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "promotion_blocker", Symbol: "EvaluateHardGates zero-tolerance branch", File: "src/validation/gates.go", Line: 233, Binding: "count != 0 -> GateFail"}, ConsumerRef{Kind: "aggregation_blocker", Symbol: "EvaluateHardGates verdict aggregation", File: "src/validation/gates.go", Line: 239, Binding: "scope.ppe; fail-closed"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
+		VerdictConsumers:         []ConsumerRef{ConsumerRef{Kind: "aggregation_observer", Symbol: "EvaluateHardGatesWindow telemetry branch", File: "src/validation/gates.go", Line: 239, Binding: "safety-guard trigger telemetry (not a violation; separate GateID for hold-active-under-incomplete-visibility if needed)"}, ConsumerRef{Kind: "http_report", Symbol: "GET /api/v2/validation/gates", File: "src/http/handler/validation_gates.go", Line: 0, Binding: "live snapshot"}},
 		TestProducers:            []TestRef{TestRef{Kind: "negative_fixture", Name: "TestHardGateProducer_CaptureVisibilityDegrade", File: "src/capture/ppe/hard_gate_producers_test.go", Line: 31, Assertion: "gate Degrade -> counter > 0 (mutation run executed)"}},
-		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", File: "src/capture/ppe/hard_gate_producers_test.go", Status: "executed"}},
+		MutationTests:            []MutationRef{MutationRef{Kind: "removed_inc", Name: "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", File: "src/capture/ppe/hard_gate_producers_test.go", Status: "executed"}, MutationRef{Kind: "removed_delta", Name: "TestEvaluateHardGatesReadinessInputsNeverBlock (safety-guard telemetry)", File: "src/validation/gates_test.go", Status: "executed"}},
 		EvidenceArtifacts:        []string{"artifacts/audit/hard_gates_audit.md", "artifacts/audit/csi_ppe_rstgso_audit.md", "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md", "src/capture/ppe/hard_gate_producers_test.go"},
-		PromotionBlocker:         true,
-		ResetSemantics:           "increment-only; verified == 0",
+		PromotionBlocker:         false,
+		ResetSemantics:           "telemetry; not a blocker",
 		Applicability:            "family:ppe",
 	},
 }
