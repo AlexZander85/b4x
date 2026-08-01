@@ -51,3 +51,5 @@ __pycache__/
 
 # Agent session state
 /.ag/
+
+# agent session state (OpenCode).ag/

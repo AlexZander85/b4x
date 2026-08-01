@@ -28,6 +28,10 @@ type Options struct {
 	Cooldown      time.Duration
 	HistoryLimit  int
 	BeforePromote func(GenerationMeta) error // deterministic fault injection/diagnostics hook
+	// HardGateCheck runs the canonical hard-gate registry evaluation (FB-03)
+	// as the final promotion gate, after canary and before BeforePromote.
+	// Any non-PASS verdict blocks the transaction (StagePromote).
+	HardGateCheck func(GenerationMeta) error
 }
 
 type Manager struct {
@@ -44,6 +48,7 @@ type Manager struct {
 	b4Version     string
 	historyMax    int
 	beforePromote func(GenerationMeta) error
+	hardGateCheck func(GenerationMeta) error
 	history       []HistoryEntry
 	pending       *pendingState
 }
@@ -81,7 +86,7 @@ func NewManager(builder Builder, opts Options) (*Manager, error) {
 	if historyMax <= 0 {
 		historyMax = DefaultHistoryLimit
 	}
-	manager := &Manager{builder: builder, store: store, cooldown: NewCooldown(opts.Cooldown, clk, historyMax*4), clk: clk, enabled: opts.Enabled, b4Version: limitString(opts.B4Version, 128), historyMax: historyMax, beforePromote: opts.BeforePromote}
+	manager := &Manager{builder: builder, store: store, cooldown: NewCooldown(opts.Cooldown, clk, historyMax*4), clk: clk, enabled: opts.Enabled, b4Version: limitString(opts.B4Version, 128), historyMax: historyMax, beforePromote: opts.BeforePromote, hardGateCheck: opts.HardGateCheck}
 	lastGood, err := store.Load()
 	if err != nil {
 		return nil, fmt.Errorf("load last-good: %w", err)

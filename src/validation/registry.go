@@ -4,10 +4,14 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"sort"
 )
 
 const RegistryVersion uint16 = 1
+
+// ErrEmptyScope is returned by RequiredHardGates when no subsystem is enabled.
+var ErrEmptyScope = errors.New("empty release scope: no subsystem enabled")
 
 type Requirement struct {
 	ID, Description, Source, Stage, Suite string

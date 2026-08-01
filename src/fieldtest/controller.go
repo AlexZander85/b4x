@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/daniellavrushin/b4/validation"
 )
 
 type ClockSample struct {
@@ -62,4 +64,27 @@ func (c *Controller) Get(id string) (TestSession, bool) {
 	defer c.mu.Unlock()
 	s, ok := c.runs[id]
 	return s, ok
+}
+
+// RecordGateEvaluation stores the structured hard-gate result (FB-03) on a
+// running session; a non-PASS verdict is not a stop error — the verdict is
+// recorded so the controller/reporting path can act on it.
+func (c *Controller) RecordGateEvaluation(id string, eval validation.GateEvaluation) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s, ok := c.runs[id]
+	if !ok {
+		return errors.New("unknown run")
+	}
+	if s.Status != StatusRunning {
+		return errors.New("run not running")
+	}
+	copyEval := eval
+	copyEval.Violations = append([]validation.GateViolation(nil), eval.Violations...)
+	copyEval.Missing = append([]validation.GateID(nil), eval.Missing...)
+	copyEval.Stale = append([]validation.GateID(nil), eval.Stale...)
+	copyEval.NotRun = append([]validation.GateID(nil), eval.NotRun...)
+	s.GateEvaluation = &copyEval
+	c.runs[id] = s
+	return nil
 }

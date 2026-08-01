@@ -1,14 +1,29 @@
 package fieldtest
 
-var RequiredHardGates = []string{"detector_single_probe_confirmed_total", "detector_exception_string_only_confirmed_total", "detector_static_target_only_high_confidence_total", "detector_self_interference_total", "detector_control_failure_ignored_total", "detector_unverified_mitm_verdict_total", "detector_quic_single_target_global_udp_verdict_total", "unrelated_control_action_total", "destination_only_state_total", "route_counter_missing_total", "forwarded_binding_missing_total", "stale_generation_event_total", "parent_generation_mismatch_total", "dns_direct_leak_total", "ipv6_unvalidated_egress_total", "cleanup_foreign_resource_removed_total", "trace_required_event_drop_total"}
+import "github.com/daniellavrushin/b4/validation"
 
-func HardGatesPass(counters map[string]uint64, produced map[string]bool) bool {
-	for _, name := range RequiredHardGates {
-		if !produced[name] || counters[name] != 0 {
-			return false
-		}
-	}
-	return true
+// FB-03: the static RequiredHardGates list is removed as source of truth.
+// Applicable gates are selected from the canonical hard-gate registry
+// (specs/registries/hard_gates.yaml via validation.RequiredHardGates).
+// LegacyGateAliases in package validation migrate pre-FB-03 names.
+
+// RequiredHardGates is the application-aware selection from the canonical
+// registry (release scope + capabilities + claim + generation).
+func RequiredHardGates(scope validation.ReleaseScope, caps validation.CapabilitySet, claim validation.VerdictID, generation validation.GenerationSet) ([]validation.GateID, error) {
+	return validation.RequiredHardGates(scope, caps, claim, generation)
+}
+
+// HardGatesPass evaluates applicable gates against observed counters and
+// produced flags; it returns true only when every applicable gate is produced
+// and zero (structured result available via EvaluateHardGates).
+func HardGatesPass(scope validation.ReleaseScope, caps validation.CapabilitySet, claim validation.VerdictID, generation validation.GenerationSet, counters map[string]uint64, produced map[string]bool) bool {
+	return validation.HardGatesPass(scope, caps, claim, generation, counters, produced)
+}
+
+// EvaluateHardGates exposes the structured evaluator (GateEvaluation) for
+// Field Test Controller, validation API/CLI, canary/promotion and reports.
+func EvaluateHardGates(scope validation.ReleaseScope, caps validation.CapabilitySet, claim validation.VerdictID, generation validation.GenerationSet, counters map[string]uint64, produced map[string]bool) validation.GateEvaluation {
+	return validation.EvaluateHardGates(scope, caps, claim, generation, counters, produced)
 }
 
 type StageReport struct {
@@ -17,6 +32,9 @@ type StageReport struct {
 	HardGates                          []string
 	AutomatedTests                     []string
 	FieldEvidenceRequired              []string
+	// GateVerdict carries the aggregated hard-gate result for the stage
+	// (PASS/FAIL/BLOCKED/...); empty when no evaluation was wired (FB-03).
+	GateVerdict validation.GateVerdict
 }
 
 func (r StageReport) Valid() bool {

@@ -22,6 +22,9 @@ type ValidationEvent struct {
 	Sequence           uint64
 	Verdict            Verdict
 	AtUnixNS           int64
+	// HardGateVerdict is the structured hard-gate result for the stage
+	// (FB-03); empty when no gates were evaluated.
+	HardGateVerdict GateVerdict
 }
 type APIResponse struct {
 	Schema  uint16
@@ -29,6 +32,9 @@ type APIResponse struct {
 	RunID   string
 	Verdict Verdict
 	Error   string
+	// HardGates carries the structured gate evaluation for API/CLI consumers
+	// (FB-03); nil when gates were not evaluated.
+	HardGates *GateEvaluation
 }
 
 func ValidatePlan(p ValidationPlan) error {

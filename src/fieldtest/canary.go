@@ -1,6 +1,10 @@
 package fieldtest
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/daniellavrushin/b4/validation"
+)
 
 type CanaryMode string
 
@@ -32,4 +36,15 @@ func ValidateCanary(r CanaryRequest) error {
 		return errors.New("full auto requires rollback")
 	}
 	return nil
+}
+
+// CanaryEligible reports whether a hard-gate evaluation admits a canary
+// rollout: only an unconditional PASS is eligible. BLOCKED/STALE/NOT_RUN
+// (missing producers, stale generation) and FAIL must block the rollout
+// (v2 §0.6.3). A nil evaluation is treated as eligible (no gates wired).
+func CanaryEligible(eval *validation.GateEvaluation) bool {
+	if eval == nil {
+		return true
+	}
+	return eval.Verdict == validation.GatePass
 }

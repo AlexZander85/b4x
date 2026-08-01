@@ -13,7 +13,9 @@ import (
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/crossservice"
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/runtimecontrol"
+	"github.com/daniellavrushin/b4/validation"
 )
 
 const runtimeControlAPIPath = "/api/v2/runtime-control"
@@ -90,6 +92,9 @@ func (api *API) InitializeRuntimeControl(b4Version string) error {
 		HistoryLimit: 64,
 		BeforePromote: func(meta runtimecontrol.GenerationMeta) error {
 			return crossservice.Default().RequirePromotion(meta.ID, time.Now().UTC())
+		},
+		HardGateCheck: func(meta runtimecontrol.GenerationMeta) error {
+			return checkHardGates(current, meta.ID)
 		},
 	})
 	if err != nil {
@@ -455,4 +460,44 @@ func writeRuntimeControlError(w http.ResponseWriter, err error) {
 		status = http.StatusRequestTimeout
 	}
 	writeJsonError(w, status, err.Error())
+}
+
+// hardGateScope projects the canonical hard-gate release scope (FB-03) from
+// the active configuration:
+//   - WARPBase: classifier v2 pipeline
+//   - CSI: cross-service isolation (wired to promotion via RequirePromotion)
+//
+// Families without an enabled owning subsystem are NOT_APPLICABLE.
+func hardGateScope(cfg *config.Config) validation.ReleaseScope {
+	if cfg == nil {
+		return validation.ReleaseScope{}
+	}
+	return validation.ReleaseScope{
+		WARPBase: cfg.System.Classifier.Flags.ClassifierV2Enabled,
+		CSI:      true,
+	}
+}
+
+// checkHardGates evaluates the canonical hard-gate registry (FB-03) against
+// the live metrics snapshot as the final promotion gate for a candidate
+// generation. Any non-PASS verdict fails the promotion transaction
+// (StagePromote).
+func checkHardGates(cfg *config.Config, generationID string) error {
+	scope := hardGateScope(cfg)
+	if !scope.Enabled() {
+		return nil // nothing enabled => NOT_APPLICABLE, not a failure
+	}
+	snap := observability.Default().Metrics.Snapshot(time.Now().UTC())
+	counters := make(map[string]uint64, len(snap.Counters))
+	produced := make(map[string]bool, len(snap.Counters))
+	for _, s := range snap.Counters {
+		counters[s.Name] += s.Value
+		produced[s.Name] = true
+	}
+	eval := validation.EvaluateHardGates(scope, nil, "", validation.GenerationSet{}, counters, produced)
+	if eval.Verdict == validation.GatePass {
+		return nil
+	}
+	return fmt.Errorf("hard-gate check failed for generation %s: verdict %s (%d violations, %d missing)",
+		observability.RedactIdentifier(generationID), eval.Verdict, len(eval.Violations), len(eval.Missing))
 }

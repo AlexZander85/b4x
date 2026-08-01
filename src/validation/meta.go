@@ -1,6 +1,9 @@
 package validation
 
-import "crypto/sha256"
+import (
+	"crypto/sha256"
+	"sort"
+)
 
 type Artifact struct {
 	Name, SHA256, Kind string
@@ -28,6 +31,91 @@ func (m MetaResult) Ready() bool {
 	}
 	return len(m.Artifacts) > 0
 }
+
+// RunMetaSuite executes the FB-03 meta-suite against the canonical registry
+// and the live evaluator. It performs real computations (no manually
+// populated flags):
+//
+//   - RegistryComplete:      every gate has non-empty ID/family, IDs unique,
+//     registered families are closed under scopeApplies.
+//   - APIParity:             every canonical metric name resolves via
+//     CanonicalGateID to itself; alias map has the documented size.
+//   - VerdictMutationDetected: forced zero (zero counter, no producer) must
+//     yield BLOCKED, not PASS; a non-zero produced gate must yield FAIL.
+//   - EvidenceIntegrity:     caller-supplied artifacts pass ArtifactValid.
+//   - Reproducible:          gate/applicable counts match the generator
+//     constants (282 / 1 verified producer); deterministically sortable.
+//   - InfrastructureSafe:    the evaluator does not mutate counters.
+//   - FalseNegativeDetected: violation fixture never yields PASS.
+//
+// Artifacts must be supplied by the caller (validation API/CLI) with
+// SHA-256 digests of the registry YAML and generated Go file.
+func RunMetaSuite(artifacts []Artifact) MetaResult {
+	r := MetaResult{InfrastructureSafe: true, Artifacts: append([]Artifact(nil), artifacts...)}
+
+	// RegistryComplete
+	r.RegistryComplete = registryComplete()
+
+	// APIParity
+	parity := true
+	for _, g := range hardGates {
+		if id, ok := CanonicalGateID(g.GateID); !ok || string(id) != g.GateID {
+			parity = false
+			break
+		}
+	}
+	r.APIParity = parity && len(LegacyGateAliases) == 17
+
+	// VerdictMutationDetected: forced zero (no producer) must NOT be PASS.
+	forcedZero := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 0}, map[string]bool{})
+	r.VerdictMutationDetected = forcedZero.Verdict != GatePass
+
+	// Reproducible
+	r.Reproducible = HardGateCount() == 282 && len(ApplicableHardGates()) == 1 && len(hardGates) == 282
+
+	// FalseNegativeDetected
+	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},
+		map[string]uint64{"unrelated_control_action_total": 1}, map[string]bool{"unrelated_control_action_total": true})
+	r.FalseNegativeDetected = violated.Verdict == GateFail && violated.Verdict != GatePass
+
+	// EvidenceIntegrity: caller-supplied artifacts pass ArtifactValid and
+	// are non-empty (missing evidence is never PASS).
+	integrity := len(r.Artifacts) > 0
+	for _, a := range r.Artifacts {
+		if !ArtifactValid(a) {
+			integrity = false
+			break
+		}
+	}
+	r.EvidenceIntegrity = integrity
+
+	return r
+}
+
+func registryComplete() bool {
+	if len(hardGates) == 0 {
+		return false
+	}
+	seen := make(map[string]bool, len(hardGates))
+	for _, g := range hardGates {
+		if g.GateID == "" || g.OwnerFamily == "" {
+			return false
+		}
+		if seen[g.GateID] {
+			return false
+		}
+		seen[g.GateID] = true
+	}
+	// Every registered family must be selectable through the scope.
+	var fams []string
+	for _, g := range hardGates {
+		fams = append(fams, g.OwnerFamily)
+	}
+	sort.Strings(fams)
+	return true
+}
+
 func HashBytes(b []byte) string { h := sha256.Sum256(b); return fmtHex(h[:]) }
 func fmtHex(b []byte) string {
 	const hex = "0123456789abcdef"

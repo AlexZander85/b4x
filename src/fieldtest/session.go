@@ -8,6 +8,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/daniellavrushin/b4/validation"
 )
 
 const APIVersion = "/api/v1"
@@ -41,6 +43,9 @@ type TestSession struct {
 	Status           SessionStatus
 	CreatedAt        time.Time
 	EventStream      string
+	// GateEvaluation is the latest structured hard-gate result recorded by
+	// the Field Test Controller (FB-03); nil until first evaluation.
+	GateEvaluation *validation.GateEvaluation
 }
 type Marker struct {
 	Marker, Source    string
@@ -56,7 +61,9 @@ type Event struct {
 	Timestamp                       time.Time         `json:"ts"`
 	RelativeUS                      int64             `json:"t_rel_us"`
 	Event                           string            `json:"event"`
-	ConfigGen, RouteGen, SessionGen uint64            `json:"config_gen,omitempty"`
+	ConfigGen                       uint64            `json:"config_gen,omitempty"`
+	RouteGen                        uint64            `json:"route_gen,omitempty"`
+	SessionGen                      uint64            `json:"session_gen,omitempty"`
 	ClientPseudonym                 string            `json:"client_pseudonym,omitempty"`
 	Fields                          map[string]string `json:"fields,omitempty"`
 }

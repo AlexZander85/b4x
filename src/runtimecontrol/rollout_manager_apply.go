@@ -79,6 +79,15 @@ func (m *Manager) Apply(ctx context.Context, candidate *config.Config, request A
 		return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePrepare, Err: err}
 	}
 	old := m.active.Load()
+	if m.hardGateCheck != nil {
+		if err := m.hardGateCheck(meta.clone()); err != nil {
+			m.cooldown.RecordFailure(key)
+			_ = m.store.Abort()
+			m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
+			m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
+			return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePromote, Err: err}
+		}
+	}
 	if m.beforePromote != nil {
 		if err := m.beforePromote(meta.clone()); err != nil {
 			_ = m.store.Abort()
