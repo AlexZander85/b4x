@@ -135,7 +135,7 @@ Owner review 2026-08-01 (п.1–7) и фаза E2: критерии §FB-03 за
    ↔ Field Test/report: одинаковые names/labels/values/kinds/produced state/window baseline/delta/generation) —
    критерий 4 **PARTIAL → PASS**.
 7. **П.7 Коммиты:** producer_verified_commit = `bd9db5d5`; classification_implementation_commit = `7c99ec8b`;
-   closure_commit = `<SHA closure>` (фаза E2). Полный Docker build/vet/test зелёный.
+   closure_commit = `df145b8a` (фаза E2). Полный Docker build/vet/test зелёный.
 
 **FB-03 статус: READY_FOR_OWNER_REVIEW → COMPLETE.** Все 6 критериев §FB-03 — **PASS** (п.2: PASS_CURRENT_PRODUCTION_SCOPE
 + DEFERRED_DEPENDENCY). Оставшиеся пункты — осознанные DEFERRED dependencies: GSO owner-state consumers (FB-27/PPE),

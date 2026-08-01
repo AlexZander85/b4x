@@ -63,7 +63,7 @@
 13. **Коммиты (owner review п.7):**
     - producer_verified_commit = **`bd9db5d5`** (все 24 producers verified + fixtures + mutation runs);
     - classification_implementation_commit = **`7c99ec8b`** (фаза E: kinds 17/3/4 + window-delta evaluator);
-    - closure_commit = **`<SHA closure>`** (фаза E2: reset semantics, production window, readiness owner-state,
+    - closure_commit = **`df145b8a`** (фаза E2: reset semantics, production window, readiness owner-state,
       `/metrics` export, kind-aware mutation, criterion 2 labels).
 
 ## 2. Вердикты по критериям §FB-03 (v2:290–384)

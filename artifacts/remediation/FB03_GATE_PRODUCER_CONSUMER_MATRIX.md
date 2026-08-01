@@ -2,7 +2,7 @@
 
 **Task:** FB-03 «Создать canonical hard-gate registry, активировать runtime producers/consumers и подключить meta-suite» (B4X_AUDIT_FIX_TASKS v2.md §FB-03).
 **Criterion covered:** §FB-03 п.6 — `artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.*` содержит evidence, а не grep-only proof.
-**Commit SHA:** closure_commit = `<SHA closure>` (фаза E2); producer_verified_commit = `bd9db5d5`; classification_implementation_commit = `7c99ec8b`
+**Commit SHA:** closure_commit = `df145b8a` (фаза E2); producer_verified_commit = `bd9db5d5`; classification_implementation_commit = `7c99ec8b`
 **Created:** 2026-08-01 (v1.1 update: kinds, producer_status, machine-readable consumers/tests/evidence; фаза E2: window-delta, readiness owner-state, criterion 2 labels)
 **Environment:** Windows host + Linux Docker (golang:1.25-alpine) reference CI; `go build ./... && go vet ./... && go test -count=1 ./...` — PASS.
 **Semantics (v2 §0.6, registry schema v1.1):**
