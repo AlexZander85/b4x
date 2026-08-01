@@ -44,7 +44,7 @@ func (m MetaResult) Ready() bool {
 //     yield BLOCKED, not PASS; a non-zero produced gate must yield FAIL.
 //   - EvidenceIntegrity:     caller-supplied artifacts pass ArtifactValid.
 //   - Reproducible:          gate/applicable counts match the generator
-//     constants (282 / 1 verified producer); deterministically sortable.
+//     constants (282 / 24 verified producers); deterministically sortable.
 //   - InfrastructureSafe:    the evaluator does not mutate counters.
 //   - FalseNegativeDetected: violation fixture never yields PASS.
 //
@@ -72,7 +72,7 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	r.VerdictMutationDetected = forcedZero.Verdict != GatePass
 
 	// Reproducible
-	r.Reproducible = HardGateCount() == 282 && len(ApplicableHardGates()) == 1 && len(hardGates) == 282
+	r.Reproducible = HardGateCount() == 282 && len(ApplicableHardGates()) == 24 && len(hardGates) == 282
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},

@@ -15,11 +15,12 @@ func TestHardGateCount(t *testing.T) {
 
 func TestApplicableHardGates(t *testing.T) {
 	gates := ApplicableHardGates()
-	// Only unrelated_control_action_total has a verified runtime producer
-	// (verified 2026-08-01 by Metrics.Inc call-site audit + mutation run);
-	// the other 281 registry entries are missing or telemetry.
-	if len(gates) != 1 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 1", len(gates))
+	// All 24 FB-03 scope gate producers are verified (2026-08-01): CSI-18
+	// unrelated_control_action_total, 19 RST/GSO metrics and 4 PPE metrics.
+	// Each has a real Metrics.Inc call site, an executed fixture and, for the
+	// 9 zero-tolerance gates, an executed mutation run.
+	if len(gates) != 24 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 24", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

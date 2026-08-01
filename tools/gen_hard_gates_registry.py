@@ -120,6 +120,9 @@ NO_TOTAL_SUFFIX: set[str] = set()
 # and expected_producer_location (see below).
 # NOTE: a *declared* producer file is NOT a *verified* producer. Only names
 # listed here were confirmed by actual Metrics.Inc/owner-state call sites.
+# All 24 gate producers in the FB-03 scope are now implemented: each metric
+# has a real Metrics.Inc site reached from a production root (see
+# FB03_GATE_PRODUCER_CONSUMER_MATRIX.md, "producer call sites" column).
 RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
     "unrelated_control_action_total": {
         "symbol": "UnrelatedControlActionTotal++ (validate) -> observability.Metrics.Inc(MetricUnrelatedControlAction) (store)",
@@ -128,37 +131,177 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability; report field incremented at validation.go:265",
         "production_root": "crossservice.Validate() / (*Store).ValidateAndStore (CSI-18 same-client negative control)",
     },
+    "classifier_reassembled_sni_total": {
+        "symbol": "recordObservabilityDecision -> Metrics.Inc(MetricClassifierReassembledSNI)",
+        "file": "src/nfq/classifier_decision.go",
+        "line": 212,
+        "mechanism": "increment-only counter via observability (label result=selected|unselected)",
+        "production_root": "nfq.handleTCPPacket -> traceNFQDecision (reassembled-TCP-SNI evidence selected)",
+    },
+    "classifier_layout_parity_fail_total": {
+        "symbol": "recordObservabilityDecision -> Metrics.Inc(MetricClassifierLayoutParityFail)",
+        "file": "src/nfq/classifier_decision.go",
+        "line": 214,
+        "mechanism": "increment-only counter via observability (reassembled SNI without logical ID)",
+        "production_root": "nfq.handleTCPPacket -> traceNFQDecision (layout parity violation)",
+    },
+    "nfqueue_gso_packets_total": {
+        "symbol": "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOPackets)",
+        "file": "src/nfq/offload.go",
+        "line": 106,
+        "mechanism": "increment-only counter via observability (per GSO-flagged packet)",
+        "production_root": "nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)",
+    },
+    "nfqueue_gso_bytes_total": {
+        "symbol": "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOBytes)",
+        "file": "src/nfq/offload.go",
+        "line": 107,
+        "mechanism": "increment-only byte counter via observability",
+        "production_root": "nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)",
+    },
+    "nfqueue_gso_truncated_total": {
+        "symbol": "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOTruncated)",
+        "file": "src/nfq/offload.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (OriginalLength > PayloadLength)",
+        "production_root": "nfq.handlePacket -> DecodeOffloadMetadata (truncated GSO envelope)",
+    },
+    "nfqueue_gso_csum_not_ready_total": {
+        "symbol": "observeOffloadMetadata -> Metrics.Inc(MetricNFQueueGSOCsumNotReady)",
+        "file": "src/nfq/offload.go",
+        "line": 112,
+        "mechanism": "increment-only counter via observability (NFQA_SKB_CSUMNOTREADY)",
+        "production_root": "nfq.handlePacket -> DecodeOffloadMetadata (unverified checksum GSO)",
+    },
+    "nfqueue_gso_decision_total": {
+        "symbol": "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSODecision)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 209,
+        "mechanism": "increment-only counter via observability (label path=result)",
+        "production_root": "nfq.handleGSOFastPath (GSO fast-path verdict)",
+    },
+    "nfqueue_gso_normalized_total": {
+        "symbol": "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSONormalized)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 211,
+        "mechanism": "increment-only counter via observability (normalize-queued path)",
+        "production_root": "nfq.handleGSOFastPath (normalizer direct queue)",
+    },
+    "nfqueue_gso_action_suppressed_total": {
+        "symbol": "traceGSOFastPath -> Metrics.Inc(MetricNFQueueGSOActionSuppressed)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 214,
+        "mechanism": "increment-only counter via observability (action-suppressed result)",
+        "production_root": "nfq.handleGSOFastPath (suppression budget)",
+    },
+    "nfqueue_gso_token_miss_total": {
+        "symbol": "traceGSONormalizerMiss -> Metrics.Inc(MetricNFQueueGSOTokenMiss)",
+        "file": "src/nfq/gso_normalizer.go",
+        "line": 61,
+        "mechanism": "increment-only counter via observability (secondary-pass fail-open)",
+        "production_root": "nfq GSO normalizer secondary pass (pass-token miss)",
+    },
+    "nfqueue_gso_transition_total": {
+        "symbol": "ApplyRuntimeControlTopology defer -> Metrics.Inc(MetricNFQueueGSOTransition)",
+        "file": "src/http/handler/runtime_topology.go",
+        "line": 38,
+        "mechanism": "increment-only counter via observability (deferred; result=success|rollback)",
+        "production_root": "http API ApplyRuntimeControlTopology (double-buffered GSO topology switch)",
+    },
+    "passive_rst_observed_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTObserved)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 106,
+        "mechanism": "increment-only counter via observability (per signal)",
+        "production_root": "nfq.observePassiveRSTIncoming/Outgoing (passive RST observation)",
+    },
+    "passive_rst_decision_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTDecision)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 108,
+        "mechanism": "increment-only counter via observability (label decision=...)",
+        "production_root": "nfq.observePassiveRSTIncoming (enforcement decision)",
+    },
+    "passive_rst_baseline_quality_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTBaselineQuality)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (label quality=...)",
+        "production_root": "nfq.observePassiveRSTIncoming (baseline quality)",
+    },
+    "passive_rst_suppressed_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTSuppressed)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (suppress decision)",
+        "production_root": "nfq.observePassiveRSTIncoming (suppression)",
+    },
+    "passive_rst_fail_open_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTFailOpen)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 116,
+        "mechanism": "increment-only counter via observability (fail-open decision)",
+        "production_root": "nfq.observePassiveRSTIncoming (fail-open enforcement)",
+    },
+    "passive_rst_budget_exhausted_total": {
+        "symbol": "recordPassiveRSTMetrics -> Metrics.Inc(MetricPassiveRSTBudgetExhausted)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 118,
+        "mechanism": "increment-only counter via observability (fail-open reason=budget)",
+        "production_root": "nfq.observePassiveRSTIncoming (suppression budget exhausted)",
+    },
+    "passive_rst_rollback_total": {
+        "symbol": "PassiveRSTStore.RecordHealth -> Metrics.Inc(MetricPassiveRSTRollback)",
+        "file": "src/nfq/passive_rst_rollback.go",
+        "line": 134,
+        "mechanism": "increment-only counter via observability (scoped rollback commit)",
+        "production_root": "pool.RecordPassiveRSTHealth -> PassiveRSTStore.RecordHealth (scope-local rollback)",
+    },
+    "passive_rst_reconnect_regression_total": {
+        "symbol": "PassiveRSTStore.RecordHealth -> Metrics.Inc(MetricPassiveRSTReconnectRegression)",
+        "file": "src/nfq/passive_rst_rollback.go",
+        "line": 136,
+        "mechanism": "increment-only counter via observability (reason=reconnect failure regression)",
+        "production_root": "pool.RecordPassiveRSTHealth (reconnect failure regression)",
+    },
+    "b4_ppe_rule_reapply_total": {
+        "symbol": "productLifecycleMetrics.Reapply -> Metrics.Inc(MetricPPERuleReapply)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 513,
+        "mechanism": "increment-only counter via observability (label result=success|failure)",
+        "production_root": "PPE lifecycle reapply (reconciler Assert/Reapply loop)",
+    },
+    "b4_ppe_self_test_total": {
+        "symbol": "ProductService.RunSelfTest -> Metrics.Inc(MetricPPESelfTest)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 348,
+        "mechanism": "increment-only counter via observability (label verdict=...)",
+        "production_root": "PPE self-test controller run (visibility A/B probe)",
+    },
+    "b4_capture_visibility_degrade_total": {
+        "symbol": "NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricCaptureVisibilityDegrade)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 110,
+        "mechanism": "increment-only counter via observability (visibility gate degradation)",
+        "production_root": "visibility gate Degrade -> ProductService subscriber",
+    },
+    "b4_hold_disabled_visibility_total": {
+        "symbol": "NewProductService gate.SubscribeBlocked callback -> Metrics.Inc(MetricHoldDisabledVisibility)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 111,
+        "mechanism": "increment-only counter via observability (hold disabled while visibility degraded)",
+        "production_root": "visibility gate Degrade -> ProductService subscriber",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
 # implemented. Field runtime_producer stays null; the mapping below is only
 # the owner-normative location where the producer must be wired (FB-27 for
 # RST/GSO, PPE production wiring for PPE).
-EXPECTED_PRODUCER_LOCATION: dict[str, str] = {
-    "b4_capture_visibility_degrade_total": "capture/ppe/product_service.go",
-    "b4_hold_disabled_visibility_total": "capture/ppe/product_service.go",
-    "b4_ppe_rule_reapply_total": "capture/ppe/product_service.go",
-    "b4_ppe_self_test_total": "capture/ppe/product_service.go",
-    "classifier_layout_parity_fail_total": "nfq/classifier_decision.go",
-    "classifier_reassembled_sni_total": "nfq/classifier_decision.go",
-    "nfqueue_gso_action_suppressed_total": "nfq/gso_fastpath.go",
-    "nfqueue_gso_bytes_total": "nfq/offload.go",
-    "nfqueue_gso_csum_not_ready_total": "nfq/offload.go",
-    "nfqueue_gso_decision_total": "nfq/gso_fastpath.go",
-    "nfqueue_gso_normalized_total": "nfq/gso_fastpath.go",
-    "nfqueue_gso_packets_total": "nfq/offload.go",
-    "nfqueue_gso_token_miss_total": "nfq/gso_normalizer.go",
-    "nfqueue_gso_transition_total": "http/handler/runtime_topology.go",
-    "nfqueue_gso_truncated_total": "nfq/offload.go",
-    "passive_rst_baseline_quality_total": "nfq/passive_rst_observe.go",
-    "passive_rst_budget_exhausted_total": "nfq/passive_rst_observe.go",
-    "passive_rst_decision_total": "nfq/passive_rst_observe.go",
-    "passive_rst_fail_open_total": "nfq/passive_rst_observe.go",
-    "passive_rst_observed_total": "nfq/passive_rst_observe.go",
-    "passive_rst_reconnect_regression_total": "nfq/passive_rst_rollback.go",
-    "passive_rst_rollback_total": "nfq/passive_rst_rollback.go",
-    "passive_rst_suppressed_total": "nfq/passive_rst_observe.go",
-}
+# As of 2026-08-01 every FB-03 gate producer is implemented and verified, so
+# this mapping is empty; it is kept as the normative fallback for any future
+# gate added without a producer.
+EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
@@ -205,11 +348,13 @@ GATE_KINDS: dict[str, str] = {
 }
 
 # Verdict consumers wired in production (2026-08-01): metric name -> list of
-# machine-readable consumer descriptors. Only blocking gates need consumers;
-# telemetry gates are not consumed by promotion. kind:
+# machine-readable consumer descriptors. kind:
 #   promotion_blocker   — blocks promotion when count != 0
 #   aggregation_blocker — gate-evaluation aggregation (fail-closed)
+#   aggregation_observer — informational telemetry aggregation (never blocks)
 #   http_report         — observable report endpoint
+# Zero-tolerance gates are consumed by the promotion path (fail-closed);
+# telemetry gates are only aggregated into Telemetry and reported.
 VERDICT_CONSUMERS: dict[str, list[dict]] = {
     "unrelated_control_action_total": [
         {
@@ -233,6 +378,106 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
             "line": 0,
             "binding": "live snapshot",
         },
+    ],
+    "classifier_layout_parity_fail_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_truncated_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_csum_not_ready_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_token_miss_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_fail_open_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_reconnect_regression_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "b4_capture_visibility_degrade_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.ppe; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "b4_hold_disabled_visibility_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.ppe; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "classifier_reassembled_sni_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_packets_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_bytes_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_decision_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_normalized_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_action_suppressed_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nfqueue_gso_transition_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_observed_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_decision_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_suppressed_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_baseline_quality_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_budget_exhausted_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "passive_rst_rollback_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "b4_ppe_rule_reapply_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "b4_ppe_self_test_total": [
+        {"kind": "aggregation_observer", "symbol": "EvaluateHardGates telemetry branch", "file": "src/validation/gates.go", "line": 222, "binding": "informational aggregation"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
 }
 
@@ -262,6 +507,75 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
             "assertion": "counter != 0 -> GateFail",
         },
     ],
+    "nfqueue_gso_packets_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOOffloadMetadata", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "assertion": "IsGSO metadata -> counter > 0"},
+    ],
+    "nfqueue_gso_bytes_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOOffloadMetadata", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "assertion": "IsGSO metadata -> counter > 0"},
+    ],
+    "nfqueue_gso_truncated_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_GSOOffloadMetadata", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "assertion": "truncated metadata -> counter > 0 (mutation run executed)"},
+    ],
+    "nfqueue_gso_csum_not_ready_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_GSOOffloadMetadata", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "assertion": "checksum-not-ready metadata -> counter > 0 (mutation run executed)"},
+    ],
+    "nfqueue_gso_decision_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOFastPathDecisions", "file": "src/nfq/hard_gate_producers_test.go", "line": 66, "assertion": "fast-path verdict -> counter > 0"},
+    ],
+    "nfqueue_gso_normalized_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOFastPathDecisions", "file": "src/nfq/hard_gate_producers_test.go", "line": 66, "assertion": "normalize-queued path -> counter > 0"},
+    ],
+    "nfqueue_gso_action_suppressed_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOFastPathDecisions", "file": "src/nfq/hard_gate_producers_test.go", "line": 66, "assertion": "action-suppressed path -> counter > 0"},
+    ],
+    "nfqueue_gso_token_miss_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_GSOTokenMiss", "file": "src/nfq/hard_gate_producers_test.go", "line": 90, "assertion": "normalizer secondary miss -> counter > 0 (mutation run executed)"},
+    ],
+    "nfqueue_gso_transition_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_GSOTransition", "file": "src/http/handler/hard_gate_producers_test.go", "line": 34, "assertion": "topology apply defer -> counter > 0"},
+    ],
+    "passive_rst_observed_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "2 signals -> counter == 2"},
+    ],
+    "passive_rst_decision_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "enforcement decision -> counter > 0"},
+    ],
+    "passive_rst_suppressed_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "suppress decision -> counter > 0"},
+    ],
+    "passive_rst_fail_open_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "fail-open decision -> counter > 0 (mutation run executed)"},
+    ],
+    "passive_rst_baseline_quality_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "baseline quality -> counter > 0"},
+    ],
+    "passive_rst_budget_exhausted_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTMetrics", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "assertion": "budget fail-open -> counter > 0"},
+    ],
+    "passive_rst_rollback_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PassiveRSTRollback", "file": "src/nfq/hard_gate_producers_test.go", "line": 141, "assertion": "RecordHealth triggered -> counter > 0"},
+    ],
+    "passive_rst_reconnect_regression_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_PassiveRSTRollback", "file": "src/nfq/hard_gate_producers_test.go", "line": 141, "assertion": "reconnect regression -> counter > 0 (mutation run executed)"},
+    ],
+    "classifier_reassembled_sni_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_ClassifierLayoutParity", "file": "src/nfq/hard_gate_producers_test.go", "line": 175, "assertion": "reassembled-SNI selection -> counter > 0"},
+    ],
+    "classifier_layout_parity_fail_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_ClassifierLayoutParity", "file": "src/nfq/hard_gate_producers_test.go", "line": 175, "assertion": "reassembled-SNI without logical ID -> counter > 0 (mutation run executed)"},
+    ],
+    "b4_ppe_rule_reapply_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PPERuleReapply", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 85, "assertion": "lifecycle Reapply -> counter > 0"},
+    ],
+    "b4_ppe_self_test_total": [
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_PPESelfTest", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 52, "assertion": "RunSelfTest -> counter > 0"},
+    ],
+    "b4_capture_visibility_degrade_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_CaptureVisibilityDegrade", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "assertion": "gate Degrade -> counter > 0 (mutation run executed)"},
+    ],
+    "b4_hold_disabled_visibility_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_CaptureVisibilityDegrade", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "assertion": "gate Degrade -> counter > 0 (mutation run executed)"},
+    ],
 }
 
 # Executed mutation tests per gate (removed/disabled producer must flip the
@@ -276,6 +590,30 @@ MUTATION_TESTS: dict[str, list[dict]] = {
             "status": "executed",
         },
     ],
+    "nfqueue_gso_truncated_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "status": "executed"},
+    ],
+    "nfqueue_gso_csum_not_ready_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 37, "status": "executed"},
+    ],
+    "nfqueue_gso_token_miss_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_GSOTokenMiss (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 90, "status": "executed"},
+    ],
+    "classifier_layout_parity_fail_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_ClassifierLayoutParity (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 175, "status": "executed"},
+    ],
+    "passive_rst_fail_open_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_PassiveRSTMetrics (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 102, "status": "executed"},
+    ],
+    "passive_rst_reconnect_regression_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_PassiveRSTRollback (producer removed)", "file": "src/nfq/hard_gate_producers_test.go", "line": 141, "status": "executed"},
+    ],
+    "b4_capture_visibility_degrade_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "status": "executed"},
+    ],
+    "b4_hold_disabled_visibility_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -286,6 +624,41 @@ EVIDENCE_ARTIFACTS: dict[str, list[str]] = {
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
     ],
 }
+_EVIDENCE_RSTGSO = [
+    "artifacts/audit/hard_gates_audit.md",
+    "artifacts/audit/csi_ppe_rstgso_audit.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/nfq/hard_gate_producers_test.go",
+]
+_EVIDENCE_PPE = [
+    "artifacts/audit/hard_gates_audit.md",
+    "artifacts/audit/csi_ppe_rstgso_audit.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/capture/ppe/hard_gate_producers_test.go",
+]
+for _name in [
+    "classifier_reassembled_sni_total", "classifier_layout_parity_fail_total",
+    "nfqueue_gso_packets_total", "nfqueue_gso_bytes_total",
+    "nfqueue_gso_truncated_total", "nfqueue_gso_csum_not_ready_total",
+    "nfqueue_gso_decision_total", "nfqueue_gso_normalized_total",
+    "nfqueue_gso_action_suppressed_total", "nfqueue_gso_token_miss_total",
+    "passive_rst_observed_total", "passive_rst_decision_total",
+    "passive_rst_suppressed_total", "passive_rst_fail_open_total",
+    "passive_rst_baseline_quality_total", "passive_rst_budget_exhausted_total",
+    "passive_rst_rollback_total", "passive_rst_reconnect_regression_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_RSTGSO)
+for _name in [
+    "b4_ppe_rule_reapply_total", "b4_ppe_self_test_total",
+    "b4_capture_visibility_degrade_total", "b4_hold_disabled_visibility_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_PPE)
+EVIDENCE_ARTIFACTS["nfqueue_gso_transition_total"] = [
+    "artifacts/audit/hard_gates_audit.md",
+    "artifacts/audit/csi_ppe_rstgso_audit.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/http/handler/hard_gate_producers_test.go",
+]
 
 GATE_RE = re.compile(r"^([a-z][a-z0-9_]+)\s*==\s*0\s*$")
 METRIC_RE = re.compile(r"^([a-z][a-z0-9_]+_total)(?:\{[^}]*\})?\s*$")
