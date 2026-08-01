@@ -47,27 +47,27 @@ func (p scriptedProbe) Run(_ context.Context, request ProbeRequest) (ProbeOutcom
 	if p.mode == "error" {
 		return ProbeOutcome{}, errors.New("probe failed")
 	}
-	emitTCPFirst(p.bus, request.FlowID)
+	emitTCPFirst(p.bus, request.Family, request.FlowID)
 	complete := request.Phase == PhaseWithExclusion || p.mode == "both-complete"
 	if complete {
-		emitTCPComplete(p.bus, request.FlowID)
+		emitTCPComplete(p.bus, request.Family, request.FlowID)
 	}
 	if request.Protocol == "quic" {
-		p.bus.Observe(PassiveObservation{FlowID: request.FlowID, Protocol: "udp", Direction: PassiveOutgoing, PayloadBytes: 1200, QUIC: true})
+		p.bus.Observe(PassiveObservation{FlowID: request.FlowID, Family: request.Family, Protocol: "udp", Direction: PassiveOutgoing, PayloadBytes: 1200, QUIC: true})
 		if complete {
-			p.bus.Observe(PassiveObservation{FlowID: request.FlowID, Protocol: "udp", Direction: PassiveIncoming, PayloadBytes: 1200, QUIC: true})
+			p.bus.Observe(PassiveObservation{FlowID: request.FlowID, Family: request.Family, Protocol: "udp", Direction: PassiveIncoming, PayloadBytes: 1200, QUIC: true})
 		}
 	}
 	return ProbeOutcome{Protocol: request.Protocol, ClientEmitted: true}, nil
 }
 
-func emitTCPFirst(bus *ObservationBus, flowID string) {
-	bus.Observe(PassiveObservation{FlowID: flowID, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 100, HasSequence: true, PayloadBytes: 40})
+func emitTCPFirst(bus *ObservationBus, family, flowID string) {
+	bus.Observe(PassiveObservation{FlowID: flowID, Family: family, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 100, HasSequence: true, PayloadBytes: 40})
 }
-func emitTCPComplete(bus *ObservationBus, flowID string) {
-	bus.Observe(PassiveObservation{FlowID: flowID, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 140, HasSequence: true, PayloadBytes: 60})
-	bus.Observe(PassiveObservation{FlowID: flowID, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 100, HasSequence: true, PayloadBytes: 40})
-	bus.Observe(PassiveObservation{FlowID: flowID, Protocol: "tcp", Direction: PassiveIncoming, ACK: true})
+func emitTCPComplete(bus *ObservationBus, family, flowID string) {
+	bus.Observe(PassiveObservation{FlowID: flowID, Family: family, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 140, HasSequence: true, PayloadBytes: 60})
+	bus.Observe(PassiveObservation{FlowID: flowID, Family: family, Protocol: "tcp", Direction: PassiveOutgoing, Sequence: 100, HasSequence: true, PayloadBytes: 40})
+	bus.Observe(PassiveObservation{FlowID: flowID, Family: family, Protocol: "tcp", Direction: PassiveIncoming, ACK: true})
 }
 
 func supportedCapability() CapabilityReport {

@@ -23,7 +23,7 @@ func TestSelfTestControllerHealthyButIncompleteBIsFAIL(t *testing.T) {
 type firstOnlyProbe struct{ bus *ObservationBus }
 
 func (p firstOnlyProbe) Run(_ context.Context, request ProbeRequest) (ProbeOutcome, error) {
-	emitTCPFirst(p.bus, request.FlowID)
+	emitTCPFirst(p.bus, request.Family, request.FlowID)
 	return ProbeOutcome{Protocol: request.Protocol, ClientEmitted: true}, nil
 }
 

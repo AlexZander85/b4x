@@ -97,8 +97,8 @@ func TestCollectActualOwnedRulesIsRedacted(t *testing.T) {
 func TestApplyConfigRejectsSkipTables(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.System.Tables.SkipSetup = true
-	service := NewProductService(func() *config.Config { return cfg }, nil, DefaultManagedSourceSet)
-	if _, err := service.ApplyConfig(context.Background(), cfg); err == nil || !strings.Contains(err.Error(), "skip_setup") {
+	service := NewProductService(func() *config.Config { return &cfg }, nil, DefaultManagedSourceSet)
+	if _, err := service.ApplyConfig(context.Background(), &cfg); err == nil || !strings.Contains(err.Error(), "skip_setup") {
 		t.Fatalf("skip-tables PPE apply accepted: %v", err)
 	}
 }
