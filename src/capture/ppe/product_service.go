@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
@@ -62,6 +63,7 @@ type ProductService struct {
 	idempotencyMu    sync.Mutex
 	idempotency      map[string]*productIdempotencyEntry
 	selfTestMu       sync.Mutex
+	selfTestFlight   atomic.Bool
 	started          bool
 }
 
@@ -303,6 +305,7 @@ func (s *ProductService) ApplyConfig(ctx context.Context, cfg *config.Config) (P
 	if s.reconciler != nil {
 		s.reconciler.Notify(ReconcileManual)
 	}
+	s.maybeRunAutomaticSelfTest()
 	s.record("apply", desired.Generation, true, "")
 	return s.Snapshot(ctx), nil
 }
@@ -344,15 +347,118 @@ func (s *ProductService) RunSelfTest(ctx context.Context, request SelfTestReques
 	}
 	started := time.Now()
 	result := s.selfTest.Run(ctx, request)
+	s.publishSelfTestOutcome(request, result, started, "manual")
+	return result, nil
+}
+
+// publishSelfTestOutcome records the metric, the last-result snapshot and the
+// audit trail for a completed self-test. It is shared by manual (HTTP) and
+// automatic runs so both paths emit identical evidence.
+func (s *ProductService) publishSelfTestOutcome(request SelfTestRequest, result CaptureVisibilityResult, started time.Time, trigger string) {
 	recorder := observability.Default()
-	recorder.Metrics.Inc(observability.MetricPPESelfTest, map[string]string{"verdict": string(result.Verdict)}, 1)
-	recorder.Metrics.Observe(observability.MetricPPESelfTestDuration, map[string]string{"verdict": string(result.Verdict)}, float64(time.Since(started).Milliseconds()))
+	labels := map[string]string{"verdict": string(result.Verdict), "trigger": trigger}
+	recorder.Metrics.Inc(observability.MetricPPESelfTest, labels, 1)
+	recorder.Metrics.Observe(observability.MetricPPESelfTestDuration, labels, float64(time.Since(started).Milliseconds()))
 	s.mu.Lock()
 	clone := cloneVisibilityResult(result)
 	s.lastSelfTest = &clone
 	s.mu.Unlock()
-	s.record("self-test", request.Generation, result.Verdict == VerdictPASS, string(result.Verdict))
-	return result, nil
+	s.record("self-test", request.Generation, result.Verdict == VerdictPASS, trigger+":"+string(result.Verdict))
+}
+
+// automaticSelfTestRequest derives the automatic visibility self-test request
+// from the active configuration. It returns false when the configured mode
+// does not require an automatic run (off/manual) or when the controlled
+// endpoint is not configured — without an endpoint a controlled A/B probe
+// cannot be emitted and the automatic run is skipped; the generation-bound
+// requirement remains visible in the gate for a manual run.
+func (s *ProductService) automaticSelfTestRequest(cfg *config.Config) (SelfTestRequest, bool) {
+	if cfg == nil {
+		return SelfTestRequest{}, false
+	}
+	selfTest := cfg.System.Classifier.Runtime.Capture.PPE.SelfTest
+	if selfTest.Mode != config.PPESelfTestStartupAndChange {
+		return SelfTestRequest{}, false
+	}
+	endpoint := strings.TrimSpace(selfTest.ControlledEndpoint)
+	if endpoint == "" {
+		return SelfTestRequest{}, false
+	}
+	timeout := time.Duration(selfTest.TimeoutMS) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	sourcePort := uint16(443)
+	if ports := cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts; len(ports) > 0 {
+		sourcePort = ports[0]
+	}
+	return SelfTestRequest{
+		RunID:              "auto",
+		ControlledEndpoint: endpoint,
+		Family:             "ipv4",
+		TCPSourcePort:      sourcePort,
+		Timeout:            timeout,
+	}, true
+}
+
+// maybeRunAutomaticSelfTest starts an asynchronous self-test when the active
+// configuration requires one (mode startup-and-change), a generation is
+// active, and the current generation has not been proven yet. The run is
+// single-flight: concurrent applies/config changes do not start a second
+// probe while one is already in flight.
+func (s *ProductService) maybeRunAutomaticSelfTest() {
+	if s == nil || s.selfTest == nil {
+		return
+	}
+	request, ok := s.automaticSelfTestRequest(s.currentConfig())
+	if !ok {
+		return
+	}
+	current, ok := s.transactions.Current()
+	if !ok {
+		return
+	}
+	request.Generation = current.Generation
+	request.RunID = "auto-" + current.Generation
+	request.TCPFlowID = request.RunID + "-tcp"
+	if provenForGeneration(request.Generation) {
+		return
+	}
+	if !s.selfTestFlight.CompareAndSwap(false, true) {
+		return
+	}
+	go s.runAutomaticSelfTest(request)
+}
+
+// runAutomaticSelfTest executes the automatic self-test asynchronously. The
+// generation and proof state are re-checked after scheduling: a result is
+// never published for a generation that was removed or already proven while
+// the goroutine was waiting for the single-flight slot.
+func (s *ProductService) runAutomaticSelfTest(request SelfTestRequest) {
+	defer s.selfTestFlight.Store(false)
+	ctx := context.Background()
+	s.mu.Lock()
+	if s.lifecycleCtx != nil {
+		ctx = s.lifecycleCtx
+	}
+	s.mu.Unlock()
+	current, ok := s.transactions.Current()
+	if !ok || current.Generation != request.Generation {
+		return
+	}
+	if provenForGeneration(request.Generation) {
+		return
+	}
+	s.selfTestMu.Lock()
+	defer s.selfTestMu.Unlock()
+	started := time.Now()
+	result := s.selfTest.Run(ctx, request)
+	s.publishSelfTestOutcome(request, result, started, "automatic")
+}
+
+func provenForGeneration(generation string) bool {
+	snapshot := DefaultVisibilityGate().Snapshot()
+	return snapshot.Mode == VisibilityComplete && snapshot.Generation == generation && snapshot.LastVerdict == VerdictPASS
 }
 
 func (s *ProductService) SelfTestResult(runID string) (CaptureVisibilityResult, bool) {
