@@ -38,12 +38,13 @@ func TestIV18RunSuiteIsFailClosed(t *testing.T) {
 	if result.SuiteID != IV18SuiteID || result.Registered != 22 {
 		t.Fatalf("suite identity: %+v", result)
 	}
-	// Legacy mutating path is gone (authoritative cutover): reachability is
-	// clean, but the verdict must remain BLOCKED while production
-	// dependencies of the monitoring cutover are not yet wired
-	// (BLOCKED_BY_DEPENDENCY, never a false PASS).
-	if result.Verdict != Blocked {
-		t.Fatalf("suite verdict = %v, want BLOCKED while production dependencies missing", result.Verdict)
+	// Legacy mutating path is gone (authoritative cutover) AND the production
+	// monitoring chain is wired (ObservationBus, DiagnosticScheduler,
+	// ABD->DDI, /api/monitor/v1): the suite verdict must be PASS. The gate
+	// stays fail-closed by construction: if any dependency or requirement is
+	// missing the verdict flips to Blocked (never a false PASS).
+	if result.Verdict != Pass {
+		t.Fatalf("suite verdict = %v, want PASS with production wiring landed", result.Verdict)
 	}
 	if len(result.MissingCoverage) != 0 {
 		t.Fatalf("all requirements must have coverage after E3/E4, missing: %v", result.MissingCoverage)
@@ -54,11 +55,11 @@ func TestIV18RunSuiteIsFailClosed(t *testing.T) {
 	if len(result.LegacyMutatingHits) != 0 {
 		t.Fatalf("legacy mutating path must be removed by cutover, hits: %+v", result.LegacyMutatingHits)
 	}
-	if result.ProductionReady {
-		t.Fatalf("full production readiness must be false while dependencies missing: %+v", result)
+	if !result.ProductionReady {
+		t.Fatalf("full production readiness must be true with dependencies wired: %+v", result)
 	}
-	if len(result.BlockedDependencies) == 0 {
-		t.Fatalf("expected blocked production dependencies on unwired tree: %+v", result)
+	if len(result.BlockedDependencies) != 0 {
+		t.Fatalf("expected 0 blocked production dependencies with wiring landed: %+v", result)
 	}
 }
 

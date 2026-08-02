@@ -17,6 +17,7 @@ import (
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
 	"github.com/daniellavrushin/b4/mtproto"
+	"github.com/daniellavrushin/b4/monitoring"
 	"github.com/daniellavrushin/b4/nfq"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/utils"
@@ -45,6 +46,7 @@ var (
 	mtprotoCFRefreshFunc func(*config.Config)
 	discoveryRuntime     *discovery.Runtime
 	globalWatchdog       *watchdog.Watchdog
+	globalMonitoring     *monitoring.Runtime
 	globalAIManager      *ai.Manager
 	globalTUNEngine      *b4tun.Engine
 )
@@ -194,6 +196,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterRuntimeControlAPI()
 	api.RegisterValidationAPI()
 	api.RegisterPrometheusAPI()
+	api.RegisterMonitorAPI()
 }
 
 func sendResponse(w http.ResponseWriter, response interface{}) {
@@ -222,6 +225,10 @@ func SetDiscoveryRuntime(rt *discovery.Runtime) {
 
 func SetWatchdog(wd *watchdog.Watchdog) {
 	globalWatchdog = wd
+}
+
+func SetMonitoringRuntime(rt *monitoring.Runtime) {
+	globalMonitoring = rt
 }
 
 func checkDiskSpace(dir string, needed int64) error {

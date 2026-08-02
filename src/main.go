@@ -26,6 +26,7 @@ import (
 	"github.com/daniellavrushin/b4/http/handler"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/mtproto"
+	"github.com/daniellavrushin/b4/monitoring"
 	"github.com/daniellavrushin/b4/nfq"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/socks5"
@@ -433,6 +434,14 @@ func runB4(cmd *cobra.Command, args []string) error {
 	wd.Start()
 	handler.SetWatchdog(wd)
 
+	// MON -> ABD -> DDI production runtime (IV-18-MON-09 wiring): consumes
+	// observations from the PPE capture-visibility gate and drives the
+	// bounded diagnostic scheduler. Read-only by design — it never mutates
+	// configuration.
+	monitoringRT := monitoring.NewRuntime(monitoring.DefaultConfig())
+	monitoringRT.Start()
+	handler.SetMonitoringRuntime(monitoringRT)
+
 	var geoScheduler *geodat.Scheduler
 	if apiHandler != nil {
 		geoScheduler = geodat.NewScheduler(
@@ -464,6 +473,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 	metrics.RecordEvent("info", fmt.Sprintf("Shutdown initiated by signal: %v", sig))
 
 	wd.Stop()
+	monitoringRT.Stop()
 	if geoScheduler != nil {
 		geoScheduler.Stop()
 	}

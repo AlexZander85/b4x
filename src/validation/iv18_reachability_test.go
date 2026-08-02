@@ -9,10 +9,11 @@ import (
 // TestIV18ReverseReachabilityCleanAfterCutover pins the FB-28 authoritative
 // cutover result: the legacy Watchdog mutating path (applyBatchResults,
 // src/watchdog/applier.go) is gone from the production tree, so the static
-// reverse-reachability scan reports zero hits. The full mon_production_ready
-// gate must STILL not flip to PASS, because the production dependencies of
-// the monitoring cutover are not wired (BLOCKED_BY_DEPENDENCY, owner decision
-// 2026-08-02).
+// reverse-reachability scan reports zero hits. With the production monitoring
+// chain wired (ObservationBus, DiagnosticScheduler, ABD->DDI, /api/monitor/v1)
+// the full mon_production_ready gate must now PASS; a regression that
+// resurrects the legacy path flips it back to BLOCKED (owner decision
+// 2026-08-02, updated when the production integration landed).
 func TestIV18ReverseReachabilityCleanAfterCutover(t *testing.T) {
 	res := IV18ReverseReachability("")
 	if !res.ProductionReady {
@@ -21,10 +22,8 @@ func TestIV18ReverseReachabilityCleanAfterCutover(t *testing.T) {
 	if len(res.Hits) != 0 {
 		t.Fatalf("expected zero production call sites of %q after cutover, got %+v", legacyMutatingCall, res.Hits)
 	}
-	// The gate is fail-closed: reachability clean is necessary but not
-	// sufficient — production dependencies keep it BLOCKED.
-	if MonProductionReady() {
-		t.Fatal("mon_production_ready must stay BLOCKED_BY_DEPENDENCY while production wiring is absent")
+	if !MonProductionReady() {
+		t.Fatal("mon_production_ready must PASS with legacy path removed and production dependencies wired")
 	}
 }
 
@@ -52,16 +51,22 @@ func legacy() {
 	if len(res.Hits) != 1 || res.Hits[0].Line == 0 {
 		t.Fatalf("expected exactly one seeded hit, got %+v", res.Hits)
 	}
-	if MonProductionReady() {
-		t.Fatal("mon_production_ready must be blocked while a legacy-shaped caller exists")
+	// The scan is the single input of the gate: zero hits are both necessary
+	// and sufficient on any production tree, so a resurrected legacy-shaped
+	// caller can never claim PASS (checked per-tree here; the production tree
+	// itself is covered by TestIV18ReverseReachabilityCleanAfterCutover).
+	if IV18ReverseReachability(dir).ProductionReady {
+		t.Fatal("scan must not report production ready for a seeded tree")
 	}
 }
 
 // TestIV18ProductionDependenciesFailClosed keeps the full MON_PRODUCTION_READY
-// semantics honest: removing the legacy path alone must NOT flip the gate to
-// PASS while the production monitoring chain, the ABD->DDI chain and the
-// /api/monitor/v1 endpoint are not yet wired. The gate is BLOCKED_BY_DEPENDENCY
-// until every prerequisite exists (owner decision 2026-08-02).
+// semantics honest: the gate lists every production prerequisite and each must
+// be Ready before PASS is possible. With the monitoring chain wired
+// (ObservationBus, DiagnosticScheduler, ABD->DDI, /api/monitor/v1) zero
+// dependencies are blocked; the test pans if any dependency flips back to
+// not-ready without a source of truth (owner decision 2026-08-02, updated
+// when the production integration landed).
 func TestIV18ProductionDependenciesFailClosed(t *testing.T) {
 	deps := IV18ProductionDependencies()
 	if len(deps) < 4 {
@@ -73,11 +78,11 @@ func TestIV18ProductionDependenciesFailClosed(t *testing.T) {
 		}
 	}
 	blocked := IV18ProductionDependenciesBlocked()
-	// On a tree without monitor production wiring all four must currently be
-	// not-ready; the test may be updated when the production integration
-	// lands, but must never silently pass on an unwired tree.
-	if len(blocked) != 4 {
-		t.Fatalf("expected 4 blocked production dependencies on unwired tree, got %+v", blocked)
+	if len(blocked) != 0 {
+		t.Fatalf("expected 0 blocked production dependencies with wiring landed, got %+v", blocked)
+	}
+	if !MonProductionReady() {
+		t.Fatal("mon_production_ready must PASS with all production dependencies wired")
 	}
 }
 
