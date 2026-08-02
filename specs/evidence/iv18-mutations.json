@@ -1,0 +1,88 @@
+{
+  "suite": "IV-18-MUTATIONS",
+  "generated_at": "2026-08-02T09:40:59.607282+00:00",
+  "total": 11,
+  "killed": 11,
+  "escaped": 0,
+  "errors": 0,
+  "verdict": "PASS",
+  "mutations": [
+    {
+      "id": "M1-invalid-observation-rejected",
+      "file": "observation_bus.go",
+      "target": "TestBusValidatesScopeAndPreservesSafetyLane",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M2-queue-drop-safety-lane",
+      "file": "observation_bus.go",
+      "target": "TestBusValidatesScopeAndPreservesSafetyLane",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M3-failing-boundary",
+      "file": "temporal.go",
+      "target": "TestTemporalHysteresisAndBoundedBuckets",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M4-bucket-limit-removed",
+      "file": "temporal.go",
+      "target": "TestTemporalHysteresisAndBoundedBuckets",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M5-quick-overload-boundary",
+      "file": "scheduler.go",
+      "target": "TestSchedulerOverloadIsBounded",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M6-backoff-removed",
+      "file": "scheduler.go",
+      "target": "TestSchedulerCoalescesAndLeases",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M7-empty-path-evidence-accepted",
+      "file": "ddi.go",
+      "target": "TestRecommendationRequiresIPPathEvidence",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M7b-expired-ddi-fresh",
+      "file": "ddi.go",
+      "target": "TestDDIAndDiscoveryRequireFreshAuthoritativeInputs",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M8-scope-mismatch-accepted",
+      "file": "abd_adapter.go",
+      "target": "TestABDEscalationRejectsScopeMismatch",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M10-android-origin-dropped",
+      "file": "canary.go",
+      "target": "TestCanaryRequiresAndroidMilestoneSeparately",
+      "result": "killed",
+      "detail": "FAIL"
+    },
+    {
+      "id": "M11-rollback-inverted",
+      "file": "canary.go",
+      "target": "TestCanaryRollbackIsObservationOnly",
+      "result": "killed",
+      "detail": "FAIL"
+    }
+  ]
+}

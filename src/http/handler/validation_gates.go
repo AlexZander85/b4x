@@ -7,10 +7,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/validation"
 )
 
 const validationGatesAPIPath = "/api/v2/validation/gates"
+const validationIV18APIPath = "/api/v2/validation/iv"
 
 // gateSnapshot carries the live hard-gate evaluation (FB-03) for the
 // validation API/CLI surface. Meta contains the meta-suite result; evidence
@@ -29,6 +31,35 @@ type gateSnapshot struct {
 // meta-suite into the HTTP API (FB-03 §4: validation API/CLI consumer).
 func (api *API) RegisterValidationAPI() {
 	api.mux.HandleFunc(validationGatesAPIPath, api.handleValidationGates)
+	api.mux.HandleFunc(validationIV18APIPath, api.handleValidationIV18)
+}
+
+// iv18Snapshot carries the FB-28 IV-18 conformance suite result (registry +
+// executed coverage) for the validation API surface. It is read-only: the
+// suite is executed on request from the canonical requirements.
+type iv18Snapshot struct {
+	APIVersion  string               `json:"api_version"`
+	Suite       string               `json:"suite"`
+	Requirements []validation.Requirement `json:"requirements,omitempty"`
+	Coverage    []validation.Coverage    `json:"coverage,omitempty"`
+	Result      validation.IV18Result    `json:"result"`
+	CheckedAt   time.Time               `json:"checked_at"`
+}
+
+func (api *API) handleValidationIV18(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	result := validation.RunIV18Suite()
+	sendResponse(w, iv18Snapshot{
+		APIVersion:   config.ClassifierAPIV23,
+		Suite:        validation.IV18SuiteID,
+		Requirements: validation.IV18Requirements(),
+		Coverage:     validation.IV18Coverage(),
+		Result:       result,
+		CheckedAt:    time.Now().UTC(),
+	})
 }
 
 // currentGenerationID returns the generation of the active TestSession/

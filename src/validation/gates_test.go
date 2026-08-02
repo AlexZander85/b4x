@@ -8,8 +8,8 @@ import (
 func TestHardGateCount(t *testing.T) {
 	// Registry totals are computed, not hard-coded (owner decision).
 	// These assertions pin the extraction against the addenda.
-	if n := HardGateCount(); n != 282 {
-		t.Fatalf("HardGateCount() = %d, want 282", n)
+	if n := HardGateCount(); n != 283 {
+		t.Fatalf("HardGateCount() = %d, want 283 (282 addendum + mon_production_ready FB-28)", n)
 	}
 }
 

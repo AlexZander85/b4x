@@ -87,3 +87,37 @@ func TestValidationGatesEndpointRejectsNonGet(t *testing.T) {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
 }
+
+func TestValidationIV18EndpointExecutesSuiteFailClosed(t *testing.T) {
+	_, mux := newValidationGatesTestAPI(t)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, validationIV18APIPath, nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var snapshot iv18Snapshot
+	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if snapshot.Suite != validation.IV18SuiteID {
+		t.Fatalf("suite = %q, want IV-18", snapshot.Suite)
+	}
+	if len(snapshot.Requirements) != 22 || len(snapshot.Coverage) == 0 {
+		t.Fatalf("requirements = %d coverage = %d, want 22 registered + coverage", len(snapshot.Requirements), len(snapshot.Coverage))
+	}
+	// Fail-closed: full coverage is in place, but the verdict stays BLOCKED
+	// while the legacy Watchdog mutating path is reachable
+	// (mon_production_ready gate).
+	if snapshot.Result.Registered != 22 || snapshot.Result.Covered != 22 {
+		t.Fatalf("suite registry must be complete: %+v", snapshot.Result)
+	}
+	if snapshot.Result.Verdict != validation.Blocked || snapshot.Result.ProductionReady {
+		t.Fatalf("suite must be fail-closed BLOCKED while legacy path reachable: %+v", snapshot.Result)
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, validationIV18APIPath, nil))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", rec.Code)
+	}
+}

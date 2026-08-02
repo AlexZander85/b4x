@@ -1,0 +1,14 @@
+{
+  "suite_id": "IV-18",
+  "registered_requirements": 22,
+  "covered_requirements": 22,
+  "production_ready": false,
+  "legacy_mutating_hits": [
+    {
+      "file": "watchdog/watchdog_heal.go",
+      "line": 111
+    }
+  ],
+  "verdict": "BLOCKED_TARGET_VALIDATION",
+  "checked_at": "2026-08-02T09:39:49.692824839Z"
+}

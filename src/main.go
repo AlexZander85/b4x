@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -31,6 +32,7 @@ import (
 	"github.com/daniellavrushin/b4/tables"
 	"github.com/daniellavrushin/b4/tproxy"
 	b4tun "github.com/daniellavrushin/b4/tun"
+	"github.com/daniellavrushin/b4/validation"
 	"github.com/daniellavrushin/b4/watchdog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -66,6 +68,44 @@ func init() {
 	rootCmd.Flags().BoolVarP(&showVersion, "version", "v", false, "Show version and exit")
 	rootCmd.Flags().BoolVar(&clearTables, "clear-tables", false, "Perform only iptables/nftables cleanup and exit")
 
+	rootCmd.AddCommand(iv18Cmd)
+}
+
+// iv18Cmd runs the FB-28 IV-18 continuous-monitoring conformance suite
+// (registry + executed coverage) without starting the daemon. It exits
+// non-zero while coverage is incomplete (fail-closed), which makes it
+// suitable for CI promotion gates.
+var iv18Cmd = &cobra.Command{
+	Use:   "iv18",
+	Short: "Run the IV-18 continuous monitoring conformance suite (FB-28)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		result := validation.RunIV18Suite()
+		iv18JSON, _ := cmd.Flags().GetBool("json")
+		if iv18JSON {
+			out, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(out))
+		} else {
+			fmt.Printf("IV-18 suite: registered=%d covered=%d missing=%d production_ready=%t verdict=%s\n",
+				result.Registered, result.Covered, len(result.MissingCoverage), result.ProductionReady, result.Verdict)
+			for _, id := range result.MissingCoverage {
+				fmt.Printf("  missing coverage: %s\n", id)
+			}
+			for _, h := range result.LegacyMutatingHits {
+				fmt.Printf("  legacy mutating path reachable: %s:%d\n", h.File, h.Line)
+			}
+		}
+		if result.Verdict != validation.Pass {
+			return fmt.Errorf("IV-18 suite not passing: verdict %s (missing coverage: %d, production_ready: %t)", result.Verdict, len(result.MissingCoverage), result.ProductionReady)
+		}
+		return nil
+	},
+}
+
+func init() {
+	iv18Cmd.Flags().Bool("json", false, "Emit the full suite result as JSON")
 }
 
 // @title B4 API
