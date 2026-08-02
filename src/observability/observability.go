@@ -75,6 +75,14 @@ const (
 	MetricPassiveRSTBudgetExhausted     = "passive_rst_budget_exhausted_total"
 	MetricPassiveRSTRollback            = "passive_rst_rollback_total"
 	MetricPassiveRSTReconnectRegression = "passive_rst_reconnect_regression_total"
+
+	// FB-29 resolution-experiment zero-tolerance counters. The prefix matches
+	// the hard-gate registry gate IDs
+	// (monitor_/detector_first_success_erased_address_failures_total): a
+	// first successful address must never erase sibling address failures from
+	// the per-address aggregation.
+	MetricMonitorFirstSuccessErasedAddressFailures  = "monitor_first_success_erased_address_failures_total"
+	MetricDetectorFirstSuccessErasedAddressFailures = "detector_first_success_erased_address_failures_total"
 )
 
 type MetricSample struct {

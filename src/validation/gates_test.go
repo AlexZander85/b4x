@@ -15,12 +15,14 @@ func TestHardGateCount(t *testing.T) {
 
 func TestApplicableHardGates(t *testing.T) {
 	gates := ApplicableHardGates()
-	// All 24 FB-03 scope gate producers are verified (2026-08-01): CSI-18
-	// unrelated_control_action_total, 19 RST/GSO metrics and 4 PPE metrics.
-	// Each has a real Metrics.Inc call site, an executed fixture and, for the
-	// 9 zero-tolerance gates, an executed mutation run.
-	if len(gates) != 24 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 24", len(gates))
+	// 24 FB-03 scope gate producers + 2 FB-29 resolution first-success-erasure
+	// producers (monitor_/detector_first_success_erased_address_failures_total,
+	// verified 2026-08-02 via RecordResolutionErasure in
+	// src/detector/resolution_experiment.go). Each has a real Metrics.Inc call
+	// site, an executed fixture and (for zero-tolerance gates) an executed
+	// mutation run.
+	if len(gates) != 26 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 26", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

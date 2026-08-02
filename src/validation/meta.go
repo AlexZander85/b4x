@@ -72,8 +72,10 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	r.VerdictMutationDetected = forcedZero.Verdict != GatePass
 
 	// Reproducible: gate/applicable counts must match the generator output
-	// (283 gates: 282 addendum-extracted + 1 FB-28 mon_production_ready).
-	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 24 && len(hardGates) == 283
+	// (283 gates: 282 addendum-extracted + 1 FB-28 mon_production_ready;
+	// 26 applicable: 24 FB-03 scope producers + 2 FB-29 resolution
+	// first-success-erasure producers, mon + abd).
+	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 26 && len(hardGates) == 283
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},
