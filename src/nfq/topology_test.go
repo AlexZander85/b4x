@@ -55,3 +55,40 @@ func TestGSOQueueTopologyOffHasNoSecondaryPool(t *testing.T) {
 		t.Fatal("off mode allocated normalizer pool")
 	}
 }
+
+func TestGSOQueueTopologyInvalidateTokensClearsSharedStateOnRollback(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.EnsureRuntimeGeneration()
+	cfg.System.Classifier.Runtime.Capture.NFQueue.GSOMode = config.GSOModeFull
+	plan, err := capture.PlanGSOTopology(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topology, err := NewGSOQueueTopology(&cfg, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer topology.Close()
+	store := topology.primary.state.gsoPassTokens
+	if store == nil {
+		t.Fatal("shared pass-token store missing")
+	}
+	flow := gsoTokenTestFlowKey()
+	generation := dnsHintConfigGeneration(&cfg)
+	if generation == 0 {
+		t.Fatal("fixture generation is zero")
+	}
+	token := testGSOToken(flow, 9, generation, GSOScopeProduction)
+	if _, _, err := store.Put(token); err != nil {
+		t.Fatalf("seed token: %v", err)
+	}
+	if store.Len() != 1 {
+		t.Fatalf("seeded=%d want 1", store.Len())
+	}
+	if removed := topology.InvalidateTokens(); removed != 1 {
+		t.Fatalf("invalidated=%d want 1", removed)
+	}
+	if store.Len() != 0 {
+		t.Fatalf("token leak after rollback invalidation: %d remain", store.Len())
+	}
+}

@@ -179,9 +179,14 @@ func gsoReadinessEvidenceHash(evidence GSOReadinessEvidence) string {
 // SetGSOReadinessEvidence records the static (operator/control-plane) part of
 // the readiness evidence and re-evaluates the snapshot. Wire observations
 // made so far are merged in: they are sticky and survive every later Set.
+// An empty Generation binds the evidence to the worker's active configuration
+// generation.
 func (w *Worker) SetGSOReadinessEvidence(evidence GSOReadinessEvidence) GSOReadinessSnapshot {
 	if w == nil {
 		return GSOReadinessSnapshot{State: GSOReadinessUnknown}
+	}
+	if evidence.Generation == 0 {
+		evidence.Generation = dnsHintConfigGeneration(w.getConfig())
 	}
 	w.gsoReadinessMu.Lock()
 	defer w.gsoReadinessMu.Unlock()
@@ -306,4 +311,25 @@ func gsoReadinessRank(state GSOReadinessState) int {
 	default:
 		return 0
 	}
+}
+
+// SetGSOReadinessEvidence applies the static readiness evidence to every
+// worker of the pool and returns the number of workers updated together with
+// the worst (least ready) snapshot across the pool. This is the production
+// entry point for the control plane: it never touches wire observations,
+// which remain sticky per worker.
+func (p *Pool) SetGSOReadinessEvidence(evidence GSOReadinessEvidence) (int, GSOReadinessSnapshot) {
+	worst := GSOReadinessSnapshot{State: GSOReadinessFail}
+	applied := 0
+	for _, worker := range p.Workers {
+		if worker == nil {
+			continue
+		}
+		snap := worker.SetGSOReadinessEvidence(evidence)
+		applied++
+		if applied == 1 || gsoReadinessRank(snap.State) < gsoReadinessRank(worst.State) {
+			worst = snap
+		}
+	}
+	return applied, worst
 }

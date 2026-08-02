@@ -192,6 +192,32 @@ func TestGSOClassifyFastPathFailsOpenWithoutCapabilityOrCompleteInput(t *testing
 	}
 }
 
+func TestGSOClassifyFastPathIPv6Parity(t *testing.T) {
+	cfg, _ := testGSOFastPathConfig(config.GSOModeClassify, false, false)
+	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 1988)
+	pkt := &pktInfo{
+		ver:     IPv6,
+		proto:   6,
+		src:     net.ParseIP("2001:db8::42"),
+		dst:     net.ParseIP("2001:db8::10"),
+		srcStr:  "2001:db8::42",
+		dstStr:  "2001:db8::10",
+		srcMac:  "aa:bb:cc:dd:ee:10",
+		offload: OffloadMetadata{IsGSO: true, PayloadLength: uint32(len(hello)), OriginalLength: uint32(len(hello))},
+	}
+	worker := NewWorkerWithQueue(cfg, 0)
+	worker.setGSOCapabilityStatus(GSOCapabilityClassifyReady, "unit target capability")
+	worker.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
+	vc := &verdictCtx{verdict: engine.VerdictAccept}
+	handled, _, result := worker.handleGSOFastPath(vc, pkt, cfg, buildMatcher(cfg), hello, 56000, 443, 13000, true)
+	if !handled || result != gsoPathAcceptedUnchanged || vc.verdict != engine.VerdictAccept {
+		t.Fatalf("IPv6 GSO parity: handled=%t result=%s verdict=%v", handled, result, vc.verdict)
+	}
+	if flow, ok := tcpFlowKeyForPacket(pkt, 56000, 443); !ok || flow.Client.L3Family != 6 {
+		t.Fatalf("IPv6 flow key not honored: ok=%t flow=%+v", ok, flow)
+	}
+}
+
 func TestGSOObserveIsShadowOnlyInCandidateScope(t *testing.T) {
 	cfg, _ := testGSOFastPathConfig(config.GSOModeObserve, false, false)
 	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 0)

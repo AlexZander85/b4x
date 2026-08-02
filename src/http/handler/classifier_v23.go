@@ -61,6 +61,7 @@ func (api *API) RegisterClassifierV23API() {
 	api.mux.HandleFunc("/api/v2/classifier/export", api.handleClassifierV23Export)
 	api.mux.HandleFunc("/api/v2/classifier/import", api.handleClassifierV23Import)
 	api.mux.HandleFunc(classifierHardeningAPIPath, api.handleClassifierHardeningStatus)
+	api.mux.HandleFunc(classifierGSOReadinessAPIPath, api.handleClassifierGSOReadiness)
 }
 
 func (api *API) handleClassifierV23Config(w http.ResponseWriter, r *http.Request) {
