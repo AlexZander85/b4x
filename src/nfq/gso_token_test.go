@@ -1,7 +1,10 @@
 package nfq
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,7 +19,10 @@ import (
 func testGSOToken(flow classifier.FlowKey, helloID, generation uint64, scope GSOExecutionScope) GSOPassToken {
 	selected := classifier.Evidence{Source: classifier.EvidencePacketSNI, FlowKey: flow, ClientHelloID: helloID, ConfigGen: generation, Domain: "api.youtube.com", SetID: "youtube", DomainEvidence: true, CompleteClientHello: true, Confidence: 100}
 	return GSOPassToken{
-		FlowKey: flow, ClientHelloID: helloID, ConfigGen: generation, StrategyID: "youtube:split", RequiresAction: true, Scope: scope,
+		FlowKey: flow, ClientHelloID: helloID, ConfigGeneration: generation, StrategyID: "youtube:split", RequiresAction: true, Scope: scope,
+		AuthorizationID:      authorizationDigestForGSO(flow, "youtube", generation),
+		EffectivePolicyID:    effectivePolicyDigestForGSO("youtube", config.DomainPolicyScopedHints),
+		CandidateDisposition: classifier.CandidateEligible,
 		Decision:    classifier.ClassificationDecision{FlowKey: flow, ClientHelloID: helloID, ConfigGen: generation, Selected: &selected, Candidates: []classifier.Evidence{selected}, Final: true, Confidence: 100},
 		ActionToken: action.ActionToken{FlowHash: gsoFlowHash(flow), ClientHelloID: helloID, ConfigGen: generation, StrategyID: "youtube:split"},
 	}
@@ -45,11 +51,74 @@ func TestGSOPassTokenStoreDeterministicRetransmissionAndConsumeOnce(t *testing.T
 		t.Fatalf("retransmission changed token: first=%+v second=%+v reused=%t err=%v", first, second, reused, err)
 	}
 	consumed, ok, reason := store.Consume(flow, 9, 7, GSOScopeProduction)
-	if !ok || reason != "consumed" || consumed.ActionToken != first.ActionToken || store.Len() != 0 {
+	if !ok || reason != "consumed" || consumed.ActionToken != first.ActionToken || consumed.ConsumedAt == nil || store.Len() != 0 {
 		t.Fatalf("consume = %+v ok=%t reason=%s", consumed, ok, reason)
 	}
 	if _, ok, reason = store.Consume(flow, 9, 7, GSOScopeProduction); ok || reason != "token-miss" {
 		t.Fatalf("second consume must fail: ok=%t reason=%s", ok, reason)
+	}
+}
+
+// TestGSOPassTokenCanonicalSerialization asserts the FB-10/H4 canonical
+// schema round-trips deterministically: same bytes on every Marshal, and
+// Unmarshal reproduces the identical token including the compact immutable
+// authorization/policy references.
+func TestGSOPassTokenCanonicalSerialization(t *testing.T) {
+	flow := gsoTokenTestFlowKey()
+	token, _, err := NewGSOPassTokenStore(GSOPassTokenStoreConfig{MaxTokens: 4, TTL: time.Second, Clock: clock.NewFixed(time.Unix(2000, 0))}).Put(testGSOToken(flow, 9, 7, GSOScopeProduction))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := json.Marshal(token)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	second, err := json.Marshal(token)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !bytes.Equal(first, second) {
+		t.Fatalf("serialization is not deterministic:\n%s\n%s", first, second)
+	}
+	var decoded GSOPassToken
+	if err := json.Unmarshal(first, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if decoded.TokenID != token.TokenID || decoded.ConfigGeneration != token.ConfigGeneration || decoded.StrategyID != token.StrategyID ||
+		decoded.AuthorizationID != token.AuthorizationID || decoded.EffectivePolicyID != token.EffectivePolicyID ||
+		decoded.CandidateDisposition != token.CandidateDisposition || decoded.Scope != token.Scope ||
+		decoded.ClientHelloID != token.ClientHelloID || decoded.FlowKey != token.FlowKey {
+		t.Fatalf("round-trip mismatch: decoded=%+v original=%+v", decoded, token)
+	}
+}
+
+// TestGSOPassTokenCanonicalReferencesAndTokenID asserts the canonical token
+// identity is derived deterministically and the compact immutable references
+// survive the store without pointing to mutable objects.
+func TestGSOPassTokenCanonicalReferencesAndTokenID(t *testing.T) {
+	clk := clock.NewFixed(time.Unix(2000, 0))
+	store := NewGSOPassTokenStore(GSOPassTokenStoreConfig{MaxTokens: 4, TTL: time.Second, Clock: clk})
+	flow := gsoTokenTestFlowKey()
+	first, _, err := store.Put(testGSOToken(flow, 21, 31, GSOScopeProduction))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantID := gsoTokenID(flow.Normalize(), 21, 31, GSOScopeProduction, "youtube:split")
+	if first.TokenID != wantID {
+		t.Fatalf("token_id = %q, want deterministic %q", first.TokenID, wantID)
+	}
+	if !strings.HasPrefix(first.AuthorizationID, "auth-") || !strings.HasPrefix(first.EffectivePolicyID, "policy-") {
+		t.Fatalf("canonical references malformed: %+v", first)
+	}
+	if first.CandidateDisposition != classifier.CandidateEligible {
+		t.Fatalf("candidate_disposition = %q, want eligible", first.CandidateDisposition)
+	}
+	second, reused, err := store.Put(testGSOToken(flow, 21, 31, GSOScopeProduction))
+	if err != nil || !reused || second.TokenID != first.TokenID {
+		t.Fatalf("retransmission must reuse the same canonical token: reused=%t second=%+v", reused, second)
+	}
+	if consumed, ok, reason := store.Consume(flow, 21, 31, GSOScopeProduction); !ok || reason != "consumed" || consumed.TokenID != first.TokenID || consumed.ConsumedAt == nil {
+		t.Fatalf("consumed token lost canonical identity: %+v ok=%t reason=%s", consumed, ok, reason)
 	}
 }
 

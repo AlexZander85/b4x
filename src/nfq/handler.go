@@ -269,7 +269,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if secondaryToken.Decision.Selected != nil {
 			tlsObservation = authoritativeTLSObservation{
 				Host: secondaryToken.Decision.Selected.Domain, Source: secondaryToken.Decision.Selected.Source, Complete: true,
-				ClientHelloID: secondaryToken.ClientHelloID, ConfigGen: secondaryToken.ConfigGen, TLSVersion: secondaryToken.Decision.TLSMetadata.Version,
+				ClientHelloID: secondaryToken.ClientHelloID, ConfigGen: secondaryToken.ConfigGeneration, TLSVersion: secondaryToken.Decision.TLSMetadata.Version,
 				Reason: "GSO normalizer secondary pass token",
 			}
 		}

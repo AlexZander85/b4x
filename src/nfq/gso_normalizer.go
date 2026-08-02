@@ -32,7 +32,7 @@ func (w *Worker) consumeGSOPassForPacket(cfg *config.Config, pkt *pktInfo, sport
 		traceGSONormalizerMiss(flow, clientHelloID, generation, reason)
 		return GSOPassToken{}, nil, false, reason
 	}
-	if token.Decision.Selected == nil || token.Decision.Selected.SetID == "" || !token.RequiresAction || token.ActionToken.ClientHelloID != token.ClientHelloID || token.ActionToken.ConfigGen != token.ConfigGen {
+	if token.Decision.Selected == nil || token.Decision.Selected.SetID == "" || !token.RequiresAction || token.ActionToken.ClientHelloID != token.ClientHelloID || token.ActionToken.ConfigGen != token.ConfigGeneration {
 		traceGSONormalizerMiss(flow, clientHelloID, generation, "token-invalid")
 		return GSOPassToken{}, nil, false, "token-invalid"
 	}

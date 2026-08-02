@@ -1,6 +1,8 @@
 package nfq
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -22,17 +24,28 @@ const (
 	GSOScopeDiscovery  GSOExecutionScope = "discovery"
 )
 
+// GSOPassToken is the single canonical GSO/runtime boundary token (RST addendum
+// H4, FB-14 решение 4). It carries compact immutable references only: large
+// mutable Authorization/EffectivePolicy objects are never copied into the
+// token — they resolve by ID/digest in the current generation. The Decision is
+// an immutable value snapshot (cloned slices, no pointers to mutable
+// config/set/policy), and serialization is deterministic.
 type GSOPassToken struct {
-	FlowKey        classifier.FlowKey                `json:"flow_key"`
-	ClientHelloID  uint64                            `json:"client_hello_id"`
-	ConfigGen      uint64                            `json:"config_generation"`
-	Decision       classifier.ClassificationDecision `json:"decision"`
-	StrategyID     string                            `json:"strategy_id"`
-	RequiresAction bool                              `json:"requires_action"`
-	ActionToken    action.ActionToken                `json:"action_token"`
-	Scope          GSOExecutionScope                 `json:"scope"`
-	CreatedAt      time.Time                         `json:"created_at"`
-	ExpiresAt      time.Time                         `json:"expires_at"`
+	TokenID              string                            `json:"token_id,omitempty"`
+	FlowKey              classifier.FlowKey                `json:"flow_key"`
+	ClientHelloID        uint64                            `json:"client_hello_id"`
+	ConfigGeneration     uint64                            `json:"config_generation"`
+	Decision             classifier.ClassificationDecision `json:"decision"`
+	StrategyID           string                            `json:"strategy_id"`
+	RequiresAction       bool                              `json:"requires_action"`
+	AuthorizationID      string                            `json:"authorization_id,omitempty"`
+	EffectivePolicyID    string                            `json:"effective_policy_id,omitempty"`
+	CandidateDisposition classifier.CandidateDisposition   `json:"candidate_disposition,omitempty"`
+	ActionToken          action.ActionToken                `json:"action_token"`
+	Scope                GSOExecutionScope                 `json:"scope"`
+	CreatedAt            time.Time                         `json:"created_at"`
+	ExpiresAt            time.Time                         `json:"expires_at"`
+	ConsumedAt           *time.Time                        `json:"consumed_at,omitempty"`
 }
 
 type GSOPassTokenStoreConfig struct {
@@ -98,11 +111,14 @@ func (s *GSOPassTokenStore) Put(token GSOPassToken) (GSOPassToken, bool, error) 
 		return GSOPassToken{}, false, errors.New("GSO pass token store unavailable")
 	}
 	token.FlowKey = token.FlowKey.Normalize()
-	if token.FlowKey.IsZero() || token.ClientHelloID == 0 || token.ConfigGen == 0 || token.Scope == "" || token.StrategyID == "" {
+	if token.FlowKey.IsZero() || token.ClientHelloID == 0 || token.ConfigGeneration == 0 || token.Scope == "" || token.StrategyID == "" {
 		return GSOPassToken{}, false, errors.New("invalid GSO pass token identity")
 	}
+	if token.TokenID == "" {
+		token.TokenID = gsoTokenID(token.FlowKey, token.ClientHelloID, token.ConfigGeneration, token.Scope, token.StrategyID)
+	}
 	now := s.clock.Now()
-	key := gsoPassTokenKey{FlowKey: token.FlowKey, ClientHelloID: token.ClientHelloID, ConfigGen: token.ConfigGen, Scope: token.Scope}
+	key := gsoPassTokenKey{FlowKey: token.FlowKey, ClientHelloID: token.ClientHelloID, ConfigGen: token.ConfigGeneration, Scope: token.Scope}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pruneExpiredLocked(now)
@@ -152,8 +168,11 @@ func (s *GSOPassTokenStore) Consume(flow classifier.FlowKey, clientHelloID, conf
 		s.stats.Stale++
 		return GSOPassToken{}, false, "token-stale"
 	}
+	consumed := cloneGSOPassToken(entry.token)
+	consumedAt := now
+	consumed.ConsumedAt = &consumedAt
 	s.stats.Consumed++
-	return cloneGSOPassToken(entry.token), true, "consumed"
+	return consumed, true, "consumed"
 }
 
 func (s *GSOPassTokenStore) DeleteFlow(flow classifier.FlowKey) int {
@@ -244,7 +263,37 @@ func (s *GSOPassTokenStore) pruneExpiredLocked(now time.Time) int {
 
 func cloneGSOPassToken(token GSOPassToken) GSOPassToken {
 	token.Decision = cloneClassificationDecision(token.Decision)
+	if token.ConsumedAt != nil {
+		consumedAt := *token.ConsumedAt
+		token.ConsumedAt = &consumedAt
+	}
 	return token
+}
+
+// gsoTokenID is the deterministic canonical token identity. Retransmissions of
+// the same logical first flight derive the same ID, so replay detection and
+// single-use semantics are stable across the packet path.
+func gsoTokenID(flow classifier.FlowKey, clientHelloID, generation uint64, scope GSOExecutionScope, strategyID string) string {
+	sum := sha256.Sum256([]byte("gso-pass-token|" + fmt.Sprintf("%v", flow.Normalize()) + "|" + fmt.Sprintf("%d|%d", clientHelloID, generation) + "|" + string(scope) + "|" + strategyID))
+	return "gso-" + hex.EncodeToString(sum[:12])
+}
+
+// authorizationDigestForGSO is the compact immutable authorization reference
+// (H4: AuthorizationID или AuthorizationDigest) for the current generation.
+// It never points to a mutable authorization object; resolving it against the
+// active config yields the same set identity for the same generation.
+func authorizationDigestForGSO(flow classifier.FlowKey, setID string, generation uint64) string {
+	sum := sha256.Sum256([]byte("gso-authorization|" + setID + "|" + fmt.Sprintf("%v", flow.Normalize()) + "|" + fmt.Sprintf("%d", generation)))
+	return "auth-" + hex.EncodeToString(sum[:8])
+}
+
+// effectivePolicyDigestForGSO is the compact immutable effective-policy
+// reference (H4: EffectivePolicyID или EffectivePolicyDigest). The policy
+// value is an enum snapshot resolved in the current generation; no policy
+// object is copied into the token.
+func effectivePolicyDigestForGSO(setID string, policy config.DomainPolicy) string {
+	sum := sha256.Sum256([]byte("gso-effective-policy|" + setID + "|" + string(policy)))
+	return "policy-" + hex.EncodeToString(sum[:8])
 }
 
 func cloneClassificationDecision(decision classifier.ClassificationDecision) classifier.ClassificationDecision {
@@ -308,8 +357,11 @@ func (w *Worker) prepareGSONormalization(vc *verdictCtx, cfg *config.Config, pkt
 		return vc.accept(), gsoPathActionSuppressed
 	}
 	token, _, err := w.gsoPassTokens.Put(GSOPassToken{
-		FlowKey: flow, ClientHelloID: clientHelloID, ConfigGen: generation, Decision: decision,
+		FlowKey: flow, ClientHelloID: clientHelloID, ConfigGeneration: generation, Decision: decision,
 		StrategyID: strategyID, RequiresAction: true, ActionToken: actionResult.Token, Scope: gsoExecutionScope(w, cfg),
+		AuthorizationID:      authorizationDigestForGSO(flow, classifierSetID(set), generation),
+		EffectivePolicyID:    effectivePolicyDigestForGSO(classifierSetID(set), cfg.EffectiveDomainPolicy(set)),
+		CandidateDisposition: classifier.ResolveCandidateDisposition(classifier.CaptureCandidate{CandidateSetID: classifierSetID(set)}, []string{classifierSetID(set)}),
 	})
 	if err != nil {
 		return vc.accept(), gsoPathActionSuppressed
@@ -340,7 +392,7 @@ func (s *GSOPassTokenStore) Peek(flow classifier.FlowKey, clientHelloID, configG
 
 func traceGSOPassToken(token GSOPassToken, pass, result string) {
 	observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), FlowID: fmt.Sprintf("%v", token.FlowKey), Kind: "gso_pass_token", Fields: map[string]string{
-		"pass": pass, "result": result, "client_hello_id": fmt.Sprintf("%d", token.ClientHelloID), "config_generation": fmt.Sprintf("%d", token.ConfigGen),
-		"strategy_id": token.StrategyID, "scope": string(token.Scope), "requires_action": fmt.Sprintf("%t", token.RequiresAction),
+		"pass": pass, "result": result, "token_id": token.TokenID, "client_hello_id": fmt.Sprintf("%d", token.ClientHelloID), "config_generation": fmt.Sprintf("%d", token.ConfigGeneration),
+		"strategy_id": token.StrategyID, "scope": string(token.Scope), "requires_action": fmt.Sprintf("%t", token.RequiresAction), "authorization_id": token.AuthorizationID,
 	}})
 }
