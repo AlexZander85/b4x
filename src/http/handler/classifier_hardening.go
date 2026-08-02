@@ -30,6 +30,7 @@ type classifierGSOStatus struct {
 	NormalizeForMutation bool                    `json:"normalize_for_mutation"`
 	TCPOnly              bool                    `json:"tcp_only"`
 	Capability           nfq.GSOCapabilityStatus `json:"capability"`
+	Readiness            nfq.GSOReadinessSnapshot `json:"readiness"`
 	Workers              int                     `json:"workers"`
 	Topology             capture.GSOTopologyPlan `json:"topology"`
 	TopologySource       string                  `json:"topology_source"`
@@ -102,7 +103,7 @@ func (api *API) handleClassifierHardeningStatus(w http.ResponseWriter, r *http.R
 		GSO: classifierGSOStatus{
 			RequestedMode: runtimeCfg.Capture.NFQueue.GSOMode, ExecutionPolicy: runtimeCfg.Execution.GSOPolicy,
 			MaxGSOBytes: runtimeCfg.Capture.NFQueue.MaxGSOBytes, NormalizeForMutation: runtimeCfg.Capture.NFQueue.NormalizeForMutation,
-			TCPOnly: runtimeCfg.Capture.NFQueue.TCPOnly, Capability: status.Capability, Workers: len(status.WorkerCapability),
+			TCPOnly: runtimeCfg.Capture.NFQueue.TCPOnly, Capability: status.Capability, Readiness: status.Readiness, Workers: len(status.WorkerCapability),
 			Topology: plan, TopologySource: source, TokenStats: status.TokenStats, ActiveTokens: status.ActiveTokens,
 		},
 		PassiveRST: classifierPassiveRSTStatus{

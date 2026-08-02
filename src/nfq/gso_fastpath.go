@@ -123,6 +123,11 @@ func (w *Worker) handleGSOFastPath(vc *verdictCtx, pkt *pktInfo, cfg *config.Con
 		traceGSOFastPath(pkt, mode, gsoPathCapabilityFailOpen, status.Reason, clientHelloID)
 		return true, vc.accept(), gsoPathCapabilityFailOpen
 	}
+	if ready, reason := w.gsoClassifyReady(generation); !ready {
+		w.downgradeGSOCapability(reason)
+		traceGSOFastPath(pkt, mode, gsoPathCapabilityFailOpen, reason, clientHelloID)
+		return true, vc.accept(), gsoPathCapabilityFailOpen
+	}
 	if len(filtered) == 0 {
 		traceGSOFastPath(pkt, mode, gsoPathAcceptedUnchanged, "no eligible set", clientHelloID)
 		return true, vc.accept(), gsoPathAcceptedUnchanged
@@ -143,6 +148,10 @@ func (w *Worker) handleGSOFastPath(vc *verdictCtx, pkt *pktInfo, cfg *config.Con
 		return true, vc.accept(), gsoPathAcceptedUnchanged
 	}
 	if gsoRequiresNormalPackets(set) {
+		if status := w.GSOCapabilityStatus(); status.Level != GSOCapabilityFullActionReady {
+			traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "normalization requires full-action runtime readiness", clientHelloID)
+			return true, vc.accept(), gsoPathActionSuppressed
+		}
 		if cfg.System.Classifier.Runtime.Execution.GSOPolicy != config.GSOPolicyNormalizeForAction {
 			traceGSOFastPath(pkt, mode, gsoPathActionSuppressed, "execution.gso_policy does not authorize normalized action", clientHelloID)
 			return true, vc.accept(), gsoPathActionSuppressed
@@ -218,6 +227,12 @@ func traceGSOFastPath(pkt *pktInfo, mode string, result gsoFastPathResult, reaso
 func sanitizeGSOMetricReason(reason string) string {
 	reason = strings.ToLower(strings.TrimSpace(reason))
 	switch {
+	case strings.Contains(reason, "gso_classify_ready stale"):
+		return "classify-ready-stale"
+	case strings.Contains(reason, "gso_classify_ready fail"):
+		return "classify-ready-fail"
+	case strings.Contains(reason, "gso_classify_ready"):
+		return "classify-ready-unknown"
 	case strings.Contains(reason, "execution.gso_policy"):
 		return "execution-policy"
 	case strings.Contains(reason, "normalization disabled"):

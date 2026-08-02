@@ -170,7 +170,8 @@ func TestGSONormalizerFirstPassQueuesAndSecondaryConsumesSameIdentityOnce(t *tes
 	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 1988)
 	pkt := testGSOPacket(len(hello), 56000)
 	first := NewWorkerWithQueue(cfg, 0)
-	first.setGSOCapabilityStatus(GSOCapabilityClassifyReady, "unit target capability")
+	first.setGSOCapabilityStatus(GSOCapabilityFullActionReady, "unit target capability")
+	first.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
 	first.configureGSONormalizer(650, false)
 	vc := &verdictCtx{verdict: engine.VerdictAccept}
 	handled, _, result := first.handleGSOFastPath(vc, pkt, cfg, buildMatcher(cfg), hello, 56000, 443, 12345, true)
@@ -181,6 +182,8 @@ func TestGSONormalizerFirstPassQueuesAndSecondaryConsumesSameIdentityOnce(t *tes
 	secondary := NewWorkerWithQueue(cfg, 650)
 	secondary.gsoPassTokens = first.gsoPassTokens
 	secondary.actionTokens = first.actionTokens
+	secondary.setGSOCapabilityStatus(GSOCapabilityFullActionReady, "unit target capability")
+	secondary.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
 	secondary.configureGSONormalizer(650, true)
 	token, set, ok, reason := secondary.consumeGSOPassForPacket(cfg, pkt, 56000, 443, 12345, true)
 	if !ok || reason != "consumed" || set == nil || token.ClientHelloID == 0 || token.ActionToken.ClientHelloID != token.ClientHelloID {

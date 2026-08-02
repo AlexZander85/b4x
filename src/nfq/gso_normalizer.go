@@ -41,8 +41,40 @@ func (w *Worker) consumeGSOPassForPacket(cfg *config.Config, pkt *pktInfo, sport
 		traceGSONormalizerMiss(flow, clientHelloID, generation, "set-unavailable")
 		return GSOPassToken{}, nil, false, "set-unavailable"
 	}
+	// GSO_RUNTIME_READY: mutation is executed only while the runtime still
+	// holds full-action capability and the current-generation readiness
+	// verdict. A classify-to-observe downgrade after token creation revokes
+	// the execution path (fail-open).
+	if !gsoRuntimeReadyForExecution(w, generation) {
+		traceGSONormalizerMiss(flow, clientHelloID, generation, "runtime-not-ready")
+		return GSOPassToken{}, nil, false, "runtime-not-ready"
+	}
+	// Compact immutable references (H4): the token remains valid only while
+	// the active generation resolves the same authorization and effective
+	// policy digests. A revoked token fails open — the packet is accepted
+	// unchanged and never mutated.
+	if token.AuthorizationID != "" && authorizationDigestForGSO(flow, token.Decision.Selected.SetID, generation) != token.AuthorizationID {
+		traceGSONormalizerMiss(flow, clientHelloID, generation, "authorization-revoked")
+		return GSOPassToken{}, nil, false, "authorization-revoked"
+	}
+	if token.EffectivePolicyID != "" && effectivePolicyDigestForGSO(token.Decision.Selected.SetID, cfg.EffectiveDomainPolicy(set)) != token.EffectivePolicyID {
+		traceGSONormalizerMiss(flow, clientHelloID, generation, "policy-revoked")
+		return GSOPassToken{}, nil, false, "policy-revoked"
+	}
 	traceGSOPassToken(token, "secondary-pass", "consumed")
 	return token, set, true, "consumed"
+}
+
+// gsoRuntimeReadyForExecution is the GSO_RUNTIME_READY gate for the
+// normalization execution path: mutation is executed only while the worker
+// holds full-action capability and the current-generation GSO_CLASSIFY_READY
+// verdict is READY.
+func gsoRuntimeReadyForExecution(w *Worker, generation uint64) bool {
+	if w == nil || w.GSOCapabilityStatus().Level != GSOCapabilityFullActionReady {
+		return false
+	}
+	ok, _ := w.gsoClassifyReady(generation)
+	return ok
 }
 
 func configSetByClassifierID(cfg *config.Config, setID string) *config.SetConfig {

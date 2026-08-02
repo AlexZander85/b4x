@@ -10,6 +10,7 @@ type HardeningRuntimeStatus struct {
 	PassiveRSTStats  PassiveRSTStoreStats      `json:"passive_rst_stats"`
 	RecentRST        []PassiveRSTEvidence      `json:"recent_rst,omitempty"`
 	RecentRollbacks  []PassiveRSTRollbackState `json:"recent_rollbacks,omitempty"`
+	Readiness        GSOReadinessSnapshot      `json:"gso_readiness"`
 }
 
 func (p *Pool) HardeningRuntimeStatus(limit int) HardeningRuntimeStatus {
@@ -21,6 +22,8 @@ func (p *Pool) HardeningRuntimeStatus(limit int) HardeningRuntimeStatus {
 		return out
 	}
 	out.WorkerCapability = make([]GSOCapabilityStatus, 0, len(p.Workers))
+	out.Readiness = GSOReadinessSnapshot{State: GSOReadinessUnknown}
+	readinessSet := false
 	for _, worker := range p.Workers {
 		if worker == nil {
 			continue
@@ -29,6 +32,11 @@ func (p *Pool) HardeningRuntimeStatus(limit int) HardeningRuntimeStatus {
 		out.WorkerCapability = append(out.WorkerCapability, status)
 		if len(out.WorkerCapability) == 1 || gsoCapabilityRank(status.Level) < gsoCapabilityRank(out.Capability.Level) {
 			out.Capability = status
+		}
+		readiness := worker.GSOReadinessSnapshot()
+		if !readinessSet || gsoReadinessRank(readiness.State) < gsoReadinessRank(out.Readiness.State) {
+			out.Readiness = readiness
+			readinessSet = true
 		}
 	}
 	if p.state == nil {

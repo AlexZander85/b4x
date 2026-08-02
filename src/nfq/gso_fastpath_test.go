@@ -131,6 +131,7 @@ func TestGSOClassifyFastPathAcceptsCompleteNoActionClientHelloUnchanged(t *testi
 			pkt := testGSOPacket(len(hello), uint16(51000+i))
 			worker := NewWorkerWithQueue(cfg, 0)
 			worker.setGSOCapabilityStatus(GSOCapabilityClassifyReady, "unit target capability")
+			worker.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
 			vc := &verdictCtx{verdict: engine.VerdictAccept}
 			handled, _, result := worker.handleGSOFastPath(vc, pkt, cfg, buildMatcher(cfg), hello, uint16(51000+i), 443, uint32(1000+i*100000), true)
 			if !handled || result != gsoPathAcceptedUnchanged || vc.verdict != engine.VerdictAccept {
@@ -146,6 +147,7 @@ func TestGSOClassifyFastPathSuppressesNormalPacketAction(t *testing.T) {
 	pkt := testGSOPacket(len(hello), 52000)
 	worker := NewWorkerWithQueue(cfg, 0)
 	worker.setGSOCapabilityStatus(GSOCapabilityClassifyReady, "unit target capability")
+	worker.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
 	vc := &verdictCtx{verdict: engine.VerdictAccept}
 	handled, _, result := worker.handleGSOFastPath(vc, pkt, cfg, buildMatcher(cfg), hello, 52000, 443, 9000, true)
 	if !handled || result != gsoPathActionSuppressed || vc.verdict != engine.VerdictAccept {
@@ -160,6 +162,7 @@ func TestGSOClassifyFastPathRoutesWithoutMutatingSKB(t *testing.T) {
 	worker := NewWorkerWithQueue(cfg, 0)
 	worker.routeBindings = routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 32)
 	worker.setGSOCapabilityStatus(GSOCapabilityClassifyReady, "unit target capability")
+	worker.SetGSOReadinessEvidence(fullGSOReadinessEvidence(dnsHintConfigGeneration(cfg)))
 	vc := &verdictCtx{verdict: engine.VerdictAccept}
 	handled, _, result := worker.handleGSOFastPath(vc, pkt, cfg, buildMatcher(cfg), hello, 53000, 443, 10000, true)
 	if !handled || result != gsoPathRoutingOnly || vc.verdict != engine.VerdictAccept {

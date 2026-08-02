@@ -76,6 +76,10 @@ type Worker struct {
 	passiveRST         *PassiveRSTStore
 	normalizerQueue    uint16
 	normalizer         bool
+	gsoReadinessMu     sync.Mutex
+	gsoReadinessEv     GSOReadinessEvidence
+	gsoReadinessSnap   GSOReadinessSnapshot
+	gsoInstanceID      string
 }
 
 type clientHelloSinkHolder struct {

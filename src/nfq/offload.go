@@ -102,6 +102,7 @@ func (w *Worker) observeOffloadMetadata(metadata OffloadMetadata) {
 	}
 	w.gsoCapability.Store(status)
 	if metadata.IsGSO {
+		w.observeGSOReadinessMetadata(metadata)
 		mode := requestedGSOMode(w.getConfig())
 		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOPackets, map[string]string{"direction": "unknown", "mode": mode}, 1)
 		observability.Default().Metrics.Inc(observability.MetricNFQueueGSOBytes, map[string]string{"direction": "unknown"}, uint64(metadata.OriginalLength))

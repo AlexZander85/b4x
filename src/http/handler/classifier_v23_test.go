@@ -93,6 +93,9 @@ func TestClassifierHardeningStatusIsReadOnlyAndRedacted(t *testing.T) {
 	if status.APIVersion != config.ClassifierHardeningAPIV1 || status.GSO.RequestedMode != config.GSOModeOff || status.GSO.ExecutionPolicy != config.GSOPolicyFailOpen {
 		t.Fatalf("incomplete hardening status: %+v", status)
 	}
+	if status.GSO.Readiness.State == "" {
+		t.Fatalf("hardening status missing GSO readiness verdict: %+v", status.GSO)
+	}
 	if len(status.PassiveRST.SetScopes) != 1 || status.PassiveRST.SetScopes[0] == "private-youtube" {
 		t.Fatalf("scope not redacted: %+v", status.PassiveRST.SetScopes)
 	}
