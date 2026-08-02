@@ -10,6 +10,11 @@ import (
 	"github.com/daniellavrushin/b4/log"
 )
 
+// Watchdog passively observes domain health via discovery and updates
+// in-memory status projection. After the FB-28 cutover it no longer mutates
+// configuration: passive observation never persists config changes
+// (authority separation, IV-18-MON-08). The operator-facing HTTP API is the
+// only config mutation path (it uses its own saveAndPushConfig).
 type Watchdog struct {
 	cfgPtr       *atomic.Pointer[config.Config]
 	discoveryRT  *discovery.Runtime
@@ -17,17 +22,15 @@ type Watchdog struct {
 	domainStates map[string]*DomainStatus
 	stop         chan struct{}
 	stopped      chan struct{}
-	saveFunc     func(*config.Config) error
 	healing      atomic.Bool
 	healWG       sync.WaitGroup
 }
 
-func New(cfgPtr *atomic.Pointer[config.Config], discoveryRT *discovery.Runtime, saveFunc func(*config.Config) error) *Watchdog {
+func New(cfgPtr *atomic.Pointer[config.Config], discoveryRT *discovery.Runtime) *Watchdog {
 	return &Watchdog{
 		cfgPtr:       cfgPtr,
 		discoveryRT:  discoveryRT,
 		domainStates: make(map[string]*DomainStatus),
-		saveFunc:     saveFunc,
 	}
 }
 

@@ -1,10 +1,19 @@
 package watchdog
 
 import (
+	"reflect"
+	"sync/atomic"
 	"testing"
 
 	"github.com/daniellavrushin/b4/config"
 )
+
+// FB-28 cutover: the legacy mutating path (applyBatchResults, applyGroup,
+// groupByConfig, configsMatch, domainWithSet, setListsAnyDomain,
+// domainInSNIList) was removed from the production code. These tests assert
+// the state that remains: read-only domain matching helpers used only for
+// status projection, and the absence of any config-mutation capability on
+// the Watchdog.
 
 func TestExtractDomain(t *testing.T) {
 	tests := []struct {
@@ -66,65 +75,32 @@ func TestSyncDomainStates(t *testing.T) {
 	}
 }
 
-func TestGroupByConfig(t *testing.T) {
-	setA := &config.SetConfig{}
-	setA.Fragmentation.Strategy = "combo"
-	setA.Faking.Strategy = "ttl"
-	setA.Faking.TTL = 3
+// TestWatchdogNoSaveFunc pins the FB-28 cutover: Watchdog.New takes no
+// config save callback (compile-time invariant: two arguments), and a
+// freshly constructed Watchdog carries no persistence callback. The operator
+// HTTP API (http/handler saveAndPushConfig) is the only mutating save path.
+func TestWatchdogNoSaveFunc(t *testing.T) {
+	cfg := config.NewConfig()
+	var ptr atomic.Pointer[config.Config]
+	ptr.Store(&cfg)
 
-	setB := &config.SetConfig{}
-	setB.Fragmentation.Strategy = "combo"
-	setB.Faking.Strategy = "ttl"
-	setB.Faking.TTL = 3
-
-	setC := &config.SetConfig{}
-	setC.Fragmentation.Strategy = "disorder"
-	setC.Faking.Strategy = "pastseq"
-
-	items := []domainWithSet{
-		{domain: "youtube.com", set: setA},
-		{domain: "meduza.io", set: setC},
-		{domain: "googlevideo.com", set: setB},
+	w := New(&ptr, nil)
+	if w == nil {
+		t.Fatal("New must return a Watchdog")
 	}
 
-	groups := groupByConfig(items)
-
-	if len(groups) != 2 {
-		t.Fatalf("expected 2 groups, got %d", len(groups))
+	// FB-28 cutover invariant: the Watchdog type must not carry a config
+	// save callback (passive observation never persists configuration).
+	// Reflection is the only way to assert the absence of a struct field.
+	if _, ok := reflect.TypeOf(Watchdog{}).FieldByName("saveFunc"); ok {
+		t.Fatal("Watchdog must have no saveFunc field after FB-28 cutover")
 	}
 
-	if len(groups[0]) != 2 {
-		t.Errorf("first group should have 2 domains, got %d", len(groups[0]))
-	}
-	if len(groups[1]) != 1 {
-		t.Errorf("second group should have 1 domain, got %d", len(groups[1]))
-	}
-}
-
-func TestConfigsMatch(t *testing.T) {
-	a := &config.SetConfig{}
-	a.Fragmentation.Strategy = "combo"
-	a.Faking.Strategy = "ttl"
-	a.Faking.TTL = 3
-
-	b := &config.SetConfig{}
-	b.Fragmentation.Strategy = "combo"
-	b.Faking.Strategy = "ttl"
-	b.Faking.TTL = 3
-
-	if !configsMatch(a, b) {
-		t.Error("identical configs should match")
-	}
-
-	b.Faking.TTL = 5
-	if configsMatch(a, b) {
-		t.Error("different TTL should not match")
-	}
-
-	b.Faking.TTL = 3
-	b.Fragmentation.Strategy = "disorder"
-	if configsMatch(a, b) {
-		t.Error("different strategy should not match")
+	// GetState is read-only projection: it must not panic and must not
+	// mutate or persist configuration.
+	state := w.GetState()
+	if state.Domains == nil || len(state.Domains) != 0 {
+		t.Fatalf("fresh config watchdog must project no domains, got %+v", state)
 	}
 }
 
@@ -215,216 +191,8 @@ func TestDomainMatchesSuffix(t *testing.T) {
 	}
 }
 
-func TestApplyGroup_NewSet(t *testing.T) {
-	cfg := &config.Config{}
-
-	refSet := &config.SetConfig{}
-	refSet.Fragmentation.Strategy = "combo"
-	refSet.Faking.Strategy = "ttl"
-	refSet.Faking.TTL = 3
-
-	group := []domainWithSet{
-		{domain: "youtube.com", set: refSet},
-		{domain: "googlevideo.com", set: refSet},
-	}
-
-	applyGroup(cfg, group)
-
-	if len(cfg.Sets) != 1 {
-		t.Fatalf("expected 1 set, got %d", len(cfg.Sets))
-	}
-
-	newSet := cfg.Sets[0]
-	if newSet.Name != "watchdog-youtube.com" {
-		t.Errorf("name = %q, want %q", newSet.Name, "watchdog-youtube.com")
-	}
-	if len(newSet.Targets.SNIDomains) != 2 {
-		t.Errorf("should have 2 SNI domains, got %d", len(newSet.Targets.SNIDomains))
-	}
-	if newSet.Fragmentation.Strategy != "combo" {
-		t.Errorf("strategy = %q, want %q", newSet.Fragmentation.Strategy, "combo")
-	}
-	if !newSet.Enabled {
-		t.Error("new set should be enabled")
-	}
-}
-
-func TestApplyGroup_ExistingSet(t *testing.T) {
-	existingSet := config.NewSetConfig()
-	existingSet.Name = "MyYouTube"
-	existingSet.Enabled = true
-	existingSet.Targets.SNIDomains = []string{"youtube.com"}
-	existingSet.Targets.DomainsToMatch = []string{"youtube.com"}
-	existingSet.Fragmentation.Strategy = "tcp"
-
-	cfg := &config.Config{
-		Sets: []*config.SetConfig{&existingSet},
-	}
-
-	refSet := &config.SetConfig{}
-	refSet.Fragmentation.Strategy = "combo"
-	refSet.Faking.Strategy = "ttl"
-	refSet.Faking.TTL = 3
-
-	group := []domainWithSet{
-		{domain: "youtube.com", set: refSet},
-		{domain: "googlevideo.com", set: refSet},
-	}
-
-	applyGroup(cfg, group)
-
-	if len(cfg.Sets) != 1 {
-		t.Fatalf("should reuse existing set, got %d sets", len(cfg.Sets))
-	}
-	if cfg.Sets[0].Fragmentation.Strategy != "combo" {
-		t.Errorf("strategy should be updated to combo, got %s", cfg.Sets[0].Fragmentation.Strategy)
-	}
-	if len(cfg.Sets[0].Targets.SNIDomains) != 2 {
-		t.Errorf("should have 2 SNI domains, got %d", len(cfg.Sets[0].Targets.SNIDomains))
-	}
-}
-
-func TestApplyGroup_SkipsRoutingSetMatchedViaGeosite(t *testing.T) {
-	adblock := config.NewSetConfig()
-	adblock.Name = "adblock"
-	adblock.Enabled = true
-	adblock.Routing.Enabled = true
-	adblock.Routing.Mode = config.RoutingModeBlock
-	adblock.Targets.SNIDomains = []string{"ad.doubleclick.net"}
-	adblock.Targets.DomainsToMatch = []string{"ad.doubleclick.net", "ads.youtube.com", "s2.youtube.com"}
-
-	youtube := config.NewSetConfig()
-	youtube.Name = "YouTubenew"
-	youtube.Enabled = true
-	youtube.Targets.SNIDomains = []string{"youtube.com"}
-	youtube.Targets.DomainsToMatch = []string{"youtube.com"}
-	youtube.Fragmentation.Strategy = "tcp"
-
-	cfg := &config.Config{
-		Sets: []*config.SetConfig{&adblock, &youtube},
-	}
-
-	refSet := &config.SetConfig{}
-	refSet.Fragmentation.Strategy = "combo"
-
-	group := []domainWithSet{
-		{domain: "youtube.com", set: refSet},
-	}
-
-	applyGroup(cfg, group)
-
-	if len(cfg.Sets) != 2 {
-		t.Fatalf("should reuse YouTube set, got %d sets", len(cfg.Sets))
-	}
-	for _, sni := range adblock.Targets.SNIDomains {
-		if sni == "youtube.com" {
-			t.Fatalf("youtube.com must not be added to the routing/block set")
-		}
-	}
-	if youtube.Fragmentation.Strategy != "combo" {
-		t.Errorf("youtube set should be healed to combo, got %s", youtube.Fragmentation.Strategy)
-	}
-}
-
-func TestApplyGroup_SkipsDisabledSet(t *testing.T) {
-	disabledSet := config.NewSetConfig()
-	disabledSet.Name = "Disabled"
-	disabledSet.Enabled = false
-	disabledSet.Targets.SNIDomains = []string{"youtube.com"}
-	disabledSet.Targets.DomainsToMatch = []string{"youtube.com"}
-
-	cfg := &config.Config{
-		Sets: []*config.SetConfig{&disabledSet},
-	}
-
-	refSet := &config.SetConfig{}
-	refSet.Fragmentation.Strategy = "combo"
-
-	group := []domainWithSet{
-		{domain: "youtube.com", set: refSet},
-	}
-
-	applyGroup(cfg, group)
-
-	if len(cfg.Sets) != 2 {
-		t.Fatalf("should create new set (not reuse disabled), got %d sets", len(cfg.Sets))
-	}
-}
-
-func TestSetListsAnyDomain(t *testing.T) {
-	set := &config.SetConfig{}
-	set.Targets.SNIDomains = []string{"YouTube.com", " discord.com "}
-
-	tests := []struct {
-		name     string
-		domains  []string
-		expected bool
-	}{
-		{"exact after trim", []string{"discord.com"}, true},
-		{"case-insensitive", []string{"youtube.com"}, true},
-		{"whitespace trimmed", []string{"  youtube.com  "}, true},
-		{"subdomain", []string{"www.youtube.com"}, true},
-		{"unrelated", []string{"twitter.com"}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := setListsAnyDomain(set, tt.domains); got != tt.expected {
-				t.Errorf("setListsAnyDomain(%v) = %v, want %v", tt.domains, got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestDomainInSNIList(t *testing.T) {
-	list := []string{"YouTube.com", " discord.com "}
-
-	tests := []struct {
-		name     string
-		domain   string
-		expected bool
-	}{
-		{"case-insensitive present", "youtube.com", true},
-		{"whitespace trimmed present", "discord.com", true},
-		{"absent", "twitter.com", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := domainInSNIList(list, tt.domain); got != tt.expected {
-				t.Errorf("domainInSNIList(%q) = %v, want %v", tt.domain, got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestApplyGroup_ExistingSet_CaseInsensitive(t *testing.T) {
-	existingSet := config.NewSetConfig()
-	existingSet.Name = "MyYouTube"
-	existingSet.Enabled = true
-	existingSet.Targets.SNIDomains = []string{"YouTube.com"}
-	existingSet.Targets.DomainsToMatch = []string{"YouTube.com"}
-	existingSet.Fragmentation.Strategy = "tcp"
-
-	cfg := &config.Config{
-		Sets: []*config.SetConfig{&existingSet},
-	}
-
-	refSet := &config.SetConfig{}
-	refSet.Fragmentation.Strategy = "combo"
-
-	group := []domainWithSet{
-		{domain: "youtube.com", set: refSet},
-	}
-
-	applyGroup(cfg, group)
-
-	if len(cfg.Sets) != 1 {
-		t.Fatalf("should reuse existing set despite case difference, got %d sets", len(cfg.Sets))
-	}
-	if len(cfg.Sets[0].Targets.SNIDomains) != 1 {
-		t.Errorf("should not append a case-variant duplicate, got %d: %v",
-			len(cfg.Sets[0].Targets.SNIDomains), cfg.Sets[0].Targets.SNIDomains)
-	}
-	if cfg.Sets[0].Fragmentation.Strategy != "combo" {
-		t.Errorf("strategy should be healed to combo, got %s", cfg.Sets[0].Fragmentation.Strategy)
-	}
-}
+// The legacy mutating helpers (applyGroup, groupByConfig, configsMatch,
+// domainWithSet, setListsAnyDomain, domainInSNIList) were removed by the
+// FB-28 cutover; their tests went with them. Tests covering the remaining
+// read-only projection helpers (setContainsAnyDomain, domainMatchesSuffix)
+// are above; nothing below may reference a mutating symbol.

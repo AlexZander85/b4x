@@ -429,36 +429,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 	}
 	handler.SetMTProtoServer(mtprotoServer)
 
-	wd := watchdog.New(&cfgPtr, discoveryRT, func(c *config.Config) error {
-		if err := c.Validate(); err != nil {
-			return fmt.Errorf("invalid configuration: %v", err)
-		}
-		if pool != nil {
-			if err := pool.UpdateConfig(c); err != nil {
-				return fmt.Errorf("failed to update pool config: %v", err)
-			}
-		}
-		if tunEngine != nil {
-			tunEngine.UpdateConfig(c)
-		}
-		if err := c.SaveToFile(c.ConfigPath); err != nil {
-			return fmt.Errorf("failed to save config: %v", err)
-		}
-		cfgPtr.Store(c)
-		mtprotoServer.UpdateConfig(c)
-		mtprotoBridge.UpdateConfig(c)
-		startCFRefresh(c)
-		tproxyResolver.Set(pool.GetMatcher())
-		if !c.System.Tables.SkipSetup {
-			tproxyMgr.SyncConfig(c)
-			tables.RoutingSyncConfig(c)
-		}
-		aiManager.Update(c.System.AI)
-		if _, err := config.ApplyMemoryLimit(c.System.MemoryLimit); err != nil {
-			log.Errorf("invalid system.memory_limit %q: %v", c.System.MemoryLimit, err)
-		}
-		return nil
-	})
+	wd := watchdog.New(&cfgPtr, discoveryRT)
 	wd.Start()
 	handler.SetWatchdog(wd)
 

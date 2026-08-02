@@ -38,11 +38,12 @@ func TestIV18RunSuiteIsFailClosed(t *testing.T) {
 	if result.SuiteID != IV18SuiteID || result.Registered != 22 {
 		t.Fatalf("suite identity: %+v", result)
 	}
-	// Every registered requirement now has executed coverage (E3/E4 closed
-	// the gaps), but the verdict must remain BLOCKED while the legacy
-	// Watchdog mutating path is reachable (MON_PRODUCTION_READY impossible).
+	// Legacy mutating path is gone (authoritative cutover): reachability is
+	// clean, but the verdict must remain BLOCKED while production
+	// dependencies of the monitoring cutover are not yet wired
+	// (BLOCKED_BY_DEPENDENCY, never a false PASS).
 	if result.Verdict != Blocked {
-		t.Fatalf("suite verdict = %v, want BLOCKED while legacy mutating path reachable", result.Verdict)
+		t.Fatalf("suite verdict = %v, want BLOCKED while production dependencies missing", result.Verdict)
 	}
 	if len(result.MissingCoverage) != 0 {
 		t.Fatalf("all requirements must have coverage after E3/E4, missing: %v", result.MissingCoverage)
@@ -50,11 +51,14 @@ func TestIV18RunSuiteIsFailClosed(t *testing.T) {
 	if result.Covered != result.Registered {
 		t.Fatalf("covered %d != registered %d", result.Covered, result.Registered)
 	}
-	if result.ProductionReady {
-		t.Fatalf("production readiness must be false while applyBatchResults is reachable")
+	if len(result.LegacyMutatingHits) != 0 {
+		t.Fatalf("legacy mutating path must be removed by cutover, hits: %+v", result.LegacyMutatingHits)
 	}
-	if len(result.LegacyMutatingHits) == 0 {
-		t.Fatalf("expected legacy mutating hits in result: %+v", result)
+	if result.ProductionReady {
+		t.Fatalf("full production readiness must be false while dependencies missing: %+v", result)
+	}
+	if len(result.BlockedDependencies) == 0 {
+		t.Fatalf("expected blocked production dependencies on unwired tree: %+v", result)
 	}
 }
 

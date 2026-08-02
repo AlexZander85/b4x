@@ -107,9 +107,10 @@ func (w *Watchdog) healBatch(domains []string) {
 		return
 	}
 
-	freshCfg := w.cfgPtr.Load().Clone()
-	applyErrors := applyBatchResults(freshCfg, domains, cs, w.saveFunc)
-
+	// FB-28 cutover: passive observation NEVER mutates configuration. The
+	// discovery outcome is projected into the in-memory health state only;
+	// authoritative config changes are applied by the monitoring escalation
+	// chain (MON -> ABD -> DDI) and the operator-facing HTTP API.
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -118,23 +119,22 @@ func (w *Watchdog) healBatch(domains []string) {
 		if !ok {
 			continue
 		}
-		if err, failed := applyErrors[domain]; failed && err != nil {
-			log.Warnf("[WATCHDOG] %s: %v, cooldown %ds", domain, err, wdCfg.Cooldown)
-			st.Status = StatusDegraded
+
+		dr := cs.DomainDiscoveryResults[ExtractDomain(domain)]
+		if dr != nil && dr.BestSuccess {
+			log.Infof("[WATCHDOG] %s: diagnosis ok (%s, %.0f KB/s)", domain, dr.BestPreset, dr.BestSpeed/1024)
+			st.Status = StatusHealthy
 			st.ConsecutiveFailures = 0
+			st.Interval = wdCfg.IntervalSec
+			st.LastHeal = time.Now()
+			st.LastError = ""
 			st.CooldownUntil = time.Now().Add(time.Duration(wdCfg.Cooldown) * time.Second)
 			continue
 		}
 
-		dr := cs.DomainDiscoveryResults[ExtractDomain(domain)]
-		if dr != nil && dr.BestSuccess {
-			log.Infof("[WATCHDOG] %s: healed (%s, %.0f KB/s)", domain, dr.BestPreset, dr.BestSpeed/1024)
-		}
-		st.Status = StatusHealthy
+		log.Warnf("[WATCHDOG] %s: no working config found, cooldown %ds", domain, wdCfg.Cooldown)
+		st.Status = StatusDegraded
 		st.ConsecutiveFailures = 0
-		st.Interval = wdCfg.IntervalSec
-		st.LastHeal = time.Now()
-		st.LastError = ""
 		st.CooldownUntil = time.Now().Add(time.Duration(wdCfg.Cooldown) * time.Second)
 	}
 }

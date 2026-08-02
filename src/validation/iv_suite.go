@@ -29,14 +29,15 @@ const (
 // IV18Result is the machine-readable suite execution result (FB-28
 // acceptance: a registered suite that executes and never false-passes).
 type IV18Result struct {
-	SuiteID            string             `json:"suite_id"`
-	Registered         int                `json:"registered_requirements"`
-	Covered            int                `json:"covered_requirements"`
-	MissingCoverage    []string           `json:"missing_coverage,omitempty"`
-	ProductionReady    bool               `json:"production_ready"`
-	LegacyMutatingHits []ReachabilityHit  `json:"legacy_mutating_hits,omitempty"`
-	Verdict            Verdict            `json:"verdict"`
-	CheckedAt          time.Time          `json:"checked_at"`
+	SuiteID            string                `json:"suite_id"`
+	Registered         int                   `json:"registered_requirements"`
+	Covered            int                   `json:"covered_requirements"`
+	MissingCoverage    []string              `json:"missing_coverage,omitempty"`
+	ProductionReady    bool                  `json:"production_ready"`
+	LegacyMutatingHits []ReachabilityHit     `json:"legacy_mutating_hits,omitempty"`
+	BlockedDependencies []ProductionDependency `json:"blocked_dependencies,omitempty"`
+	Verdict            Verdict               `json:"verdict"`
+	CheckedAt          time.Time             `json:"checked_at"`
 }
 
 // IV18Requirements returns the canonical IV-18 requirement list
@@ -127,15 +128,19 @@ func IV18MissingCoverage() []string {
 // RunIV18Suite executes the suite as a registry/meta conformance check
 // (FB-28 acceptance: "registered CLI/API suite executes"). The verdict is
 // fail-closed: PASS only when every registered requirement has executed
-// coverage AND the legacy mutating path is unreachable (mon_production_ready
-// gate). Otherwise BLOCKED with the missing coverage / reachability hits
-// listed.
+// coverage, the legacy mutating path is unreachable
+// (legacy_mutating_reachability == 0), AND no production dependency of the
+// cutover is missing. Removing the legacy path alone never produces a false
+// PASS: while the production monitoring chain or /api/monitor/v1 is not yet
+// wired the verdict is BLOCKED with the blocked dependencies listed
+// (owner decision 2026-08-02).
 func RunIV18Suite() IV18Result {
 	requirements := IV18Requirements()
 	missing := IV18MissingCoverage()
 	reach := IV18ReverseReachability("")
+	blockedDeps := IV18ProductionDependenciesBlocked()
 	verdict := Pass
-	if len(missing) > 0 || !reach.ProductionReady {
+	if len(missing) > 0 || !reach.ProductionReady || len(blockedDeps) > 0 {
 		verdict = Blocked
 	}
 	sort.Strings(missing)
@@ -144,8 +149,9 @@ func RunIV18Suite() IV18Result {
 		Registered:         len(requirements),
 		Covered:            len(requirements) - len(missing),
 		MissingCoverage:    missing,
-		ProductionReady:    reach.ProductionReady,
+		ProductionReady:    reach.ProductionReady && len(blockedDeps) == 0,
 		LegacyMutatingHits: reach.Hits,
+		BlockedDependencies: blockedDeps,
 		Verdict:            verdict,
 		CheckedAt:          time.Now().UTC(),
 	}

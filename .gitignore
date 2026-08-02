@@ -53,3 +53,7 @@ __pycache__/
 /.ag/
 
 # agent session state (OpenCode).ag/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db

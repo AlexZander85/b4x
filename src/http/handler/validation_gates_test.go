@@ -105,14 +105,21 @@ func TestValidationIV18EndpointExecutesSuiteFailClosed(t *testing.T) {
 	if len(snapshot.Requirements) != 22 || len(snapshot.Coverage) == 0 {
 		t.Fatalf("requirements = %d coverage = %d, want 22 registered + coverage", len(snapshot.Requirements), len(snapshot.Coverage))
 	}
-	// Fail-closed: full coverage is in place, but the verdict stays BLOCKED
-	// while the legacy Watchdog mutating path is reachable
-	// (mon_production_ready gate).
+	// Fail-closed: full coverage is in place and the legacy mutating path is
+	// removed (cutover), but the verdict stays BLOCKED while production
+	// dependencies of the monitoring cutover are unwired
+	// (mon_production_ready gate = BLOCKED_BY_DEPENDENCY, never false PASS).
 	if snapshot.Result.Registered != 22 || snapshot.Result.Covered != 22 {
 		t.Fatalf("suite registry must be complete: %+v", snapshot.Result)
 	}
-	if snapshot.Result.Verdict != validation.Blocked || snapshot.Result.ProductionReady {
-		t.Fatalf("suite must be fail-closed BLOCKED while legacy path reachable: %+v", snapshot.Result)
+	if snapshot.Result.Verdict != validation.Blocked {
+		t.Fatalf("suite must be fail-closed BLOCKED while production dependencies missing: %+v", snapshot.Result)
+	}
+	if len(snapshot.Result.LegacyMutatingHits) != 0 {
+		t.Fatalf("legacy mutating path must be removed after cutover: %+v", snapshot.Result.LegacyMutatingHits)
+	}
+	if len(snapshot.Result.BlockedDependencies) == 0 {
+		t.Fatalf("expected blocked production dependencies: %+v", snapshot.Result)
 	}
 
 	rec = httptest.NewRecorder()
