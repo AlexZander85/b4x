@@ -48,7 +48,7 @@ swagger:
 
 # Build for current platform
 .PHONY: build
-build: swagger
+build: swagger gen-defaults build-ui
 	@echo "Building $(BINARY_NAME) $(VERSION) for current platform..."
 	@mkdir -p $(OUT_DIR)
 	go -C $(SRC_DIR) build $(BUILDFLAGS) -ldflags "$(LDFLAGS)" -o ../$(OUT_DIR)/$(BINARY_NAME)
@@ -186,6 +186,8 @@ gen-defaults:
 
 .PHONY: build-ui
 build-ui: gen-defaults
+	@echo "Installing web UI dependencies..."
+	@cd src/http/ui && pnpm install --frozen-lockfile
 	@echo "Building web UI..."
 	@cd src/http/ui && pnpm build
 	@echo "Web UI build complete."

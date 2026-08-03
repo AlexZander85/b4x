@@ -33,7 +33,7 @@ jobs:
       - name: Setup PNPM
         uses: pnpm/action-setup@v6
         with:
-          version: 10.18.2
+          version: 10.29.2
           run_install: false
 
       - name: Setup Node.js
@@ -71,6 +71,7 @@ jobs:
     name: Run Tests
     needs: build-ui
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -87,9 +88,28 @@ jobs:
           name: ui-build
           path: src/http/ui/dist
 
-      - name: Run tests
+      - name: Run vet
         working-directory: src
-        run: go test ./...
+        run: go vet ./...
+
+      - name: Run tests with race detector
+        working-directory: src
+        run: go test -race -count=1 ./...
+
+      - name: Fuzz smoke tests
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          for dir in $(find . -name '*_test.go' -exec grep -lE '^func Fuzz' {} + | xargs -n1 dirname | sort -u); do
+            pkg=$(go list "./${dir}" | head -1) || continue
+            for fn in $(grep -hoE '^func Fuzz[A-Za-z0-9_]+' "${dir}"/*_test.go | sed 's/^func //'); do
+              echo "Fuzz smoke: ${pkg} ${fn}"
+              go test -run='^$' -fuzztime=5s -fuzz="^${fn}$" "${pkg}" || failed=1
+            done
+          done
+          exit $failed
 
   build-linux:
     name: Build Linux ${{ matrix.arch }}
