@@ -20,6 +20,11 @@ const (
 	DefaultCooldown       = 30 * time.Second
 	MaxCanaryDuration     = time.Hour
 	MaxCanarySamples      = 1000000
+	// pendingCanaryCloseGrace bounds how long Close waits for an in-flight
+	// canary to finish before forcibly tearing the candidate down. It keeps
+	// shutdown responsive (bounded by seconds, not MaxCanaryDuration) while
+	// still letting a canary that is about to complete do so cleanly.
+	pendingCanaryCloseGrace = 3 * time.Second
 )
 
 var (

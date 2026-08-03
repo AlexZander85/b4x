@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/observability"
@@ -60,7 +61,7 @@ func (m *Manager) Prepare(ctx context.Context, candidate *config.Config, request
 		m.appendHistoryLocked(HistoryEntry{Action: "prepare", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now()})
 		return PrepareResult{Generation: meta, Readiness: readiness}, &TransactionError{Stage: StageReadiness, Err: err}
 	}
-	m.pending = &pendingState{meta: meta, runtime: runtime, request: request, readiness: readiness, preparedAt: m.clk.Now()}
+	m.pending = &pendingState{meta: meta, runtime: runtime, request: request, readiness: readiness, canaryDone: make(chan struct{}), preparedAt: m.clk.Now()}
 	m.appendHistoryLocked(HistoryEntry{Action: "prepare", Generation: meta.ID, Success: true, At: m.clk.Now()})
 	return PrepareResult{Generation: meta.clone(), Readiness: readiness}, nil
 }
@@ -84,6 +85,10 @@ func (m *Manager) RunCanary(ctx context.Context) (CanaryOutcome, error) {
 	}
 	pending.canaryRunning = true
 	m.mu.Unlock()
+	// canaryDone is closed exactly once, on every exit path of this canary
+	// run (success, failure, or stale pending). Close waits on it with a
+	// bounded grace so shutdown never stalls for the full canary duration.
+	defer close(pending.canaryDone)
 	outcome, err := pending.runtime.Canary(ctx, pending.request.Canary)
 	if err == nil {
 		err = validateCanaryOutcome(pending.request.Canary, outcome)
@@ -226,6 +231,24 @@ func (m *Manager) Close(ctx context.Context) error {
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	// If a canary is running, wait for it to finish with a bounded grace
+	// instead of rolling the candidate back underneath it. The manager mutex
+	// is released while waiting so the canary goroutine can complete and
+	// close canaryDone; after the grace the candidate is torn down regardless
+	// of whether the canary finished. Close therefore never stalls for the
+	// full MaxCanaryDuration.
+	var canaryDone <-chan struct{}
+	m.mu.Lock()
+	if m.pending != nil && m.pending.canaryRunning {
+		canaryDone = m.pending.canaryDone
+	}
+	m.mu.Unlock()
+	if canaryDone != nil {
+		select {
+		case <-canaryDone:
+		case <-time.After(pendingCanaryCloseGrace):
+		}
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

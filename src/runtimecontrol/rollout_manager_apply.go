@@ -13,6 +13,14 @@ func cooldownKey(meta GenerationMeta, spec CanarySpec) CooldownKey {
 	return CooldownKey{SetID: spec.SetID, ClientGroup: spec.ClientGroup, Protocol: spec.Protocol, CandidateGeneration: meta.ID}
 }
 
+// Apply is the single-phase convenience wrapper over the two-phase pipeline
+// (Prepare → RunCanary → PromotePending). It never holds the manager mutex
+// while the canary is running: the mutex is acquired only for the short
+// prepare and promote critical sections, so status reads, rollback and
+// shutdown stay responsive while a canary (up to MaxCanaryDuration) is
+// active. A concurrent Prepare/Apply during an active canary fails fast with
+// ErrPendingExists instead of blocking; a canary that is aborted or closed
+// mid-flight surfaces ErrNoPending to the stale Apply caller.
 func (m *Manager) Apply(ctx context.Context, candidate *config.Config, request ApplyRequest) (ApplyResult, error) {
 	if m == nil {
 		return ApplyResult{}, ErrInvalidRuntime
@@ -20,123 +28,18 @@ func (m *Manager) Apply(ctx context.Context, candidate *config.Config, request A
 	if !m.Enabled() {
 		return ApplyResult{}, ErrDisabled
 	}
-	if candidate == nil {
-		return ApplyResult{}, &TransactionError{Stage: StageValidate, Err: errors.New("candidate config is nil")}
-	}
-	if err := request.Canary.Validate(); err != nil {
-		return ApplyResult{}, &TransactionError{Stage: StageValidate, Err: err}
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return ApplyResult{}, &TransactionError{Stage: StageValidate, Err: err}
-	}
-	clone := candidate.CloneForRuntimeUpdate()
-	if err := clone.Validate(); err != nil {
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Reason: err.Error(), Success: false, At: m.clk.Now()})
-		return ApplyResult{}, &TransactionError{Stage: StageValidate, Err: err}
-	}
-	meta := makeGenerationMeta(clone, m.clk.Now())
-	key := CooldownKey{SetID: request.Canary.SetID, ClientGroup: request.Canary.ClientGroup, Protocol: request.Canary.Protocol, CandidateGeneration: meta.ID}
-	if err := m.cooldown.Check(key); err != nil {
-		return ApplyResult{}, &TransactionError{Stage: StageCanary, Err: err}
-	}
-
-	runtime, err := m.builder.Build(ctx, clone, meta.clone())
-	if err != nil || runtime == nil {
-		if err == nil {
-			err = ErrInvalidRuntime
-		}
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now()})
-		return ApplyResult{}, &TransactionError{Stage: StageBuild, Err: err}
-	}
-	readiness, err := runtime.Readiness(ctx)
-	if err != nil || !readiness.Ready {
-		if err == nil {
-			err = errors.New(readiness.Reason)
-		}
-		m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now()})
-		return ApplyResult{Generation: meta, Readiness: readiness}, &TransactionError{Stage: StageReadiness, Err: err}
-	}
-	canary, err := runtime.Canary(ctx, request.Canary)
-	if err == nil {
-		err = validateCanaryOutcome(request.Canary, canary)
-	}
+	prepared, err := m.Prepare(ctx, candidate, request)
 	if err != nil {
-		m.cooldown.RecordFailure(key)
-		m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
-		return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StageCanary, Err: err}
+		return ApplyResult{Generation: prepared.Generation, Readiness: prepared.Readiness}, err
 	}
-	record := recordFrom(meta, canary, m.b4Version, m.clk.Now())
-	if err := m.store.Prepare(record); err != nil {
-		m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-		return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePrepare, Err: err}
+	outcome, err := m.RunCanary(ctx)
+	if err != nil {
+		return ApplyResult{Generation: prepared.Generation, Readiness: prepared.Readiness, Canary: outcome}, err
 	}
-	old := m.active.Load()
-	if m.hardGateCheck != nil {
-		if err := m.hardGateCheck(meta.clone()); err != nil {
-			m.cooldown.RecordFailure(key)
-			_ = m.store.Abort()
-			m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-			m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
-			return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePromote, Err: err}
-		}
-	}
-	if m.beforePromote != nil {
-		if err := m.beforePromote(meta.clone()); err != nil {
-			_ = m.store.Abort()
-			m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-			m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
-			return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePromote, Err: err}
-		}
-	}
-	if err := runtime.Promote(ctx); err != nil {
-		_ = m.store.Abort()
-		m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
-		return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StagePromote, Err: err}
-	}
-	candidateState := &runtimeState{meta: meta, runtime: runtime}
-	m.active.Store(candidateState)
-	if err := m.store.Commit(record); err != nil {
-		m.active.Store(old)
-		_ = m.store.Abort()
-		restoreErr := resumeRuntime(ctx, old)
-		m.cleanupCandidateLocked(ctx, runtime, meta.ID, err)
-		if restoreErr != nil {
-			err = errors.Join(err, fmt.Errorf("restore previous runtime: %w", restoreErr))
-		}
-		m.appendHistoryLocked(HistoryEntry{Action: "apply", Generation: meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: canary})
-		return ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}, &TransactionError{Stage: StageCommit, Err: err}
-	}
-	result := ApplyResult{Generation: meta, Readiness: readiness, Canary: canary}
-	if old != nil {
-		if err := old.runtime.Drain(ctx); err != nil {
-			result.DrainError = err.Error()
-		}
-		if m.retired != nil {
-			_ = m.retired.runtime.Close(ctx)
-		}
-		m.retired = old
-		if m.lastGood != nil {
-			previous := m.lastGood.clone()
-			m.previousGood = &previous
-		}
-	}
-	m.lastGood = &record
-	m.cooldown.RecordSuccess(key)
-	if result.DrainError != "" {
-		observability.Default().Metrics.Inc(observability.MetricDiscoveryCandidateRollback, map[string]string{"reason": "drain-error"}, 1)
-	}
-	m.appendHistoryLocked(HistoryEntry{Action: "promote", Generation: meta.ID, Success: true, At: m.clk.Now(), Canary: canary})
-	observability.Default().Metrics.Inc(observability.MetricDiscoveryCandidatePromote, map[string]string{"generation": meta.ID[:minInt(len(meta.ID), 16)]}, 1)
-	return result, nil
+	return m.PromotePending(ctx)
 }
 
 func resumeRuntime(ctx context.Context, state *runtimeState) error {

@@ -53,7 +53,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-05 | открыта | — |
 | FB-06 | ВЫПОЛНЕНА | Beads b4x-4xq, closed 03.08; release.yml: vet + -race + fuzz smoke (27 целей), найден и исправлен int-overflow в readCountryCode |
 | FB-07 | открыта | — |
-| FB-08 | открыта | — |
+| FB-08 | выполнена | — |
 | FB-09 | ВЫПОЛНЕНА | Beads b4x-0to, closed 03.08; tcp_hold_worker.go releaseTCPHoldOnFlowTermination + 3 теста |
 | FB-10 | ВЫПОЛНЕНА | Beads b4x-bed, closed 02.08; commit e23ba6ab |
 | FB-11 | открыта | — |
@@ -601,7 +601,7 @@ shadow parity
   - `MON_PRODUCTION_READY` зависит от active gates и не является константой.
 - **Зависит:** FB-14 п.3, FB-03, FB-28; integration with ABD/DDI — FB-02.
 
-### FB-08. Не держать глобальный mutex на всю canary-транзакцию [M]
+### FB-08. Не держать глобальный mutex на всю canary-транзакцию [M] **— ВЫПОЛНЕНО** (Beads b4x-vt3, 03.08)
 
 - **Проблема:** `RolloutManager.Apply` держит `m.mu` во время canary до 1h; cancel/rollback/status/abort могут блокироваться.
 - **Что сделать:** реализовать explicit transaction state machine:

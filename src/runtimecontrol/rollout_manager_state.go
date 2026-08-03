@@ -66,6 +66,7 @@ type pendingState struct {
 	canary         CanaryOutcome
 	canaryComplete bool
 	canaryRunning  bool
+	canaryDone     chan struct{}
 	preparedAt     time.Time
 }
 
