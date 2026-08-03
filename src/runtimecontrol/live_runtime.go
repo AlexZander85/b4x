@@ -312,6 +312,14 @@ func (r *liveRuntime) Promote(ctx context.Context) error {
 	return r.stopCandidate(ctx)
 }
 
+// Drain is a declared intentional no-op (FB-37): the ARCH §75 generation
+// switch → drain/retire contract is fulfilled synchronously by Promote
+// (stopCandidate: canary cancel + steering/pool cleanup) and by per-store
+// InvalidateGeneration on generation change (routing.BindingStore,
+// nfq.GSOPassTokenStore, action.ActionTokenStore, classifier.HostHintStore,
+// silentpath.ProgressStore, nfq.PassiveRSTStore). The live runtime owns no
+// additional drainable per-generation resource; returning nil here is
+// correct by contract, not a protective placeholder.
 func (r *liveRuntime) Drain(context.Context) error { return nil }
 
 func (r *liveRuntime) Resume(ctx context.Context) error {

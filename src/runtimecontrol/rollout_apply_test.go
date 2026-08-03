@@ -252,6 +252,52 @@ func TestFileLastGoodStoreDoesNotPersistLiveState(t *testing.T) {
 	}
 }
 
+func TestDrainErrorDoesNotUndoGenerationSwitch(t *testing.T) {
+	// FB-37: the ARCH §75 generation-switch protection lives in Promote /
+	// per-store InvalidateGeneration, NOT in Drain. A failing Drain on the
+	// previous runtime must not roll the applied generation back.
+	next := &fakeRuntime{readiness: RuntimeReadiness{Ready: true}, canary: validOutcome()}
+	builder := &fakeBuilder{runtime: next}
+	manager, previous, _, _ := testManager(t, builder, Options{})
+	previous.drainErr = errors.New("simulated drain failure")
+	result, err := manager.Apply(context.Background(), testConfig(true), ApplyRequest{Canary: validCanary()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DrainError == "" {
+		t.Fatal("expected DrainError surfaced on the result")
+	}
+	active, ok := manager.Active()
+	if !ok || active.ID != result.Generation.ID {
+		t.Fatalf("generation switch must survive drain failure: active=%+v result=%+v", active, result)
+	}
+	// The previous runtime was drained exactly once (retired, not rolled back).
+	if previous.drainN != 1 || previous.resumeN != 0 || next.rollbackN != 0 {
+		t.Fatalf("previous drain=%d resume=%d candidate rollback=%d", previous.drainN, previous.resumeN, next.rollbackN)
+	}
+}
+
+func TestLiveRuntimeDrainIsIntentionalNoOp(t *testing.T) {
+	// FB-37: the production Runtime declares Drain as an intentional no-op;
+	// calling it must not mutate the runtime and must return nil, and the
+	// generation-switch protection is independently pinned by Promote.
+	state := testConfig(true)
+	runtime, err := NewActiveRuntime(state, LiveHooks{
+		Current: func() *config.Config { return state },
+		Apply:   func(*config.Config) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := runtime.(*liveRuntime).promoted
+	if err := runtime.Drain(context.Background()); err != nil {
+		t.Fatalf("Drain must be a no-op that returns nil, got %v", err)
+	}
+	if runtime.(*liveRuntime).promoted != before {
+		t.Fatal("Drain mutated the runtime")
+	}
+}
+
 func FuzzCanaryOutcomeValidation(f *testing.F) {
 	f.Add(uint64(2), uint64(0), true)
 	f.Add(uint64(1), uint64(2), false)

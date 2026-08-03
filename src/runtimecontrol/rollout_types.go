@@ -104,6 +104,15 @@ type Runtime interface {
 	Readiness(context.Context) (RuntimeReadiness, error)
 	Canary(context.Context, CanarySpec) (CanaryOutcome, error)
 	Promote(context.Context) error
+	// Drain is a declared intentional no-op: the ARCH §75 "atomic generation
+	// switch → drain/retire previous generation" contract is executed by
+	// Promote (stopCandidate) and by per-store InvalidateGeneration
+	// (routing.BindingStore, nfq.GSOPassTokenStore/ActionTokenStore,
+	// classifier.HostHintStore, silentpath.ProgressStore, ...); there is no
+	// separate per-generation resource to drain in the production Runtime.
+	// Implementations with real drainable resources MUST implement it; the
+	// live runtime keeps it as a documented no-op so call sites cannot
+	// silently inherit a fake protective drain.
 	Drain(context.Context) error
 	Resume(context.Context) error
 	Rollback(context.Context, string) error
