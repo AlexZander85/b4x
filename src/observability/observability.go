@@ -76,13 +76,26 @@ const (
 	MetricPassiveRSTRollback            = "passive_rst_rollback_total"
 	MetricPassiveRSTReconnectRegression = "passive_rst_reconnect_regression_total"
 
-	// FB-29 resolution-experiment zero-tolerance counters. The prefix matches
-	// the hard-gate registry gate IDs
-	// (monitor_/detector_first_success_erased_address_failures_total): a
-	// first successful address must never erase sibling address failures from
-	// the per-address aggregation.
+// FB-29 resolution-experiment zero-tolerance counters (kept; the metric
+	// prefix matches the registry gate IDs
+	// monitor_/detector_first_success_erased_address_failures_total).
 	MetricMonitorFirstSuccessErasedAddressFailures  = "monitor_first_success_erased_address_failures_total"
 	MetricDetectorFirstSuccessErasedAddressFailures = "detector_first_success_erased_address_failures_total"
+
+	// FB-30 multi-vantage zero-tolerance counters. The metric names match the
+	// hard-gate registry gate IDs of GlobalGateClass "multi_vantage"; each
+	// violation is produced by one call site (RecordMultiVantageViolation in
+	// src/detector/abd_path.go) and fires the mon + abd pair together, the
+	// same pattern as FB-29's RecordResolutionErasure.
+	MetricMonitorHttpHypothesisFromTCPTLSOnlyObserver     = "monitor_http_hypothesis_from_tcp_tls_only_observer_total"
+	MetricMonitorObserverUnavailableAsTargetFailure       = "monitor_observer_unavailable_as_target_failure_total"
+	MetricMonitorExactEndpointServiceResolutionConflated  = "monitor_exact_endpoint_service_resolution_conflated_total"
+	MetricMonitorObserverCapabilityUnproven               = "monitor_observer_capability_unproven_total"
+	MetricDetectorMultiVantageStageMismatch               = "detector_multivantage_stage_mismatch_total"
+	MetricDetectorHttpHypothesisFromTCPTLSOnlyObserver    = "detector_http_hypothesis_from_tcp_tls_only_observer_total"
+	MetricDetectorObserverUnavailableAsTargetFailure      = "detector_observer_unavailable_as_target_failure_total"
+	MetricDetectorExactEndpointServiceResolutionConflated = "detector_exact_endpoint_service_resolution_conflated_total"
+	MetricDetectorObserverCapabilityUnproven              = "detector_observer_capability_unproven_total"
 )
 
 type MetricSample struct {

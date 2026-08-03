@@ -73,10 +73,19 @@ const (
 type EvidenceAuthority string
 
 const (
-	AuthorityPassiveObservation EvidenceAuthority = "passive-observation"
+	// AuthorityPassiveMonitoring is the canonical machine-readable name for
+	// passive observer evidence (FB-30). Pre-FB-30 code and the monitoring
+	// addendum v1.0 spelled it "passive-observation"; the canonical value per
+	// ABD addendum v1.2 §9.7 and ARCH v2.4 is "passive-monitoring".
+	AuthorityPassiveMonitoring EvidenceAuthority = "passive-monitoring"
 	AuthorityProvisionalFast    EvidenceAuthority = "provisional-fast"
 	AuthorityAuthoritativeABD   EvidenceAuthority = "authoritative-abd"
 	AuthorityAndroidCanary      EvidenceAuthority = "android-canary"
+
+	// AuthorityPassiveObservation is a deprecated alias kept for pre-FB-30
+	// call sites; it carries the canonical "passive-monitoring" value so the
+	// machine-readable name never changes.
+	AuthorityPassiveObservation = AuthorityPassiveMonitoring
 )
 
 type FailureAttribution string
