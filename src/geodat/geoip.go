@@ -104,7 +104,7 @@ func convertV2CidrToText(cidr []*v2data.CIDR, w io.Writer) error {
 			return fmt.Errorf("invalid ip at index #%d, %s", i, record.Ip)
 		}
 		prefix, err := ip.Prefix(int(record.Prefix))
-		if !ok {
+		if err != nil {
 			return fmt.Errorf("invalid prefix at index #%d, %w", i, err)
 		}
 

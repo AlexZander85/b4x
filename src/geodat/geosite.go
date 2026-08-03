@@ -52,6 +52,11 @@ func readCountryCode(msg []byte) (string, error) {
 		return "", log.Errorf("bad varint")
 	}
 	start := 1 + n
+	// Guard before converting to int: a huge declared length must not
+	// overflow int and bypass the truncation check below.
+	if l > uint64(len(msg)-start) {
+		return "", log.Errorf("string truncated")
+	}
 	end := start + int(l)
 	if end > len(msg) {
 		return "", log.Errorf("string truncated")
