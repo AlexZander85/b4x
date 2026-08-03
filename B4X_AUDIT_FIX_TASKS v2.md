@@ -42,6 +42,51 @@ Audit finding устанавливает наличие проблемы, но �
 
 ---
 
+## СТАТУС ВЫПОЛНЕНИЯ (синхронизировано с Beads, 03.08.2026)
+
+| FB | Статус | Подтверждение |
+|---:|---|---|
+| FB-01 | ВЫПОЛНЕНА | Beads b4x-end, closed 03.08; тест уже использует &cfg, vet + test + -race PASS |
+| FB-02 | открыта | — |
+| FB-03 | открыта | — |
+| FB-04 | открыта | — |
+| FB-05 | открыта | — |
+| FB-06 | ВЫПОЛНЕНА | Beads b4x-4xq, closed 03.08; release.yml: vet + -race + fuzz smoke (27 целей), найден и исправлен int-overflow в readCountryCode |
+| FB-07 | открыта | — |
+| FB-08 | открыта | — |
+| FB-09 | ВЫПОЛНЕНА | Beads b4x-0to, closed 03.08; tcp_hold_worker.go releaseTCPHoldOnFlowTermination + 3 теста |
+| FB-10 | ВЫПОЛНЕНА | Beads b4x-bed, closed 02.08; commit e23ba6ab |
+| FB-11 | открыта | — |
+| FB-12 | ВЫПОЛНЕНА | Beads b4x-1lb, closed 02.08; commit 5bb47b13 |
+| FB-13 | ВЫПОЛНЕНА | Beads b4x-abc, closed 03.08; session_test.go + тест сериализации |
+| FB-14 | открыта | — |
+| FB-15 | ВЫПОЛНЕНА | Beads b4x-1yk, closed 03.08; build: swagger gen-defaults build-ui, pnpm 10.29.2 везде |
+| FB-16 | ОТМЕНЕНА | перепроверка 31.07: все 104 документа валидный UTF-8, перекодировка не требуется |
+| FB-17 | открыта | — |
+| FB-18 | открыта | — |
+| FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
+| FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
+| FB-21 | открыта | — |
+| FB-22 | открыта | — |
+| FB-23 | открыта | — |
+| FB-24 | открыта | — |
+| FB-25 | открыта | — |
+| FB-26 | открыта | — |
+| FB-27 | ВЫПОЛНЕНА | Beads b4x-95i, closed 02.08; commits 53be408a/44beac3c/340ae441 |
+| FB-28 | ВЫПОЛНЕНА | Beads b4x-pp4, closed 03.08; IV-18 suite, 24 entries, 57 mon gates |
+| FB-29 | ВЫПОЛНЕНА | Beads b4x-04h, closed 02.08; commit 5b0a364e |
+| FB-30 | ВЫПОЛНЕНА | Beads b4x-ivz, closed 03.08; commit f1149b3f |
+| FB-31 | открыта | — |
+| FB-32 | открыта | — |
+| FB-33 | открыта | — |
+| FB-34 | открыта | — |
+| FB-35 | открыта | — |
+| FB-36 | открыта | — |
+| FB-37 | ВЫПОЛНЕНА | Beads b4x-4vt, closed 03.08; вариант (а) — intentional no-op задокументирован |
+| FB-38 | ВЫПОЛНЕНА | Beads b4x-izm, closed 03.08; guard learnedIPAuthorizationAllowed в nfq/handler.go (TCP/UDP legacy-пути), learnedIPCache legacy-only + счётчик в sni/match.go, 2 теста |
+
+---
+
 ## 0. ПРАВИЛА РАБОТЫ
 
 ### 0.1. Обязательный порядок выполнения
@@ -271,6 +316,7 @@ Profile может только сузить capability. Он не создаё�
 
 #### 5. `src/fieldtest`
 
+- runnable local controller: `tools/field-test-controller` / CLI `b4-field-test` (FT-C, FT v1.5 §2234+; preflight/run/compare/validate/canary/rollback/export);
 - `Controller` реально вызывает `HardGatesPass`;
 - FT-AC (9), FT-AD (7), FT-AE (12) mutant fixtures существуют и исполняются;
 - Monitoring suites FT-MON-A…J добавлены;
@@ -490,7 +536,7 @@ TPROXY/listener accept
 
 ### FB-07. MON v1.0: реализовать strangler-замену Watchdog и authoritative Monitoring [XL]
 
-- **Проблема:** MON v1.0 не подключён; legacy `applyBatchResults` и direct apply остаются active source of truth; `/api/monitor/v1` отсутствует; Monitoring gates/suites отсутствуют.
+- **Проблема:** MON v1.0 не подключён; legacy `applyBatchResults` и direct apply остаются active source of truth; `/api/monitor/v1` отсутствует; Monitoring gates/suites отсутствуют; конфиг-поле `legacy_watchdog_direct_apply` (MON addendum §77, default `false`, при `true` — startup warning) не реализовано; отчёты `docs/reports/mon-11-compatibility-cutover.md` и `docs/reports/mon-12-field-validation.md` содержат ложное утверждение «Direct legacy Watchdog apply remains disabled on the production-safe compatibility path» (независимый аудит B4X-AUDIT-0009): `applyBatchResults` активен (`watchdog/applier.go:18`, `watchdog_heal.go:111`).
 
 #### Фаза A — canonical model и shadow wiring
 
@@ -508,6 +554,9 @@ legacy Watchdog и Monitoring считают
 → mutating owner остаётся только legacy transaction path
 → parity/contradiction evidence собирается
 ```
+
+- `monitor.DiagnosticScheduler` стартует в `main.go` (production entry, не только в тестах);
+- конфиг-поле `legacy_watchdog_direct_apply` (default `false`, при `true` — startup warning), счётчик `monitor_legacy_watchdog_direct_apply_total`;
 
 #### Фаза B — MON→ABD/DDI integration
 
@@ -536,6 +585,7 @@ shadow parity
 - read-only alias максимум один minor release и читает Monitoring state;
 - `applyBatchResults` и другие legacy direct mutation callers недостижимы;
 - restart/reboot не восстанавливает legacy owner;
+- отчёты `docs/reports/mon-11-compatibility-cutover.md` и `docs/reports/mon-12-field-validation.md` исправлены: до cutover их утверждение о «direct apply disabled» заменяется фактическим статусом;
 - только затем `MON_PRODUCTION_READY` может стать PASS.
 
 #### Фаза D — validation
@@ -576,13 +626,13 @@ prepare under lock
 - **Критерий:** concurrency/race tests показывают быстрый status/cancel/rollback; incompatible Prepare быстро получает deterministic result; last-good/rollback invariants сохранены; `go test -race ./runtimecontrol/...` PASS.
 - **Зависит:** —
 
-### FB-09. Abort hold на FIN/RST [M]
+### FB-09. Abort hold на FIN/RST [M] **— ВЫПОЛНЕНО** (Beads b4x-0to, 03.08)
 - **Проблема:** `src/nfq/tcp_hold_config.go:17-18` — константы `tcpHoldAbortFIN`/`tcpHoldAbortRST` объявлены, нигде не используются (grep = 2 совпадения — только объявления). На FIN/RST held-пакет не релизится явно — висит до таймаута 750ms (fail-open сохранён, но инвариант hold не исполняется).
 - **Что сделать:** реализовать пути abort hold: при FIN/RST на held-потоке — немедленный релиз/отмена hold по правилам ARCH §42-45; покрыть тестами (FIN и RST).
 - **Критерий:** тесты: FIN/RST на held-потоке завершают hold немедленно (не по таймауту); существующие nfq-тесты (113 файлов) PASS.
 - **Зависит:** —
 
-### FB-10. CSI-15: единый compact immutable `GSOPassToken` [M]
+### FB-10. CSI-15: единый compact immutable `GSOPassToken` [M] **— ВЫПОЛНЕНО** (Beads b4x-bed, 02.08, e23ba6ab)
 
 - **Проблема:** текущий token не несёт canonical authorization/policy references; RST/GSO и CSI задают разные schemas.
 - **Что сделать:** реализовать один type согласно FB-14:
@@ -636,13 +686,13 @@ GSOPassToken {
 - **Критерий:** переключение флага меняет observed production topology/behavior и имеет integration/rollback tests; либо приложен owner-approved de-scope bundle с registry/verdict/API/UI/migration updates.
 - **Зависит:** FB-14, FB-18B.
 
-### FB-12. PPE self-test: авто-старт при `mode: startup-and-change` [M]
+### FB-12. PPE self-test: авто-старт при `mode: startup-and-change` [M] **— ВЫПОЛНЕНО** (Beads b4x-1lb, 02.08, 5bb47b13)
 - **Проблема:** self-test стартует только через HTTP (`src/capture/ppe/capture_offload_product.go:183`); при `mode: startup-and-change` авто-запуск не подключён (`reconciler.go:122`).
 - **Что сделать:** при активации режима запускать self-test автоматически (реконсиляция/старт сервиса), результат — в статус; покрыть тестом.
 - **Критерий:** тест: при конфиге `mode=startup-and-change` self-test выполняется без HTTP-вызова; статус содержит результат.
 - **Зависит:** —
 
-### FB-13. Коллизия JSON-тегов в fieldtest [S]
+### FB-13. Коллизия JSON-тегов в fieldtest [S] **— ВЫПОЛНЕНО** (Beads b4x-abc, 03.08)
 - **Проблема:** `src/fieldtest/session.go:59` — `ConfigGen, RouteGen, SessionGen uint64` — все три `json:"config_gen,omitempty"` (vet error). Потеря RouteGen/SessionGen при сериализации трассы (норма FT v1.5: трасса несёт ConfigGen/RouteGen/SessionGen).
 - **Что сделать:** развести теги (`config_gen`, `route_gen`, `session_gen`); проверить обратную совместимость сериализации (схема трассы FT) — обновить схему/тесты.
 - **Критерий:** `go vet ./...` чист; тест сериализации события трассы сохраняет все 3 поля.
@@ -792,7 +842,7 @@ NOT_APPLICABLE
 - **Критерий:** `go test ./geodat/... ./quic/...` PASS; coverage report перечисляет critical functions; malformed/fuzz corpus исполняется; mutation/no-op replacement хотя бы ключевого decision function обнаруживается тестом.
 - **Зависит:** —
 
-### FB-20. Пустой пакет metrics [S]
+### FB-20. Пустой пакет metrics [S] **— ВЫПОЛНЕНО** (Beads b4x-azj, 03.08)
 - **Проблема:** `src/metrics/` — пустой пакет (коллектор живёт в `http/handler`).
 - **Что сделать:** ASSUMPTION (владелец решение не дал, выбран безопасный дефолт): удалить пустой пакет, импорты поправить; ничего не переносить. Если при удалении обнаружится, что пакет используется — оставить и задокументировать.
 - **Критерий:** `go build ./...` OK; пакета-пустышки нет (или задокументированное использование).
@@ -921,7 +971,7 @@ confirmed scoped failure
 - **Критерий:** каждая required strategy reachable from production executor; incompatible plan rejected before packet mutation; no legacy duplicate implementation; integration and packet fixtures PASS.
 - **Зависит:** FB-22, FB-10/FB-27 where GSO involved.
 
-### FB-27. GSO pipeline: production topology, observe/classify/action gates и transactional lifecycle [XL]
+### FB-27. GSO pipeline: production topology, observe/classify/action gates и transactional lifecycle [XL] **— ВЫПОЛНЕНО** (Beads b4x-95i, 02.08, 53be408a/44beac3c/340ae441)
 
 - **Проблема:** GSO queue topology, normalizer и topology transactions test-only; production pool создаётся без них; normalized metric unreachable.
 - **Что сделать:**
@@ -962,7 +1012,7 @@ ActionAuthorization
 - **Критерий:** NewGSOQueueTopology and transactions reachable through production runtime API; parity IPv4/IPv6/GSO-MSS/retransmission tests; mutation rejected without token/gate; queue/token leak tests; target evidence or explicit BLOCKED_BY_TARGET.
 - **Зависит:** FB-03, FB-10, FB-12/PPE visibility, runtimecontrol.
 
-### FB-28. IV-18: Continuous Monitoring conformance and Watchdog cutover suite [XL, P0-NORMATIVE]
+### FB-28. IV-18: Continuous Monitoring conformance and Watchdog cutover suite [XL, P0-NORMATIVE] **— ВЫПОЛНЕНО** (Beads b4x-pp4, 03.08)
 
 - **Проблема:** ARCH-120…123 не имеют отдельной IV suite/stage/registry coverage.
 - **Что сделать:** добавить `IV-18` и зарегистрировать `MON-1…MON-12`, `FT-MON-A…FT-MON-J`.
@@ -981,7 +1031,7 @@ ActionAuthorization
 - **Критерий:** registered CLI/API suite executes; mutants are detected; `MON_PRODUCTION_READY` impossible with reachable legacy mutating path.
 - **Зависит:** FB-14, FB-03, FB-07.
 
-### FB-29. Resolution experiments и per-address A/AAAA outcomes [L, P1]
+### FB-29. Resolution experiments и per-address A/AAAA outcomes [L, P1] **— ВЫПОЛНЕНО** (Beads b4x-04h, 02.08, 5b0a364e)
 
 - **Проблема:** exact client-observed endpoint и independent current resolution смешаны; first success может скрывать sibling failures.
 - **Что сделать:** machine-readable experiment kinds:
@@ -995,7 +1045,7 @@ independent_current_resolution
 - **Критерий:** fixtures с mixed IPv4/IPv6 outcomes; first-success masking mutation обнаруживается; missing per-address evidence блокирует `ABD_CLIENT_RESOLUTION_READY`.
 - **Зависит:** FB-03, ABD/DDI production integration.
 
-### FB-30. Evidence authority, attribution separation и stage-aware observers [L, P1]
+### FB-30. Evidence authority, attribution separation и stage-aware observers [L, P1] **— ВЫПОЛНЕНО** (Beads b4x-ivz, 03.08, f1149b3f)
 
 - **Проблема:** IV не формализует authority levels и observer capabilities.
 - **Что сделать:** поддержать authority:
@@ -1145,7 +1195,7 @@ TGB может выполняться параллельно после capture/
 - **Критерий:** registry dependency tests; shuffled suite execution gives same correct verdict; missing upstream dependency blocks downstream PASS.
 - **Зависит:** FB-33/FB-34; production consumers FB-03.
 
-### FB-37. `liveRuntime.Drain()`: задекларировать intentional no-op или удалить из интерфейса Runtime [S, P2]
+### FB-37. `liveRuntime.Drain()`: задекларировать intentional no-op или удалить из интерфейса Runtime [S, P2] **— ВЫПОЛНЕНО** (Beads b4x-4vt, 03.08; вариант а)
 
 - **Проблема:** независимый аудит (`B4X_AUDIT_STATUS_REPORT.md`, B4X-AUDIT-0001, Patch Plan Этап 27): `src/runtimecontrol/live_runtime.go:315` — `Drain()` безусловный no-op (`return nil`); единственная реализация `Runtime` в production. Реальная защита (`InvalidateGeneration` при смене поколения) выполняется раньше, синхронно внутри `Promote()`; отдельного per-generation ресурса для drain нет. Вызовы `old.runtime.Drain(ctx)` (`rollout_manager_apply.go:111`, `rollout_manager_pending.go:163`) создают ложное впечатление защитного дренирования; будущая вторая реализация `Runtime` с реальными ресурсами унаследует no-op молча. **Норматив:** ARCH v2.4 §75 «Transactional apply» (строки 1847-1860) требует поведение `atomic generation switch → drain/retire previous generation` (при ошибке previous generation остаётся активной); патч-план (Этап 8, строка 415) предписывает механизм retire через `InvalidateGeneration(gen)` в хранилищах. Норматив требует поведения, а не метода `Drain()`.
 - **Что сделать:** (а) задекларировать `Drain()` как intentional no-op: комментарий в интерфейсе `Runtime` и в `live_runtime.go:315` с root-cause (контракт ARCH §75 «drain/retire» исполняется `Promote()`/`InvalidateGeneration`/last-good; отдельного ресурса нет), либо (б) при подтверждении отсутствия контрактной нагрузки — удалить `Drain()` из интерфейса и обоих call sites **с доказательством**, что контракт §75 (retire previous generation при ошибке остаётся активной) не зависит от метода. Сохранить `fakeRuntime.drainN`-семантику в тестах, если метод остаётся.
