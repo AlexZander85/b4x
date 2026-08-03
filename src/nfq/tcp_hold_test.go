@@ -117,6 +117,87 @@ func TestHoldReplayObserveAndServerProgressRelease(t *testing.T) {
 	}
 }
 
+func TestTCPHoldAbortOnFINReleasesImmediately(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.EnsureRuntimeGeneration()
+	cfg.System.Classifier.Flags.TCPReassemblyMode = config.ReassemblyObserve
+	cfg.System.Classifier.Flags.TCPHoldReplayMode = config.HoldReplayAuto
+	worker := NewWorkerWithQueue(&cfg, 0)
+	pkt := &pktInfo{src: net.IPv4(192, 0, 2, 97), dst: net.IPv4(203, 0, 113, 97), srcMac: ""}
+	fixture := fixtures.TLSCorpus()[2]
+	first := fixture.Segments[0]
+	result := worker.observeTCPReassembly(&cfg, pkt, 3000+first.Seq, 52007, 443, classifier.TCPFlagACK, first.Payload)
+	key, ok := tcpFlowKeyForPacket(pkt, 52007, 443)
+	if !ok || result.Status != classifier.ReassemblyPartial {
+		t.Fatalf("incomplete reassembly result=%+v", result)
+	}
+	metadata := worker.tcpTLSDecisionMetadata(&cfg, pkt, 52007, 443, first.Payload)
+	held, failOpen := worker.maybeHoldTCPPacket(&cfg, pkt, key, dnsHintConfigGeneration(&cfg), 443, first.Payload, classifier.TCPFlagACK, metadata, result, false, nil, 1)
+	if !held || failOpen || worker.tcpHold.Len() != 1 {
+		t.Fatalf("setup hold held=%v failOpen=%v len=%d", held, failOpen, worker.tcpHold.Len())
+	}
+
+	// FIN on the held flow must release immediately, not via GC timeout.
+	released := worker.releaseTCPHoldOnFlowTermination(key, true)
+	if released != 1 || worker.tcpHold.Len() != 0 {
+		t.Fatalf("FIN abort released=%d len=%d", released, worker.tcpHold.Len())
+	}
+	stats := worker.tcpHold.Stats()
+	if stats.FINReleases != 1 || stats.TimeoutReleases != 0 {
+		t.Fatalf("FIN abort stats=%+v", stats)
+	}
+}
+
+func TestTCPHoldAbortOnRSTReleasesImmediately(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.EnsureRuntimeGeneration()
+	cfg.System.Classifier.Flags.TCPReassemblyMode = config.ReassemblyObserve
+	cfg.System.Classifier.Flags.TCPHoldReplayMode = config.HoldReplayAuto
+	worker := NewWorkerWithQueue(&cfg, 0)
+	pkt := &pktInfo{src: net.IPv4(192, 0, 2, 98), dst: net.IPv4(203, 0, 113, 98), srcMac: ""}
+	fixture := fixtures.TLSCorpus()[2]
+	first := fixture.Segments[0]
+	result := worker.observeTCPReassembly(&cfg, pkt, 4000+first.Seq, 52008, 443, classifier.TCPFlagACK, first.Payload)
+	key, ok := tcpFlowKeyForPacket(pkt, 52008, 443)
+	if !ok || result.Status != classifier.ReassemblyPartial {
+		t.Fatalf("incomplete reassembly result=%+v", result)
+	}
+	metadata := worker.tcpTLSDecisionMetadata(&cfg, pkt, 52008, 443, first.Payload)
+	held, failOpen := worker.maybeHoldTCPPacket(&cfg, pkt, key, dnsHintConfigGeneration(&cfg), 443, first.Payload, classifier.TCPFlagACK, metadata, result, false, nil, 1)
+	if !held || failOpen || worker.tcpHold.Len() != 1 {
+		t.Fatalf("setup hold held=%v failOpen=%v len=%d", held, failOpen, worker.tcpHold.Len())
+	}
+
+	// RST on the held flow must release immediately, not via GC timeout.
+	released := worker.releaseTCPHoldOnFlowTermination(key, false)
+	if released != 1 || worker.tcpHold.Len() != 0 {
+		t.Fatalf("RST abort released=%d len=%d", released, worker.tcpHold.Len())
+	}
+	stats := worker.tcpHold.Stats()
+	if stats.RSTReleases != 1 || stats.TimeoutReleases != 0 {
+		t.Fatalf("RST abort stats=%+v", stats)
+	}
+}
+
+func TestTCPHoldAbortOnFlowTerminationIdempotent(t *testing.T) {
+	cfg := config.NewConfig()
+	worker := NewWorkerWithQueue(&cfg, 0)
+	key := holdTestKey("192.0.2.99", "203.0.113.99", 52009)
+	if worker.tcpHold == nil {
+		t.Fatal("worker has no hold store")
+	}
+	if !worker.tcpHold.Hold(key, 1, nil, 1, 2) {
+		t.Fatal("setup hold failed")
+	}
+	if released := worker.releaseTCPHoldOnFlowTermination(key, true); released != 1 || worker.tcpHold.Len() != 0 {
+		t.Fatalf("first FIN release released=%d len=%d", released, worker.tcpHold.Len())
+	}
+	// Releasing a flow that is no longer held must be a safe no-op.
+	if released := worker.releaseTCPHoldOnFlowTermination(key, false); released != 0 || worker.tcpHold.Len() != 0 {
+		t.Fatalf("repeat release released=%d len=%d", released, worker.tcpHold.Len())
+	}
+}
+
 func FuzzTCPHoldStoreNeverPanics(f *testing.F) {
 	f.Add(uint64(1), uint64(32), uint64(7))
 	f.Fuzz(func(t *testing.T, packetID, bytes, generation uint64) {

@@ -66,6 +66,21 @@ func (w *Worker) releaseTCPHoldOnServerProgress(pkt *pktInfo, sport, dport uint1
 	}, tcpHoldAbortServer)
 }
 
+// releaseTCPHoldOnFlowTermination immediately releases a held flow when a
+// FIN or RST terminates it (ARCH §42-45: a terminated stream must not sit in
+// hold until the GC timeout; fail-open release keeps the invariant and the
+// explicit abort reason makes the release observable).
+func (w *Worker) releaseTCPHoldOnFlowTermination(key classifier.FlowKey, isFin bool) int {
+	if w == nil || w.tcpHold == nil {
+		return 0
+	}
+	reason := tcpHoldAbortRST
+	if isFin {
+		reason = tcpHoldAbortFIN
+	}
+	return w.tcpHold.Release(key, reason)
+}
+
 // maybeHoldTCPPacket is the only active hold entry point. It requires the
 // observe-only reassembler to report a bounded, incomplete ClientHello and a
 // decision that has not yet reached scoped domain confidence. false,true

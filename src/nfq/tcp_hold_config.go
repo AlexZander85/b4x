@@ -47,6 +47,8 @@ type TCPHoldStats struct {
 	TimeoutReleases    uint64
 	PressureReleases   uint64
 	GenerationReleases uint64
+	FINReleases        uint64
+	RSTReleases        uint64
 	LifecycleReleases  uint64
 	ShutdownReleases   uint64
 	VerdictErrors      uint64

@@ -170,6 +170,10 @@ func (s *TCPHoldStore) detachLocked(key classifier.FlowKey, reason string) []tcp
 		s.stats.PressureReleases += uint64(len(entry.packets))
 	case tcpHoldAbortGeneration:
 		s.stats.GenerationReleases += uint64(len(entry.packets))
+	case tcpHoldAbortFIN:
+		s.stats.FINReleases += uint64(len(entry.packets))
+	case tcpHoldAbortRST:
+		s.stats.RSTReleases += uint64(len(entry.packets))
 	case tcpHoldAbortShutdown:
 		s.stats.ShutdownReleases += uint64(len(entry.packets))
 	default:
