@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/log"
 	"github.com/yl2chen/cidranger"
 )
 
@@ -45,11 +46,17 @@ type SuffixSet struct {
 	domainCacheMu    sync.RWMutex
 	domainCacheLimit int
 
+	// learnedIPCache is the LEGACY destination-keyed learned-IP store
+	// (CSI-5 / ARCH v2.4 §12): it is keyed only by destination IP, not
+	// per-client. It is demoted to scoped provisional evidence and must not
+	// authorize under strict/scoped-hints policies; the client-scoped
+	// replacement is classifier.HostHintStore / ScopedLearnedObservation.
 	learnedIPCache      map[string]*learnedIPEntry
 	learnedIPCacheLRU   *list.List
 	learnedIPCacheMu    sync.RWMutex
 	learnedIPCacheLimit int
 	learnedIPTTL        time.Duration
+	legacyLearnedIPUses atomic.Int64
 
 	regexCacheSize int32
 }
@@ -494,6 +501,7 @@ func (s *SuffixSet) MatchLearnedIP(ip net.IP) (bool, *config.SetConfig, string) 
 
 	entry.learnedAt = time.Now()
 	s.learnedIPCacheLRU.MoveToFront(entry.element)
+	s.noteLegacyLearnedIPUse()
 	return true, entry.set, entry.domain
 }
 
@@ -556,6 +564,7 @@ func (s *SuffixSet) GetCacheStats() map[string]interface{} {
 		"domain_cache_limit":     s.domainCacheLimit,
 		"learned_ip_cache_size":  learnedIPCacheSize,
 		"learned_ip_cache_limit": s.learnedIPCacheLimit,
+		"learned_ip_legacy_uses": s.legacyLearnedIPUses.Load(),
 		"regex_cache_size":       regexCacheSize,
 		"regex_cache_limit":      10000,
 	}
@@ -728,6 +737,7 @@ func (s *SuffixSet) MatchLearnedIPWithSource(ip net.IP, srcMAC string) (bool, *c
 		if matched, altSet := s.MatchSNIWithSourceTLS(entry.domain, srcMAC, 0, ipVersionOf(ip)); matched {
 			entry.learnedAt = time.Now()
 			s.learnedIPCacheLRU.MoveToFront(entry.element)
+			s.noteLegacyLearnedIPUse()
 			return true, altSet, entry.domain
 		}
 		return false, nil, ""
@@ -735,7 +745,18 @@ func (s *SuffixSet) MatchLearnedIPWithSource(ip net.IP, srcMAC string) (bool, *c
 
 	entry.learnedAt = time.Now()
 	s.learnedIPCacheLRU.MoveToFront(entry.element)
+	s.noteLegacyLearnedIPUse()
 	return true, entry.set, entry.domain
+}
+
+// noteLegacyLearnedIPUse records a legacy learned-IP hit and emits a
+// rate-limited warning so operators can observe reliance on the legacy
+// destination-keyed path (CSI-5: demoted to scoped provisional evidence).
+func (s *SuffixSet) noteLegacyLearnedIPUse() {
+	uses := s.legacyLearnedIPUses.Add(1)
+	if uses == 1 {
+		log.Warnf("sni: legacy destination-keyed learned-IP cache used; demoted to scoped provisional evidence (CSI-5), no authorization under strict/scoped-hints policies")
+	}
 }
 
 func selectSetBySource(candidates []*config.SetConfig, srcMAC string, ipVersion uint8) (bool, *config.SetConfig) {

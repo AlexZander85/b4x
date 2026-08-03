@@ -79,6 +79,23 @@ func classifierSetDomainPolicy(cfg *config.Config, setID string) classifier.Doma
 	}
 }
 
+// learnedIPAuthorizationAllowed reports whether the legacy destination-keyed
+// learned-IP cache may drive an NFQ decision for the given set. Per CSI-5 and
+// ARCH v2.4 §12, legacy learned-IP evidence is demoted to scoped provisional
+// evidence and must never authorize under strict/scoped-hints policies.
+// Domain-only sets follow EffectiveDomainPolicy; non-domain-only sets are the
+// classic routing-learn path and are additionally gated by the v2 classifier
+// flags (classifierDecisionEnabled) at the call site.
+func learnedIPAuthorizationAllowed(cfg *config.Config, set *config.SetConfig) bool {
+	if cfg == nil || set == nil {
+		return false
+	}
+	if !set.Targets.DomainOnly {
+		return true
+	}
+	return cfg.EffectiveDomainPolicy(set) == config.DomainPolicyLegacy
+}
+
 func classifierSetID(set *config.SetConfig) string {
 	if set == nil {
 		return ""

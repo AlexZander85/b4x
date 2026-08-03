@@ -315,7 +315,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 		if !classifierDecisionEnabled(cfg) {
 			if mLearned, learnedSet, _ := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesTCPDPort(dport) {
-				matched, set, st, matchedLearned = true, learnedSet, learnedSet, true
+				// CSI-5: legacy learned-IP is provisional evidence; it must not
+				// authorize under strict/scoped-hints policies.
+				if learnedIPAuthorizationAllowed(cfg, learnedSet) {
+					matched, set, st, matchedLearned = true, learnedSet, learnedSet, true
+				}
 			}
 		}
 
@@ -417,6 +421,7 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if w.actionTokens != nil {
 			w.actionTokens.CloseServerProgress(gsoFlowHash(flowKey))
 		}
+		w.releaseTCPHoldOnFlowTermination(flowKey, isFin)
 	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
@@ -876,8 +881,12 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 
 	if !matchedIP && !classifierDecisionEnabled(cfg) {
 		if mLearned, learnedSet, learnedDomain := matcher.MatchLearnedIPWithSource(pkt.dst, pkt.srcMac); mLearned && learnedSet.MatchesUDPDPort(dport) {
-			matchedIP, matchedLearned, matched, set, host = true, true, true, learnedSet, learnedDomain
-			sniTarget, ipTarget = learnedSet.Name, learnedSet.Name
+			// CSI-5: legacy learned-IP is provisional evidence; it must not
+			// authorize under strict/scoped-hints policies.
+			if learnedIPAuthorizationAllowed(cfg, learnedSet) {
+				matchedIP, matchedLearned, matched, set, host = true, true, true, learnedSet, learnedDomain
+				sniTarget, ipTarget = learnedSet.Name, learnedSet.Name
+			}
 		}
 	}
 
