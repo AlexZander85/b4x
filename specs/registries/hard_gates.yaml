@@ -20,7 +20,7 @@ families:
       line: 407
       mechanism: increment-only counter via observability (trace payload carries raw session secret)
       production_root: warp.Runtime.PublishTrace (trace export redaction check; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -69,7 +69,7 @@ families:
       line: 292
       mechanism: increment-only counter via observability (TunRegistry.Claim rejects foreign session lease)
       production_root: warp.Runtime.ApplyRoute (TUN ownership check; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -118,7 +118,7 @@ families:
       line: 299
       mechanism: increment-only counter via observability (policy.Mark == warp-control-direct mark 0x6001)
       production_root: warp.Runtime.ApplyRoute (recursion guard, addendum §17/WARP-6; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -167,7 +167,7 @@ families:
       line: 306
       mechanism: increment-only counter via observability (policy-pinned mark owned by another session)
       production_root: warp.Runtime.ApplyRoute (mark ownership; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -216,7 +216,7 @@ families:
       line: 284
       mechanism: increment-only counter via observability (promotion while HealthTracker != data-alive)
       production_root: warp.Runtime.ApplyRoute (liveness gate; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -265,7 +265,7 @@ families:
       line: 317
       mechanism: increment-only counter via observability (non-atomic destination set application)
       production_root: warp.Runtime.ApplyRoute (atomic destination set; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -314,7 +314,7 @@ families:
       line: 349
       mechanism: increment-only counter via observability (restart beyond Config.MaxRestarts)
       production_root: warp.Runtime.Restart (bounded restart budget; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -363,7 +363,7 @@ families:
       line: 224
       mechanism: increment-only counter via observability (enrollment attempt beyond policy MaxAttempts)
       production_root: warp.Runtime.Register (bounded enrollment; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -412,7 +412,7 @@ families:
       line: 366
       mechanism: increment-only counter via observability (control action on flow outside session authorization)
       production_root: warp.Runtime.ControlAction (exact-scoped authorization; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -461,7 +461,7 @@ families:
       line: 383
       mechanism: increment-only counter via observability (rollback with no previous applied state)
       production_root: warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1432,7 +1432,7 @@ families:
       mechanism: increment-only counter via observability (recovery/canary action without a final action authorization)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1477,7 +1477,7 @@ families:
       mechanism: increment-only counter via observability (active action while capture visibility proofs incomplete)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1522,7 +1522,7 @@ families:
       mechanism: increment-only counter via observability (decision from destination-only scope)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1567,7 +1567,7 @@ families:
       mechanism: increment-only counter via observability (scope.ClientKey != auth.Client)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1612,7 +1612,7 @@ families:
       mechanism: increment-only counter via observability (scope.DomainKey != auth.Domain)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1657,7 +1657,7 @@ families:
       mechanism: increment-only counter via observability (scope.ComponentID != authorized component)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1702,7 +1702,7 @@ families:
       mechanism: increment-only counter via observability (scope.ConfigGen != auth.ConfigGen)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1747,7 +1747,7 @@ families:
       mechanism: increment-only counter via observability (auto-fallback with fewer than two independent evidence families)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1792,7 +1792,7 @@ families:
       mechanism: increment-only counter via observability (auto-fallback using evidence without declared independent family)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1837,7 +1837,7 @@ families:
       mechanism: increment-only counter via observability (active suppressor bypassed by recovery)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1882,7 +1882,7 @@ families:
       mechanism: increment-only counter via observability (likely-parallel evidence treated as failure)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1927,7 +1927,7 @@ families:
       mechanism: increment-only counter via observability (fresh same-scope success suppressor bypassed)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1972,7 +1972,7 @@ families:
       mechanism: increment-only counter via observability (explicit server response treated as network failure)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2017,7 +2017,7 @@ families:
       mechanism: increment-only counter via observability (GSO segment bytes not MSS-aligned counted as wire progress)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2062,7 +2062,7 @@ families:
       mechanism: increment-only counter via observability (promotion while PPE/offload or GSO-parity proof missing)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2107,7 +2107,7 @@ families:
       mechanism: increment-only counter via observability (differential probe beyond bounded budget)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2152,7 +2152,7 @@ families:
       mechanism: increment-only counter via observability (lease rotation beyond MaxAttempts)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2197,7 +2197,7 @@ families:
       mechanism: increment-only counter via observability (recursive fallback onto the same transport path)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2242,7 +2242,7 @@ families:
       mechanism: increment-only counter via observability (recovery lease without a known rollback target)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2287,7 +2287,7 @@ families:
       mechanism: increment-only counter via observability (promotion while control probe unhealthy/regressed)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2332,7 +2332,7 @@ families:
       mechanism: increment-only counter via observability (recovery while rollback monitor is observe-only after budget breach)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2377,7 +2377,7 @@ families:
       mechanism: increment-only counter via observability (user revert without matching active lease)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2422,7 +2422,7 @@ families:
       line: 39
       mechanism: increment-only counter via observability (Observation direct action; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2466,7 +2466,7 @@ families:
       line: 50
       mechanism: increment-only counter via observability (Provisional profile compiled; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2510,7 +2510,7 @@ families:
       line: 60
       mechanism: increment-only counter via observability (Passive discovery start; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2554,7 +2554,7 @@ families:
       line: 70
       mechanism: increment-only counter via observability (Passive warp enable; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2598,7 +2598,7 @@ families:
       line: 80
       mechanism: increment-only counter via observability (Fast lane action; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2642,7 +2642,7 @@ families:
       line: 91
       mechanism: increment-only counter via observability (Fast lane promoted as authoritative; MON addendum v1.0 sect. 84)
       production_root: monitoring lifecycle guards (sect. 84; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2686,7 +2686,7 @@ families:
       line: 104
       mechanism: increment-only counter via observability (Destination only deep trigger; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2730,7 +2730,7 @@ families:
       line: 114
       mechanism: increment-only counter via observability (Cross client merge; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2774,7 +2774,7 @@ families:
       line: 123
       mechanism: increment-only counter via observability (Cross service merge; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2818,7 +2818,7 @@ families:
       line: 132
       mechanism: increment-only counter via observability (Cross component merge; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2862,7 +2862,7 @@ families:
       line: 142
       mechanism: increment-only counter via observability (Cross wan evidence merge; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2906,7 +2906,7 @@ families:
       line: 152
       mechanism: increment-only counter via observability (Cross generation evidence merge; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2950,7 +2950,7 @@ families:
       line: 163
       mechanism: increment-only counter via observability (Router origin as forwarded proof; MON addendum v1.0 sect. 85)
       production_root: monitoring lifecycle guards (sect. 85; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2994,7 +2994,7 @@ families:
       line: 180
       mechanism: increment-only counter via observability (Duplicate evidence independence; MON addendum v1.0 sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3039,7 +3039,7 @@ families:
       mechanism: increment-only counter via observability (Temporal persistence without time separation; MON addendum v1.0
         sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3083,7 +3083,7 @@ families:
       line: 206
       mechanism: increment-only counter via observability (Success suppressor ignored; MON addendum v1.0 sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3127,7 +3127,7 @@ families:
       line: 217
       mechanism: increment-only counter via observability (Recovered subject not demoted; MON addendum v1.0 sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3171,7 +3171,7 @@ families:
       line: 226
       mechanism: increment-only counter via observability (Expired evidence used; MON addendum v1.0 sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3215,7 +3215,7 @@ families:
       line: 237
       mechanism: increment-only counter via observability (Decay disabled without policy; MON addendum v1.0 sect. 86)
       production_root: monitoring lifecycle guards (sect. 86; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3259,7 +3259,7 @@ families:
       line: 250
       mechanism: increment-only counter via observability (Probe without resolution binding; MON addendum v1.0 sect. 87)
       production_root: monitoring lifecycle guards (sect. 87; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3303,7 +3303,7 @@ families:
       line: 261
       mechanism: increment-only counter via observability (Client dns answer replaced silently; MON addendum v1.0 sect. 87)
       production_root: monitoring lifecycle guards (sect. 87; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3347,7 +3347,7 @@ families:
       line: 277
       mechanism: increment-only counter via observability (Cname terminal ip misattributed; MON addendum v1.0 sect. 87)
       production_root: monitoring lifecycle guards (sect. 87; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3391,7 +3391,7 @@ families:
       line: 294
       mechanism: increment-only counter via observability (Multi ip partial failure hidden; MON addendum v1.0 sect. 87)
       production_root: monitoring lifecycle guards (sect. 87; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3436,7 +3436,7 @@ families:
       mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
       production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
         sibling surfaced, never dropped)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3488,7 +3488,7 @@ families:
       line: 304
       mechanism: increment-only counter via observability (Stale resolution used as exact proof; MON addendum v1.0 sect. 87)
       production_root: monitoring lifecycle guards (sect. 87; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3532,7 +3532,7 @@ families:
       line: 316
       mechanism: increment-only counter via observability (Trigger without visibility; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3576,7 +3576,7 @@ families:
       line: 326
       mechanism: increment-only counter via observability (Trigger without budget; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3620,7 +3620,7 @@ families:
       line: 336
       mechanism: increment-only counter via observability (Trigger during global wan failure; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3664,7 +3664,7 @@ families:
       line: 346
       mechanism: increment-only counter via observability (Trigger with stale source heartbeat; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3708,7 +3708,7 @@ families:
       line: 357
       mechanism: increment-only counter via observability (Duplicate concurrent abd run; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3752,7 +3752,7 @@ families:
       line: 368
       mechanism: increment-only counter via observability (Unbounded target intake; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3796,7 +3796,7 @@ families:
       line: 378
       mechanism: increment-only counter via observability (Unbounded probe parallelism; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3840,7 +3840,7 @@ families:
       line: 388
       mechanism: increment-only counter via observability (Self interference; MON addendum v1.0 sect. 88)
       production_root: monitoring lifecycle guards (sect. 88; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3887,7 +3887,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (rejection recorded,
         NO_OPINION returned)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3935,7 +3935,7 @@ families:
       mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
         (FB-30)
       production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted for unavailable observers)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3985,7 +3985,7 @@ families:
         conflated (FB-30)
       production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
         recorded)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4035,7 +4035,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
         returned)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4083,7 +4083,7 @@ families:
       mechanism: increment-only counter via observability (Reference result as action authorization; MON addendum v1.0 sect.
         89)
       production_root: monitoring lifecycle guards (sect. 89; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4127,7 +4127,7 @@ families:
       line: 413
       mechanism: increment-only counter via observability (Abd request without target plan; MON addendum v1.0 sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4171,7 +4171,7 @@ families:
       line: 423
       mechanism: increment-only counter via observability (Abd partial result profile ready; MON addendum v1.0 sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4215,7 +4215,7 @@ families:
       line: 433
       mechanism: increment-only counter via observability (Abd result bypassed ddi; MON addendum v1.0 sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4260,7 +4260,7 @@ families:
       mechanism: increment-only counter via observability (Discovery without authoritative profile; MON addendum v1.0 sect.
         90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4304,7 +4304,7 @@ families:
       line: 458
       mechanism: increment-only counter via observability (Discovery skipped mandatory baseline; MON addendum v1.0 sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4348,7 +4348,7 @@ families:
       line: 469
       mechanism: increment-only counter via observability (Recommendation without scope; MON addendum v1.0 sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4393,7 +4393,7 @@ families:
       mechanism: increment-only counter via observability (Warp recommendation without ip path evidence; MON addendum v1.0
         sect. 90)
       production_root: monitoring lifecycle guards (sect. 90; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4437,7 +4437,7 @@ families:
       line: 491
       mechanism: increment-only counter via observability (Legacy watchdog direct apply; MON addendum v1.0 sect. 91)
       production_root: monitoring lifecycle guards (sect. 91; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4482,7 +4482,7 @@ families:
       mechanism: increment-only counter via observability (Legacy watchdog created unvalidated set; MON addendum v1.0 sect.
         91)
       production_root: monitoring lifecycle guards (sect. 91; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4527,7 +4527,7 @@ families:
       mechanism: increment-only counter via observability (Legacy watchdog overwrote set without canary; MON addendum v1.0
         sect. 91)
       production_root: monitoring lifecycle guards (sect. 91; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4571,7 +4571,7 @@ families:
       line: 522
       mechanism: increment-only counter via observability (Legacy api projection mutation; MON addendum v1.0 sect. 91)
       production_root: monitoring lifecycle guards (sect. 91; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4615,7 +4615,7 @@ families:
       line: 532
       mechanism: increment-only counter via observability (Shadow and active writer overlap; MON addendum v1.0 sect. 91)
       production_root: monitoring lifecycle guards (sect. 91; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4659,7 +4659,7 @@ families:
       line: 544
       mechanism: increment-only counter via observability (Required event drop hidden; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4703,7 +4703,7 @@ families:
       line: 555
       mechanism: increment-only counter via observability (Source heartbeat stale auto diagnose; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4747,7 +4747,7 @@ families:
       line: 565
       mechanism: increment-only counter via observability (Checkpoint corruption false ready; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4791,7 +4791,7 @@ families:
       line: 575
       mechanism: increment-only counter via observability (Restart reused expired lease; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4835,7 +4835,7 @@ families:
       line: 585
       mechanism: increment-only counter via observability (Sensitive dns history export; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4879,7 +4879,7 @@ families:
       line: 595
       mechanism: increment-only counter via observability (Secret trace leak; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -4923,7 +4923,7 @@ families:
       line: 605
       mechanism: increment-only counter via observability (High cardinality metric label; MON addendum v1.0 sect. 92)
       production_root: monitoring lifecycle guards (sect. 92; release pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6419,7 +6419,7 @@ families:
       mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
       production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
         sibling surfaced, never dropped)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6486,7 +6486,7 @@ families:
       line: 151
       mechanism: increment-only counter via observability; multi-vantage comparison must be stage-aligned (FB-30)
       production_root: detector.CompareVantage stage-alignment gate -> RecordMultiVantageViolation (NO_OPINION returned)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6535,7 +6535,7 @@ families:
       mechanism: increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis
         (FB-30)
       production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (NO_OPINION returned)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6584,7 +6584,7 @@ families:
       mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
         (FB-30)
       production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6634,7 +6634,7 @@ families:
         conflated (FB-30)
       production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
         recorded)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6684,7 +6684,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
         returned)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6873,7 +6873,7 @@ families:
       mechanism: increment-only counter via observability (guided discovery from a context mismatch/expired profile)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6918,7 +6918,7 @@ families:
       mechanism: increment-only counter via observability (stale profile served without revalidation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6963,7 +6963,7 @@ families:
       mechanism: increment-only counter via observability (profile built for a different WAN fingerprint)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7008,7 +7008,7 @@ families:
       mechanism: increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7053,7 +7053,7 @@ families:
       mechanism: increment-only counter via observability (hint with candidate but no provenance)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7098,7 +7098,7 @@ families:
       mechanism: increment-only counter via observability (hint displaced the current baseline from the leading position)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7143,7 +7143,7 @@ families:
       mechanism: increment-only counter via observability (guided run without target-specific validation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7188,7 +7188,7 @@ families:
       mechanism: increment-only counter via observability (guided plan disabled exhaustive fallback)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7233,7 +7233,7 @@ families:
       mechanism: increment-only counter via observability (direct production write of an unstaged profile)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7278,7 +7278,7 @@ families:
       mechanism: increment-only counter via observability (SNI direct promotion without target validation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7323,7 +7323,7 @@ families:
       mechanism: increment-only counter via observability (hint threshold above the bounded probe budget)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7368,7 +7368,7 @@ families:
       mechanism: increment-only counter via observability (discovery promotion while capture gate not ready)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7413,7 +7413,7 @@ families:
       mechanism: increment-only counter via observability (profile action scope differs from the target service scope)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7458,7 +7458,7 @@ families:
       mechanism: increment-only counter via observability (causal A/B bundle published with false promotion)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7502,7 +7502,7 @@ families:
       line: 26
       mechanism: increment-only counter via observability (zero-byte connection recorded as handled)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7546,7 +7546,7 @@ families:
       line: 36
       mechanism: increment-only counter via observability (fixed 5s destructive timeout instead of adaptive)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7590,7 +7590,7 @@ families:
       line: 46
       mechanism: increment-only counter via observability (unbounded global pending-handshake budget)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7634,7 +7634,7 @@ families:
       line: 57
       mechanism: increment-only counter via observability (per-client pending limit disabled or above global bound)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7678,7 +7678,7 @@ families:
       line: 67
       mechanism: increment-only counter via observability (prefix handoff delivered fewer bytes than captured)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7722,7 +7722,7 @@ families:
       line: 77
       mechanism: increment-only counter via observability (prefix handoff replayed more bytes than captured)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7766,7 +7766,7 @@ families:
       line: 87
       mechanism: increment-only counter via observability (route plan executed without recursion guard)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7810,7 +7810,7 @@ families:
       line: 97
       mechanism: increment-only counter via observability (primary route failure silently dropped instead of fail-open)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7854,7 +7854,7 @@ families:
       line: 107
       mechanism: increment-only counter via observability (pending overflow reported without budget attribution)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7898,7 +7898,7 @@ families:
       line: 121
       mechanism: increment-only counter via observability (shutdown left pending handshake tokens unreleased)
       production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -8224,7 +8224,7 @@ families:
       line: 392
       mechanism: increment-only counter via observability; report field incremented at validation.go:265
       production_root: crossservice.Validate() / (*Store).ValidateAndStore (CSI-18 same-client negative control)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -8293,7 +8293,7 @@ families:
       line: 212
       mechanism: increment-only counter via observability (label result=selected|unselected)
       production_root: nfq.handleTCPPacket -> traceNFQDecision (reassembled-TCP-SNI evidence selected)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8337,7 +8337,7 @@ families:
       line: 214
       mechanism: increment-only counter via observability (reassembled SNI without logical ID)
       production_root: nfq.handleTCPPacket -> traceNFQDecision (layout parity violation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -8396,7 +8396,7 @@ families:
       line: 106
       mechanism: increment-only counter via observability (per GSO-flagged packet)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8440,7 +8440,7 @@ families:
       line: 107
       mechanism: increment-only byte counter via observability
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8484,7 +8484,7 @@ families:
       line: 109
       mechanism: increment-only counter via observability (OriginalLength > PayloadLength)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (truncated GSO envelope)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -8538,7 +8538,7 @@ families:
       line: 112
       mechanism: increment-only counter via observability (NFQA_SKB_CSUMNOTREADY)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (unverified checksum GSO)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -8592,7 +8592,7 @@ families:
       line: 209
       mechanism: increment-only counter via observability (label path=result)
       production_root: nfq.handleGSOFastPath (GSO fast-path verdict)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8636,7 +8636,7 @@ families:
       line: 211
       mechanism: increment-only counter via observability (normalize-queued path)
       production_root: nfq.handleGSOFastPath (normalizer direct queue)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8680,7 +8680,7 @@ families:
       line: 214
       mechanism: increment-only counter via observability (action-suppressed result)
       production_root: nfq.handleGSOFastPath (suppression budget)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8724,7 +8724,7 @@ families:
       line: 61
       mechanism: increment-only counter via observability (secondary-pass fail-open)
       production_root: nfq GSO normalizer secondary pass (pass-token miss)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -8778,7 +8778,7 @@ families:
       line: 38
       mechanism: increment-only counter via observability (deferred; result=success|rollback)
       production_root: http API ApplyRuntimeControlTopology (double-buffered GSO topology switch)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8822,7 +8822,7 @@ families:
       line: 106
       mechanism: increment-only counter via observability (per signal)
       production_root: nfq.observePassiveRSTIncoming/Outgoing (passive RST observation)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8866,7 +8866,7 @@ families:
       line: 108
       mechanism: increment-only counter via observability (label decision=...)
       production_root: nfq.observePassiveRSTIncoming (enforcement decision)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8910,7 +8910,7 @@ families:
       line: 113
       mechanism: increment-only counter via observability (suppress decision)
       production_root: nfq.observePassiveRSTIncoming (suppression)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -8954,7 +8954,7 @@ families:
       line: 116
       mechanism: increment-only counter via observability (fail-open decision)
       production_root: nfq.observePassiveRSTIncoming (fail-open enforcement)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9008,7 +9008,7 @@ families:
       line: 109
       mechanism: increment-only counter via observability (label quality=...)
       production_root: nfq.observePassiveRSTIncoming (baseline quality)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9052,7 +9052,7 @@ families:
       line: 118
       mechanism: increment-only counter via observability (fail-open reason=budget)
       production_root: nfq.observePassiveRSTIncoming (suppression budget exhausted)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9096,7 +9096,7 @@ families:
       line: 134
       mechanism: increment-only counter via observability (scoped rollback commit)
       production_root: pool.RecordPassiveRSTHealth -> PassiveRSTStore.RecordHealth (scope-local rollback)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9140,7 +9140,7 @@ families:
       line: 136
       mechanism: increment-only counter via observability (reason=reconnect failure regression)
       production_root: pool.RecordPassiveRSTHealth (reconnect failure regression)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -9200,7 +9200,7 @@ families:
       line: 513
       mechanism: increment-only counter via observability (label result=success|failure)
       production_root: PPE lifecycle reapply (reconciler Assert/Reapply loop)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9244,7 +9244,7 @@ families:
       line: 348
       mechanism: increment-only counter via observability (label verdict=...)
       production_root: PPE self-test controller run (visibility A/B probe)
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -9288,7 +9288,7 @@ families:
       line: 110
       mechanism: increment-only counter via observability (visibility gate degradation)
       production_root: visibility gate Degrade -> ProductService subscriber
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -9342,7 +9342,7 @@ families:
       line: 111
       mechanism: increment-only counter via observability (hold disabled while visibility degraded)
       production_root: visibility gate Degrade -> ProductService subscriber
-    verified_commit: 42281ec0
+    verified_commit: 3e42845b
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
