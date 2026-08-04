@@ -32,7 +32,7 @@
 | Документ | SHA-256 |
 |---|---|
 | B4_FORK_ARCHITECTURE_v2.4.md | `6df1c1a245158addd7837296c3e927a714970bb761e3f1e7e68064fbecbdc73b` |
-| B4_FORK_PATCH_PLAN.md | `23abccb5e1df4af91a1385faed2c06532fcd1f8c0fda2548e7ed9a7b33f0dc67` |
+| B4_FORK_PATCH_PLAN.md | `7334275b26c0fdafe9e52f8eddfcb16b284fb09c56dde9fb91c0d5c11b5043d2` |
 | B4_POST_V23_RST_GSO_HARDENING_ADDENDUM.md | `a6e40d8c58437400a53478b2eb7693eab4d4ec0b59c1b5c7d4e3b950f8db5d90` |
 | B4_POST_V23_CROSS_SERVICE_ISOLATION_ADDENDUM.md | `4b70095728692e55004e08e2fd7c2cf1bb56639bf1b67380f1044f22051c6485` |
 | B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md | `2a1611b2598b47c265df9e6e78d3f9cb973f0120f7dcd69f38ed97ab271f411c` |
@@ -61,3 +61,10 @@
 - **FB-33** — canonical Exact Source-Stage Registry, generated totals, CI static checks (duplicate type/schema/verdict, stale version reference, registry count mismatch) — закрывает registry-критерий FB-14.
 - **FB-18A** — постатейная сверка ARCH v2.4 ↔ IV v1.5 (отдельный preflight, идёт после FB-14).
 - **FB-03/FB-04** — кодовая реализация hard gates и zero-byte bridge (поведенческие решения 9/12/14 требуют production-root интеграционных тестов, RESOLVED.md §3.9).
+
+## Верификация 04.08.2026 (повторная, перед закрытием Beads b4x-lv0)
+
+- Сверены SHA-256 всех 10 изменённых документов против рабочего дерева (версии из коммитов `026ea485` FB-14, `8f9b6b94` FB-18A): **10/10 совпадают** после пересчёта PATCH_PLAN (заявленный 01.08 хэш `23abccb5…` ошибочен — версия файла в HEAD отличается, `git diff 026ea485..HEAD -- B4_FORK_PATCH_PLAN.md` пуст, правки решения 11/13 присутствуют: L542 strict/scoped-hints, L929 16 KiB budget).
+- Повторный conflict scan: 0 активных конфликтов в canonical-документах (все срабатывания grep — исторические описания «было» в MAP/RESOLVED/v2, артефакты задач).
+- **Наблюдение (вне scope FB-14):** шапки untracked-доков `B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md` и `B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md` ссылаются на `B4_FORK_PATCH_PLAN.md v2.3` (по решению 8 PATCH_PLAN каноничен без версии). Файлы не в git и не входили в перечень правок — рекомендация владельцу: убрать «v2.3» при следующем коммите этих доков.
+- Итог: критерии 14/14, 0 conflicts, 0 duplicates, 0 stale refs (в canonical) — подтверждены; registry-критерий — зависимость FB-33.

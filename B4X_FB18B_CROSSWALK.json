@@ -1,0 +1,773 @@
+{
+  "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
+  "commit": "a20ce4d8",
+  "generated_at": "2026-08-04T06:35:43.355204755Z",
+  "documents_sha256": {
+    "B4_FORK_ARCHITECTURE_v2.4.md": "6df1c1a245158addd7837296c3e927a714970bb761e3f1e7e68064fbecbdc73b",
+    "B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md": "aae0c3e63fb1c2b1fd2fdaa3f9b27662132521cd50a8862240c3f0eea60484b5"
+  },
+  "summary": {
+    "total": 61,
+    "pass": 50,
+    "blocked": 10,
+    "not_applicable": 1,
+    "blocked_by_task": {
+      "b4x-0yf": 1,
+      "b4x-6kt": 1,
+      "b4x-6l5": 1,
+      "b4x-cka": 1,
+      "b4x-cst": 1,
+      "b4x-jjh": 1,
+      "b4x-n6r": 1,
+      "b4x-q58": 1,
+      "b4x-xgc": 1,
+      "b4x-zq3": 1
+    }
+  },
+  "requirements": [
+    {
+      "id": "ARCH-106",
+      "kind": "clause",
+      "title": "Effective domain policy",
+      "iv_coverage": "26.1, 36.2, AC 15-17",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestDomainOnlyModesUseDomainEvidenceAndKeepTrace",
+        "nfq/TestNFQDomainOnlyDecisionModes",
+        "nfq/TestQUICGlobalFallbackRequiresExplicitDisabledDomainPolicy",
+        "classifier/TestDecideECHStrictDomainOnlyRejectsScopedHint"
+      ],
+      "note": "FB-14 решения strict/scoped-hints применены (ARCH §106, PATCH_PLAN L542)."
+    },
+    {
+      "id": "ARCH-107",
+      "kind": "clause",
+      "title": "Candidate and authorization split",
+      "iv_coverage": "26.1-26.2, AC 16-19, hard gates",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestCaptureCandidateRequiresScopedAuthorization",
+        "classifier/TestResolveCandidateDisposition",
+        "action/TestPlanRequiresExactAuthorization"
+      ],
+      "note": "Integration через реальный matcher/authorization path (classifier.Decide -\u003e action plan)."
+    },
+    {
+      "id": "ARCH-108",
+      "kind": "clause",
+      "title": "Scoped side effects",
+      "iv_coverage": "26.3-26.4, AC 20/23, CSI gates",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestScopedHintsAndScopeMismatch",
+        "classifier/TestIdentityStoreSeparatesGuestVLANAndSourceDevice",
+        "nfq/TestScopedRSTStateUsesExactFlowKey",
+        "nfq/TestScopedDNSHintSelectsSetForImmediateTCPFlow"
+      ]
+    },
+    {
+      "id": "ARCH-109",
+      "kind": "clause",
+      "title": "Cross-service negative controls",
+      "iv_coverage": "26.5, 36.3, 42.6, AC 18/36",
+      "status": "PASS",
+      "evidence": [
+        "crossservice/TestValidateRejectsYouTubeStateOnGmailSharedIPFlow",
+        "crossservice/TestValidateRejectsRawDomainAndMissingScenario",
+        "nfq/TestScopedEscalationDoesNotCrossService"
+      ]
+    },
+    {
+      "id": "ARCH-110",
+      "kind": "clause",
+      "title": "Reassembly correctness path",
+      "iv_coverage": "26.2, 27.2, AC 19/32",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestTCPReassemblyResultCarriesStableClientHelloIdentity",
+        "classifier/TestTCPReassemblyLogicalClientHelloParityAcrossLayouts",
+        "nfq/TestReassembledSNIDecisionCarriesExactFlowAndLayoutParity"
+      ],
+      "note": "Reassembled SNI -\u003e authorization reachability через nfq worker."
+    },
+    {
+      "id": "ARCH-111",
+      "kind": "clause",
+      "title": "GSO capability model",
+      "iv_coverage": "27.1-27.6, 42.4, AC 32-33",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestGSOCapabilityStatusUsesExplicitValidationLevels",
+        "nfq/TestEvaluateGSOClassifyReadinessReady",
+        "capture/TestPlanGSOTopologyFamilyMatrix"
+      ],
+      "note": "Раздельные observe/classify/action verdicts (GSO execution scope)."
+    },
+    {
+      "id": "ARCH-112",
+      "kind": "clause",
+      "title": "Transactional topology",
+      "iv_coverage": "27.5, 34.1, AC 28/33",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestGSOQueueTopologyInvalidateTokensClearsSharedStateOnRollback",
+        "capture/TestPlanGSOTopologyTransitionDoubleBuffersAllQueues"
+      ],
+      "note": "Rollback очищает shared state; mixed generation не утекает."
+    },
+    {
+      "id": "ARCH-113",
+      "kind": "clause",
+      "title": "Passive RST",
+      "iv_coverage": "28.1-28.4, 42.5, AC 26/34",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestPassiveRSTConservativeRequiresStrongPlusIndependentCorroboration",
+        "nfq/TestPassiveRSTObservationBuildsStrongAndCorroboratingEvidence",
+        "nfq/TestRSTKill_TripsAtThreshold"
+      ],
+      "note": "Observe и active агрегируются раздельно (PassiveRST counters)."
+    },
+    {
+      "id": "ARCH-114",
+      "kind": "clause",
+      "title": "PPE policy",
+      "iv_coverage": "35.1-35.5, AC 30-31",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestPPEPassiveObserverTracksScopedTCPDirections",
+        "nfq/TestPPEPassiveObserverIgnoresUnconfiguredPort"
+      ]
+    },
+    {
+      "id": "ARCH-115",
+      "kind": "clause",
+      "title": "PPE capability and self-test",
+      "iv_coverage": "35.1/35.3, AC 30-31",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestDecodeOffloadMetadataMissingAndMalformedAttributesFailOpen",
+        "nfq/TestHardGateProducer_GSOOffloadMetadata"
+      ],
+      "note": "Model name не evidence; capability — через offload metadata envelope + fail-open."
+    },
+    {
+      "id": "ARCH-116",
+      "kind": "clause",
+      "title": "PPE lifecycle",
+      "iv_coverage": "35.2-35.4",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-6kt",
+        "task": "FB-21: PPE: реальная само-интеграция per-flow exclusion на Keenetic NDM + MediaTek",
+        "why": "foreign-resource и NDM-regeneration proof в release bundle требуют target-интеграции (Keenetic NDM); базовые envelope-тесты есть (nfq/TestDecodeOffloadMetadataEnvelope)"
+      }
+    },
+    {
+      "id": "ARCH-117",
+      "kind": "clause",
+      "title": "Useful progress",
+      "iv_coverage": "38B.3-38B.6, 42.11, AC 70",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestUniqueProgressIgnoresDuplicateAndOverlap",
+        "silentpath/TestGSOAndMSSHaveEqualUniqueTotals",
+        "nfq/TestCanaryMonitorAccountsEarlyProgressWhenFlowBecomesEligible"
+      ],
+      "note": "Unique-range семантика и GSO/MSS parity реализованы."
+    },
+    {
+      "id": "ARCH-118",
+      "kind": "clause",
+      "title": "Suppressors and differential proof",
+      "iv_coverage": "38B.2-38B.8, AC 72-76",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestDifferentialNeedsCandidateAndControl",
+        "silentpath/TestFreshAndCompatibleSuccessSuppress",
+        "silentpath/TestExplicitErrorAlwaysSuppresses",
+        "silentpath/TestObserveAssessmentCannotAuthorizeRecovery"
+      ]
+    },
+    {
+      "id": "ARCH-119",
+      "kind": "clause",
+      "title": "Recovery planner",
+      "iv_coverage": "38B.4-38B.8, 42.12, AC 78-81",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestLeaseScopeAndRollback",
+        "silentpath/TestMilestones",
+        "silentpath/TestNoTargetValidationNoPromotion"
+      ]
+    },
+    {
+      "id": "ARCH-120",
+      "kind": "clause",
+      "title": "Monitoring evolutionary replacement",
+      "iv_coverage": "IV-18 (MON-1..MON-12)",
+      "status": "PASS",
+      "evidence": [
+        "validation/TestIV18ReverseReachabilityCleanAfterCutover",
+        "validation/TestIV18ReverseReachabilityCleanTreeIsProductionReady",
+        "validation/TestIV18RunSuiteIsFailClosed",
+        "monitoring/TestRuntimeETLFailureToProjection"
+      ],
+      "note": "Legacy Watchdog applyBatchResults удалён (FB-28, 2026-08-02); strangler suite исполняется. Полный production cutover MON — FB-07 (b4x-070) в backlog."
+    },
+    {
+      "id": "ARCH-121",
+      "kind": "clause",
+      "title": "Monitor model",
+      "iv_coverage": "IV-18 MON-02/03, MON addendum",
+      "status": "PASS",
+      "evidence": [
+        "monitor/TestBusValidatesScopeAndPreservesSafetyLane",
+        "monitor/TestVisibilitySnapshotSuppressesStaleSources",
+        "monitor/TestCheckpointRoundTripAndProjection",
+        "validation/TestIV18RegistryIntegrity"
+      ]
+    },
+    {
+      "id": "ARCH-122",
+      "kind": "clause",
+      "title": "Temporal evidence",
+      "iv_coverage": "IV-18 MON-04, MON addendum §86",
+      "status": "PASS",
+      "evidence": [
+        "monitor/TestTemporalHysteresisAndBoundedBuckets",
+        "monitor/TestTemporalSeparatesRecurrenceAndIndependence",
+        "detector/TestEvidenceGraphIgnoresPassiveRecurrenceForConfidence"
+      ]
+    },
+    {
+      "id": "ARCH-123",
+      "kind": "clause",
+      "title": "Trigger planner",
+      "iv_coverage": "IV-18 MON-06, MON addendum §88",
+      "status": "PASS",
+      "evidence": [
+        "monitor/TestDemandInboxBoundedAndResolutionFreshness",
+        "monitor/TestInfrastructureAndGlobalSuppressorsExpire",
+        "validation/TestIV18RunSuiteIsFailClosed"
+      ]
+    },
+    {
+      "id": "ARCH-124",
+      "kind": "clause",
+      "title": "Authoritative active diagnosis",
+      "iv_coverage": "49-51, IV-14, AC 90-97",
+      "status": "PASS",
+      "evidence": [
+        "detector/TestProbeContextRejectsExpiredGenerationAndSelfInterference",
+        "detector/TestMITMRequiresVerifiedAuthoritativePath",
+        "monitor/TestABDEscalationPartialCannotBecomeAuthoritative"
+      ],
+      "note": "Overlay не удаляет mandatory controls/baselines (TestCompilePlanPreservesControlsAndIsDeterministic)."
+    },
+    {
+      "id": "ARCH-125",
+      "kind": "clause",
+      "title": "Resolution and address outcomes",
+      "iv_coverage": "IV-14, AC 90-97",
+      "status": "PASS",
+      "evidence": [
+        "detector/TestResolutionExperimentMixedV4V6PerAddress",
+        "detector/TestResolutionExperimentFirstSuccessDoesNotMaskSibling",
+        "detector/TestResolutionExperimentMissingPerAddressEvidenceBlocks",
+        "detector/TestDNSDifferentialPreservesPerAddressOutcomes"
+      ],
+      "note": "Два раздельных experiment types + outcome per A/AAAA; first success не скрывает siblings."
+    },
+    {
+      "id": "ARCH-126",
+      "kind": "clause",
+      "title": "Evidence authority and attribution",
+      "iv_coverage": "AC 92/97/98",
+      "status": "PASS",
+      "evidence": [
+        "detector/TestVantageCapabilityUnprovenIsNoOpinion",
+        "detector/TestVantageExactModeIdentityConflationNoOpinion",
+        "detector/TestVantageStageMismatchNoOpinion",
+        "detector/TestL4PacketAndByteProfilesRemainIndependent",
+        "monitor/TestABDEscalationPartialCannotBecomeAuthoritative"
+      ]
+    },
+    {
+      "id": "ARCH-127",
+      "kind": "clause",
+      "title": "Stage-aware observers",
+      "iv_coverage": "IV-14",
+      "status": "PASS",
+      "evidence": [
+        "detector/TestVantageCapabilityUnprovenIsNoOpinion",
+        "detector/TestVantageUnavailableIsNoOpinion",
+        "detector/TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis"
+      ],
+      "note": "Capability-declared observers; unavailable=no opinion; higher-layer verdict требует capability."
+    },
+    {
+      "id": "ARCH-128",
+      "kind": "clause",
+      "title": "BlockingProfile and DDI",
+      "iv_coverage": "49.1, IV-15, AC 98-100",
+      "status": "PASS",
+      "evidence": [
+        "detector/TestCompilePlanPreservesControlsAndIsDeterministic",
+        "detector/TestDDIPriorCannotDropExcludedDenominator",
+        "detector/TestDDIPriorRequiresFreshEnvelopeAndBaseline"
+      ],
+      "note": "Ownership по FB-14 решению 1; DDI не компилирует raw evidence."
+    },
+    {
+      "id": "ARCH-129",
+      "kind": "clause",
+      "title": "Guided search",
+      "iv_coverage": "50.3-50.7, IV-15, AC 100-102",
+      "status": "PASS",
+      "evidence": [
+        "discovery/TestAdaptiveMatrixOneDimensionSearchAndBoundedShadow",
+        "discovery/TestHintPlannerKeepsBaselineAndFallback",
+        "discovery/TestGuidedSnapshotDefaultsAndImmutableDomains",
+        "detector/TestCompilePlanRejectsExpiredOverlay"
+      ],
+      "note": "Mandatory baselines/full fallback/controls не удаляются prior-ом."
+    },
+    {
+      "id": "ARCH-130",
+      "kind": "clause",
+      "title": "Transport candidates",
+      "iv_coverage": "33, IV-15",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-cka",
+        "task": "FB-31: Causal matrix failure family и candidate family",
+        "why": "normative failure-family -\u003e candidate-family matrix отсутствует в коде; запрет broad WARP escalation по DNS/QUIC-only hints не исполняется"
+      }
+    },
+    {
+      "id": "ARCH-131",
+      "kind": "clause",
+      "title": "Telegram bridge",
+      "iv_coverage": "IV-16, 50, 51, AC 104-109",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-6l5",
+        "task": "FB-04: #277: интегрировать hardened Telegram bridge, убрать silent drop",
+        "why": "PASS только через TPROXY listener production path и field evidence; сейчас только fixtures (fieldtest/telegram_field.go), исполняемых тестов нет"
+      }
+    },
+    {
+      "id": "ARCH-132",
+      "kind": "clause",
+      "title": "Base WARP architecture",
+      "iv_coverage": "38A, 42.8, IV-17",
+      "status": "PASS",
+      "evidence": [
+        "warp/TestManifestRejectsRuntimeDownloadAndRequiresLicense",
+        "warp/TestSecretStoreCopiesAndRedacts",
+        "warp/TestTunRegistryRejectsForeignCollisionAndLowMTU"
+      ],
+      "note": "Bundled/pinned implementation; no runtime download."
+    },
+    {
+      "id": "ARCH-133",
+      "kind": "clause",
+      "title": "WARP scope and path proof",
+      "iv_coverage": "38A, IV-17, AC 121-124",
+      "status": "PASS",
+      "evidence": [
+        "warp/TestAuthorizationIsScopedAndRevocable",
+        "warp/TestGeoQuorumRequiresFreshPathProof",
+        "routing/TestBindingStoreDoesNotCaptureAnotherFlowOrClient"
+      ]
+    },
+    {
+      "id": "ARCH-134",
+      "kind": "clause",
+      "title": "WARP camouflage",
+      "iv_coverage": "42.9, IV-17, AC 133-134",
+      "status": "PASS",
+      "evidence": [
+        "warp/TestCamouflageAuthorizationRequiresExactIdentityAndGeneration",
+        "warp/TestCoverSNIAlwaysRequiresPin",
+        "warp/TestCutoffRejectsWrongGenerationAndDuplicate",
+        "validation/TestRequiredHardGatesCamouflageAndNonRU"
+      ]
+    },
+    {
+      "id": "ARCH-135",
+      "kind": "clause",
+      "title": "Nested WARP and non-RU",
+      "iv_coverage": "42.10, IV-17, AC 125-132",
+      "status": "PASS",
+      "evidence": [
+        "warp/TestNestedBackendInvalidatesOnParentAndCleansOwnership",
+        "warp/TestOuterInnerStateCannotCrossAuthorize",
+        "fieldtest/TestEventStreamRejectsDuplicateAndRedactsIdentity"
+      ]
+    },
+    {
+      "id": "ARCH-136",
+      "kind": "clause",
+      "title": "Causal observability and cleanup",
+      "iv_coverage": "IV-17/52",
+      "status": "PASS",
+      "evidence": [
+        "fieldtest/TestTraceEventSerializationPreservesGenerationFields",
+        "warp/TestTraceEnvelopeSequenceChecksumAndPriority",
+        "warp/TestTraceExportRedactsAndBounds"
+      ],
+      "note": "FB-14 п.9: узкий composable causal verdict (fieldtest.WARPGate.SeparateVerdicts — optional nested отдельно); cleanup ownership в trace."
+    },
+    {
+      "id": "ARCH-137",
+      "kind": "clause",
+      "title": "Declarative Service Profiles",
+      "iv_coverage": "36.1, 41.5",
+      "status": "PASS",
+      "evidence": [
+        "serviceprofile/TestCompileDeterministic",
+        "serviceprofile/TestOwnershipMigrationIsManual",
+        "serviceprofile/TestTransactionRollback",
+        "detector/TestProfileCompilerIsDeterministicAndLinked"
+      ],
+      "note": "Compiler только в ordinary B4 objects; manual/pinned/excluded preserved."
+    },
+    {
+      "id": "ARCH-138",
+      "kind": "clause",
+      "title": "Capability projection",
+      "iv_coverage": "36.2, SP-13/16/20",
+      "status": "PASS",
+      "evidence": [
+        "validation/TestRequiredHardGatesServiceProfilesRequireCapability",
+        "validation/TestEvaluateHardGatesScopeIsolation"
+      ],
+      "note": "CapabilityProjection/GSOProjection/WARPProjection (serviceprofile); profile может только сузить (hard-gate тесты)."
+    },
+    {
+      "id": "ARCH-139",
+      "kind": "clause",
+      "title": "Beginner recommendations",
+      "iv_coverage": "36.5/41, SP-30..SP-32",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-cst",
+        "task": "FB-32: Service Profiles v1.6: SP-30..SP-32 и recommendation state machine",
+        "why": "eligible-to-test -\u003e validated state machine и SP-30..SP-32 не зарегистрированы"
+      }
+    },
+    {
+      "id": "ARCH-140",
+      "kind": "clause",
+      "title": "Profile release rule",
+      "iv_coverage": "42.6, SP-19/23",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-jjh",
+        "task": "FB-02: Интегрировать продуктовый слой silentpath/Monitoring/ABD-DDI/WARP/serviceprofile/fieldtest",
+        "why": "единый gate (target + unrelated controls + exact scope + current representation/transport proof + rollback readiness) не собран; частично: fieldtest promotion + crossservice validation"
+      }
+    },
+    {
+      "id": "ARCH-141",
+      "kind": "clause",
+      "title": "Capability dependency graph",
+      "iv_coverage": "53.3",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-0yf",
+        "task": "FB-36: Capability dependency graph: execution scheduling",
+        "why": "execution scheduling отдельно от verdict dependencies; aggregation по ARCH graph не реализована"
+      }
+    },
+    {
+      "id": "ARCH-142",
+      "kind": "clause",
+      "title": "Principal verdicts",
+      "iv_coverage": "52",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-xgc",
+        "task": "FB-34: Canonical principal verdict registry + alias mapping",
+        "why": "validation/verdict.go — только базовые StageResult; canonical verdict registry с alias mapping и dependency expressions отсутствует"
+      }
+    },
+    {
+      "id": "ARCH-143",
+      "kind": "clause",
+      "title": "Global hard-gate classes",
+      "iv_coverage": "51",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-q58",
+        "task": "FB-03: Canonical hard-gate registry + runtime producers/consumers + meta-suite",
+        "why": "registry+generator есть (hard_gates_registry.gen.go, MON family в yaml, nfq producers), но активация WARP/SPF/FT/MON gates, вердикты-константы, meta.go в production и b4-validate CLI не готовы"
+      }
+    },
+    {
+      "id": "ARCH-144",
+      "kind": "clause",
+      "title": "Recommended file order",
+      "iv_coverage": "25/41/54/58 частично",
+      "status": "NOT_APPLICABLE",
+      "not_applicable_reason": "Решением владельца (RESOLVED §5.2, FB18-09): §144 — порядок чтения файлов, не implementation-order требование; consolidation registry решается FB-33 (b4x-yzt).",
+      "note": "Gap: FB-33 (b4x-yzt) — canonical Exact Source-Stage Registry + generated totals."
+    },
+    {
+      "id": "ARCH-145",
+      "kind": "clause",
+      "title": "No flag-day migration",
+      "iv_coverage": "L8, IV-18 MON-11",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-n6r",
+        "task": "FB-35: No-flag-day migration matrix для каждого subsystem",
+        "why": "per-subsystem shadow/canary/cutover/rollback + reverse-reachability legacy paths после cutover не собраны; частично: nfq/TestQUICHandoffFeatureGatePreservesLegacyGlobalPath, validation/TestLegacyAliasMigration"
+      }
+    },
+    {
+      "id": "HR-42",
+      "kind": "hold_replay",
+      "title": "HeldPacket structure; holding only in bounded reassembly mode",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestAutoHoldReplayHoldsOnlyIncompleteClientHello",
+        "nfq/TestTCPHoldStoreBoundsTimeoutAndRelease",
+        "nfq/TestTCPHoldReleasesImmediatelyWhenVisibilityDegrades"
+      ]
+    },
+    {
+      "id": "HR-43",
+      "kind": "hold_replay",
+      "title": "Abort/release paths: complete/timeout/FIN-RST/pressure/malformed/shutdown/generation-change all release unchanged or fail-open",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestTCPHoldAbortOnFINReleasesImmediately",
+        "nfq/TestTCPHoldAbortOnRSTReleasesImmediately",
+        "nfq/TestTCPHoldAbortOnFlowTerminationIdempotent",
+        "nfq/TestHoldReplayObserveAndServerProgressRelease",
+        "classifier/TestTCPFlowFINRSTCleanupAndGenerationChange"
+      ]
+    },
+    {
+      "id": "HR-44",
+      "kind": "hold_replay",
+      "title": "Stream-to-packet map: planner in logical stream offsets, executor -\u003e TCP sequence ranges",
+      "status": "PASS",
+      "evidence": [
+        "action/TestStreamMapAndPlanUseLogicalOffsets",
+        "action/TestPlanTLSRecordSplitPreservesClientHelloAndTrailingRecords",
+        "nfq/TestBuildSeqOverlapSegmentV4_PrependsPatternAndShiftsSeq",
+        "nfq/TestBuildSeqOverlapSegmentV6_PrependsPatternAndShiftsSeq"
+      ]
+    },
+    {
+      "id": "HR-45",
+      "kind": "hold_replay",
+      "title": "Semantic markers ClientHello/SNI/host/SLD; resolver only on complete parsed ClientHello; ECH -\u003e unavailable",
+      "status": "PASS",
+      "evidence": [
+        "action/TestDiscoverTLSMarkersAndECHAvailability",
+        "action/TestInitialMarkerCatalogIsReadOnlyAndBounded",
+        "action/TestPlanStrategySemanticMarkersAndMTU",
+        "nfq/TestNFQECHMetadataReachesScopedDecision"
+      ]
+    },
+    {
+      "id": "INV-5.1",
+      "kind": "invariant",
+      "title": "Classification before action",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestDecideAmbiguityRetainsAllCandidates",
+        "action/TestPlanRequiresExactAuthorization",
+        "nfq/TestExecuteActionPlanAppliedViaIPv4DropPath"
+      ]
+    },
+    {
+      "id": "INV-5.10",
+      "kind": "invariant",
+      "title": "Full service scope: ClientKey+SetID+Component+NetworkContext+ConfigGeneration",
+      "status": "PASS",
+      "evidence": [
+        "crossservice/TestStoreRequiresFreshExactGenerationReport",
+        "classifier/TestScopedHintsAndScopeMismatch",
+        "nfq/TestScopedFailureStateDoesNotCrossDomainClientOrGeneration"
+      ]
+    },
+    {
+      "id": "INV-5.11",
+      "kind": "invariant",
+      "title": "Observation != diagnosis != action; recurrence not a replacement for independent evidence families",
+      "status": "PASS",
+      "evidence": [
+        "monitor/TestABDEscalationPartialCannotBecomeAuthoritative",
+        "silentpath/TestObserveAssessmentCannotAuthorizeRecovery",
+        "detector/TestEvidenceGraphIgnoresPassiveRecurrenceForConfidence"
+      ]
+    },
+    {
+      "id": "INV-5.12",
+      "kind": "invariant",
+      "title": "Visibility before inference: incomplete bidirectional visibility blocks hold/auto-recovery/promotion",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestActiveModeDegradesWithoutEveryVisibilityProof",
+        "nfq/TestTCPHoldReleasesImmediatelyWhenVisibilityDegrades",
+        "discovery/TestAutomaticDiscoveryRequiresCompleteVisibility",
+        "action/TestActionTokenACKClosureRequiresCompleteVisibility"
+      ]
+    },
+    {
+      "id": "INV-5.13",
+      "kind": "invariant",
+      "title": "Useful progress: ACK-only/dup/retransmission insufficient for silent recovery",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestUniqueProgressIgnoresDuplicateAndOverlap",
+        "silentpath/TestProgressLifecycleAndBounds",
+        "nfq/TestCanaryMonitorCountsLogicalFlowOnce"
+      ]
+    },
+    {
+      "id": "INV-5.14",
+      "kind": "invariant",
+      "title": "Exact client-resolution binding",
+      "status": "PASS",
+      "evidence": [
+        "silentpath/TestScopeRequiresExactAuthorizationNotDestination",
+        "routing/TestBindingStoreDoesNotCaptureAnotherFlowOrClient",
+        "classifier/TestIdentityStoreDHCPReuseChangesGeneration"
+      ]
+    },
+    {
+      "id": "INV-5.15",
+      "kind": "invariant",
+      "title": "Transport path proof: promotion requires causal chain ClientKey-\u003eBinding-\u003ecounters-\u003egeneration-\u003emilestone",
+      "status": "PASS",
+      "evidence": [
+        "routing/TestBindingStoreRequiresExactFlowCapability",
+        "fieldtest/TestPromoteBlockedOnMissingProducers",
+        "fieldtest/TestMissingProducerBlocksPromotionEndToEnd",
+        "warp/TestGeoQuorumRequiresFreshPathProof",
+        "silentpath/TestMilestones"
+      ]
+    },
+    {
+      "id": "INV-5.16",
+      "kind": "invariant",
+      "title": "Capability projection, not ownership",
+      "status": "PASS",
+      "evidence": [
+        "validation/TestRequiredHardGatesServiceProfilesRequireCapability",
+        "validation/TestEvaluateHardGatesScopeIsolation",
+        "serviceprofile/TestCompileDeterministic"
+      ]
+    },
+    {
+      "id": "INV-5.17",
+      "kind": "invariant",
+      "title": "No recursive fallback; transport/recovery graph acyclic",
+      "status": "BLOCKED",
+      "blocked_by": {
+        "beads_id": "b4x-zq3",
+        "task": "FB-18B-5.17: доказать ацикличность transport/recovery graph",
+        "why": "полное доказательство ацикличности отсутствует; частично: routing fallback (no double processing, bounded pool), silentpath lease/rollback; связана с FB-23 (routing.FallbackManager)"
+      }
+    },
+    {
+      "id": "INV-5.2",
+      "kind": "invariant",
+      "title": "Clean SYN + empty payload -\u003e NF_ACCEPT",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestCleanSYNGateAllowsExplicitSYNTechniques",
+        "nfq/TestCleanSYNGateRejectsTFOAndHandshakeFlags",
+        "classifier/TestIsCleanSYNRequiresExplicitTechniqueForMutation"
+      ]
+    },
+    {
+      "id": "INV-5.3",
+      "kind": "invariant",
+      "title": "Fail-open: release unchanged, clear state, record reason",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestExecuteActionPlanFailsOpen",
+        "nfq/TestGSOClassifyFastPathFailsOpenWithoutCapabilityOrCompleteInput",
+        "action/TestExecutorCancellationDelayAndBudgetFailOpen",
+        "silentpath/TestActiveModeDegradesWithoutEveryVisibilityProof"
+      ]
+    },
+    {
+      "id": "INV-5.4",
+      "kind": "invariant",
+      "title": "Source scope: DNS/QUIC evidence includes client identity",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestScopedLearnedObservationIsClientScopedAndExpiryDoesNotSlide",
+        "detector/TestQUICRejectsCrossScope",
+        "nfq/TestScopedDNSHintSelectsSetForImmediateTCPFlow",
+        "nfq/TestQUICHandoffMirrorsSourceScopedUDPToTCP"
+      ]
+    },
+    {
+      "id": "INV-5.5",
+      "kind": "invariant",
+      "title": "Logical first-flight idempotency: one ClientHello - one ActionToken",
+      "status": "PASS",
+      "evidence": [
+        "action/TestActionTokenStoreSuppressesRetransmissionAndOverlap",
+        "action/TestActionTokenStoreBudgetsAndProcessedMark",
+        "nfq/TestGSONormalizerFirstPassQueuesAndSecondaryConsumesSameIdentityOnce"
+      ]
+    },
+    {
+      "id": "INV-5.6",
+      "kind": "invariant",
+      "title": "Config generation safety: no mutable config pointers in flow/hint state",
+      "status": "PASS",
+      "evidence": [
+        "action/TestPlanStrategyTokenIdempotencyAndRollbackGeneration",
+        "nfq/TestScopedDNSHintsInvalidateOnRuntimeGenerationChange",
+        "nfq/TestTCPHoldStoreGenerationAndFlowEviction"
+      ]
+    },
+    {
+      "id": "INV-5.7",
+      "kind": "invariant",
+      "title": "Bounded resources: memory/per-client/per-flow limits, TTL, eviction, fail-open",
+      "status": "PASS",
+      "evidence": [
+        "nfq/TestPassiveRSTScopeBudgetsAndNonSlidingWindowAreBounded",
+        "nfq/TestTCPHoldStoreBoundsTimeoutAndRelease",
+        "action/TestActionTokenStoreBudgetsAndProcessedMark",
+        "classifier/TestTCPFlowStoreBoundedAndGC"
+      ]
+    },
+    {
+      "id": "INV-5.8",
+      "kind": "invariant",
+      "title": "Provenance mark for every injected/replayed packet",
+      "status": "PASS",
+      "evidence": [
+        "action/TestExecutorDryRunAndProvenanceValidation",
+        "capture/TestProcessedMarkContract",
+        "capture/TestTransientMarkAllocatorNeverUsesSharedContracts",
+        "nfq/TestClientHelloDecisionClaimIsExactFlowAndGenerationScoped"
+      ]
+    },
+    {
+      "id": "INV-5.9",
+      "kind": "invariant",
+      "title": "CaptureCandidate != ActionAuthorization",
+      "status": "PASS",
+      "evidence": [
+        "classifier/TestCaptureCandidateRequiresScopedAuthorization",
+        "classifier/TestResolveCandidateDisposition",
+        "action/TestPlanRequiresExactAuthorization"
+      ]
+    }
+  ]
+}

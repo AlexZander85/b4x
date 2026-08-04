@@ -59,11 +59,11 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-11 | открыта | — |
 | FB-12 | ВЫПОЛНЕНА | Beads b4x-1lb, closed 02.08; commit 5bb47b13 |
 | FB-13 | ВЫПОЛНЕНА | Beads b4x-abc, closed 03.08; session_test.go + тест сериализации |
-| FB-14 | открыта | — |
+| FB-14 | ВЫПОЛНЕНА | Beads b4x-lv0, closed 04.08; commits 026ea485 (14/14 решений) + 8f9b6b94 (FB-18A пересчёт хэшей); верификация 04.08 — remediation report |
 | FB-15 | ВЫПОЛНЕНА | Beads b4x-1yk, closed 03.08; build: swagger gen-defaults build-ui, pnpm 10.29.2 везде |
 | FB-16 | ОТМЕНЕНА | перепроверка 31.07: все 104 документа валидный UTF-8, перекодировка не требуется |
 | FB-17 | открыта | — |
-| FB-18 | открыта | — |
+| FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); закрытие после FB-03/31/33-36/04/32/02/21/23 | — |
 | FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
 | FB-21 | открыта | — |
@@ -698,7 +698,7 @@ GSOPassToken {
 - **Критерий:** `go vet ./...` чист; тест сериализации события трассы сохраняет все 3 поля.
 - **Зависит:** —
 
-### FB-14. Перенести все owner decisions из `B4X_FB14_CONFLICTS_RESOLVED.md` в canonical documents [XL, PRE-FLIGHT]
+### FB-14. Перенести все owner decisions из `B4X_FB14_CONFLICTS_RESOLVED.md` в canonical documents [XL, PRE-FLIGHT] **— ВЫПОЛНЕНО** (Beads b4x-lv0, 04.08)
 
 - **Проблема:** исходный audit backlog содержит старые defaults. Они superseded и не должны применяться.
 - **Authoritative input:** полный `B4X_FB14_CONFLICTS_RESOLVED.md`, включая FB-18A appendix.
