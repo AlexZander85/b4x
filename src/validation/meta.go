@@ -73,10 +73,11 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 
 	// Reproducible: gate/applicable counts must match the generator output
 	// (283 gates: 282 addendum-extracted + 1 FB-28 mon_production_ready;
-	// 45 applicable: 24 FB-03 scope producers + 10 WARP base-transport
-	// producers (FB-02 §72) + 2 FB-29 resolution first-success-erasure
-	// producers + 9 FB-30 multi-vantage producers, mon + abd).
-	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 45 && len(hardGates) == 283
+	// 67 applicable: 24 FB-03 scope producers + 10 WARP base-transport
+	// producers (FB-02 72) + 2 FB-29 resolution first-success-erasure
+	// producers + 9 FB-30 multi-vantage producers, mon + abd
+	// + 22 SPF silent-path failure producers (FB-02 45)).
+	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 67 && len(hardGates) == 283
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},

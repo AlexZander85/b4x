@@ -24,10 +24,12 @@ func TestApplicableHardGates(t *testing.T) {
 	// target_failure, exact_endpoint_service_resolution_conflated,
 	// observer_capability_unproven + detector_multivantage_stage_mismatch,
 	// verified via RecordMultiVantageViolation in src/detector/abd_path.go).
+	// + 22 SPF silent-path failure producers (FB-02 45, verified via the
+	// lifecycle guards in src/silentpath/hard_gate_producers.go).
 	// Each has a real Metrics.Inc call site, an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 45 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 45", len(gates))
+	if len(gates) != 67 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 67", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

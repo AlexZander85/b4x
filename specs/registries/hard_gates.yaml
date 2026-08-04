@@ -1424,18 +1424,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFActionWithoutAuthorization)
+      file: src/silentpath/hard_gate_producers.go
+      line: 36
+      mechanism: increment-only counter via observability (recovery/canary action without a final action authorization)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFActionWithoutAuthorization
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 83
+      assertion: auth.ID empty / !auth.Final / zero client -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_action_with_incomplete_visibility_total
     canonical_metric_name: silent_failure_action_with_incomplete_visibility_total
     global_gate_class: mandatory
@@ -1444,18 +1469,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFActionIncompleteVisibility)
+      file: src/silentpath/hard_gate_producers.go
+      line: 40
+      mechanism: increment-only counter via observability (active action while capture visibility proofs incomplete)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFActionWithIncompleteVisibility
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 92
+      assertion: incomplete CapabilitySnapshot -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_destination_only_state_total
     canonical_metric_name: silent_failure_destination_only_state_total
     global_gate_class: mandatory
@@ -1464,18 +1514,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: DestinationOnlyStateUsed -> Metrics.Inc(MetricSPFDestinationOnlyState)
+      file: src/silentpath/hard_gate_producers.go
+      line: 69
+      mechanism: increment-only counter via observability (decision from destination-only scope)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFDestinationOnlyState
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 98
+      assertion: destination-only scope -> true && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_cross_client_action_total
     canonical_metric_name: silent_failure_cross_client_action_total
     global_gate_class: mandatory
@@ -1484,18 +1559,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossClientAction)
+      file: src/silentpath/hard_gate_producers.go
+      line: 44
+      mechanism: increment-only counter via observability (scope.ClientKey != auth.Client)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFCrossClientAction
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 106
+      assertion: scope client differs from authorized client -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_cross_service_action_total
     canonical_metric_name: silent_failure_cross_service_action_total
     global_gate_class: mandatory
@@ -1504,18 +1604,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossServiceAction)
+      file: src/silentpath/hard_gate_producers.go
+      line: 48
+      mechanism: increment-only counter via observability (scope.DomainKey != auth.Domain)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFCrossServiceAction
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 114
+      assertion: scope domain differs from authorized domain -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_cross_component_action_total
     canonical_metric_name: silent_failure_cross_component_action_total
     global_gate_class: mandatory
@@ -1524,18 +1649,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossComponentAction)
+      file: src/silentpath/hard_gate_producers.go
+      line: 52
+      mechanism: increment-only counter via observability (scope.ComponentID != authorized component)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFCrossComponentAction
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 122
+      assertion: scope component differs from authorized component -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_cross_generation_action_total
     canonical_metric_name: silent_failure_cross_generation_action_total
     global_gate_class: mandatory
@@ -1544,18 +1694,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossGenerationAction)
+      file: src/silentpath/hard_gate_producers.go
+      line: 56
+      mechanism: increment-only counter via observability (scope.ConfigGen != auth.ConfigGen)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFCrossGenerationAction
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 128
+      assertion: scope generation differs from authorized generation -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_single_signal_auto_fallback_total
     canonical_metric_name: silent_failure_single_signal_auto_fallback_total
     global_gate_class: mandatory
@@ -1564,18 +1739,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AutoFallbackGate -> Metrics.Inc(MetricSPFSingleSignalAutoFallback)
+      file: src/silentpath/hard_gate_producers.go
+      line: 110
+      mechanism: increment-only counter via observability (auto-fallback with fewer than two independent evidence families)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFSingleSignalAutoFallback
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 136
+      assertion: one evidence family -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_non_independent_evidence_auto_fallback_total
     canonical_metric_name: silent_failure_non_independent_evidence_auto_fallback_total
     global_gate_class: mandatory
@@ -1584,18 +1784,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: AutoFallbackGate -> Metrics.Inc(MetricSPFNonIndependentAutoFallback)
+      file: src/silentpath/hard_gate_producers.go
+      line: 104
+      mechanism: increment-only counter via observability (auto-fallback using evidence without declared independent family)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFNonIndependentEvidenceAutoFallback
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 142
+      assertion: evidence without independent family -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_suppressor_ignored_total
     canonical_metric_name: silent_failure_suppressor_ignored_total
     global_gate_class: mandatory
@@ -1604,18 +1829,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SuppressorGate -> Metrics.Inc(MetricSPFSuppressorIgnored)
+      file: src/silentpath/hard_gate_producers.go
+      line: 129
+      mechanism: increment-only counter via observability (active suppressor bypassed by recovery)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFSuppressorIgnored
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 153
+      assertion: active resource suppressor + proceed -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_fast_parallel_false_positive_total
     canonical_metric_name: silent_failure_fast_parallel_false_positive_total
     global_gate_class: mandatory
@@ -1624,18 +1874,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: FastParallelFalsePositiveGate -> Metrics.Inc(MetricSPFFastParallelFalsePositive)
+      file: src/silentpath/hard_gate_producers.go
+      line: 142
+      mechanism: increment-only counter via observability (likely-parallel evidence treated as failure)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFFastParallelFalsePositive
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 161
+      assertion: ReasonLikelyParallel evidence -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_recent_success_false_positive_total
     canonical_metric_name: silent_failure_recent_success_false_positive_total
     global_gate_class: mandatory
@@ -1644,18 +1919,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SuppressorGate -> Metrics.Inc(MetricSPFRecentSuccessFalsePositive)
+      file: src/silentpath/hard_gate_producers.go
+      line: 127
+      mechanism: increment-only counter via observability (fresh same-scope success suppressor bypassed)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFRecentSuccessFalsePositive
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 167
+      assertion: fresh success suppressor + proceed -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_explicit_server_error_misclassified_total
     canonical_metric_name: silent_failure_explicit_server_error_misclassified_total
     global_gate_class: mandatory
@@ -1664,18 +1964,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ExplicitServerErrorGate -> Metrics.Inc(MetricSPFExplicitServerErrorMisclass)
+      file: src/silentpath/hard_gate_producers.go
+      line: 154
+      mechanism: increment-only counter via observability (explicit server response treated as network failure)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFExplicitServerErrorMisclassified
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 175
+      assertion: ReasonExplicitServerResponse evidence -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_gso_mss_progress_mismatch_total
     canonical_metric_name: silent_failure_gso_mss_progress_mismatch_total
     global_gate_class: mandatory
@@ -1684,18 +2009,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GsoMssProgressMismatch -> Metrics.Inc(MetricSPFGsoMssProgressMismatch)
+      file: src/silentpath/hard_gate_producers.go
+      line: 169
+      mechanism: increment-only counter via observability (GSO segment bytes not MSS-aligned counted as wire progress)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFGsoMssProgressMismatch
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 181
+      assertion: 2900 bytes with MSS 1460 -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_ppe_visibility_violation_total
     canonical_metric_name: silent_failure_ppe_visibility_violation_total
     global_gate_class: mandatory
@@ -1704,18 +2054,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PPEVisibilityViolation -> Metrics.Inc(MetricSPFPPEVisibilityViolation)
+      file: src/silentpath/hard_gate_producers.go
+      line: 179
+      mechanism: increment-only counter via observability (promotion while PPE/offload or GSO-parity proof missing)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFPpeVisibilityViolation
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 187
+      assertion: OffloadProven=false promote=true -> counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_unbounded_probe_total
     canonical_metric_name: silent_failure_unbounded_probe_total
     global_gate_class: mandatory
@@ -1724,18 +2099,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ProbeGate -> Metrics.Inc(MetricSPFUnboundedProbe)
+      file: src/silentpath/hard_gate_producers.go
+      line: 189
+      mechanism: increment-only counter via observability (differential probe beyond bounded budget)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFUnboundedProbe
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 195
+      assertion: attempts >= maxAttempts -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_unbounded_rotation_total
     canonical_metric_name: silent_failure_unbounded_rotation_total
     global_gate_class: mandatory
@@ -1744,18 +2144,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RotationGate -> Metrics.Inc(MetricSPFUnboundedRotation)
+      file: src/silentpath/hard_gate_producers.go
+      line: 199
+      mechanism: increment-only counter via observability (lease rotation beyond MaxAttempts)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFUnboundedRotation
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 201
+      assertion: attempts >= MaxAttempts -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_recursive_transport_fallback_total
     canonical_metric_name: silent_failure_recursive_transport_fallback_total
     global_gate_class: mandatory
@@ -1764,18 +2189,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: TransportFallbackGate -> Metrics.Inc(MetricSPFRecursiveTransportFallback)
+      file: src/silentpath/hard_gate_producers.go
+      line: 210
+      mechanism: increment-only counter via observability (recursive fallback onto the same transport path)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFRecursiveTransportFallback
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 207
+      assertion: current==candidate transport path -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_recovery_without_rollback_target_total
     canonical_metric_name: silent_failure_recovery_without_rollback_target_total
     global_gate_class: mandatory
@@ -1784,18 +2234,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RollbackTargetGate -> Metrics.Inc(MetricSPFRecoveryWithoutRollbackTarget)
+      file: src/silentpath/hard_gate_producers.go
+      line: 220
+      mechanism: increment-only counter via observability (recovery lease without a known rollback target)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFRecoveryWithoutRollbackTarget
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 213
+      assertion: lease with empty Rollback -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_control_regression_promoted_total
     canonical_metric_name: silent_failure_control_regression_promoted_total
     global_gate_class: mandatory
@@ -1804,18 +2279,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ControlRegressionGate -> Metrics.Inc(MetricSPFControlRegressionPromoted)
+      file: src/silentpath/hard_gate_producers.go
+      line: 231
+      mechanism: increment-only counter via observability (promotion while control probe unhealthy/regressed)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFControlRegressionPromoted
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 219
+      assertion: unhealthy control probe -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_false_positive_budget_ignored_total
     canonical_metric_name: silent_failure_false_positive_budget_ignored_total
     global_gate_class: mandatory
@@ -1824,18 +2324,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: FalsePositiveBudgetGate -> Metrics.Inc(MetricSPFFalsePositiveBudgetIgnored)
+      file: src/silentpath/hard_gate_producers.go
+      line: 242
+      mechanism: increment-only counter via observability (recovery while rollback monitor is observe-only after budget breach)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFFalsePositiveBudgetIgnored
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 229
+      assertion: ObserveOnly monitor -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   - gate_id: silent_failure_user_revert_not_rolled_back_total
     canonical_metric_name: silent_failure_user_revert_not_rolled_back_total
     global_gate_class: mandatory
@@ -1844,18 +2369,43 @@ families:
     source_doc: B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
     source_section: '45'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UserRevertRollsBack -> Metrics.Inc(MetricSPFUserRevertNotRolledBack)
+      file: src/silentpath/hard_gate_producers.go
+      line: 254
+      mechanism: increment-only counter via observability (user revert without matching active lease)
+      production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
+        pipeline root from validation)
+    verified_commit: 790c8f6f
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.spf; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:spf
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_SPFUserRevertNotRolledBack
+      file: src/silentpath/hard_gate_producers_test.go
+      line: 237
+      assertion: unknown lease id -> Rollback false && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/silentpath/hard_gate_producers_test.go
+    - src/silentpath/hard_gate_producers.go
   mon:
   - gate_id: monitor_observation_direct_action_total
     canonical_metric_name: monitor_observation_direct_action_total

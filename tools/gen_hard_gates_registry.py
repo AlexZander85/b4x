@@ -413,6 +413,164 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (rollback with no previous applied state)",
         "production_root": "warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)",
     },
+    # --- SPF lifecycle producers (FB-02 SPF section, 2026-08-04): every counter
+    # increments ONLY on the violating branch of the production guards
+    # (src/silentpath/hard_gate_producers.go), reachable from the validation
+    # controller loop via the release pipeline. ---
+    "silent_failure_action_without_authorization_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFActionWithoutAuthorization)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 36,
+        "mechanism": "increment-only counter via observability (recovery/canary action without a final action authorization)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_action_with_incomplete_visibility_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFActionIncompleteVisibility)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 40,
+        "mechanism": "increment-only counter via observability (active action while capture visibility proofs incomplete)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_destination_only_state_total": {
+        "symbol": "DestinationOnlyStateUsed -> Metrics.Inc(MetricSPFDestinationOnlyState)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 69,
+        "mechanism": "increment-only counter via observability (decision from destination-only scope)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_cross_client_action_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossClientAction)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 44,
+        "mechanism": "increment-only counter via observability (scope.ClientKey != auth.Client)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_cross_service_action_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossServiceAction)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 48,
+        "mechanism": "increment-only counter via observability (scope.DomainKey != auth.Domain)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_cross_component_action_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossComponentAction)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 52,
+        "mechanism": "increment-only counter via observability (scope.ComponentID != authorized component)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_cross_generation_action_total": {
+        "symbol": "AuthorizeRecoveryAction -> Metrics.Inc(MetricSPFCrossGenerationAction)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 56,
+        "mechanism": "increment-only counter via observability (scope.ConfigGen != auth.ConfigGen)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_single_signal_auto_fallback_total": {
+        "symbol": "AutoFallbackGate -> Metrics.Inc(MetricSPFSingleSignalAutoFallback)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 110,
+        "mechanism": "increment-only counter via observability (auto-fallback with fewer than two independent evidence families)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_non_independent_evidence_auto_fallback_total": {
+        "symbol": "AutoFallbackGate -> Metrics.Inc(MetricSPFNonIndependentAutoFallback)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 104,
+        "mechanism": "increment-only counter via observability (auto-fallback using evidence without declared independent family)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_suppressor_ignored_total": {
+        "symbol": "SuppressorGate -> Metrics.Inc(MetricSPFSuppressorIgnored)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 129,
+        "mechanism": "increment-only counter via observability (active suppressor bypassed by recovery)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_fast_parallel_false_positive_total": {
+        "symbol": "FastParallelFalsePositiveGate -> Metrics.Inc(MetricSPFFastParallelFalsePositive)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 142,
+        "mechanism": "increment-only counter via observability (likely-parallel evidence treated as failure)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_recent_success_false_positive_total": {
+        "symbol": "SuppressorGate -> Metrics.Inc(MetricSPFRecentSuccessFalsePositive)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 127,
+        "mechanism": "increment-only counter via observability (fresh same-scope success suppressor bypassed)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_explicit_server_error_misclassified_total": {
+        "symbol": "ExplicitServerErrorGate -> Metrics.Inc(MetricSPFExplicitServerErrorMisclass)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 154,
+        "mechanism": "increment-only counter via observability (explicit server response treated as network failure)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_gso_mss_progress_mismatch_total": {
+        "symbol": "GsoMssProgressMismatch -> Metrics.Inc(MetricSPFGsoMssProgressMismatch)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 169,
+        "mechanism": "increment-only counter via observability (GSO segment bytes not MSS-aligned counted as wire progress)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_ppe_visibility_violation_total": {
+        "symbol": "PPEVisibilityViolation -> Metrics.Inc(MetricSPFPPEVisibilityViolation)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 179,
+        "mechanism": "increment-only counter via observability (promotion while PPE/offload or GSO-parity proof missing)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_unbounded_probe_total": {
+        "symbol": "ProbeGate -> Metrics.Inc(MetricSPFUnboundedProbe)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 189,
+        "mechanism": "increment-only counter via observability (differential probe beyond bounded budget)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_unbounded_rotation_total": {
+        "symbol": "RotationGate -> Metrics.Inc(MetricSPFUnboundedRotation)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 199,
+        "mechanism": "increment-only counter via observability (lease rotation beyond MaxAttempts)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_recursive_transport_fallback_total": {
+        "symbol": "TransportFallbackGate -> Metrics.Inc(MetricSPFRecursiveTransportFallback)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 210,
+        "mechanism": "increment-only counter via observability (recursive fallback onto the same transport path)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_recovery_without_rollback_target_total": {
+        "symbol": "RollbackTargetGate -> Metrics.Inc(MetricSPFRecoveryWithoutRollbackTarget)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 220,
+        "mechanism": "increment-only counter via observability (recovery lease without a known rollback target)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_control_regression_promoted_total": {
+        "symbol": "ControlRegressionGate -> Metrics.Inc(MetricSPFControlRegressionPromoted)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 231,
+        "mechanism": "increment-only counter via observability (promotion while control probe unhealthy/regressed)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_false_positive_budget_ignored_total": {
+        "symbol": "FalsePositiveBudgetGate -> Metrics.Inc(MetricSPFFalsePositiveBudgetIgnored)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 242,
+        "mechanism": "increment-only counter via observability (recovery while rollback monitor is observe-only after budget breach)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
+    "silent_failure_user_revert_not_rolled_back_total": {
+        "symbol": "UserRevertRollsBack -> Metrics.Inc(MetricSPFUserRevertNotRolledBack)",
+        "file": "src/silentpath/hard_gate_producers.go",
+        "line": 254,
+        "mechanism": "increment-only counter via observability (user revert without matching active lease)",
+        "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
+    },
     # --- FB-29 resolution-erasure / FB-30 multi-vantage producers (mon + abd):
     # producers verified in the FB-29/FB-30 commits; registry entries were
     # hand-maintained in hard_gates_registry.gen.go and are now declared here
@@ -550,6 +708,29 @@ GATE_KINDS: dict[str, str] = {
     "unrelated_control_action_total": "zero_tolerance_violation_counter",
     "classifier_layout_parity_fail_total": "zero_tolerance_violation_counter",
     "passive_rst_reconnect_regression_total": "zero_tolerance_violation_counter",
+    # --- SPF silent-path failure zero-tolerance counters (addendum v1.0 45) ---
+    "silent_failure_action_without_authorization_total": "zero_tolerance_violation_counter",
+    "silent_failure_action_with_incomplete_visibility_total": "zero_tolerance_violation_counter",
+    "silent_failure_destination_only_state_total": "zero_tolerance_violation_counter",
+    "silent_failure_cross_client_action_total": "zero_tolerance_violation_counter",
+    "silent_failure_cross_service_action_total": "zero_tolerance_violation_counter",
+    "silent_failure_cross_component_action_total": "zero_tolerance_violation_counter",
+    "silent_failure_cross_generation_action_total": "zero_tolerance_violation_counter",
+    "silent_failure_single_signal_auto_fallback_total": "zero_tolerance_violation_counter",
+    "silent_failure_non_independent_evidence_auto_fallback_total": "zero_tolerance_violation_counter",
+    "silent_failure_suppressor_ignored_total": "zero_tolerance_violation_counter",
+    "silent_failure_fast_parallel_false_positive_total": "zero_tolerance_violation_counter",
+    "silent_failure_recent_success_false_positive_total": "zero_tolerance_violation_counter",
+    "silent_failure_explicit_server_error_misclassified_total": "zero_tolerance_violation_counter",
+    "silent_failure_gso_mss_progress_mismatch_total": "zero_tolerance_violation_counter",
+    "silent_failure_ppe_visibility_violation_total": "zero_tolerance_violation_counter",
+    "silent_failure_unbounded_probe_total": "zero_tolerance_violation_counter",
+    "silent_failure_unbounded_rotation_total": "zero_tolerance_violation_counter",
+    "silent_failure_recursive_transport_fallback_total": "zero_tolerance_violation_counter",
+    "silent_failure_recovery_without_rollback_target_total": "zero_tolerance_violation_counter",
+    "silent_failure_control_regression_promoted_total": "zero_tolerance_violation_counter",
+    "silent_failure_false_positive_budget_ignored_total": "zero_tolerance_violation_counter",
+    "silent_failure_user_revert_not_rolled_back_total": "zero_tolerance_violation_counter",
     # --- WARP base-transport zero-tolerance counters (§72; narrow causal
     # verdict set, FB-14 decision 9) ---
     "warp_secret_leak_total": "zero_tolerance_violation_counter",
@@ -608,6 +789,96 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport consumers (FB-02 WARP section): the narrow
     # causal-trace verdict evaluates exactly these ten gates (FB-14
+    # --- SPF zero-tolerance counters (addendum v1.0 45; fail-closed via
+    # EvaluateHardGates scope.spf, release pipeline) ---
+    "silent_failure_action_without_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_action_with_incomplete_visibility_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_destination_only_state_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_cross_client_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_cross_service_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_cross_component_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_cross_generation_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_single_signal_auto_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_non_independent_evidence_auto_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_suppressor_ignored_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_fast_parallel_false_positive_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_recent_success_false_positive_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_explicit_server_error_misclassified_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_gso_mss_progress_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_ppe_visibility_violation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_unbounded_probe_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_unbounded_rotation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_recursive_transport_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_recovery_without_rollback_target_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_control_regression_promoted_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_false_positive_budget_ignored_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "silent_failure_user_revert_not_rolled_back_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # decision 9) via evaluateGateSet, fail-closed on any non-zero delta. ---
     "warp_secret_leak_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
@@ -893,6 +1164,75 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport negative fixtures (FB-02 WARP section):
     # each test drives the violating branch of the production runtime and
+    # --- SPF negative fixtures (addendum v1.0 45): each test drives the
+    # violating branch of the production guard and asserts the
+    # zero-tolerance counter moved. ---
+    "silent_failure_action_without_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFActionWithoutAuthorization", "file": "src/silentpath/hard_gate_producers_test.go", "line": 83, "assertion": "auth.ID empty / !auth.Final / zero client -> denied && counter > 0"},
+    ],
+    "silent_failure_action_with_incomplete_visibility_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFActionWithIncompleteVisibility", "file": "src/silentpath/hard_gate_producers_test.go", "line": 92, "assertion": "incomplete CapabilitySnapshot -> denied && counter > 0"},
+    ],
+    "silent_failure_destination_only_state_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFDestinationOnlyState", "file": "src/silentpath/hard_gate_producers_test.go", "line": 98, "assertion": "destination-only scope -> true && counter > 0"},
+    ],
+    "silent_failure_cross_client_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFCrossClientAction", "file": "src/silentpath/hard_gate_producers_test.go", "line": 106, "assertion": "scope client differs from authorized client -> denied && counter > 0"},
+    ],
+    "silent_failure_cross_service_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFCrossServiceAction", "file": "src/silentpath/hard_gate_producers_test.go", "line": 114, "assertion": "scope domain differs from authorized domain -> denied && counter > 0"},
+    ],
+    "silent_failure_cross_component_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFCrossComponentAction", "file": "src/silentpath/hard_gate_producers_test.go", "line": 122, "assertion": "scope component differs from authorized component -> denied && counter > 0"},
+    ],
+    "silent_failure_cross_generation_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFCrossGenerationAction", "file": "src/silentpath/hard_gate_producers_test.go", "line": 128, "assertion": "scope generation differs from authorized generation -> denied && counter > 0"},
+    ],
+    "silent_failure_single_signal_auto_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFSingleSignalAutoFallback", "file": "src/silentpath/hard_gate_producers_test.go", "line": 136, "assertion": "one evidence family -> denied && counter > 0"},
+    ],
+    "silent_failure_non_independent_evidence_auto_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFNonIndependentEvidenceAutoFallback", "file": "src/silentpath/hard_gate_producers_test.go", "line": 142, "assertion": "evidence without independent family -> denied && counter > 0"},
+    ],
+    "silent_failure_suppressor_ignored_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFSuppressorIgnored", "file": "src/silentpath/hard_gate_producers_test.go", "line": 153, "assertion": "active resource suppressor + proceed -> counter > 0"},
+    ],
+    "silent_failure_fast_parallel_false_positive_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFFastParallelFalsePositive", "file": "src/silentpath/hard_gate_producers_test.go", "line": 161, "assertion": "ReasonLikelyParallel evidence -> counter > 0"},
+    ],
+    "silent_failure_recent_success_false_positive_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFRecentSuccessFalsePositive", "file": "src/silentpath/hard_gate_producers_test.go", "line": 167, "assertion": "fresh success suppressor + proceed -> counter > 0"},
+    ],
+    "silent_failure_explicit_server_error_misclassified_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFExplicitServerErrorMisclassified", "file": "src/silentpath/hard_gate_producers_test.go", "line": 175, "assertion": "ReasonExplicitServerResponse evidence -> counter > 0"},
+    ],
+    "silent_failure_gso_mss_progress_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFGsoMssProgressMismatch", "file": "src/silentpath/hard_gate_producers_test.go", "line": 181, "assertion": "2900 bytes with MSS 1460 -> counter > 0"},
+    ],
+    "silent_failure_ppe_visibility_violation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFPpeVisibilityViolation", "file": "src/silentpath/hard_gate_producers_test.go", "line": 187, "assertion": "OffloadProven=false promote=true -> counter > 0"},
+    ],
+    "silent_failure_unbounded_probe_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFUnboundedProbe", "file": "src/silentpath/hard_gate_producers_test.go", "line": 195, "assertion": "attempts >= maxAttempts -> denied && counter > 0"},
+    ],
+    "silent_failure_unbounded_rotation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFUnboundedRotation", "file": "src/silentpath/hard_gate_producers_test.go", "line": 201, "assertion": "attempts >= MaxAttempts -> denied && counter > 0"},
+    ],
+    "silent_failure_recursive_transport_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFRecursiveTransportFallback", "file": "src/silentpath/hard_gate_producers_test.go", "line": 207, "assertion": "current==candidate transport path -> denied && counter > 0"},
+    ],
+    "silent_failure_recovery_without_rollback_target_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFRecoveryWithoutRollbackTarget", "file": "src/silentpath/hard_gate_producers_test.go", "line": 213, "assertion": "lease with empty Rollback -> denied && counter > 0"},
+    ],
+    "silent_failure_control_regression_promoted_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFControlRegressionPromoted", "file": "src/silentpath/hard_gate_producers_test.go", "line": 219, "assertion": "unhealthy control probe -> denied && counter > 0"},
+    ],
+    "silent_failure_false_positive_budget_ignored_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFFalsePositiveBudgetIgnored", "file": "src/silentpath/hard_gate_producers_test.go", "line": 229, "assertion": "ObserveOnly monitor -> denied && counter > 0"},
+    ],
+    "silent_failure_user_revert_not_rolled_back_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFUserRevertNotRolledBack", "file": "src/silentpath/hard_gate_producers_test.go", "line": 237, "assertion": "unknown lease id -> Rollback false && counter > 0"},
+    ],
     # asserts the zero-tolerance counter moved. ---
     "warp_secret_leak_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPSecretLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 42, "assertion": "trace payload with raw secret -> PublishTrace false && counter > 0"},
@@ -1107,6 +1447,37 @@ for _name in [
     "warp_rollback_failure_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
+_EVIDENCE_SPF = [
+    "B4_POST_V23_SILENT_PATH_FAILURE_AND_SCOPED_RECOVERY_ADDENDUM_v1.0.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/silentpath/hard_gate_producers_test.go",
+    "src/silentpath/hard_gate_producers.go",
+]
+for _name in [
+    "silent_failure_action_without_authorization_total",
+    "silent_failure_action_with_incomplete_visibility_total",
+    "silent_failure_destination_only_state_total",
+    "silent_failure_cross_client_action_total",
+    "silent_failure_cross_service_action_total",
+    "silent_failure_cross_component_action_total",
+    "silent_failure_cross_generation_action_total",
+    "silent_failure_single_signal_auto_fallback_total",
+    "silent_failure_non_independent_evidence_auto_fallback_total",
+    "silent_failure_suppressor_ignored_total",
+    "silent_failure_fast_parallel_false_positive_total",
+    "silent_failure_recent_success_false_positive_total",
+    "silent_failure_explicit_server_error_misclassified_total",
+    "silent_failure_gso_mss_progress_mismatch_total",
+    "silent_failure_ppe_visibility_violation_total",
+    "silent_failure_unbounded_probe_total",
+    "silent_failure_unbounded_rotation_total",
+    "silent_failure_recursive_transport_fallback_total",
+    "silent_failure_recovery_without_rollback_target_total",
+    "silent_failure_control_regression_promoted_total",
+    "silent_failure_false_positive_budget_ignored_total",
+    "silent_failure_user_revert_not_rolled_back_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_SPF)
 _EVIDENCE_MONABD = [
     "artifacts/audit/hard_gates_audit.md",
     "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
