@@ -198,6 +198,15 @@ func RequiredHardGates(scope ReleaseScope, caps CapabilitySet, claim VerdictID, 
 	return out, nil
 }
 
+// AllHardGates returns a defensive copy of the canonical gate registry
+// (single source of truth: specs/registries/hard_gates.yaml generated into
+// hard_gates_registry.gen.go).
+func AllHardGates() []Gate {
+	out := make([]Gate, len(hardGates))
+	copy(out, hardGates)
+	return out
+}
+
 // EvaluateHardGatesWindow applies the selection to observed counters, scoring
 // zero-tolerance gates on the delta of the current validation window
 // (current minus baseline) — never on lifetime absolute totals
@@ -230,6 +239,16 @@ func EvaluateHardGatesWindow(scope ReleaseScope, caps CapabilitySet, claim Verdi
 	if err != nil {
 		return GateEvaluation{Verdict: GateNotApplicable, Applicable: 0, Scanned: len(hardGates)}
 	}
+	return evaluateGateSet(required, current, baseline, produced)
+}
+
+// evaluateGateSet is the shared delta-window scoring core. It is used by the
+// application-aware selection (EvaluateHardGatesWindow) and by the narrow
+// causal-trace claim (EvaluateCausalTraceWindow, FB-03/FB-14 decision 9) so
+// that both share identical verdict semantics. Scoring rules are documented
+// on EvaluateHardGatesWindow; a nil baseline means the window spans the
+// process lifetime.
+func evaluateGateSet(required []GateID, current, baseline map[string]uint64, produced map[string]bool) GateEvaluation {
 	eval := GateEvaluation{Applicable: len(required), Scanned: len(hardGates), WindowBaseline: baseline != nil}
 	windowed := baseline != nil
 	for _, gid := range required {

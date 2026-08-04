@@ -48,7 +48,7 @@ Audit finding устанавливает наличие проблемы, но �
 |---:|---|---|
 | FB-01 | ВЫПОЛНЕНА | Beads b4x-end, closed 03.08; тест уже использует &cfg, vet + test + -race PASS |
 | FB-02 | открыта | — |
-| FB-03 | открыта | — |
+| FB-03 | поставка 04.08 (частично) | b4-validate CLI (list / plan full / full --profile release / requirement / meta) + узкий causal verdict (10 warp base_transport gates, FB-14 п.9) + meta-suite в CLI + FB03_GATE_PRODUCER_CONSUMER_MATRIX.json (283: 35 verified / 248 missing); runtime producers WARP/SPF/FT/MON — совместно с FB-02/07/27/28; Beads b4x-q58 |
 | FB-04 | открыта | — |
 | FB-05 | открыта | — |
 | FB-06 | ВЫПОЛНЕНА | Beads b4x-4xq, closed 03.08; release.yml: vet + -race + fuzz smoke (27 целей), найден и исправлен int-overflow в readCountryCode |

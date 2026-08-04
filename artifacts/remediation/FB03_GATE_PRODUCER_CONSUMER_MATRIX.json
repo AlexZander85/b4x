@@ -1,0 +1,5911 @@
+{
+  "generated_at": "2026-08-04T07:26:06Z",
+  "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
+  "total": 283,
+  "verified": 35,
+  "missing": 248,
+  "families_verified_missing": {
+    "abd": [
+      6,
+      79
+    ],
+    "csi": [
+      1,
+      0
+    ],
+    "ddi_tgb": [
+      0,
+      24
+    ],
+    "mon": [
+      5,
+      53
+    ],
+    "ppe": [
+      4,
+      0
+    ],
+    "rst_gso": [
+      19,
+      0
+    ],
+    "sp": [
+      0,
+      14
+    ],
+    "spf": [
+      0,
+      22
+    ],
+    "warp": [
+      0,
+      56
+    ]
+  },
+  "gates": [
+    {
+      "gate_id": "b4_capture_visibility_degrade_total",
+      "family": "ppe",
+      "class": "capture_visibility",
+      "stage": "apply",
+      "kind": "current_generation_readiness_input",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "NewProductService gate.SubscribeBlocked callback -\u003e Metrics.Inc(MetricCaptureVisibilityDegrade)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 110,
+        "mechanism": "increment-only counter via observability (visibility gate degradation)",
+        "production_root": "visibility gate Degrade -\u003e ProductService subscriber"
+      },
+      "consumers": [
+        {
+          "kind": "readiness_observer",
+          "symbol": "EvaluateHardGatesWindow readiness branch",
+          "file": "src/validation/gates.go",
+          "line": 244,
+          "binding": "window delta; current capture visibility; never blocks directly"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_CaptureVisibilityDegrade",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "line": 31,
+          "assertion": "gate Degrade -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/capture/ppe/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "b4_hold_disabled_visibility_total",
+      "family": "ppe",
+      "class": "capture_visibility",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "NewProductService gate.SubscribeBlocked callback -\u003e Metrics.Inc(MetricHoldDisabledVisibility)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 111,
+        "mechanism": "increment-only counter via observability (hold disabled while visibility degraded)",
+        "production_root": "visibility gate Degrade -\u003e ProductService subscriber"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGatesWindow telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "safety-guard trigger telemetry (not a violation; separate GateID for hold-active-under-incomplete-visibility if needed)"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_CaptureVisibilityDegrade",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "line": 31,
+          "assertion": "gate Degrade -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (safety-guard telemetry)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/capture/ppe/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "b4_ppe_rule_reapply_total",
+      "family": "ppe",
+      "class": "capture_visibility",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "productLifecycleMetrics.Reapply -\u003e Metrics.Inc(MetricPPERuleReapply)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 513,
+        "mechanism": "increment-only counter via observability (label result=success|failure)",
+        "production_root": "PPE lifecycle reapply (reconciler Assert/Reapply loop)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PPERuleReapply",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "line": 85,
+          "assertion": "lifecycle Reapply -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/capture/ppe/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "b4_ppe_self_test_total",
+      "family": "ppe",
+      "class": "capture_visibility",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "ProductService.RunSelfTest -\u003e Metrics.Inc(MetricPPESelfTest)",
+        "file": "src/capture/ppe/product_service.go",
+        "line": 348,
+        "mechanism": "increment-only counter via observability (label verdict=...)",
+        "production_root": "PPE self-test controller run (visibility A/B probe)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PPESelfTest",
+          "file": "src/capture/ppe/hard_gate_producers_test.go",
+          "line": 52,
+          "assertion": "RunSelfTest -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/capture/ppe/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "blocking_profile_direct_action_authorization_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_direct_production_write_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_high_confidence_with_contradiction_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_mutated_after_compile_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_without_network_context_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_without_provenance_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "blocking_profile_without_target_plan_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "classifier_layout_parity_fail_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "recordObservabilityDecision -\u003e Metrics.Inc(MetricClassifierLayoutParityFail)",
+        "file": "src/nfq/classifier_decision.go",
+        "line": 214,
+        "mechanism": "increment-only counter via observability (reassembled SNI without logical ID)",
+        "production_root": "nfq.handleTCPPacket -\u003e traceNFQDecision (layout parity violation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateHardGates verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.rstgso; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_ClassifierLayoutParity",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 175,
+          "assertion": "reassembled-SNI without logical ID -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_ClassifierLayoutParity (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "classifier_reassembled_sni_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordObservabilityDecision -\u003e Metrics.Inc(MetricClassifierReassembledSNI)",
+        "file": "src/nfq/classifier_decision.go",
+        "line": 212,
+        "mechanism": "increment-only counter via observability (label result=selected|unselected)",
+        "production_root": "nfq.handleTCPPacket -\u003e traceNFQDecision (reassembled-TCP-SNI evidence selected)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_ClassifierLayoutParity",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 175,
+          "assertion": "reassembled-SNI selection -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "detector_byte_threshold_reported_as_packet_threshold_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_capacity_self_interference_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_capture_invalid_packet_verdict_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_client_resolution_replaced_silently_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_cname_terminal_ip_misattributed_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_control_failure_ignored_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_cross_component_evidence_merge_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_cross_generation_evidence_merge_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_dns_cdn_variance_misclassified_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_dns_single_resolver_spoof_confirmed_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_duplicate_evidence_confidence_increase_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_exact_endpoint_service_resolution_conflated_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e identity/mode-gate -\u003e RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated) -\u003e observability.Metrics.Inc(MetricDetectorExactEndpointServiceResolutionConflated)",
+        "file": "src/detector/abd_path.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be conflated (FB-30)",
+        "production_root": "detector.CompareVantage identity/mode gate -\u003e RecordMultiVantageViolation (NO_OPINION returned, violation recorded)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageExactModeIdentityConflationNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 79,
+          "assertion": "mismatched exact/independent mode or target yields NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_mode_gate",
+          "name": "TestVantageExactModeIdentityConflationNoOpinion (regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_exception_string_only_confirmed_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_first_success_erased_address_failures_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "RecordResolutionErasure -\u003e observability.Metrics.Inc(MetricDetectorFirstSuccessErasedAddressFailures)",
+        "file": "src/detector/resolution_experiment.go",
+        "line": 192,
+        "mechanism": "increment-only counter via observability; first-success must never erase sibling address failures (FB-29)",
+        "production_root": "detector.SummarizeResolutionDNS -\u003e ErasedByFirstSuccess projection -\u003e RecordResolutionErasure (masked sibling surfaced, never dropped)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling",
+          "file": "src/detector/resolution_experiment_test.go",
+          "line": 77,
+          "assertion": "sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "collapse_to_first_success",
+          "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)",
+          "file": "src/detector/resolution_experiment_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_fixed_16kb_window_confirmed_without_profile_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_gso_skb_count_as_wire_packet_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_head_only_available_verdict_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_host_dead_from_single_reference_failure_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_http_hypothesis_from_tcp_tls_only_observer_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e stage-aware capability gate -\u003e RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly) -\u003e observability.Metrics.Inc(MetricDetectorHttpHypothesisFromTCPTLSOnlyObserver)",
+        "file": "src/detector/abd_path.go",
+        "line": 164,
+        "mechanism": "increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis (FB-30)",
+        "production_root": "detector.CompareVantage stage-aware capability gate -\u003e RecordMultiVantageViolation (NO_OPINION returned)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis",
+          "file": "src/detector/abd_path_test.go",
+          "line": 41,
+          "assertion": "tcp/tls-only capability never covers http/body; CompareVantage returns NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_stage_capability_gate",
+          "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_incomplete_run_final_profile_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_l4_threshold_without_controls_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_recurrence_counted_as_evidence_independence_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_direct_action_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_expired_accepted_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_without_budget_token_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_without_config_generation_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_without_network_context_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_request_without_target_plan_overlay_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_result_action_authorization_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_monitor_result_delivery_identity_mismatch_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_multi_ip_partial_failure_hidden_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_multivantage_stage_mismatch_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e stage-alignment gate -\u003e RecordMultiVantageViolation(violationStageMismatch) -\u003e observability.Metrics.Inc(MetricDetectorMultiVantageStageMismatch)",
+        "file": "src/detector/abd_path.go",
+        "line": 151,
+        "mechanism": "increment-only counter via observability; multi-vantage comparison must be stage-aligned (FB-30)",
+        "production_root": "detector.CompareVantage stage-alignment gate -\u003e RecordMultiVantageViolation (NO_OPINION returned)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageStageMismatchNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 97,
+          "assertion": "stage-mismatched observer yields NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_stage_alignment",
+          "name": "TestVantageStageMismatchNoOpinion (regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_native_path_unproven_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_observer_capability_unproven_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e stage-aware capability gate (stale/unhealthy or unsupported stage) -\u003e RecordMultiVantageViolation(violationObserverCapabilityUnproven) -\u003e observability.Metrics.Inc(MetricDetectorObserverCapabilityUnproven)",
+        "file": "src/detector/abd_path.go",
+        "line": 158,
+        "mechanism": "increment-only counter via observability; an observer with unproven capability must never produce an opinion (FB-30)",
+        "production_root": "detector.CompareVantage stale/unsupported-capability branch -\u003e RecordMultiVantageViolation (NO_OPINION returned)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageCapabilityUnprovenIsNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 65,
+          "assertion": "stale/unproven observer capability yields NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_capability_fresh_gate",
+          "name": "TestVantageCapabilityUnprovenIsNoOpinion (regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_observer_unavailable_as_target_failure_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e observer unavailable branch -\u003e NO_OPINION (never a failure claim; violation kind reserved until an external call site proves it reachable)",
+        "file": "src/detector/abd_path.go",
+        "line": 138,
+        "mechanism": "increment-only counter via observability; an unavailable observer must never become a target-failure claim (FB-30)",
+        "production_root": "detector.CompareVantage unavailable-gate -\u003e NO_OPINION (no failure claim emitted)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.abd; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageUnavailableIsNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 27,
+          "assertion": "unavailable observer yields NO_OPINION; never a target-failure claim"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "treat_unavailable_as_failure",
+          "name": "TestVantageUnavailableIsNoOpinion (no-opinion regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "detector_packet_threshold_reported_as_byte_threshold_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_partial_progress_discarded_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_partial_run_profile_compiled_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_passive_observation_counted_as_independent_probe_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_probe_without_resolution_binding_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_provisional_monitor_evidence_profile_compiled_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_quic_single_target_global_udp_verdict_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_quic_tcp_evidence_conflation_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_reference_path_unhealthy_used_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_reference_path_used_as_action_authorization_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_resource_budget_bypass_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_result_cross_config_generation_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_result_cross_monitoring_epoch_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_result_cross_network_context_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_result_without_monitor_assessment_link_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_resume_cross_network_context_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_retransmission_counted_as_progress_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_self_interference_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_sensitive_export_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_server_header_limit_dpi_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_single_origin_l4_budget_confirmed_total",
+      "family": "abd",
+      "class": "l4_threshold",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_single_probe_confirmed_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_small_object_classified_throttled_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_stale_client_resolution_used_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_static_target_only_high_confidence_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_tls_availability_integrity_conflation_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_tls_fingerprint_unlabeled_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_unbounded_dynamic_scan_total",
+      "family": "abd",
+      "class": "detector_safety",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_unverified_mitm_verdict_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "detector_valid_application_error_dpi_total",
+      "family": "abd",
+      "class": "dns_tls_quic",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_allowed_sni_direct_promotion_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_capture_gate_bypass_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_cross_service_action_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_cross_wan_use_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_direct_production_write_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_disabled_exhaustive_fallback_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_false_pass_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_hint_overrode_current_baseline_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_hint_without_provenance_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_mutable_runtime_pointer_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_skipped_target_validation_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_stale_without_revalidation_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_threshold_out_of_budget_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "discovery_profile_without_context_validation_total",
+      "family": "ddi_tgb",
+      "class": "discovery_profile",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_coverage_ignored_control_regression_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_cross_service_action_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_cross_service_set_cover_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_disabled_full_fallback_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_excluded_target_hidden_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_false_savings_report_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_more_complex_candidate_preferred_without_gain_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_profile_overrode_current_baseline_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_required_component_uncovered_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_skipped_baseline_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_target_unvalidated_promotion_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_unverified_shortlist_promotion_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "guided_search_white_sni_direct_promotion_total",
+      "family": "abd",
+      "class": "blocking_profile_ddi",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_camouflage_cross_instance_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_camouflage_cutoff_failure_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_camouflage_destination_only_authorization_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_camouflage_without_control_authorization_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_control_route_recursion_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_endpoint_pin_failure_accepted_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_established_payload_mutation_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_insecure_tls_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_rst_suppression_without_exact_authorization_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_strategy_promoted_without_forwarded_probe_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_strategy_promoted_without_stability_window_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "masque_unbounded_candidate_retry_total",
+      "family": "warp",
+      "class": "camouflage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mon_production_ready",
+      "family": "mon",
+      "class": "monitoring_conformance",
+      "stage": "cutover",
+      "kind": "current_generation_readiness_input",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      },
+      "consumers": [
+        {
+          "kind": "registry_suite_verdict",
+          "symbol": "RunIV18Suite + promotion readiness",
+          "file": "src/validation/iv_suite.go",
+          "line": 124,
+          "binding": "IV-18 verdict cannot be PASS while legacy mutating path is reachable"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "static_reachability_scan",
+          "name": "TestIV18ReverseReachabilityBlocksProductionReadyWhileLegacyReachable",
+          "file": "src/validation/iv18_reachability_test.go",
+          "line": 1,
+          "assertion": "applyBatchResults reachable -\u003e mon_production_ready blocked"
+        }
+      ]
+    },
+    {
+      "gate_id": "monitor_abd_partial_result_profile_ready_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_abd_request_without_target_plan_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_abd_result_bypassed_ddi_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_checkpoint_corruption_false_ready_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_client_dns_answer_replaced_silently_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cname_terminal_ip_misattributed_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cross_client_merge_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cross_component_merge_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cross_generation_evidence_merge_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cross_service_merge_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_cross_wan_evidence_merge_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_decay_disabled_without_policy_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_destination_only_deep_trigger_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_discovery_skipped_mandatory_baseline_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_discovery_without_authoritative_profile_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_duplicate_concurrent_abd_run_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_duplicate_evidence_independence_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_exact_endpoint_service_resolution_conflated_total",
+      "family": "mon",
+      "class": "multi_vantage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e identity/mode-gate -\u003e RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated) -\u003e observability.Metrics.Inc(MetricMonitorExactEndpointServiceResolutionConflated)",
+        "file": "src/detector/abd_path.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be conflated (FB-30)",
+        "production_root": "detector.CompareVantage identity/mode gate -\u003e RecordMultiVantageViolation (NO_OPINION returned, violation recorded)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.mon; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageExactModeIdentityConflationNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 79,
+          "assertion": "mismatched exact/independent mode yields NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_mode_gate",
+          "name": "TestVantageExactModeIdentityConflationNoOpinion (regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "monitor_expired_evidence_used_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_fast_lane_action_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_fast_lane_promoted_as_authoritative_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_first_success_erased_address_failures_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "RecordResolutionErasure -\u003e observability.Metrics.Inc(MetricMonitorFirstSuccessErasedAddressFailures)",
+        "file": "src/detector/resolution_experiment.go",
+        "line": 192,
+        "mechanism": "increment-only counter via observability; first-success must never erase sibling address failures (FB-29)",
+        "production_root": "detector.SummarizeResolutionDNS -\u003e ErasedByFirstSuccess projection -\u003e RecordResolutionErasure (masked sibling surfaced, never dropped)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.mon; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling",
+          "file": "src/detector/resolution_experiment_test.go",
+          "line": 77,
+          "assertion": "sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1"
+        },
+        {
+          "kind": "negative_fixture",
+          "name": "TestResolutionExperimentErasureCounterSync",
+          "file": "src/detector/resolution_experiment_test.go",
+          "line": 132,
+          "assertion": "MaskedSiblings aligns with ErasedByFirstSuccess; clean window keeps count 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "collapse_to_first_success",
+          "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)",
+          "file": "src/detector/resolution_experiment_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "monitor_high_cardinality_metric_label_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_http_hypothesis_from_tcp_tls_only_observer_total",
+      "family": "mon",
+      "class": "multi_vantage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e stage-aware capability gate -\u003e RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly) -\u003e observability.Metrics.Inc(MetricMonitorHttpHypothesisFromTCPTLSOnlyObserver)",
+        "file": "src/detector/abd_path.go",
+        "line": 164,
+        "mechanism": "increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis (FB-30)",
+        "production_root": "detector.CompareVantage stage-aware capability gate -\u003e RecordMultiVantageViolation (rejection recorded, NO_OPINION returned)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.mon; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis",
+          "file": "src/detector/abd_path_test.go",
+          "line": 41,
+          "assertion": "tcp/tls-only capability covers tcp/tls, never http/body; CompareVantage returns NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_stage_capability_gate",
+          "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "monitor_legacy_api_projection_mutation_total",
+      "family": "mon",
+      "class": "legacy_migration",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_legacy_watchdog_created_unvalidated_set_total",
+      "family": "mon",
+      "class": "legacy_migration",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_legacy_watchdog_direct_apply_total",
+      "family": "mon",
+      "class": "legacy_migration",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_legacy_watchdog_overwrote_set_without_canary_total",
+      "family": "mon",
+      "class": "legacy_migration",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_multi_ip_partial_failure_hidden_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_observation_direct_action_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_observer_capability_unproven_total",
+      "family": "mon",
+      "class": "multi_vantage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e stage-aware capability gate (stale/unhealthy or unsupported stage) -\u003e RecordMultiVantageViolation(violationObserverCapabilityUnproven) -\u003e observability.Metrics.Inc(MetricMonitorObserverCapabilityUnproven)",
+        "file": "src/detector/abd_path.go",
+        "line": 158,
+        "mechanism": "increment-only counter via observability; an observer with unproven capability must never produce an opinion (FB-30)",
+        "production_root": "detector.CompareVantage stale/unsupported-capability branch -\u003e RecordMultiVantageViolation (NO_OPINION returned)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.mon; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageCapabilityUnprovenIsNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 65,
+          "assertion": "stale/unproven observer capability yields NO_OPINION"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "remove_capability_fresh_gate",
+          "name": "TestVantageCapabilityUnprovenIsNoOpinion (regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "monitor_observer_unavailable_as_target_failure_total",
+      "family": "mon",
+      "class": "multi_vantage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "CompareVantage -\u003e observer unavailable branch -\u003e NO_OPINION (never RecordMultiVantageViolation(violationObserverUnavailableAsFailure))",
+        "file": "src/detector/abd_path.go",
+        "line": 138,
+        "mechanism": "increment-only counter via observability; an unavailable observer must never become a target-failure claim (FB-30)",
+        "production_root": "detector.CompareVantage unavailable-gate -\u003e NO_OPINION (no failure claim emitted for unavailable observers)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.mon; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestVantageUnavailableIsNoOpinion",
+          "file": "src/detector/abd_path_test.go",
+          "line": 27,
+          "assertion": "unavailable observer yields NO_OPINION; never a target-failure claim"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "treat_unavailable_as_failure",
+          "name": "TestVantageUnavailableIsNoOpinion (no-opinion regression)",
+          "file": "src/detector/abd_path_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "monitor_passive_discovery_start_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_passive_warp_enable_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_probe_without_resolution_binding_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_provisional_profile_compiled_total",
+      "family": "mon",
+      "class": "observation",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_recommendation_without_scope_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_recovered_subject_not_demoted_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_reference_result_as_action_authorization_total",
+      "family": "mon",
+      "class": "multi_vantage",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_required_event_drop_hidden_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_restart_reused_expired_lease_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_router_origin_as_forwarded_proof_total",
+      "family": "mon",
+      "class": "scope",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_secret_trace_leak_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_self_interference_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_sensitive_dns_history_export_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_shadow_and_active_writer_overlap_total",
+      "family": "mon",
+      "class": "legacy_migration",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_source_heartbeat_stale_auto_diagnose_total",
+      "family": "mon",
+      "class": "reliability_privacy",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_stale_resolution_used_as_exact_proof_total",
+      "family": "mon",
+      "class": "resolution",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_success_suppressor_ignored_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_temporal_persistence_without_time_separation_total",
+      "family": "mon",
+      "class": "temporal",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_trigger_during_global_wan_failure_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_trigger_with_stale_source_heartbeat_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_trigger_without_budget_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_trigger_without_visibility_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_unbounded_probe_parallelism_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_unbounded_target_intake_total",
+      "family": "mon",
+      "class": "trigger_resource",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "monitor_warp_recommendation_without_ip_path_evidence_total",
+      "family": "mon",
+      "class": "abd_ddi_discovery",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_fixed_5s_destructive_timeout_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_overflow_without_reason_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_pending_per_client_limit_bypass_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_prefix_duplicate_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_prefix_loss_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_primary_failure_silent_drop_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_route_recursion_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_shutdown_leak_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_unbounded_pending_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "mtproto_bridge_zero_byte_handled_drop_total",
+      "family": "ddi_tgb",
+      "class": "mtproto_bridge",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nfqueue_gso_action_suppressed_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "traceGSOFastPath -\u003e Metrics.Inc(MetricNFQueueGSOActionSuppressed)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 214,
+        "mechanism": "increment-only counter via observability (action-suppressed result)",
+        "production_root": "nfq.handleGSOFastPath (suppression budget)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOFastPathDecisions",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 66,
+          "assertion": "action-suppressed path -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_bytes_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "observeOffloadMetadata -\u003e Metrics.Inc(MetricNFQueueGSOBytes)",
+        "file": "src/nfq/offload.go",
+        "line": 107,
+        "mechanism": "increment-only byte counter via observability",
+        "production_root": "nfq.handlePacket -\u003e DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOOffloadMetadata",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 37,
+          "assertion": "IsGSO metadata -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_csum_not_ready_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "current_generation_readiness_input",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "observeOffloadMetadata -\u003e Metrics.Inc(MetricNFQueueGSOCsumNotReady)",
+        "file": "src/nfq/offload.go",
+        "line": 112,
+        "mechanism": "increment-only counter via observability (NFQA_SKB_CSUMNOTREADY)",
+        "production_root": "nfq.handlePacket -\u003e DecodeOffloadMetadata (unverified checksum GSO)"
+      },
+      "consumers": [
+        {
+          "kind": "readiness_observer",
+          "symbol": "EvaluateHardGatesWindow readiness branch",
+          "file": "src/validation/gates.go",
+          "line": 244,
+          "binding": "window delta; owner-state bound; never blocks directly"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_GSOOffloadMetadata",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 37,
+          "assertion": "checksum-not-ready metadata -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_decision_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "traceGSOFastPath -\u003e Metrics.Inc(MetricNFQueueGSODecision)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 209,
+        "mechanism": "increment-only counter via observability (label path=result)",
+        "production_root": "nfq.handleGSOFastPath (GSO fast-path verdict)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOFastPathDecisions",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 66,
+          "assertion": "fast-path verdict -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_normalized_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "traceGSOFastPath -\u003e Metrics.Inc(MetricNFQueueGSONormalized)",
+        "file": "src/nfq/gso_fastpath.go",
+        "line": 211,
+        "mechanism": "increment-only counter via observability (normalize-queued path)",
+        "production_root": "nfq.handleGSOFastPath (normalizer direct queue)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOFastPathDecisions",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 66,
+          "assertion": "normalize-queued path -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_packets_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "observeOffloadMetadata -\u003e Metrics.Inc(MetricNFQueueGSOPackets)",
+        "file": "src/nfq/offload.go",
+        "line": 106,
+        "mechanism": "increment-only counter via observability (per GSO-flagged packet)",
+        "production_root": "nfq.handlePacket -\u003e DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOOffloadMetadata",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 37,
+          "assertion": "IsGSO metadata -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_token_miss_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "current_generation_readiness_input",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "traceGSONormalizerMiss -\u003e Metrics.Inc(MetricNFQueueGSOTokenMiss)",
+        "file": "src/nfq/gso_normalizer.go",
+        "line": 61,
+        "mechanism": "increment-only counter via observability (secondary-pass fail-open)",
+        "production_root": "nfq GSO normalizer secondary pass (pass-token miss)"
+      },
+      "consumers": [
+        {
+          "kind": "readiness_observer",
+          "symbol": "EvaluateHardGatesWindow readiness branch",
+          "file": "src/validation/gates.go",
+          "line": 244,
+          "binding": "window delta; owner-state bound; never blocks directly"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_GSOTokenMiss",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 90,
+          "assertion": "normalizer secondary miss -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_GSOTokenMiss (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_transition_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "ApplyRuntimeControlTopology defer -\u003e Metrics.Inc(MetricNFQueueGSOTransition)",
+        "file": "src/http/handler/runtime_topology.go",
+        "line": 38,
+        "mechanism": "increment-only counter via observability (deferred; result=success|rollback)",
+        "production_root": "http API ApplyRuntimeControlTopology (double-buffered GSO topology switch)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_GSOTransition",
+          "file": "src/http/handler/hard_gate_producers_test.go",
+          "line": 34,
+          "assertion": "topology apply defer -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/http/handler/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nfqueue_gso_truncated_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "current_generation_readiness_input",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "observeOffloadMetadata -\u003e Metrics.Inc(MetricNFQueueGSOTruncated)",
+        "file": "src/nfq/offload.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (OriginalLength \u003e PayloadLength)",
+        "production_root": "nfq.handlePacket -\u003e DecodeOffloadMetadata (truncated GSO envelope)"
+      },
+      "consumers": [
+        {
+          "kind": "readiness_observer",
+          "symbol": "EvaluateHardGatesWindow readiness branch",
+          "file": "src/validation/gates.go",
+          "line": 244,
+          "binding": "window delta; owner-state bound; never blocks directly"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_GSOOffloadMetadata",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 37,
+          "assertion": "truncated metadata -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_GSOOffloadMetadata (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (readiness never blocks)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "nonru_identity_creation_budget_exceeded",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_after_attestation_expiry",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_while_any_provider_ru",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_with_direct_dns",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_with_provider_disagreement",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_with_unvalidated_ipv6",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_route_active_without_fresh_attestation",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "nonru_strict_direct_fallback_total",
+      "family": "warp",
+      "class": "non_ru",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "passive_rst_baseline_quality_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTBaselineQuality)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (label quality=...)",
+        "production_root": "nfq.observePassiveRSTIncoming (baseline quality)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "baseline quality -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_budget_exhausted_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTBudgetExhausted)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 118,
+        "mechanism": "increment-only counter via observability (fail-open reason=budget)",
+        "production_root": "nfq.observePassiveRSTIncoming (suppression budget exhausted)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "budget fail-open -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_decision_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTDecision)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 108,
+        "mechanism": "increment-only counter via observability (label decision=...)",
+        "production_root": "nfq.observePassiveRSTIncoming (enforcement decision)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "enforcement decision -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_fail_open_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTFailOpen)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 116,
+        "mechanism": "increment-only counter via observability (fail-open decision)",
+        "production_root": "nfq.observePassiveRSTIncoming (fail-open enforcement)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGatesWindow telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "safe degradation telemetry (derived state may gate re-claim)"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "fail-open decision -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_PassiveRSTMetrics (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (safe-degradation telemetry)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_observed_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTObserved)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 106,
+        "mechanism": "increment-only counter via observability (per signal)",
+        "production_root": "nfq.observePassiveRSTIncoming/Outgoing (passive RST observation)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "2 signals -\u003e counter == 2"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_reconnect_regression_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "PassiveRSTStore.RecordHealth -\u003e Metrics.Inc(MetricPassiveRSTReconnectRegression)",
+        "file": "src/nfq/passive_rst_rollback.go",
+        "line": 136,
+        "mechanism": "increment-only counter via observability (reason=reconnect failure regression)",
+        "production_root": "pool.RecordPassiveRSTHealth (reconnect failure regression)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateHardGates verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.rstgso; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_PassiveRSTRollback",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 141,
+          "assertion": "reconnect regression -\u003e counter \u003e 0 (mutation run executed)"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_PassiveRSTRollback (producer removed)",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_rollback_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "PassiveRSTStore.RecordHealth -\u003e Metrics.Inc(MetricPassiveRSTRollback)",
+        "file": "src/nfq/passive_rst_rollback.go",
+        "line": 134,
+        "mechanism": "increment-only counter via observability (scoped rollback commit)",
+        "production_root": "pool.RecordPassiveRSTHealth -\u003e PassiveRSTStore.RecordHealth (scope-local rollback)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTRollback",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 141,
+          "assertion": "RecordHealth triggered -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "passive_rst_suppressed_total",
+      "family": "rst_gso",
+      "class": "classifier_gso_rst",
+      "stage": "apply",
+      "kind": "telemetry_counter",
+      "status": "verified",
+      "promotion_blocker": false,
+      "producer": {
+        "symbol": "recordPassiveRSTMetrics -\u003e Metrics.Inc(MetricPassiveRSTSuppressed)",
+        "file": "src/nfq/passive_rst_observe.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (suppress decision)",
+        "production_root": "nfq.observePassiveRSTIncoming (suppression)"
+      },
+      "consumers": [
+        {
+          "kind": "aggregation_observer",
+          "symbol": "EvaluateHardGates telemetry branch",
+          "file": "src/validation/gates.go",
+          "line": 222,
+          "binding": "informational aggregation"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestHardGateProducer_PassiveRSTMetrics",
+          "file": "src/nfq/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "suppress decision -\u003e counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/nfq/hard_gate_producers_test.go"
+      ]
+    },
+    {
+      "gate_id": "profile_nonru_suggested_without_geo_requirement_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_camouflage_suggested_for_target_ip_block_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_enabled_without_target_canary_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_cleanup_failure_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_cross_service_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_hidden_fail_policy_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_ignored_control_regression_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_stale_profile_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommendation_without_causal_trace_gate_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommended_for_origin_dead_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommended_from_destination_ip_only_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommended_with_unhealthy_controls_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_recommended_without_ip_path_evidence_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "profile_warp_test_token_reused_as_production_authorization_total",
+      "family": "sp",
+      "class": "profile_warp",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_action_with_incomplete_visibility_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_action_without_authorization_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_control_regression_promoted_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_cross_client_action_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_cross_component_action_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_cross_generation_action_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_cross_service_action_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_destination_only_state_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_explicit_server_error_misclassified_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_false_positive_budget_ignored_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_fast_parallel_false_positive_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_gso_mss_progress_mismatch_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_non_independent_evidence_auto_fallback_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_ppe_visibility_violation_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_recent_success_false_positive_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_recovery_without_rollback_target_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_recursive_transport_fallback_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_single_signal_auto_fallback_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_suppressor_ignored_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_unbounded_probe_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_unbounded_rotation_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "silent_failure_user_revert_not_rolled_back_total",
+      "family": "spf",
+      "class": "mandatory",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "unrelated_control_action_total",
+      "family": "csi",
+      "class": "unrelated_control",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "verified",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "UnrelatedControlActionTotal++ (validate) -\u003e observability.Metrics.Inc(MetricUnrelatedControlAction) (store)",
+        "file": "src/crossservice/validation.go",
+        "line": 392,
+        "mechanism": "increment-only counter via observability; report field incremented at validation.go:265",
+        "production_root": "crossservice.Validate() / (*Store).ValidateAndStore (CSI-18 same-client negative control)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "Validate() report.Passed / Store.RequirePromotion",
+          "file": "src/crossservice/validation.go",
+          "line": 312,
+          "binding": "generation; family:csi"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateHardGates",
+          "file": "src/validation/gates.go",
+          "line": 205,
+          "binding": "scope.csi; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "positive_fixture",
+          "name": "TestValidatePassingMatrixAllowsPromotion",
+          "file": "src/crossservice/validation_test.go",
+          "line": 29,
+          "assertion": "UnrelatedControlActionTotal == 0 \u0026\u0026 PromotionAllowed == true"
+        },
+        {
+          "kind": "negative_fixture",
+          "name": "TestValidateRejectsYouTubeStateOnGmailSharedIPFlow",
+          "file": "src/crossservice/validation_test.go",
+          "line": 40,
+          "assertion": "UnrelatedControlActionTotal == 1 \u0026\u0026 PromotionAllowed == false"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestEvaluateHardGatesViolation",
+          "file": "src/validation/gates_test.go",
+          "line": 117,
+          "assertion": "counter != 0 -\u003e GateFail"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestValidateRejectsYouTubeStateOnGmailSharedIPFlow (producer removed)",
+          "file": "src/crossservice/validation_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_delta",
+          "name": "TestEvaluateHardGatesWindowDelta (window-delta aggregation)",
+          "file": "src/validation/gates_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "artifacts/audit/hard_gates_audit.md",
+        "artifacts/audit/csi_ppe_rstgso_audit.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md"
+      ]
+    },
+    {
+      "gate_id": "warp_cleanup_incomplete_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_connect_ip_event_wrong_generation_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_destination_set_partial_apply_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_direct_fallback_without_trace_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_dns_path_unproven_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_foreign_interface_modified_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_foreign_resource_removed_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_forwarded_success_without_binding_trace_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_geo_attestation_without_route_counter_delta_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_geo_quorum_without_provider_events_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_geo_route_gate_state_mismatch_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_ipv6_path_unproven_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_mark_collision_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nested_control_direct_leak_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nested_missing_parent_link_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nested_parent_generation_mismatch_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nested_route_active_without_parent_health_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nested_stale_parent_token_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nonru_public_ip_change_without_refresh_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_nonru_revocation_exceeded_deadline_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_owned_resource_leak_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_post_cutoff_mutation_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_recursive_control_route_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_rollback_failure_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_route_promoted_without_path_proof_event_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_route_without_liveness_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_secret_leak_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_dropped_required_event_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_event_order_violation_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_generation_mismatch_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_required_event_missing_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_secret_leak_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_trace_state_mismatch_total",
+      "family": "warp",
+      "class": "causal_trace",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_unbounded_registration_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_unbounded_restart_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    },
+    {
+      "gate_id": "warp_unrelated_control_action_total",
+      "family": "warp",
+      "class": "base_transport",
+      "stage": "apply",
+      "kind": "zero_tolerance_violation_counter",
+      "status": "missing",
+      "promotion_blocker": true,
+      "producer": {
+        "symbol": "",
+        "file": "",
+        "line": 0,
+        "mechanism": "",
+        "production_root": ""
+      }
+    }
+  ]
+}

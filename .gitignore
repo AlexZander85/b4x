@@ -57,3 +57,7 @@ __pycache__/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# FB-03 CLI logs (v2 §5.4)
+artifacts/remediation/logs/
+
