@@ -15,8 +15,10 @@ func TestHardGateCount(t *testing.T) {
 
 func TestApplicableHardGates(t *testing.T) {
 	gates := ApplicableHardGates()
-	// 24 FB-03 scope gate producers + 2 FB-29 resolution first-success-erasure
-	// producers (monitor_/detector_first_success_erased_address_failures_total)
+	// 24 FB-03 scope gate producers + 10 WARP base-transport producers
+	// (FB-02 §72, verified via warp.Runtime in src/warp/runtime.go)
+	// + 2 FB-29 resolution first-success-erasure producers (monitor_/
+	// detector_first_success_erased_address_failures_total)
 	// + 9 FB-30 multi-vantage producers (monitor_/detector variants of
 	// http_hypothesis_from_tcp_tls_only_observer, observer_unavailable_as_
 	// target_failure, exact_endpoint_service_resolution_conflated,
@@ -24,8 +26,8 @@ func TestApplicableHardGates(t *testing.T) {
 	// verified via RecordMultiVantageViolation in src/detector/abd_path.go).
 	// Each has a real Metrics.Inc call site, an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 35 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 35", len(gates))
+	if len(gates) != 45 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 45", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

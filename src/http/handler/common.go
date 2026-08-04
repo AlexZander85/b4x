@@ -16,11 +16,12 @@ import (
 	"github.com/daniellavrushin/b4/geodat"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
-	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/monitoring"
+	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/nfq"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/utils"
+	"github.com/daniellavrushin/b4/warp"
 	"github.com/daniellavrushin/b4/watchdog"
 	"golang.org/x/sys/unix"
 )
@@ -47,6 +48,7 @@ var (
 	discoveryRuntime     *discovery.Runtime
 	globalWatchdog       *watchdog.Watchdog
 	globalMonitoring     *monitoring.Runtime
+	globalWarp           *warp.Runtime
 	globalAIManager      *ai.Manager
 	globalTUNEngine      *b4tun.Engine
 )
@@ -229,6 +231,12 @@ func SetWatchdog(wd *watchdog.Watchdog) {
 
 func SetMonitoringRuntime(rt *monitoring.Runtime) {
 	globalMonitoring = rt
+}
+
+// SetWarpRuntime binds the WARP base-transport lifecycle controller for the
+// future WARP control plane and the hard-gate check endpoints.
+func SetWarpRuntime(rt *warp.Runtime) {
+	globalWarp = rt
 }
 
 func checkDiskSpace(dir string, needed int64) error {

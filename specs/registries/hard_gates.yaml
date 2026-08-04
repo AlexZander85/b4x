@@ -13,18 +13,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.PublishTrace -> Metrics.Inc(MetricWarpSecretLeak)
+      file: src/warp/runtime.go
+      line: 407
+      mechanism: increment-only counter via observability (trace payload carries raw session secret)
+      production_root: warp.Runtime.PublishTrace (trace export redaction check; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPSecretLeak
+      file: src/warp/hard_gate_producers_test.go
+      line: 42
+      assertion: trace payload with raw secret -> PublishTrace false && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_foreign_interface_modified_total
     canonical_metric_name: warp_foreign_interface_modified_total
     global_gate_class: base_transport
@@ -33,18 +62,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ApplyRoute -> Metrics.Inc(MetricWarpForeignInterfaceModified)
+      file: src/warp/runtime.go
+      line: 292
+      mechanism: increment-only counter via observability (TunRegistry.Claim rejects foreign session lease)
+      production_root: warp.Runtime.ApplyRoute (TUN ownership check; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPForeignInterfaceModified
+      file: src/warp/hard_gate_producers_test.go
+      line: 72
+      assertion: foreign session claims owned TUN -> ApplyRoute err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_recursive_control_route_total
     canonical_metric_name: warp_recursive_control_route_total
     global_gate_class: base_transport
@@ -53,18 +111,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ApplyRoute -> Metrics.Inc(MetricWarpRecursiveControlRoute)
+      file: src/warp/runtime.go
+      line: 299
+      mechanism: increment-only counter via observability (policy.Mark == warp-control-direct mark 0x6001)
+      production_root: warp.Runtime.ApplyRoute (recursion guard, addendum §17/WARP-6; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPRecursiveControlRoute
+      file: src/warp/hard_gate_producers_test.go
+      line: 102
+      assertion: control route with warp-control-direct mark -> ApplyRoute err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_mark_collision_total
     canonical_metric_name: warp_mark_collision_total
     global_gate_class: base_transport
@@ -73,18 +160,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ApplyRoute -> Metrics.Inc(MetricWarpMarkCollision)
+      file: src/warp/runtime.go
+      line: 306
+      mechanism: increment-only counter via observability (policy-pinned mark owned by another session)
+      production_root: warp.Runtime.ApplyRoute (mark ownership; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPMarkCollision
+      file: src/warp/hard_gate_producers_test.go
+      line: 124
+      assertion: second session pins owned mark -> ApplyRoute err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_route_without_liveness_total
     canonical_metric_name: warp_route_without_liveness_total
     global_gate_class: base_transport
@@ -93,18 +209,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ApplyRoute -> Metrics.Inc(MetricWarpRouteWithoutLiveness)
+      file: src/warp/runtime.go
+      line: 284
+      mechanism: increment-only counter via observability (promotion while HealthTracker != data-alive)
+      production_root: warp.Runtime.ApplyRoute (liveness gate; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPRouteWithoutLiveness
+      file: src/warp/hard_gate_producers_test.go
+      line: 154
+      assertion: promotion without liveness proof -> ApplyRoute err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_destination_set_partial_apply_total
     canonical_metric_name: warp_destination_set_partial_apply_total
     global_gate_class: base_transport
@@ -113,18 +258,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ApplyRoute -> Metrics.Inc(MetricWarpDestinationSetPartialApply)
+      file: src/warp/runtime.go
+      line: 317
+      mechanism: increment-only counter via observability (non-atomic destination set application)
+      production_root: warp.Runtime.ApplyRoute (atomic destination set; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPDestinationSetPartialApply
+      file: src/warp/hard_gate_producers_test.go
+      line: 175
+      assertion: partially applied destination set -> ApplyRoute err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_unbounded_restart_total
     canonical_metric_name: warp_unbounded_restart_total
     global_gate_class: base_transport
@@ -133,18 +307,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.Restart -> Metrics.Inc(MetricWarpUnboundedRestart)
+      file: src/warp/runtime.go
+      line: 349
+      mechanism: increment-only counter via observability (restart beyond Config.MaxRestarts)
+      production_root: warp.Runtime.Restart (bounded restart budget; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPUnboundedRestart
+      file: src/warp/hard_gate_producers_test.go
+      line: 197
+      assertion: restart beyond MaxRestarts -> err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_unbounded_registration_total
     canonical_metric_name: warp_unbounded_registration_total
     global_gate_class: base_transport
@@ -153,18 +356,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.Register -> Metrics.Inc(MetricWarpUnboundedRegistration)
+      file: src/warp/runtime.go
+      line: 224
+      mechanism: increment-only counter via observability (enrollment attempt beyond policy MaxAttempts)
+      production_root: warp.Runtime.Register (bounded enrollment; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPUnboundedRegistration
+      file: src/warp/hard_gate_producers_test.go
+      line: 219
+      assertion: enrollment beyond policy MaxAttempts -> err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_unrelated_control_action_total
     canonical_metric_name: warp_unrelated_control_action_total
     global_gate_class: base_transport
@@ -173,18 +405,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.ControlAction -> Metrics.Inc(MetricWarpUnrelatedControlAction)
+      file: src/warp/runtime.go
+      line: 366
+      mechanism: increment-only counter via observability (control action on flow outside session authorization)
+      production_root: warp.Runtime.ControlAction (exact-scoped authorization; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPUnrelatedControlAction
+      file: src/warp/hard_gate_producers_test.go
+      line: 239
+      assertion: control action on flow outside authorization -> err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: warp_rollback_failure_total
     canonical_metric_name: warp_rollback_failure_total
     global_gate_class: base_transport
@@ -193,18 +454,47 @@ families:
     source_doc: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     source_section: '72'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Runtime.Rollback -> Metrics.Inc(MetricWarpRollbackFailure)
+      file: src/warp/runtime.go
+      line: 383
+      mechanism: increment-only counter via observability (rollback with no previous applied state)
+      production_root: warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 233
+      binding: count != 0 -> GateFail
+    - kind: aggregation_blocker
+      symbol: EvaluateCausalTraceWindow verdict aggregation
+      file: src/validation/gates.go
+      line: 239
+      binding: scope.warp; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:warp
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_WARPRollbackFailure
+      file: src/warp/hard_gate_producers_test.go
+      line: 263
+      assertion: rollback without previous state -> err && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/warp/hard_gate_producers_test.go
+    - src/warp/runtime.go
   - gate_id: nonru_route_active_without_fresh_attestation
     canonical_metric_name: nonru_route_active_without_fresh_attestation
     global_gate_class: non_ru
@@ -2035,18 +2325,51 @@ families:
     source_doc: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     source_section: '87'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecordResolutionErasure -> observability.Metrics.Inc(MetricMonitorFirstSuccessErasedAddressFailures)
+      file: src/detector/resolution_experiment.go
+      line: 192
+      mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
+      production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
+        sibling surfaced, never dropped)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.mon; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestResolutionExperimentFirstSuccessDoesNotMaskSibling
+      file: src/detector/resolution_experiment_test.go
+      line: 77
+      assertion: sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1
+    - kind: negative_fixture
+      name: TestResolutionExperimentErasureCounterSync
+      file: src/detector/resolution_experiment_test.go
+      line: 132
+      assertion: MaskedSiblings aligns with ErasedByFirstSuccess; clean window keeps count 0
+    mutation_test:
+    - kind: collapse_to_first_success
+      name: TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)
+      file: src/detector/resolution_experiment_test.go
+      line: 77
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: monitor_stale_resolution_used_as_exact_proof_total
     canonical_metric_name: monitor_stale_resolution_used_as_exact_proof_total
     global_gate_class: resolution
@@ -2235,18 +2558,48 @@ families:
     source_doc: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     source_section: '89'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> stage-aware capability gate -> RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly)
+        -> observability.Metrics.Inc(MetricMonitorHttpHypothesisFromTCPTLSOnlyObserver)
+      file: src/detector/abd_path.go
+      line: 164
+      mechanism: increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis
+        (FB-30)
+      production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (rejection recorded,
+        NO_OPINION returned)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.mon; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis
+      file: src/detector/abd_path_test.go
+      line: 41
+      assertion: tcp/tls-only capability covers tcp/tls, never http/body; CompareVantage returns NO_OPINION
+    mutation_test:
+    - kind: remove_stage_capability_gate
+      name: TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)
+      file: src/detector/abd_path_test.go
+      line: 41
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: monitor_observer_unavailable_as_target_failure_total
     canonical_metric_name: monitor_observer_unavailable_as_target_failure_total
     global_gate_class: multi_vantage
@@ -2255,18 +2608,46 @@ families:
     source_doc: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     source_section: '89'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> observer unavailable branch -> NO_OPINION (never RecordMultiVantageViolation(violationObserverUnavailableAsFailure))
+      file: src/detector/abd_path.go
+      line: 138
+      mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
+        (FB-30)
+      production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted for unavailable observers)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.mon; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageUnavailableIsNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 27
+      assertion: unavailable observer yields NO_OPINION; never a target-failure claim
+    mutation_test:
+    - kind: treat_unavailable_as_failure
+      name: TestVantageUnavailableIsNoOpinion (no-opinion regression)
+      file: src/detector/abd_path_test.go
+      line: 27
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: monitor_exact_endpoint_service_resolution_conflated_total
     canonical_metric_name: monitor_exact_endpoint_service_resolution_conflated_total
     global_gate_class: multi_vantage
@@ -2275,18 +2656,48 @@ families:
     source_doc: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     source_section: '89'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> identity/mode-gate -> RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated)
+        -> observability.Metrics.Inc(MetricMonitorExactEndpointServiceResolutionConflated)
+      file: src/detector/abd_path.go
+      line: 145
+      mechanism: increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be
+        conflated (FB-30)
+      production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
+        recorded)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.mon; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageExactModeIdentityConflationNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 79
+      assertion: mismatched exact/independent mode yields NO_OPINION
+    mutation_test:
+    - kind: remove_mode_gate
+      name: TestVantageExactModeIdentityConflationNoOpinion (regression)
+      file: src/detector/abd_path_test.go
+      line: 79
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: monitor_observer_capability_unproven_total
     canonical_metric_name: monitor_observer_capability_unproven_total
     global_gate_class: multi_vantage
@@ -2295,18 +2706,48 @@ families:
     source_doc: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     source_section: '89'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> stage-aware capability gate (stale/unhealthy or unsupported stage) -> RecordMultiVantageViolation(violationObserverCapabilityUnproven)
+        -> observability.Metrics.Inc(MetricMonitorObserverCapabilityUnproven)
+      file: src/detector/abd_path.go
+      line: 158
+      mechanism: increment-only counter via observability; an observer with unproven capability must never produce an opinion
+        (FB-30)
+      production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
+        returned)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.mon; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:mon
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageCapabilityUnprovenIsNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 65
+      assertion: stale/unproven observer capability yields NO_OPINION
+    mutation_test:
+    - kind: remove_capability_fresh_gate
+      name: TestVantageCapabilityUnprovenIsNoOpinion (regression)
+      file: src/detector/abd_path_test.go
+      line: 65
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: monitor_reference_result_as_action_authorization_total
     canonical_metric_name: monitor_reference_result_as_action_authorization_total
     global_gate_class: multi_vantage
@@ -2725,7 +3166,7 @@ families:
       file: src/validation/iv_suite.go
       line: 124
       binding: IV-18 verdict cannot be PASS while legacy mutating path is reachable
-    promotion_blocker: true
+    promotion_blocker: false
     reset_semantics: readiness; PASS only while legacy mutating path unreachable
     expiry_generation_binding: null
     applicability: family:mon
@@ -4166,18 +4607,46 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecordResolutionErasure -> observability.Metrics.Inc(MetricDetectorFirstSuccessErasedAddressFailures)
+      file: src/detector/resolution_experiment.go
+      line: 192
+      mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
+      production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
+        sibling surfaced, never dropped)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestResolutionExperimentFirstSuccessDoesNotMaskSibling
+      file: src/detector/resolution_experiment_test.go
+      line: 77
+      assertion: sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1
+    mutation_test:
+    - kind: collapse_to_first_success
+      name: TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)
+      file: src/detector/resolution_experiment_test.go
+      line: 77
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_stale_client_resolution_used_total
     canonical_metric_name: detector_stale_client_resolution_used_total
     global_gate_class: blocking_profile_ddi
@@ -4206,18 +4675,45 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> stage-alignment gate -> RecordMultiVantageViolation(violationStageMismatch) -> observability.Metrics.Inc(MetricDetectorMultiVantageStageMismatch)
+      file: src/detector/abd_path.go
+      line: 151
+      mechanism: increment-only counter via observability; multi-vantage comparison must be stage-aligned (FB-30)
+      production_root: detector.CompareVantage stage-alignment gate -> RecordMultiVantageViolation (NO_OPINION returned)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageStageMismatchNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 97
+      assertion: stage-mismatched observer yields NO_OPINION
+    mutation_test:
+    - kind: remove_stage_alignment
+      name: TestVantageStageMismatchNoOpinion (regression)
+      file: src/detector/abd_path_test.go
+      line: 97
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_http_hypothesis_from_tcp_tls_only_observer_total
     canonical_metric_name: detector_http_hypothesis_from_tcp_tls_only_observer_total
     global_gate_class: blocking_profile_ddi
@@ -4226,18 +4722,47 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> stage-aware capability gate -> RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly)
+        -> observability.Metrics.Inc(MetricDetectorHttpHypothesisFromTCPTLSOnlyObserver)
+      file: src/detector/abd_path.go
+      line: 164
+      mechanism: increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis
+        (FB-30)
+      production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (NO_OPINION returned)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis
+      file: src/detector/abd_path_test.go
+      line: 41
+      assertion: tcp/tls-only capability never covers http/body; CompareVantage returns NO_OPINION
+    mutation_test:
+    - kind: remove_stage_capability_gate
+      name: TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)
+      file: src/detector/abd_path_test.go
+      line: 41
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_observer_unavailable_as_target_failure_total
     canonical_metric_name: detector_observer_unavailable_as_target_failure_total
     global_gate_class: blocking_profile_ddi
@@ -4246,18 +4771,47 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> observer unavailable branch -> NO_OPINION (never a failure claim; violation kind reserved
+        until an external call site proves it reachable)
+      file: src/detector/abd_path.go
+      line: 138
+      mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
+        (FB-30)
+      production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageUnavailableIsNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 27
+      assertion: unavailable observer yields NO_OPINION; never a target-failure claim
+    mutation_test:
+    - kind: treat_unavailable_as_failure
+      name: TestVantageUnavailableIsNoOpinion (no-opinion regression)
+      file: src/detector/abd_path_test.go
+      line: 27
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_exact_endpoint_service_resolution_conflated_total
     canonical_metric_name: detector_exact_endpoint_service_resolution_conflated_total
     global_gate_class: blocking_profile_ddi
@@ -4266,18 +4820,48 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> identity/mode-gate -> RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated)
+        -> observability.Metrics.Inc(MetricDetectorExactEndpointServiceResolutionConflated)
+      file: src/detector/abd_path.go
+      line: 145
+      mechanism: increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be
+        conflated (FB-30)
+      production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
+        recorded)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageExactModeIdentityConflationNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 79
+      assertion: mismatched exact/independent mode or target yields NO_OPINION
+    mutation_test:
+    - kind: remove_mode_gate
+      name: TestVantageExactModeIdentityConflationNoOpinion (regression)
+      file: src/detector/abd_path_test.go
+      line: 79
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_observer_capability_unproven_total
     canonical_metric_name: detector_observer_capability_unproven_total
     global_gate_class: blocking_profile_ddi
@@ -4286,18 +4870,48 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CompareVantage -> stage-aware capability gate (stale/unhealthy or unsupported stage) -> RecordMultiVantageViolation(violationObserverCapabilityUnproven)
+        -> observability.Metrics.Inc(MetricDetectorObserverCapabilityUnproven)
+      file: src/detector/abd_path.go
+      line: 158
+      mechanism: increment-only counter via observability; an observer with unproven capability must never produce an opinion
+        (FB-30)
+      production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
+        returned)
+    verified_commit: bd9db5d5
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates
+      file: src/validation/gates.go
+      line: 205
+      binding: scope.abd; fail-closed
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: positive_fixture
+      name: TestVantageCapabilityUnprovenIsNoOpinion
+      file: src/detector/abd_path_test.go
+      line: 65
+      assertion: stale/unproven observer capability yields NO_OPINION
+    mutation_test:
+    - kind: remove_capability_fresh_gate
+      name: TestVantageCapabilityUnprovenIsNoOpinion (regression)
+      file: src/detector/abd_path_test.go
+      line: 65
+      status: executed
+    evidence_artifact:
+    - artifacts/audit/hard_gates_audit.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
   - gate_id: detector_result_without_monitor_assessment_link_total
     canonical_metric_name: detector_result_without_monitor_assessment_link_total
     global_gate_class: blocking_profile_ddi

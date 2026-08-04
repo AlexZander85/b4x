@@ -104,6 +104,53 @@ FT_OWNER_BY_PREFIX: list[tuple[str, str]] = [
     ("mtproto_bridge_", "ddi_tgb"),
 ]
 
+# Extra canonical gates that are not extractable from the addenda (no `== 0`
+# list in their normative source): hand-maintained entries kept in the
+# registry by build_gates and indexed for --check, so regeneration never
+# drops them. Must stay in sync with the registry schema (all fields present;
+# kind/promotion_blocker follow the owner decision, readiness inputs never
+# block promotion directly).
+EXTRA_GATES: dict[str, dict] = {
+    "mon_production_ready": {
+        "gate_id": "mon_production_ready",
+        "canonical_metric_name": "mon_production_ready",
+        "global_gate_class": "monitoring_conformance",
+        "owner_family": "mon",
+        "owner_stage": "cutover",
+        "source_doc": "B4X_AUDIT_FIX_TASKS v2.md §FB-28",
+        "source_section": "FB-28",
+        "kind": "current_generation_readiness_input",
+        "producer_status": "missing",
+        "runtime_producer": None,
+        "verified_commit": None,
+        "expected_producer_location": "src/validation/iv18_reachability.go",
+        "verdict_consumer": [
+            {
+                "kind": "registry_suite_verdict",
+                "symbol": "RunIV18Suite + promotion readiness",
+                "file": "src/validation/iv_suite.go",
+                "line": 124,
+                "binding": "IV-18 verdict cannot be PASS while legacy mutating path is reachable",
+            },
+        ],
+        "promotion_blocker": False,
+        "reset_semantics": "readiness; PASS only while legacy mutating path unreachable",
+        "expiry_generation_binding": None,
+        "applicability": "family:mon",
+        "test_producer": [
+            {
+                "kind": "static_reachability_scan",
+                "name": "TestIV18ReverseReachabilityBlocksProductionReadyWhileLegacyReachable",
+                "file": "src/validation/iv18_reachability_test.go",
+                "line": 1,
+                "assertion": "applyBatchResults reachable -> mon_production_ready blocked",
+            },
+        ],
+        "mutation_test": None,
+        "evidence_artifact": None,
+    },
+}
+
 # IV v1.5 validation views: (doc, section, [line range], expected family).
 IV_DOC = "B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md"
 IV_VIEWS: list[tuple[str, str, int, int, str]] = [
@@ -292,6 +339,162 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (hold disabled while visibility degraded)",
         "production_root": "visibility gate Degrade -> ProductService subscriber",
     },
+    # --- WARP base-transport lifecycle producers (FB-02 WARP section,
+    # 2026-08-04): every counter increments ONLY on the violating branch of
+    # the production runtime (src/warp/runtime.go), reachable from main via
+    # warp.NewRuntime/Start (controller loop root). ---
+    "warp_secret_leak_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpSecretLeak)",
+        "file": "src/warp/runtime.go",
+        "line": 407,
+        "mechanism": "increment-only counter via observability (trace payload carries raw session secret)",
+        "production_root": "warp.Runtime.PublishTrace (trace export redaction check; controller-loop root from main)",
+    },
+    "warp_foreign_interface_modified_total": {
+        "symbol": "Runtime.ApplyRoute -> Metrics.Inc(MetricWarpForeignInterfaceModified)",
+        "file": "src/warp/runtime.go",
+        "line": 292,
+        "mechanism": "increment-only counter via observability (TunRegistry.Claim rejects foreign session lease)",
+        "production_root": "warp.Runtime.ApplyRoute (TUN ownership check; controller-loop root from main)",
+    },
+    "warp_recursive_control_route_total": {
+        "symbol": "Runtime.ApplyRoute -> Metrics.Inc(MetricWarpRecursiveControlRoute)",
+        "file": "src/warp/runtime.go",
+        "line": 299,
+        "mechanism": "increment-only counter via observability (policy.Mark == warp-control-direct mark 0x6001)",
+        "production_root": "warp.Runtime.ApplyRoute (recursion guard, addendum §17/WARP-6; controller-loop root from main)",
+    },
+    "warp_mark_collision_total": {
+        "symbol": "Runtime.ApplyRoute -> Metrics.Inc(MetricWarpMarkCollision)",
+        "file": "src/warp/runtime.go",
+        "line": 306,
+        "mechanism": "increment-only counter via observability (policy-pinned mark owned by another session)",
+        "production_root": "warp.Runtime.ApplyRoute (mark ownership; controller-loop root from main)",
+    },
+    "warp_route_without_liveness_total": {
+        "symbol": "Runtime.ApplyRoute -> Metrics.Inc(MetricWarpRouteWithoutLiveness)",
+        "file": "src/warp/runtime.go",
+        "line": 284,
+        "mechanism": "increment-only counter via observability (promotion while HealthTracker != data-alive)",
+        "production_root": "warp.Runtime.ApplyRoute (liveness gate; controller-loop root from main)",
+    },
+    "warp_destination_set_partial_apply_total": {
+        "symbol": "Runtime.ApplyRoute -> Metrics.Inc(MetricWarpDestinationSetPartialApply)",
+        "file": "src/warp/runtime.go",
+        "line": 317,
+        "mechanism": "increment-only counter via observability (non-atomic destination set application)",
+        "production_root": "warp.Runtime.ApplyRoute (atomic destination set; controller-loop root from main)",
+    },
+    "warp_unbounded_restart_total": {
+        "symbol": "Runtime.Restart -> Metrics.Inc(MetricWarpUnboundedRestart)",
+        "file": "src/warp/runtime.go",
+        "line": 349,
+        "mechanism": "increment-only counter via observability (restart beyond Config.MaxRestarts)",
+        "production_root": "warp.Runtime.Restart (bounded restart budget; controller-loop root from main)",
+    },
+    "warp_unbounded_registration_total": {
+        "symbol": "Runtime.Register -> Metrics.Inc(MetricWarpUnboundedRegistration)",
+        "file": "src/warp/runtime.go",
+        "line": 224,
+        "mechanism": "increment-only counter via observability (enrollment attempt beyond policy MaxAttempts)",
+        "production_root": "warp.Runtime.Register (bounded enrollment; controller-loop root from main)",
+    },
+    "warp_unrelated_control_action_total": {
+        "symbol": "Runtime.ControlAction -> Metrics.Inc(MetricWarpUnrelatedControlAction)",
+        "file": "src/warp/runtime.go",
+        "line": 366,
+        "mechanism": "increment-only counter via observability (control action on flow outside session authorization)",
+        "production_root": "warp.Runtime.ControlAction (exact-scoped authorization; controller-loop root from main)",
+    },
+    "warp_rollback_failure_total": {
+        "symbol": "Runtime.Rollback -> Metrics.Inc(MetricWarpRollbackFailure)",
+        "file": "src/warp/runtime.go",
+        "line": 383,
+        "mechanism": "increment-only counter via observability (rollback with no previous applied state)",
+        "production_root": "warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)",
+    },
+    # --- FB-29 resolution-erasure / FB-30 multi-vantage producers (mon + abd):
+    # producers verified in the FB-29/FB-30 commits; registry entries were
+    # hand-maintained in hard_gates_registry.gen.go and are now declared here
+    # so regeneration keeps yaml and gen.go consistent (283 gates / 35
+    # applicable; previously yaml said 24 verified while gen.go said 35). ---
+    "monitor_first_success_erased_address_failures_total": {
+        "symbol": "RecordResolutionErasure -> observability.Metrics.Inc(MetricMonitorFirstSuccessErasedAddressFailures)",
+        "file": "src/detector/resolution_experiment.go",
+        "line": 192,
+        "mechanism": "increment-only counter via observability; first-success must never erase sibling address failures (FB-29)",
+        "production_root": "detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked sibling surfaced, never dropped)",
+    },
+    "monitor_http_hypothesis_from_tcp_tls_only_observer_total": {
+        "symbol": "CompareVantage -> stage-aware capability gate -> RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly) -> observability.Metrics.Inc(MetricMonitorHttpHypothesisFromTCPTLSOnlyObserver)",
+        "file": "src/detector/abd_path.go",
+        "line": 164,
+        "mechanism": "increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis (FB-30)",
+        "production_root": "detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (rejection recorded, NO_OPINION returned)",
+    },
+    "monitor_observer_unavailable_as_target_failure_total": {
+        "symbol": "CompareVantage -> observer unavailable branch -> NO_OPINION (never RecordMultiVantageViolation(violationObserverUnavailableAsFailure))",
+        "file": "src/detector/abd_path.go",
+        "line": 138,
+        "mechanism": "increment-only counter via observability; an unavailable observer must never become a target-failure claim (FB-30)",
+        "production_root": "detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted for unavailable observers)",
+    },
+    "monitor_exact_endpoint_service_resolution_conflated_total": {
+        "symbol": "CompareVantage -> identity/mode-gate -> RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated) -> observability.Metrics.Inc(MetricMonitorExactEndpointServiceResolutionConflated)",
+        "file": "src/detector/abd_path.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be conflated (FB-30)",
+        "production_root": "detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation recorded)",
+    },
+    "monitor_observer_capability_unproven_total": {
+        "symbol": "CompareVantage -> stage-aware capability gate (stale/unhealthy or unsupported stage) -> RecordMultiVantageViolation(violationObserverCapabilityUnproven) -> observability.Metrics.Inc(MetricMonitorObserverCapabilityUnproven)",
+        "file": "src/detector/abd_path.go",
+        "line": 158,
+        "mechanism": "increment-only counter via observability; an observer with unproven capability must never produce an opinion (FB-30)",
+        "production_root": "detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION returned)",
+    },
+    "detector_first_success_erased_address_failures_total": {
+        "symbol": "RecordResolutionErasure -> observability.Metrics.Inc(MetricDetectorFirstSuccessErasedAddressFailures)",
+        "file": "src/detector/resolution_experiment.go",
+        "line": 192,
+        "mechanism": "increment-only counter via observability; first-success must never erase sibling address failures (FB-29)",
+        "production_root": "detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked sibling surfaced, never dropped)",
+    },
+    "detector_multivantage_stage_mismatch_total": {
+        "symbol": "CompareVantage -> stage-alignment gate -> RecordMultiVantageViolation(violationStageMismatch) -> observability.Metrics.Inc(MetricDetectorMultiVantageStageMismatch)",
+        "file": "src/detector/abd_path.go",
+        "line": 151,
+        "mechanism": "increment-only counter via observability; multi-vantage comparison must be stage-aligned (FB-30)",
+        "production_root": "detector.CompareVantage stage-alignment gate -> RecordMultiVantageViolation (NO_OPINION returned)",
+    },
+    "detector_http_hypothesis_from_tcp_tls_only_observer_total": {
+        "symbol": "CompareVantage -> stage-aware capability gate -> RecordMultiVantageViolation(violationHTTPHypothesisFromTCPTLSOnly) -> observability.Metrics.Inc(MetricDetectorHttpHypothesisFromTCPTLSOnlyObserver)",
+        "file": "src/detector/abd_path.go",
+        "line": 164,
+        "mechanism": "increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis (FB-30)",
+        "production_root": "detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (NO_OPINION returned)",
+    },
+    "detector_observer_unavailable_as_target_failure_total": {
+        "symbol": "CompareVantage -> observer unavailable branch -> NO_OPINION (never a failure claim; violation kind reserved until an external call site proves it reachable)",
+        "file": "src/detector/abd_path.go",
+        "line": 138,
+        "mechanism": "increment-only counter via observability; an unavailable observer must never become a target-failure claim (FB-30)",
+        "production_root": "detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted)",
+    },
+    "detector_exact_endpoint_service_resolution_conflated_total": {
+        "symbol": "CompareVantage -> identity/mode-gate -> RecordMultiVantageViolation(violationExactEndpointServiceResolutionConflated) -> observability.Metrics.Inc(MetricDetectorExactEndpointServiceResolutionConflated)",
+        "file": "src/detector/abd_path.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability; exact-endpoint and independent-resolution evidence must never be conflated (FB-30)",
+        "production_root": "detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation recorded)",
+    },
+    "detector_observer_capability_unproven_total": {
+        "symbol": "CompareVantage -> stage-aware capability gate (stale/unhealthy or unsupported stage) -> RecordMultiVantageViolation(violationObserverCapabilityUnproven) -> observability.Metrics.Inc(MetricDetectorObserverCapabilityUnproven)",
+        "file": "src/detector/abd_path.go",
+        "line": 158,
+        "mechanism": "increment-only counter via observability; an observer with unproven capability must never produce an opinion (FB-30)",
+        "production_root": "detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION returned)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -347,6 +550,18 @@ GATE_KINDS: dict[str, str] = {
     "unrelated_control_action_total": "zero_tolerance_violation_counter",
     "classifier_layout_parity_fail_total": "zero_tolerance_violation_counter",
     "passive_rst_reconnect_regression_total": "zero_tolerance_violation_counter",
+    # --- WARP base-transport zero-tolerance counters (§72; narrow causal
+    # verdict set, FB-14 decision 9) ---
+    "warp_secret_leak_total": "zero_tolerance_violation_counter",
+    "warp_foreign_interface_modified_total": "zero_tolerance_violation_counter",
+    "warp_recursive_control_route_total": "zero_tolerance_violation_counter",
+    "warp_mark_collision_total": "zero_tolerance_violation_counter",
+    "warp_route_without_liveness_total": "zero_tolerance_violation_counter",
+    "warp_destination_set_partial_apply_total": "zero_tolerance_violation_counter",
+    "warp_unbounded_restart_total": "zero_tolerance_violation_counter",
+    "warp_unbounded_registration_total": "zero_tolerance_violation_counter",
+    "warp_unrelated_control_action_total": "zero_tolerance_violation_counter",
+    "warp_rollback_failure_total": "zero_tolerance_violation_counter",
     # --- current-generation readiness inputs (never block directly) ---
     "nfqueue_gso_truncated_total": "current_generation_readiness_input",
     "nfqueue_gso_csum_not_ready_total": "current_generation_readiness_input",
@@ -389,6 +604,105 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
     "classifier_layout_parity_fail_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
         {"kind": "aggregation_blocker", "symbol": "EvaluateHardGates verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.rstgso; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    # --- WARP base-transport consumers (FB-02 WARP section): the narrow
+    # causal-trace verdict evaluates exactly these ten gates (FB-14
+    # decision 9) via evaluateGateSet, fail-closed on any non-zero delta. ---
+    "warp_secret_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_foreign_interface_modified_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_recursive_control_route_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_mark_collision_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_route_without_liveness_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_destination_set_partial_apply_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_unbounded_restart_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_unbounded_registration_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_unrelated_control_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_rollback_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
+    # EvaluateHardGates, fail-closed on the owning scope. ---
+    "monitor_first_success_erased_address_failures_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.mon; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.mon; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_observer_unavailable_as_target_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.mon; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.mon; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_observer_capability_unproven_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.mon; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_first_success_erased_address_failures_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_multivantage_stage_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_observer_unavailable_as_target_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_observer_capability_unproven_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates", "file": "src/validation/gates.go", "line": 205, "binding": "scope.abd; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "nfqueue_gso_truncated_total": [
@@ -577,6 +891,75 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "b4_hold_disabled_visibility_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_CaptureVisibilityDegrade", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "assertion": "gate Degrade -> counter > 0 (mutation run executed)"},
     ],
+    # --- WARP base-transport negative fixtures (FB-02 WARP section):
+    # each test drives the violating branch of the production runtime and
+    # asserts the zero-tolerance counter moved. ---
+    "warp_secret_leak_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPSecretLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 42, "assertion": "trace payload with raw secret -> PublishTrace false && counter > 0"},
+    ],
+    "warp_foreign_interface_modified_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPForeignInterfaceModified", "file": "src/warp/hard_gate_producers_test.go", "line": 72, "assertion": "foreign session claims owned TUN -> ApplyRoute err && counter > 0"},
+    ],
+    "warp_recursive_control_route_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPRecursiveControlRoute", "file": "src/warp/hard_gate_producers_test.go", "line": 102, "assertion": "control route with warp-control-direct mark -> ApplyRoute err && counter > 0"},
+    ],
+    "warp_mark_collision_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMarkCollision", "file": "src/warp/hard_gate_producers_test.go", "line": 124, "assertion": "second session pins owned mark -> ApplyRoute err && counter > 0"},
+    ],
+    "warp_route_without_liveness_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPRouteWithoutLiveness", "file": "src/warp/hard_gate_producers_test.go", "line": 154, "assertion": "promotion without liveness proof -> ApplyRoute err && counter > 0"},
+    ],
+    "warp_destination_set_partial_apply_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPDestinationSetPartialApply", "file": "src/warp/hard_gate_producers_test.go", "line": 175, "assertion": "partially applied destination set -> ApplyRoute err && counter > 0"},
+    ],
+    "warp_unbounded_restart_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPUnboundedRestart", "file": "src/warp/hard_gate_producers_test.go", "line": 197, "assertion": "restart beyond MaxRestarts -> err && counter > 0"},
+    ],
+    "warp_unbounded_registration_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPUnboundedRegistration", "file": "src/warp/hard_gate_producers_test.go", "line": 219, "assertion": "enrollment beyond policy MaxAttempts -> err && counter > 0"},
+    ],
+    "warp_unrelated_control_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPUnrelatedControlAction", "file": "src/warp/hard_gate_producers_test.go", "line": 239, "assertion": "control action on flow outside authorization -> err && counter > 0"},
+    ],
+    "warp_rollback_failure_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPRollbackFailure", "file": "src/warp/hard_gate_producers_test.go", "line": 263, "assertion": "rollback without previous state -> err && counter > 0"},
+    ],
+    # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
+    # multi-vantage NO_OPINION fixtures in src/detector. ---
+    "monitor_first_success_erased_address_failures_total": [
+        {"kind": "positive_fixture", "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling", "file": "src/detector/resolution_experiment_test.go", "line": 77, "assertion": "sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1"},
+        {"kind": "negative_fixture", "name": "TestResolutionExperimentErasureCounterSync", "file": "src/detector/resolution_experiment_test.go", "line": 132, "assertion": "MaskedSiblings aligns with ErasedByFirstSuccess; clean window keeps count 0"},
+    ],
+    "monitor_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "positive_fixture", "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis", "file": "src/detector/abd_path_test.go", "line": 41, "assertion": "tcp/tls-only capability covers tcp/tls, never http/body; CompareVantage returns NO_OPINION"},
+    ],
+    "monitor_observer_unavailable_as_target_failure_total": [
+        {"kind": "positive_fixture", "name": "TestVantageUnavailableIsNoOpinion", "file": "src/detector/abd_path_test.go", "line": 27, "assertion": "unavailable observer yields NO_OPINION; never a target-failure claim"},
+    ],
+    "monitor_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "positive_fixture", "name": "TestVantageExactModeIdentityConflationNoOpinion", "file": "src/detector/abd_path_test.go", "line": 79, "assertion": "mismatched exact/independent mode yields NO_OPINION"},
+    ],
+    "monitor_observer_capability_unproven_total": [
+        {"kind": "positive_fixture", "name": "TestVantageCapabilityUnprovenIsNoOpinion", "file": "src/detector/abd_path_test.go", "line": 65, "assertion": "stale/unproven observer capability yields NO_OPINION"},
+    ],
+    "detector_first_success_erased_address_failures_total": [
+        {"kind": "positive_fixture", "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling", "file": "src/detector/resolution_experiment_test.go", "line": 77, "assertion": "sibling failure surfaced in MaskedSiblings; ErasedByFirstSuccess == 1"},
+    ],
+    "detector_multivantage_stage_mismatch_total": [
+        {"kind": "positive_fixture", "name": "TestVantageStageMismatchNoOpinion", "file": "src/detector/abd_path_test.go", "line": 97, "assertion": "stage-mismatched observer yields NO_OPINION"},
+    ],
+    "detector_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "positive_fixture", "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis", "file": "src/detector/abd_path_test.go", "line": 41, "assertion": "tcp/tls-only capability never covers http/body; CompareVantage returns NO_OPINION"},
+    ],
+    "detector_observer_unavailable_as_target_failure_total": [
+        {"kind": "positive_fixture", "name": "TestVantageUnavailableIsNoOpinion", "file": "src/detector/abd_path_test.go", "line": 27, "assertion": "unavailable observer yields NO_OPINION; never a target-failure claim"},
+    ],
+    "detector_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "positive_fixture", "name": "TestVantageExactModeIdentityConflationNoOpinion", "file": "src/detector/abd_path_test.go", "line": 79, "assertion": "mismatched exact/independent mode or target yields NO_OPINION"},
+    ],
+    "detector_observer_capability_unproven_total": [
+        {"kind": "positive_fixture", "name": "TestVantageCapabilityUnprovenIsNoOpinion", "file": "src/detector/abd_path_test.go", "line": 65, "assertion": "stale/unproven observer capability yields NO_OPINION"},
+    ],
 }
 
 # Executed mutation tests per gate (removed/disabled producer must flip the
@@ -630,6 +1013,40 @@ MUTATION_TESTS: dict[str, list[dict]] = {
         {"kind": "removed_inc", "name": "TestHardGateProducer_CaptureVisibilityDegrade (producer removed)", "file": "src/capture/ppe/hard_gate_producers_test.go", "line": 31, "status": "executed"},
         {"kind": "removed_delta", "name": "TestEvaluateHardGatesReadinessInputsNeverBlock (safety-guard telemetry)", "file": "src/validation/gates_test.go", "line": 275, "status": "executed"},
     ],
+    # --- FB-29 / FB-30 mutation runs (mon + abd) ---
+    "monitor_first_success_erased_address_failures_total": [
+        {"kind": "collapse_to_first_success", "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)", "file": "src/detector/resolution_experiment_test.go", "line": 77, "status": "executed"},
+    ],
+    "monitor_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "remove_stage_capability_gate", "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)", "file": "src/detector/abd_path_test.go", "line": 41, "status": "executed"},
+    ],
+    "monitor_observer_unavailable_as_target_failure_total": [
+        {"kind": "treat_unavailable_as_failure", "name": "TestVantageUnavailableIsNoOpinion (no-opinion regression)", "file": "src/detector/abd_path_test.go", "line": 27, "status": "executed"},
+    ],
+    "monitor_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "remove_mode_gate", "name": "TestVantageExactModeIdentityConflationNoOpinion (regression)", "file": "src/detector/abd_path_test.go", "line": 79, "status": "executed"},
+    ],
+    "monitor_observer_capability_unproven_total": [
+        {"kind": "remove_capability_fresh_gate", "name": "TestVantageCapabilityUnprovenIsNoOpinion (regression)", "file": "src/detector/abd_path_test.go", "line": 65, "status": "executed"},
+    ],
+    "detector_first_success_erased_address_failures_total": [
+        {"kind": "collapse_to_first_success", "name": "TestResolutionExperimentFirstSuccessDoesNotMaskSibling (erasure regression)", "file": "src/detector/resolution_experiment_test.go", "line": 77, "status": "executed"},
+    ],
+    "detector_multivantage_stage_mismatch_total": [
+        {"kind": "remove_stage_alignment", "name": "TestVantageStageMismatchNoOpinion (regression)", "file": "src/detector/abd_path_test.go", "line": 97, "status": "executed"},
+    ],
+    "detector_http_hypothesis_from_tcp_tls_only_observer_total": [
+        {"kind": "remove_stage_capability_gate", "name": "TestVantageTCPTLSOnlyObserverCannotSupportHTTPHypothesis (no-opinion regression)", "file": "src/detector/abd_path_test.go", "line": 41, "status": "executed"},
+    ],
+    "detector_observer_unavailable_as_target_failure_total": [
+        {"kind": "treat_unavailable_as_failure", "name": "TestVantageUnavailableIsNoOpinion (no-opinion regression)", "file": "src/detector/abd_path_test.go", "line": 27, "status": "executed"},
+    ],
+    "detector_exact_endpoint_service_resolution_conflated_total": [
+        {"kind": "remove_mode_gate", "name": "TestVantageExactModeIdentityConflationNoOpinion (regression)", "file": "src/detector/abd_path_test.go", "line": 79, "status": "executed"},
+    ],
+    "detector_observer_capability_unproven_total": [
+        {"kind": "remove_capability_fresh_gate", "name": "TestVantageCapabilityUnprovenIsNoOpinion (regression)", "file": "src/detector/abd_path_test.go", "line": 65, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -675,6 +1092,39 @@ EVIDENCE_ARTIFACTS["nfqueue_gso_transition_total"] = [
     "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
     "src/http/handler/hard_gate_producers_test.go",
 ]
+_EVIDENCE_WARP = [
+    "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/warp/hard_gate_producers_test.go",
+    "src/warp/runtime.go",
+]
+for _name in [
+    "warp_secret_leak_total", "warp_foreign_interface_modified_total",
+    "warp_recursive_control_route_total", "warp_mark_collision_total",
+    "warp_route_without_liveness_total",
+    "warp_destination_set_partial_apply_total", "warp_unbounded_restart_total",
+    "warp_unbounded_registration_total", "warp_unrelated_control_action_total",
+    "warp_rollback_failure_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
+_EVIDENCE_MONABD = [
+    "artifacts/audit/hard_gates_audit.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+]
+for _name in [
+    "monitor_first_success_erased_address_failures_total",
+    "monitor_http_hypothesis_from_tcp_tls_only_observer_total",
+    "monitor_observer_unavailable_as_target_failure_total",
+    "monitor_exact_endpoint_service_resolution_conflated_total",
+    "monitor_observer_capability_unproven_total",
+    "detector_first_success_erased_address_failures_total",
+    "detector_multivantage_stage_mismatch_total",
+    "detector_http_hypothesis_from_tcp_tls_only_observer_total",
+    "detector_observer_unavailable_as_target_failure_total",
+    "detector_exact_endpoint_service_resolution_conflated_total",
+    "detector_observer_capability_unproven_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_MONABD)
 
 GATE_RE = re.compile(r"^([a-z][a-z0-9_]+)\s*==\s*0\s*$")
 METRIC_RE = re.compile(r"^([a-z][a-z0-9_]+_total)(?:\{[^}]*\})?\s*$")
@@ -760,6 +1210,16 @@ def build_gates() -> tuple[dict[str, list[dict]], dict[str, str]]:
                 entries.append(entry)
         if entries:
             families[family] = entries
+    # Extra canonical gates (not extractable from the addenda; see
+    # EXTRA_GATES): added to the declared family and indexed, so --check
+    # never flags them as orphans and regeneration never drops them.
+    for name, entry in EXTRA_GATES.items():
+        fam = entry["owner_family"]
+        if name in index:
+            print(f"WARN: extra gate {name!r} already owned by {index[name]}", file=sys.stderr)
+            continue
+        index[name] = fam
+        families.setdefault(fam, []).append(dict(entry))
     return families, index
 
 

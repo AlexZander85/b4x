@@ -76,7 +76,7 @@ const (
 	MetricPassiveRSTRollback            = "passive_rst_rollback_total"
 	MetricPassiveRSTReconnectRegression = "passive_rst_reconnect_regression_total"
 
-// FB-29 resolution-experiment zero-tolerance counters (kept; the metric
+	// FB-29 resolution-experiment zero-tolerance counters (kept; the metric
 	// prefix matches the registry gate IDs
 	// monitor_/detector_first_success_erased_address_failures_total).
 	MetricMonitorFirstSuccessErasedAddressFailures  = "monitor_first_success_erased_address_failures_total"

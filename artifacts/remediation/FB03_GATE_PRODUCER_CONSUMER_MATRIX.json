@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-04T07:26:06Z",
+  "generated_at": "2026-08-04T09:48:22Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 35,
-  "missing": 248,
+  "verified": 45,
+  "missing": 238,
   "families_verified_missing": {
     "abd": [
       6,
@@ -38,8 +38,8 @@
       22
     ],
     "warp": [
-      0,
-      56
+      10,
+      46
     ]
   },
   "gates": [
@@ -2379,7 +2379,7 @@
       "stage": "cutover",
       "kind": "current_generation_readiness_input",
       "status": "missing",
-      "promotion_blocker": true,
+      "promotion_blocker": false,
       "producer": {
         "symbol": "",
         "file": "",
@@ -5369,15 +5369,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ApplyRoute -\u003e Metrics.Inc(MetricWarpDestinationSetPartialApply)",
+        "file": "src/warp/runtime.go",
+        "line": 317,
+        "mechanism": "increment-only counter via observability (non-atomic destination set application)",
+        "production_root": "warp.Runtime.ApplyRoute (atomic destination set; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPDestinationSetPartialApply",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 175,
+          "assertion": "partially applied destination set -\u003e ApplyRoute err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_direct_fallback_without_trace_total",
@@ -5417,15 +5455,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ApplyRoute -\u003e Metrics.Inc(MetricWarpForeignInterfaceModified)",
+        "file": "src/warp/runtime.go",
+        "line": 292,
+        "mechanism": "increment-only counter via observability (TunRegistry.Claim rejects foreign session lease)",
+        "production_root": "warp.Runtime.ApplyRoute (TUN ownership check; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPForeignInterfaceModified",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 72,
+          "assertion": "foreign session claims owned TUN -\u003e ApplyRoute err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_foreign_resource_removed_total",
@@ -5529,15 +5605,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ApplyRoute -\u003e Metrics.Inc(MetricWarpMarkCollision)",
+        "file": "src/warp/runtime.go",
+        "line": 306,
+        "mechanism": "increment-only counter via observability (policy-pinned mark owned by another session)",
+        "production_root": "warp.Runtime.ApplyRoute (mark ownership; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPMarkCollision",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 124,
+          "assertion": "second session pins owned mark -\u003e ApplyRoute err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_nested_control_direct_leak_total",
@@ -5689,15 +5803,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ApplyRoute -\u003e Metrics.Inc(MetricWarpRecursiveControlRoute)",
+        "file": "src/warp/runtime.go",
+        "line": 299,
+        "mechanism": "increment-only counter via observability (policy.Mark == warp-control-direct mark 0x6001)",
+        "production_root": "warp.Runtime.ApplyRoute (recursion guard, addendum §17/WARP-6; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPRecursiveControlRoute",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 102,
+          "assertion": "control route with warp-control-direct mark -\u003e ApplyRoute err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_rollback_failure_total",
@@ -5705,15 +5857,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.Rollback -\u003e Metrics.Inc(MetricWarpRollbackFailure)",
+        "file": "src/warp/runtime.go",
+        "line": 383,
+        "mechanism": "increment-only counter via observability (rollback with no previous applied state)",
+        "production_root": "warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPRollbackFailure",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 263,
+          "assertion": "rollback without previous state -\u003e err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_route_promoted_without_path_proof_event_total",
@@ -5737,15 +5927,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ApplyRoute -\u003e Metrics.Inc(MetricWarpRouteWithoutLiveness)",
+        "file": "src/warp/runtime.go",
+        "line": 284,
+        "mechanism": "increment-only counter via observability (promotion while HealthTracker != data-alive)",
+        "production_root": "warp.Runtime.ApplyRoute (liveness gate; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPRouteWithoutLiveness",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 154,
+          "assertion": "promotion without liveness proof -\u003e ApplyRoute err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_secret_leak_total",
@@ -5753,15 +5981,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.PublishTrace -\u003e Metrics.Inc(MetricWarpSecretLeak)",
+        "file": "src/warp/runtime.go",
+        "line": 407,
+        "mechanism": "increment-only counter via observability (trace payload carries raw session secret)",
+        "production_root": "warp.Runtime.PublishTrace (trace export redaction check; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPSecretLeak",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 42,
+          "assertion": "trace payload with raw secret -\u003e PublishTrace false \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_trace_dropped_required_event_total",
@@ -5865,15 +6131,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.Register -\u003e Metrics.Inc(MetricWarpUnboundedRegistration)",
+        "file": "src/warp/runtime.go",
+        "line": 224,
+        "mechanism": "increment-only counter via observability (enrollment attempt beyond policy MaxAttempts)",
+        "production_root": "warp.Runtime.Register (bounded enrollment; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPUnboundedRegistration",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 219,
+          "assertion": "enrollment beyond policy MaxAttempts -\u003e err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_unbounded_restart_total",
@@ -5881,15 +6185,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.Restart -\u003e Metrics.Inc(MetricWarpUnboundedRestart)",
+        "file": "src/warp/runtime.go",
+        "line": 349,
+        "mechanism": "increment-only counter via observability (restart beyond Config.MaxRestarts)",
+        "production_root": "warp.Runtime.Restart (bounded restart budget; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPUnboundedRestart",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 197,
+          "assertion": "restart beyond MaxRestarts -\u003e err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     },
     {
       "gate_id": "warp_unrelated_control_action_total",
@@ -5897,15 +6239,53 @@
       "class": "base_transport",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.ControlAction -\u003e Metrics.Inc(MetricWarpUnrelatedControlAction)",
+        "file": "src/warp/runtime.go",
+        "line": 366,
+        "mechanism": "increment-only counter via observability (control action on flow outside session authorization)",
+        "production_root": "warp.Runtime.ControlAction (exact-scoped authorization; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPUnrelatedControlAction",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 239,
+          "assertion": "control action on flow outside authorization -\u003e err \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ]
     }
   ]
 }

@@ -27,6 +27,14 @@ func (a *MarkAllocator) Release(mark uint32) {
 	}
 }
 
+// Owner returns the owner of the given mark, or "" when the mark is free.
+func (a *MarkAllocator) Owner(mark uint32) string {
+	if a == nil {
+		return ""
+	}
+	return a.owners[mark]
+}
+
 type DialPolicy struct {
 	Mark                    uint32
 	BindDevice, EndpointPin string

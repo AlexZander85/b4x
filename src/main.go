@@ -34,6 +34,7 @@ import (
 	"github.com/daniellavrushin/b4/tproxy"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/validation"
+	"github.com/daniellavrushin/b4/warp"
 	"github.com/daniellavrushin/b4/watchdog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -442,6 +443,15 @@ func runB4(cmd *cobra.Command, args []string) error {
 	monitoringRT.Start()
 	handler.SetMonitoringRuntime(monitoringRT)
 
+	// WARP base-transport lifecycle controller (FB-02 WARP section): owns the
+	// built-in WARP/MASQUE enrollment -> TUN -> routing lifecycle and the ten
+	// §72 base-transport hard-gate producers. Mirrors the monitoring runtime:
+	// Start/Stop bound its controller loop; the future WARP control plane
+	// feeds it via Submit (bounded, non-blocking).
+	warpRT := warp.NewRuntime(warp.DefaultConfig())
+	warpRT.Start()
+	handler.SetWarpRuntime(warpRT)
+
 	var geoScheduler *geodat.Scheduler
 	if apiHandler != nil {
 		geoScheduler = geodat.NewScheduler(
@@ -474,6 +484,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 
 	wd.Stop()
 	monitoringRT.Stop()
+	warpRT.Stop()
 	if geoScheduler != nil {
 		geoScheduler.Stop()
 	}
