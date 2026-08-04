@@ -1193,6 +1193,563 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "line": 605,
         "mechanism": "increment-only counter via observability (High cardinality metric label; MON addendum v1.0 sect. 92)",
         "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+
+    # --- ABD producers (FB-02 ABD section, 2026-08-04): every counter
+    # emitted by a guard in src/detector/hard_gate_producers.go (sect. 39-42),
+    # reachable from the validation controller loop via the release pipeline. ---
+    "detector_single_probe_confirmed_total": {
+        "symbol": "SingleProbeConfirmedAllowed -> Metrics.Inc(MetricABDSingleProbeConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 35,
+        "mechanism": "increment-only counter via observability (Single probe confirmed; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_exception_string_only_confirmed_total": {
+        "symbol": "ExceptionStringOnlyConfirmedAllowed -> Metrics.Inc(MetricABDExceptionStringOnlyConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 45,
+        "mechanism": "increment-only counter via observability (Exception string only confirmed; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_static_target_only_high_confidence_total": {
+        "symbol": "StaticTargetOnlyHighConfidenceAllowed -> Metrics.Inc(MetricABDStaticTargetOnlyHighConfidence)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 55,
+        "mechanism": "increment-only counter via observability (Static target only high confidence; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_self_interference_total": {
+        "symbol": "SelfInterferenceAllowed -> Metrics.Inc(MetricABDSelfInterference)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 65,
+        "mechanism": "increment-only counter via observability (Self interference; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_native_path_unproven_total": {
+        "symbol": "NativePathUnprovenAllowed -> Metrics.Inc(MetricABDNativePathUnproven)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 75,
+        "mechanism": "increment-only counter via observability (Native path unproven; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_capture_invalid_packet_verdict_total": {
+        "symbol": "CaptureInvalidPacketVerdictAllowed -> Metrics.Inc(MetricABDCaptureInvalidPacketVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 85,
+        "mechanism": "increment-only counter via observability (Capture invalid packet verdict; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_control_failure_ignored_total": {
+        "symbol": "ControlFailureIgnoredAllowed -> Metrics.Inc(MetricABDControlFailureIgnored)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 95,
+        "mechanism": "increment-only counter via observability (Control failure ignored; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_duplicate_evidence_confidence_increase_total": {
+        "symbol": "DuplicateEvidenceConfidenceIncreaseAllowed -> Metrics.Inc(MetricABDDupEvidenceConfidenceIncrease)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 117,
+        "mechanism": "increment-only counter via observability (Duplicate evidence confidence increase; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_cross_component_evidence_merge_total": {
+        "symbol": "CrossComponentEvidenceMergeAllowed -> Metrics.Inc(MetricABDCrossComponentEvidenceMerge)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 127,
+        "mechanism": "increment-only counter via observability (Cross component evidence merge; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_cross_generation_evidence_merge_total": {
+        "symbol": "CrossGenerationEvidenceMergeAllowed -> Metrics.Inc(MetricABDCrossGenerationEvidenceMerge)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 137,
+        "mechanism": "increment-only counter via observability (Cross generation evidence merge; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_unbounded_dynamic_scan_total": {
+        "symbol": "UnboundedDynamicScanAllowed -> Metrics.Inc(MetricABDUnboundedDynamicScan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 147,
+        "mechanism": "increment-only counter via observability (Unbounded dynamic scan; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_resource_budget_bypass_total": {
+        "symbol": "ResourceBudgetBypassAllowed -> Metrics.Inc(MetricABDResourceBudgetBypass)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 157,
+        "mechanism": "increment-only counter via observability (Resource budget bypass; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_sensitive_export_total": {
+        "symbol": "SensitiveExportAllowed -> Metrics.Inc(MetricABDSensitiveExport)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 166,
+        "mechanism": "increment-only counter via observability (Sensitive export; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_host_dead_from_single_reference_failure_total": {
+        "symbol": "HostDeadFromSingleReferenceFailureAllowed -> Metrics.Inc(MetricABDHostDeadSingleReferenceFailure)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 176,
+        "mechanism": "increment-only counter via observability (Host dead from single reference failure; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_reference_path_unhealthy_used_total": {
+        "symbol": "ReferencePathUnhealthyUsedAllowed -> Metrics.Inc(MetricABDReferencePathUnhealthyUsed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 186,
+        "mechanism": "increment-only counter via observability (Reference path unhealthy used; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_reference_path_used_as_action_authorization_total": {
+        "symbol": "ReferencePathUsedAsActionAuthorizationAllowed -> Metrics.Inc(MetricABDReferencePathAsActionAuth)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 196,
+        "mechanism": "increment-only counter via observability (Reference path used as action authorization; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_partial_run_profile_compiled_total": {
+        "symbol": "PartialRunProfileCompiledAllowed -> Metrics.Inc(MetricABDPartialRunProfileCompiled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 206,
+        "mechanism": "increment-only counter via observability (Partial run profile compiled; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_resume_cross_network_context_total": {
+        "symbol": "ResumeCrossNetworkContextAllowed -> Metrics.Inc(MetricABDResumeCrossNetworkContext)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 216,
+        "mechanism": "increment-only counter via observability (Resume cross network context; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_capacity_self_interference_total": {
+        "symbol": "CapacitySelfInterferenceAllowed -> Metrics.Inc(MetricABDCapacitySelfInterference)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 226,
+        "mechanism": "increment-only counter via observability (Capacity self interference; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)",
+    },
+    "detector_dns_single_resolver_spoof_confirmed_total": {
+        "symbol": "DNSSingleResolverSpoofConfirmedAllowed -> Metrics.Inc(MetricABDDNSSingleResolverSpoof)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 238,
+        "mechanism": "increment-only counter via observability (Dns single resolver spoof confirmed; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_dns_cdn_variance_misclassified_total": {
+        "symbol": "DNSCdnVarianceMisclassifiedAllowed -> Metrics.Inc(MetricABDDNSCdnVarianceMisclassified)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 248,
+        "mechanism": "increment-only counter via observability (Dns cdn variance misclassified; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_unverified_mitm_verdict_total": {
+        "symbol": "UnverifiedMITMVerdictAllowed -> Metrics.Inc(MetricABDUnverifiedMITMVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 257,
+        "mechanism": "increment-only counter via observability (Unverified mitm verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_tls_availability_integrity_conflation_total": {
+        "symbol": "TLSAvailabilityIntegrityConflationAllowed -> Metrics.Inc(MetricABDTLSAvailabilityIntegrityConflate)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 267,
+        "mechanism": "increment-only counter via observability (Tls availability integrity conflation; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_tls_fingerprint_unlabeled_total": {
+        "symbol": "TLSFingerprintUnlabeledAllowed -> Metrics.Inc(MetricABDTLSFingerprintUnlabeled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 276,
+        "mechanism": "increment-only counter via observability (Tls fingerprint unlabeled; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_quic_single_target_global_udp_verdict_total": {
+        "symbol": "QUICSingleTargetGlobalUDPVerdictAllowed -> Metrics.Inc(MetricABDQUICSingleTargetGlobalUDP)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 286,
+        "mechanism": "increment-only counter via observability (Quic single target global udp verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_quic_tcp_evidence_conflation_total": {
+        "symbol": "QUICTCPEvidenceConflationAllowed -> Metrics.Inc(MetricABDQUICTCPEvidenceConflation)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 296,
+        "mechanism": "increment-only counter via observability (Quic tcp evidence conflation; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_valid_application_error_dpi_total": {
+        "symbol": "ValidApplicationErrorDPIAllowed -> Metrics.Inc(MetricABDValidAppErrorDPI)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 306,
+        "mechanism": "increment-only counter via observability (Valid application error dpi; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_head_only_available_verdict_total": {
+        "symbol": "HeadOnlyAvailableVerdictAllowed -> Metrics.Inc(MetricABDHeadOnlyAvailableVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 315,
+        "mechanism": "increment-only counter via observability (Head only available verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_partial_progress_discarded_total": {
+        "symbol": "PartialProgressDiscardedAllowed -> Metrics.Inc(MetricABDPartialProgressDiscarded)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 325,
+        "mechanism": "increment-only counter via observability (Partial progress discarded; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_small_object_classified_throttled_total": {
+        "symbol": "SmallObjectClassifiedThrottledAllowed -> Metrics.Inc(MetricABDSmallObjectClassifiedThrottled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 335,
+        "mechanism": "increment-only counter via observability (Small object classified throttled; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_fixed_16kb_window_confirmed_without_profile_total": {
+        "symbol": "Fixed16kbWindowConfirmedWithoutProfileAllowed -> Metrics.Inc(MetricABDFixed16kbWindowNoProfile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 345,
+        "mechanism": "increment-only counter via observability (Fixed 16kb window confirmed without profile; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)",
+    },
+    "detector_packet_threshold_reported_as_byte_threshold_total": {
+        "symbol": "PacketThresholdReportedAsByteThresholdAllowed -> Metrics.Inc(MetricABDPacketThresholdAsByte)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 357,
+        "mechanism": "increment-only counter via observability (Packet threshold reported as byte threshold; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_byte_threshold_reported_as_packet_threshold_total": {
+        "symbol": "ByteThresholdReportedAsPacketThresholdAllowed -> Metrics.Inc(MetricABDByteThresholdAsPacket)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 367,
+        "mechanism": "increment-only counter via observability (Byte threshold reported as packet threshold; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_gso_skb_count_as_wire_packet_total": {
+        "symbol": "GsoSkbCountAsWirePacketAllowed -> Metrics.Inc(MetricABDGsoSkbCountAsWirePacket)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 377,
+        "mechanism": "increment-only counter via observability (Gso skb count as wire packet; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_single_origin_l4_budget_confirmed_total": {
+        "symbol": "SingleOriginL4BudgetConfirmedAllowed -> Metrics.Inc(MetricABDSingleOriginL4BudgetConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 387,
+        "mechanism": "increment-only counter via observability (Single origin l4 budget confirmed; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_server_header_limit_dpi_total": {
+        "symbol": "ServerHeaderLimitDPIDeniedAllowed -> Metrics.Inc(MetricABDServerHeaderLimitDPI)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 397,
+        "mechanism": "increment-only counter via observability (Server header limit dpi; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_retransmission_counted_as_progress_total": {
+        "symbol": "RetransmissionCountedAsProgressAllowed -> Metrics.Inc(MetricABDRetransmissionAsProgress)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 407,
+        "mechanism": "increment-only counter via observability (Retransmission counted as progress; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "detector_l4_threshold_without_controls_total": {
+        "symbol": "L4ThresholdWithoutControlsAllowed -> Metrics.Inc(MetricABDL4ThresholdWithoutControls)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 417,
+        "mechanism": "increment-only counter via observability (L4 threshold without controls; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)",
+    },
+    "blocking_profile_without_target_plan_total": {
+        "symbol": "BlockingProfileWithoutTargetPlanAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutTargetPlan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 429,
+        "mechanism": "increment-only counter via observability (Without target plan; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_without_network_context_total": {
+        "symbol": "BlockingProfileWithoutNetworkContextAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutNetCtx)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 439,
+        "mechanism": "increment-only counter via observability (Without network context; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_without_provenance_total": {
+        "symbol": "BlockingProfileWithoutProvenanceAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutProvenance)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 449,
+        "mechanism": "increment-only counter via observability (Without provenance; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_mutated_after_compile_total": {
+        "symbol": "BlockingProfileMutatedAfterCompileAllowed -> Metrics.Inc(MetricABDBlockingProfileMutatedAfterCompile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 459,
+        "mechanism": "increment-only counter via observability (Mutated after compile; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_high_confidence_with_contradiction_total": {
+        "symbol": "BlockingProfileHighConfidenceWithContradictionAllowed -> Metrics.Inc(MetricABDBlockingProfileHighConfidenceContradiction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 469,
+        "mechanism": "increment-only counter via observability (High confidence with contradiction; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_direct_action_authorization_total": {
+        "symbol": "BlockingProfileDirectActionAuthorizationAllowed -> Metrics.Inc(MetricABDBlockingProfileDirectActionAuth)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 479,
+        "mechanism": "increment-only counter via observability (Direct action authorization; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "blocking_profile_direct_production_write_total": {
+        "symbol": "BlockingProfileDirectProductionWriteAllowed -> Metrics.Inc(MetricABDBlockingProfileDirectProdWrite)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 489,
+        "mechanism": "increment-only counter via observability (Direct production write; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_skipped_baseline_total": {
+        "symbol": "GuidedSearchSkippedBaselineAllowed -> Metrics.Inc(MetricABDGuidedSearchSkippedBaseline)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 504,
+        "mechanism": "increment-only counter via observability (Skipped baseline; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_disabled_full_fallback_total": {
+        "symbol": "GuidedSearchDisabledFullFallbackAllowed -> Metrics.Inc(MetricABDGuidedSearchDisabledFullFallback)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 515,
+        "mechanism": "increment-only counter via observability (Disabled full fallback; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_profile_overrode_current_baseline_total": {
+        "symbol": "GuidedSearchProfileOverrodeBaselineAllowed -> Metrics.Inc(MetricABDGuidedSearchOverrodeBaseline)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 525,
+        "mechanism": "increment-only counter via observability (Profile overrode current baseline; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_target_unvalidated_promotion_total": {
+        "symbol": "GuidedSearchTargetUnvalidatedPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchUnvalidatedPromotion)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 535,
+        "mechanism": "increment-only counter via observability (Target unvalidated promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_cross_service_action_total": {
+        "symbol": "GuidedSearchCrossServiceActionAllowed -> Metrics.Inc(MetricABDGuidedSearchCrossServiceAction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 545,
+        "mechanism": "increment-only counter via observability (Cross service action; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_white_sni_direct_promotion_total": {
+        "symbol": "GuidedSearchWhiteSNIDirectPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchWhiteSNIDirectPromotion)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 555,
+        "mechanism": "increment-only counter via observability (White sni direct promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_false_savings_report_total": {
+        "symbol": "GuidedSearchFalseSavingsReportAllowed -> Metrics.Inc(MetricABDGuidedSearchFalseSavingsReport)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 565,
+        "mechanism": "increment-only counter via observability (False savings report; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_required_component_uncovered_total": {
+        "symbol": "GuidedSearchRequiredComponentUncoveredAllowed -> Metrics.Inc(MetricABDGuidedSearchRequiredComponentUncovered)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 580,
+        "mechanism": "increment-only counter via observability (Required component uncovered; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_coverage_ignored_control_regression_total": {
+        "symbol": "GuidedSearchCoverageIgnoredControlRegressionAllowed -> Metrics.Inc(MetricABDGuidedSearchCoverageIgnoredControlRegression)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 591,
+        "mechanism": "increment-only counter via observability (Coverage ignored control regression; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_cross_service_set_cover_total": {
+        "symbol": "GuidedSearchCrossServiceSetCoverAllowed -> Metrics.Inc(MetricABDGuidedSearchCrossServiceSetCover)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 601,
+        "mechanism": "increment-only counter via observability (Cross service set cover; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_excluded_target_hidden_total": {
+        "symbol": "GuidedSearchExcludedTargetHiddenAllowed -> Metrics.Inc(MetricABDGuidedSearchExcludedTargetHidden)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 616,
+        "mechanism": "increment-only counter via observability (Excluded target hidden; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_more_complex_candidate_preferred_without_gain_total": {
+        "symbol": "GuidedSearchMoreComplexPreferredWithoutGainAllowed -> Metrics.Inc(MetricABDGuidedSearchMoreComplexPreferredNoGain)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 627,
+        "mechanism": "increment-only counter via observability (More complex candidate preferred without gain; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "guided_search_unverified_shortlist_promotion_total": {
+        "symbol": "GuidedSearchUnverifiedShortlistPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchUnverifiedShortlist)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 637,
+        "mechanism": "increment-only counter via observability (Unverified shortlist promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)",
+    },
+    "detector_monitor_request_direct_action_total": {
+        "symbol": "MonitorRequestDirectActionAllowed -> Metrics.Inc(MetricABDMonitorRequestDirectAction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 649,
+        "mechanism": "increment-only counter via observability (Monitor request direct action; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_request_without_target_plan_overlay_total": {
+        "symbol": "MonitorRequestWithoutTargetPlanOverlayAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutTargetPlan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 659,
+        "mechanism": "increment-only counter via observability (Monitor request without target plan overlay; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_request_without_network_context_total": {
+        "symbol": "MonitorRequestWithoutNetworkContextAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutNetworkCtx)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 669,
+        "mechanism": "increment-only counter via observability (Monitor request without network context; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_request_without_config_generation_total": {
+        "symbol": "MonitorRequestWithoutConfigGenerationAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutConfigGen)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 679,
+        "mechanism": "increment-only counter via observability (Monitor request without config generation; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_request_without_budget_token_total": {
+        "symbol": "MonitorRequestWithoutBudgetTokenAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutBudgetToken)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 689,
+        "mechanism": "increment-only counter via observability (Monitor request without budget token; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_request_expired_accepted_total": {
+        "symbol": "MonitorRequestExpiredAcceptedAllowed -> Metrics.Inc(MetricABDMonitorRequestExpiredAccepted)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 699,
+        "mechanism": "increment-only counter via observability (Monitor request expired accepted; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_provisional_monitor_evidence_profile_compiled_total": {
+        "symbol": "ProvisionalMonitorEvidenceProfileCompiledAllowed -> Metrics.Inc(MetricABDProvisionalMonitorProfileCompiled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 709,
+        "mechanism": "increment-only counter via observability (Provisional monitor evidence profile compiled; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_passive_observation_counted_as_independent_probe_total": {
+        "symbol": "PassiveObservationCountedAsIndependentProbeAllowed -> Metrics.Inc(MetricABDPassiveObservationAsIndependentProbe)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 719,
+        "mechanism": "increment-only counter via observability (Passive observation counted as independent probe; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_recurrence_counted_as_evidence_independence_total": {
+        "symbol": "MonitorRecurrenceCountedAsIndependenceAllowed -> Metrics.Inc(MetricABDMonitorRecurrenceAsIndependence)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 729,
+        "mechanism": "increment-only counter via observability (Monitor recurrence counted as evidence independence; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_client_resolution_replaced_silently_total": {
+        "symbol": "ClientResolutionReplacedSilentlyAllowed -> Metrics.Inc(MetricABDClientResolutionReplacedSilently)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 739,
+        "mechanism": "increment-only counter via observability (Client resolution replaced silently; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_probe_without_resolution_binding_total": {
+        "symbol": "ProbeWithoutResolutionBindingAllowed -> Metrics.Inc(MetricABDProbeWithoutResolutionBinding)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 749,
+        "mechanism": "increment-only counter via observability (Probe without resolution binding; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_cname_terminal_ip_misattributed_total": {
+        "symbol": "CnameTerminalIPMisattributedAllowed -> Metrics.Inc(MetricABDCnameTerminalIPMisattributed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 764,
+        "mechanism": "increment-only counter via observability (Cname terminal ip misattributed; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_multi_ip_partial_failure_hidden_total": {
+        "symbol": "MultiIPPartialFailureHiddenAllowed -> Metrics.Inc(MetricABDMultiIPPartialFailureHidden)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 781,
+        "mechanism": "increment-only counter via observability (Multi ip partial failure hidden; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_stale_client_resolution_used_total": {
+        "symbol": "StaleClientResolutionUsedAllowed -> Metrics.Inc(MetricABDStaleClientResolutionUsed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 790,
+        "mechanism": "increment-only counter via observability (Stale client resolution used; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_result_without_monitor_assessment_link_total": {
+        "symbol": "ResultWithoutMonitorAssessmentLinkAllowed -> Metrics.Inc(MetricABDResultWithoutAssessmentLink)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 800,
+        "mechanism": "increment-only counter via observability (Result without monitor assessment link; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_result_cross_network_context_total": {
+        "symbol": "ResultCrossNetworkContextAllowed -> Metrics.Inc(MetricABDResultCrossNetworkContext)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 810,
+        "mechanism": "increment-only counter via observability (Result cross network context; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_result_cross_config_generation_total": {
+        "symbol": "ResultCrossConfigGenerationAllowed -> Metrics.Inc(MetricABDResultCrossConfigGeneration)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 820,
+        "mechanism": "increment-only counter via observability (Result cross config generation; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_result_cross_monitoring_epoch_total": {
+        "symbol": "ResultCrossMonitoringEpochAllowed -> Metrics.Inc(MetricABDResultCrossMonitoringEpoch)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 830,
+        "mechanism": "increment-only counter via observability (Result cross monitoring epoch; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_incomplete_run_final_profile_total": {
+        "symbol": "IncompleteRunFinalProfileAllowed -> Metrics.Inc(MetricABDIncompleteRunFinalProfile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 840,
+        "mechanism": "increment-only counter via observability (Incomplete run final profile; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_result_action_authorization_total": {
+        "symbol": "MonitorResultActionAuthorizationAllowed -> Metrics.Inc(MetricABDMonitorResultActionAuthorization)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 850,
+        "mechanism": "increment-only counter via observability (Monitor result action authorization; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
+    },
+    "detector_monitor_result_delivery_identity_mismatch_total": {
+        "symbol": "MonitorResultDeliveryIdentityMismatchAllowed -> Metrics.Inc(MetricABDMonitorResultDeliveryIdentityMismatch)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 860,
+        "mechanism": "increment-only counter via observability (Monitor result delivery identity mismatch; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)",
     },}
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -1273,7 +1830,87 @@ GATE_KINDS: dict[str, str] = {
     "mtproto_bridge_primary_failure_silent_drop_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_overflow_without_reason_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_shutdown_leak_total": "zero_tolerance_violation_counter",
-        # --- MON continuous-blocking monitoring zero-tolerance counters (addendum v1.0 84-92) ---
+            # --- ABD detector zero-tolerance counters (addendum v1.2 39-42) ---
+    "detector_single_probe_confirmed_total": "zero_tolerance_violation_counter",
+    "detector_exception_string_only_confirmed_total": "zero_tolerance_violation_counter",
+    "detector_static_target_only_high_confidence_total": "zero_tolerance_violation_counter",
+    "detector_self_interference_total": "zero_tolerance_violation_counter",
+    "detector_native_path_unproven_total": "zero_tolerance_violation_counter",
+    "detector_capture_invalid_packet_verdict_total": "zero_tolerance_violation_counter",
+    "detector_control_failure_ignored_total": "zero_tolerance_violation_counter",
+    "detector_duplicate_evidence_confidence_increase_total": "zero_tolerance_violation_counter",
+    "detector_cross_component_evidence_merge_total": "zero_tolerance_violation_counter",
+    "detector_cross_generation_evidence_merge_total": "zero_tolerance_violation_counter",
+    "detector_unbounded_dynamic_scan_total": "zero_tolerance_violation_counter",
+    "detector_resource_budget_bypass_total": "zero_tolerance_violation_counter",
+    "detector_sensitive_export_total": "zero_tolerance_violation_counter",
+    "detector_host_dead_from_single_reference_failure_total": "zero_tolerance_violation_counter",
+    "detector_reference_path_unhealthy_used_total": "zero_tolerance_violation_counter",
+    "detector_reference_path_used_as_action_authorization_total": "zero_tolerance_violation_counter",
+    "detector_partial_run_profile_compiled_total": "zero_tolerance_violation_counter",
+    "detector_resume_cross_network_context_total": "zero_tolerance_violation_counter",
+    "detector_capacity_self_interference_total": "zero_tolerance_violation_counter",
+    "detector_dns_single_resolver_spoof_confirmed_total": "zero_tolerance_violation_counter",
+    "detector_dns_cdn_variance_misclassified_total": "zero_tolerance_violation_counter",
+    "detector_unverified_mitm_verdict_total": "zero_tolerance_violation_counter",
+    "detector_tls_availability_integrity_conflation_total": "zero_tolerance_violation_counter",
+    "detector_tls_fingerprint_unlabeled_total": "zero_tolerance_violation_counter",
+    "detector_quic_single_target_global_udp_verdict_total": "zero_tolerance_violation_counter",
+    "detector_quic_tcp_evidence_conflation_total": "zero_tolerance_violation_counter",
+    "detector_valid_application_error_dpi_total": "zero_tolerance_violation_counter",
+    "detector_head_only_available_verdict_total": "zero_tolerance_violation_counter",
+    "detector_partial_progress_discarded_total": "zero_tolerance_violation_counter",
+    "detector_small_object_classified_throttled_total": "zero_tolerance_violation_counter",
+    "detector_fixed_16kb_window_confirmed_without_profile_total": "zero_tolerance_violation_counter",
+    "detector_packet_threshold_reported_as_byte_threshold_total": "zero_tolerance_violation_counter",
+    "detector_byte_threshold_reported_as_packet_threshold_total": "zero_tolerance_violation_counter",
+    "detector_gso_skb_count_as_wire_packet_total": "zero_tolerance_violation_counter",
+    "detector_single_origin_l4_budget_confirmed_total": "zero_tolerance_violation_counter",
+    "detector_server_header_limit_dpi_total": "zero_tolerance_violation_counter",
+    "detector_retransmission_counted_as_progress_total": "zero_tolerance_violation_counter",
+    "detector_l4_threshold_without_controls_total": "zero_tolerance_violation_counter",
+    "blocking_profile_without_target_plan_total": "zero_tolerance_violation_counter",
+    "blocking_profile_without_network_context_total": "zero_tolerance_violation_counter",
+    "blocking_profile_without_provenance_total": "zero_tolerance_violation_counter",
+    "blocking_profile_mutated_after_compile_total": "zero_tolerance_violation_counter",
+    "blocking_profile_high_confidence_with_contradiction_total": "zero_tolerance_violation_counter",
+    "blocking_profile_direct_action_authorization_total": "zero_tolerance_violation_counter",
+    "blocking_profile_direct_production_write_total": "zero_tolerance_violation_counter",
+    "guided_search_skipped_baseline_total": "zero_tolerance_violation_counter",
+    "guided_search_disabled_full_fallback_total": "zero_tolerance_violation_counter",
+    "guided_search_profile_overrode_current_baseline_total": "zero_tolerance_violation_counter",
+    "guided_search_target_unvalidated_promotion_total": "zero_tolerance_violation_counter",
+    "guided_search_cross_service_action_total": "zero_tolerance_violation_counter",
+    "guided_search_white_sni_direct_promotion_total": "zero_tolerance_violation_counter",
+    "guided_search_false_savings_report_total": "zero_tolerance_violation_counter",
+    "guided_search_required_component_uncovered_total": "zero_tolerance_violation_counter",
+    "guided_search_coverage_ignored_control_regression_total": "zero_tolerance_violation_counter",
+    "guided_search_cross_service_set_cover_total": "zero_tolerance_violation_counter",
+    "guided_search_excluded_target_hidden_total": "zero_tolerance_violation_counter",
+    "guided_search_more_complex_candidate_preferred_without_gain_total": "zero_tolerance_violation_counter",
+    "guided_search_unverified_shortlist_promotion_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_direct_action_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_without_target_plan_overlay_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_without_network_context_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_without_config_generation_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_without_budget_token_total": "zero_tolerance_violation_counter",
+    "detector_monitor_request_expired_accepted_total": "zero_tolerance_violation_counter",
+    "detector_provisional_monitor_evidence_profile_compiled_total": "zero_tolerance_violation_counter",
+    "detector_passive_observation_counted_as_independent_probe_total": "zero_tolerance_violation_counter",
+    "detector_monitor_recurrence_counted_as_evidence_independence_total": "zero_tolerance_violation_counter",
+    "detector_client_resolution_replaced_silently_total": "zero_tolerance_violation_counter",
+    "detector_probe_without_resolution_binding_total": "zero_tolerance_violation_counter",
+    "detector_cname_terminal_ip_misattributed_total": "zero_tolerance_violation_counter",
+    "detector_multi_ip_partial_failure_hidden_total": "zero_tolerance_violation_counter",
+    "detector_stale_client_resolution_used_total": "zero_tolerance_violation_counter",
+    "detector_result_without_monitor_assessment_link_total": "zero_tolerance_violation_counter",
+    "detector_result_cross_network_context_total": "zero_tolerance_violation_counter",
+    "detector_result_cross_config_generation_total": "zero_tolerance_violation_counter",
+    "detector_result_cross_monitoring_epoch_total": "zero_tolerance_violation_counter",
+    "detector_incomplete_run_final_profile_total": "zero_tolerance_violation_counter",
+    "detector_monitor_result_action_authorization_total": "zero_tolerance_violation_counter",
+    "detector_monitor_result_delivery_identity_mismatch_total": "zero_tolerance_violation_counter",
+# --- MON continuous-blocking monitoring zero-tolerance counters (addendum v1.0 84-92) ---
     "monitor_observation_direct_action_total": "zero_tolerance_violation_counter",
     "monitor_provisional_profile_compiled_total": "zero_tolerance_violation_counter",
     "monitor_passive_discovery_start_total": "zero_tolerance_violation_counter",
@@ -1407,7 +2044,325 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport consumers (FB-02 WARP section): the narrow
     # causal-trace verdict evaluates exactly these ten gates (FB-14
-        # --- MON zero-tolerance counters (addendum v1.0 84-92; fail-closed via
+            # --- ABD zero-tolerance counters (addendum v1.2 39-42; fail-closed via
+    # EvaluateHardGates scope.abd, release pipeline) ---
+    "detector_single_probe_confirmed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_exception_string_only_confirmed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_static_target_only_high_confidence_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_self_interference_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_native_path_unproven_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_capture_invalid_packet_verdict_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_control_failure_ignored_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_duplicate_evidence_confidence_increase_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_cross_component_evidence_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_cross_generation_evidence_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_unbounded_dynamic_scan_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_resource_budget_bypass_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_sensitive_export_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_host_dead_from_single_reference_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_reference_path_unhealthy_used_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_reference_path_used_as_action_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_partial_run_profile_compiled_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_resume_cross_network_context_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_capacity_self_interference_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_dns_single_resolver_spoof_confirmed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_dns_cdn_variance_misclassified_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_unverified_mitm_verdict_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_tls_availability_integrity_conflation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_tls_fingerprint_unlabeled_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_quic_single_target_global_udp_verdict_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_quic_tcp_evidence_conflation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_valid_application_error_dpi_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_head_only_available_verdict_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_partial_progress_discarded_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_small_object_classified_throttled_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_fixed_16kb_window_confirmed_without_profile_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_packet_threshold_reported_as_byte_threshold_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_byte_threshold_reported_as_packet_threshold_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_gso_skb_count_as_wire_packet_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_single_origin_l4_budget_confirmed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_server_header_limit_dpi_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_retransmission_counted_as_progress_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_l4_threshold_without_controls_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_without_target_plan_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_without_network_context_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_without_provenance_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_mutated_after_compile_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_high_confidence_with_contradiction_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_direct_action_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "blocking_profile_direct_production_write_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_skipped_baseline_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_disabled_full_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_profile_overrode_current_baseline_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_target_unvalidated_promotion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_cross_service_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_white_sni_direct_promotion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_false_savings_report_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_required_component_uncovered_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_coverage_ignored_control_regression_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_cross_service_set_cover_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_excluded_target_hidden_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_more_complex_candidate_preferred_without_gain_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "guided_search_unverified_shortlist_promotion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_direct_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_without_target_plan_overlay_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_without_network_context_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_without_config_generation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_without_budget_token_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_request_expired_accepted_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_provisional_monitor_evidence_profile_compiled_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_passive_observation_counted_as_independent_probe_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_recurrence_counted_as_evidence_independence_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_client_resolution_replaced_silently_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_probe_without_resolution_binding_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_cname_terminal_ip_misattributed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_multi_ip_partial_failure_hidden_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_stale_client_resolution_used_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_result_without_monitor_assessment_link_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_result_cross_network_context_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_result_cross_config_generation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_result_cross_monitoring_epoch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_incomplete_run_final_profile_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_result_action_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "detector_monitor_result_delivery_identity_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.abd; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+# --- MON zero-tolerance counters (addendum v1.0 84-92; fail-closed via
     # EvaluateHardGates scope.mon, release pipeline) ---
     "monitor_observation_direct_action_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
@@ -2090,7 +3045,247 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport negative fixtures (FB-02 WARP section):
     # each test drives the violating branch of the production runtime and
-        # --- MON negative fixtures (addendum v1.0 84-92): each test drives the
+            # --- ABD negative fixtures (addendum v1.2 39-42): each test drives the
+    # violating branch of the production guard and asserts the
+    # zero-tolerance counter moved. ---
+    "detector_single_probe_confirmed_total": [
+        {"kind": "negative_fixture", "name": "TestABDSingleProbeConfirmed", "file": "src/detector/hard_gate_producers_test.go", "line": 122, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_exception_string_only_confirmed_total": [
+        {"kind": "negative_fixture", "name": "TestABDExceptionStringOnlyConfirmed", "file": "src/detector/hard_gate_producers_test.go", "line": 128, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_static_target_only_high_confidence_total": [
+        {"kind": "negative_fixture", "name": "TestABDStaticTargetOnlyHighConfidence", "file": "src/detector/hard_gate_producers_test.go", "line": 134, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_self_interference_total": [
+        {"kind": "negative_fixture", "name": "TestABDSelfInterference", "file": "src/detector/hard_gate_producers_test.go", "line": 140, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_native_path_unproven_total": [
+        {"kind": "negative_fixture", "name": "TestABDNativePathUnproven", "file": "src/detector/hard_gate_producers_test.go", "line": 146, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_capture_invalid_packet_verdict_total": [
+        {"kind": "negative_fixture", "name": "TestABDCaptureInvalidPacketVerdict", "file": "src/detector/hard_gate_producers_test.go", "line": 152, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_control_failure_ignored_total": [
+        {"kind": "negative_fixture", "name": "TestABDControlFailureIgnored", "file": "src/detector/hard_gate_producers_test.go", "line": 158, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_duplicate_evidence_confidence_increase_total": [
+        {"kind": "negative_fixture", "name": "TestABDDupEvidenceConfidenceIncrease", "file": "src/detector/hard_gate_producers_test.go", "line": 164, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_cross_component_evidence_merge_total": [
+        {"kind": "negative_fixture", "name": "TestABDCrossComponentEvidenceMerge", "file": "src/detector/hard_gate_producers_test.go", "line": 172, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_cross_generation_evidence_merge_total": [
+        {"kind": "negative_fixture", "name": "TestABDCrossGenerationEvidenceMerge", "file": "src/detector/hard_gate_producers_test.go", "line": 180, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_unbounded_dynamic_scan_total": [
+        {"kind": "negative_fixture", "name": "TestABDUnboundedDynamicScan", "file": "src/detector/hard_gate_producers_test.go", "line": 186, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_resource_budget_bypass_total": [
+        {"kind": "negative_fixture", "name": "TestABDResourceBudgetBypass", "file": "src/detector/hard_gate_producers_test.go", "line": 192, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_sensitive_export_total": [
+        {"kind": "negative_fixture", "name": "TestABDSensitiveExport", "file": "src/detector/hard_gate_producers_test.go", "line": 198, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_host_dead_from_single_reference_failure_total": [
+        {"kind": "negative_fixture", "name": "TestABDHostDeadSingleReferenceFailure", "file": "src/detector/hard_gate_producers_test.go", "line": 204, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_reference_path_unhealthy_used_total": [
+        {"kind": "negative_fixture", "name": "TestABDReferencePathUnhealthyUsed", "file": "src/detector/hard_gate_producers_test.go", "line": 210, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_reference_path_used_as_action_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestABDReferencePathAsActionAuth", "file": "src/detector/hard_gate_producers_test.go", "line": 216, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_partial_run_profile_compiled_total": [
+        {"kind": "negative_fixture", "name": "TestABDPartialRunProfileCompiled", "file": "src/detector/hard_gate_producers_test.go", "line": 222, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_resume_cross_network_context_total": [
+        {"kind": "negative_fixture", "name": "TestABDResumeCrossNetworkContext", "file": "src/detector/hard_gate_producers_test.go", "line": 228, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_capacity_self_interference_total": [
+        {"kind": "negative_fixture", "name": "TestABDCapacitySelfInterference", "file": "src/detector/hard_gate_producers_test.go", "line": 234, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_dns_single_resolver_spoof_confirmed_total": [
+        {"kind": "negative_fixture", "name": "TestABDDNSSingleResolverSpoof", "file": "src/detector/hard_gate_producers_test.go", "line": 242, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_dns_cdn_variance_misclassified_total": [
+        {"kind": "negative_fixture", "name": "TestABDDNSCdnVarianceMisclassified", "file": "src/detector/hard_gate_producers_test.go", "line": 248, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_unverified_mitm_verdict_total": [
+        {"kind": "negative_fixture", "name": "TestABDUnverifiedMITMVerdict", "file": "src/detector/hard_gate_producers_test.go", "line": 254, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_tls_availability_integrity_conflation_total": [
+        {"kind": "negative_fixture", "name": "TestABDTLSAvailabilityIntegrityConflation", "file": "src/detector/hard_gate_producers_test.go", "line": 260, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_tls_fingerprint_unlabeled_total": [
+        {"kind": "negative_fixture", "name": "TestABDTLSFingerprintUnlabeled", "file": "src/detector/hard_gate_producers_test.go", "line": 266, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_quic_single_target_global_udp_verdict_total": [
+        {"kind": "negative_fixture", "name": "TestABDQUICSingleTargetGlobalUDP", "file": "src/detector/hard_gate_producers_test.go", "line": 272, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_quic_tcp_evidence_conflation_total": [
+        {"kind": "negative_fixture", "name": "TestABDQUICTCPEvidenceConflation", "file": "src/detector/hard_gate_producers_test.go", "line": 278, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_valid_application_error_dpi_total": [
+        {"kind": "negative_fixture", "name": "TestABDValidAppErrorDPI", "file": "src/detector/hard_gate_producers_test.go", "line": 284, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_head_only_available_verdict_total": [
+        {"kind": "negative_fixture", "name": "TestABDHeadOnlyAvailableVerdict", "file": "src/detector/hard_gate_producers_test.go", "line": 290, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_partial_progress_discarded_total": [
+        {"kind": "negative_fixture", "name": "TestABDPartialProgressDiscarded", "file": "src/detector/hard_gate_producers_test.go", "line": 296, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_small_object_classified_throttled_total": [
+        {"kind": "negative_fixture", "name": "TestABDSmallObjectClassifiedThrottled", "file": "src/detector/hard_gate_producers_test.go", "line": 302, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_fixed_16kb_window_confirmed_without_profile_total": [
+        {"kind": "negative_fixture", "name": "TestABDFixed16kbWindowNoProfile", "file": "src/detector/hard_gate_producers_test.go", "line": 308, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_packet_threshold_reported_as_byte_threshold_total": [
+        {"kind": "negative_fixture", "name": "TestABDPacketThresholdAsByte", "file": "src/detector/hard_gate_producers_test.go", "line": 316, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_byte_threshold_reported_as_packet_threshold_total": [
+        {"kind": "negative_fixture", "name": "TestABDByteThresholdAsPacket", "file": "src/detector/hard_gate_producers_test.go", "line": 322, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_gso_skb_count_as_wire_packet_total": [
+        {"kind": "negative_fixture", "name": "TestABDGsoSkbCountAsWirePacket", "file": "src/detector/hard_gate_producers_test.go", "line": 328, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_single_origin_l4_budget_confirmed_total": [
+        {"kind": "negative_fixture", "name": "TestABDSingleOriginL4BudgetConfirmed", "file": "src/detector/hard_gate_producers_test.go", "line": 334, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_server_header_limit_dpi_total": [
+        {"kind": "negative_fixture", "name": "TestABDServerHeaderLimitDPI", "file": "src/detector/hard_gate_producers_test.go", "line": 340, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_retransmission_counted_as_progress_total": [
+        {"kind": "negative_fixture", "name": "TestABDRetransmissionAsProgress", "file": "src/detector/hard_gate_producers_test.go", "line": 346, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_l4_threshold_without_controls_total": [
+        {"kind": "negative_fixture", "name": "TestABDL4ThresholdWithoutControls", "file": "src/detector/hard_gate_producers_test.go", "line": 352, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_without_target_plan_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileWithoutTargetPlan", "file": "src/detector/hard_gate_producers_test.go", "line": 360, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_without_network_context_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileWithoutNetCtx", "file": "src/detector/hard_gate_producers_test.go", "line": 368, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_without_provenance_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileWithoutProvenance", "file": "src/detector/hard_gate_producers_test.go", "line": 376, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_mutated_after_compile_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileMutatedAfterCompile", "file": "src/detector/hard_gate_producers_test.go", "line": 382, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_high_confidence_with_contradiction_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileHighConfidenceContradiction", "file": "src/detector/hard_gate_producers_test.go", "line": 388, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_direct_action_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileDirectActionAuth", "file": "src/detector/hard_gate_producers_test.go", "line": 394, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "blocking_profile_direct_production_write_total": [
+        {"kind": "negative_fixture", "name": "TestABDBlockingProfileDirectProdWrite", "file": "src/detector/hard_gate_producers_test.go", "line": 400, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_skipped_baseline_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchSkippedBaseline", "file": "src/detector/hard_gate_producers_test.go", "line": 407, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_disabled_full_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchDisabledFullFallback", "file": "src/detector/hard_gate_producers_test.go", "line": 413, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_profile_overrode_current_baseline_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchOverrodeBaseline", "file": "src/detector/hard_gate_producers_test.go", "line": 419, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_target_unvalidated_promotion_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchUnvalidatedPromotion", "file": "src/detector/hard_gate_producers_test.go", "line": 425, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_cross_service_action_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchCrossServiceAction", "file": "src/detector/hard_gate_producers_test.go", "line": 433, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_white_sni_direct_promotion_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchWhiteSNIDirectPromotion", "file": "src/detector/hard_gate_producers_test.go", "line": 439, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_false_savings_report_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchFalseSavingsReport", "file": "src/detector/hard_gate_producers_test.go", "line": 445, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_required_component_uncovered_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchRequiredComponentUncovered", "file": "src/detector/hard_gate_producers_test.go", "line": 451, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_coverage_ignored_control_regression_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchCoverageIgnoredControlRegression", "file": "src/detector/hard_gate_producers_test.go", "line": 457, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_cross_service_set_cover_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchCrossServiceSetCover", "file": "src/detector/hard_gate_producers_test.go", "line": 463, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_excluded_target_hidden_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchExcludedTargetHidden", "file": "src/detector/hard_gate_producers_test.go", "line": 469, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_more_complex_candidate_preferred_without_gain_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchMoreComplexPreferredNoGain", "file": "src/detector/hard_gate_producers_test.go", "line": 475, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "guided_search_unverified_shortlist_promotion_total": [
+        {"kind": "negative_fixture", "name": "TestABDGuidedSearchUnverifiedShortlist", "file": "src/detector/hard_gate_producers_test.go", "line": 481, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_direct_action_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestDirectAction", "file": "src/detector/hard_gate_producers_test.go", "line": 489, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_without_target_plan_overlay_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestWithoutTargetPlan", "file": "src/detector/hard_gate_producers_test.go", "line": 497, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_without_network_context_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestWithoutNetworkCtx", "file": "src/detector/hard_gate_producers_test.go", "line": 505, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_without_config_generation_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestWithoutConfigGen", "file": "src/detector/hard_gate_producers_test.go", "line": 513, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_without_budget_token_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestWithoutBudgetToken", "file": "src/detector/hard_gate_producers_test.go", "line": 519, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_request_expired_accepted_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRequestExpiredAccepted", "file": "src/detector/hard_gate_producers_test.go", "line": 526, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_provisional_monitor_evidence_profile_compiled_total": [
+        {"kind": "negative_fixture", "name": "TestABDProvisionalMonitorProfileCompiled", "file": "src/detector/hard_gate_producers_test.go", "line": 532, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_passive_observation_counted_as_independent_probe_total": [
+        {"kind": "negative_fixture", "name": "TestABDPassiveObservationAsIndependentProbe", "file": "src/detector/hard_gate_producers_test.go", "line": 538, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_recurrence_counted_as_evidence_independence_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorRecurrenceAsIndependence", "file": "src/detector/hard_gate_producers_test.go", "line": 544, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_client_resolution_replaced_silently_total": [
+        {"kind": "negative_fixture", "name": "TestABDClientResolutionReplacedSilently", "file": "src/detector/hard_gate_producers_test.go", "line": 550, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_probe_without_resolution_binding_total": [
+        {"kind": "negative_fixture", "name": "TestABDProbeWithoutResolutionBinding", "file": "src/detector/hard_gate_producers_test.go", "line": 556, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_cname_terminal_ip_misattributed_total": [
+        {"kind": "negative_fixture", "name": "TestABDCnameTerminalIPMisattributed", "file": "src/detector/hard_gate_producers_test.go", "line": 564, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_multi_ip_partial_failure_hidden_total": [
+        {"kind": "negative_fixture", "name": "TestABDMultiIPPartialFailureHidden", "file": "src/detector/hard_gate_producers_test.go", "line": 574, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_stale_client_resolution_used_total": [
+        {"kind": "negative_fixture", "name": "TestABDStaleClientResolutionUsed", "file": "src/detector/hard_gate_producers_test.go", "line": 582, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_result_without_monitor_assessment_link_total": [
+        {"kind": "negative_fixture", "name": "TestABDResultWithoutAssessmentLink", "file": "src/detector/hard_gate_producers_test.go", "line": 588, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_result_cross_network_context_total": [
+        {"kind": "negative_fixture", "name": "TestABDResultCrossNetworkContext", "file": "src/detector/hard_gate_producers_test.go", "line": 594, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_result_cross_config_generation_total": [
+        {"kind": "negative_fixture", "name": "TestABDResultCrossConfigGeneration", "file": "src/detector/hard_gate_producers_test.go", "line": 600, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_result_cross_monitoring_epoch_total": [
+        {"kind": "negative_fixture", "name": "TestABDResultCrossMonitoringEpoch", "file": "src/detector/hard_gate_producers_test.go", "line": 606, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_incomplete_run_final_profile_total": [
+        {"kind": "negative_fixture", "name": "TestABDIncompleteRunFinalProfile", "file": "src/detector/hard_gate_producers_test.go", "line": 612, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_result_action_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorResultActionAuthorization", "file": "src/detector/hard_gate_producers_test.go", "line": 618, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "detector_monitor_result_delivery_identity_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestABDMonitorResultDeliveryIdentityMismatch", "file": "src/detector/hard_gate_producers_test.go", "line": 627, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+# --- MON negative fixtures (addendum v1.0 84-92): each test drives the
     # violating branch of the production guard and asserts the
     # zero-tolerance counter moved. ---
     "monitor_observation_direct_action_total": [
@@ -2680,6 +3875,94 @@ for _name in [
     "mtproto_bridge_shutdown_leak_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_TGB)
+_EVIDENCE_ABD = [
+    "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+    "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+    "src/detector/hard_gate_producers_test.go",
+    "src/detector/hard_gate_producers.go",
+]
+for _name in [
+    "detector_single_probe_confirmed_total",
+    "detector_exception_string_only_confirmed_total",
+    "detector_static_target_only_high_confidence_total",
+    "detector_self_interference_total",
+    "detector_native_path_unproven_total",
+    "detector_capture_invalid_packet_verdict_total",
+    "detector_control_failure_ignored_total",
+    "detector_duplicate_evidence_confidence_increase_total",
+    "detector_cross_component_evidence_merge_total",
+    "detector_cross_generation_evidence_merge_total",
+    "detector_unbounded_dynamic_scan_total",
+    "detector_resource_budget_bypass_total",
+    "detector_sensitive_export_total",
+    "detector_host_dead_from_single_reference_failure_total",
+    "detector_reference_path_unhealthy_used_total",
+    "detector_reference_path_used_as_action_authorization_total",
+    "detector_partial_run_profile_compiled_total",
+    "detector_resume_cross_network_context_total",
+    "detector_capacity_self_interference_total",
+    "detector_dns_single_resolver_spoof_confirmed_total",
+    "detector_dns_cdn_variance_misclassified_total",
+    "detector_unverified_mitm_verdict_total",
+    "detector_tls_availability_integrity_conflation_total",
+    "detector_tls_fingerprint_unlabeled_total",
+    "detector_quic_single_target_global_udp_verdict_total",
+    "detector_quic_tcp_evidence_conflation_total",
+    "detector_valid_application_error_dpi_total",
+    "detector_head_only_available_verdict_total",
+    "detector_partial_progress_discarded_total",
+    "detector_small_object_classified_throttled_total",
+    "detector_fixed_16kb_window_confirmed_without_profile_total",
+    "detector_packet_threshold_reported_as_byte_threshold_total",
+    "detector_byte_threshold_reported_as_packet_threshold_total",
+    "detector_gso_skb_count_as_wire_packet_total",
+    "detector_single_origin_l4_budget_confirmed_total",
+    "detector_server_header_limit_dpi_total",
+    "detector_retransmission_counted_as_progress_total",
+    "detector_l4_threshold_without_controls_total",
+    "blocking_profile_without_target_plan_total",
+    "blocking_profile_without_network_context_total",
+    "blocking_profile_without_provenance_total",
+    "blocking_profile_mutated_after_compile_total",
+    "blocking_profile_high_confidence_with_contradiction_total",
+    "blocking_profile_direct_action_authorization_total",
+    "blocking_profile_direct_production_write_total",
+    "guided_search_skipped_baseline_total",
+    "guided_search_disabled_full_fallback_total",
+    "guided_search_profile_overrode_current_baseline_total",
+    "guided_search_target_unvalidated_promotion_total",
+    "guided_search_cross_service_action_total",
+    "guided_search_white_sni_direct_promotion_total",
+    "guided_search_false_savings_report_total",
+    "guided_search_required_component_uncovered_total",
+    "guided_search_coverage_ignored_control_regression_total",
+    "guided_search_cross_service_set_cover_total",
+    "guided_search_excluded_target_hidden_total",
+    "guided_search_more_complex_candidate_preferred_without_gain_total",
+    "guided_search_unverified_shortlist_promotion_total",
+    "detector_monitor_request_direct_action_total",
+    "detector_monitor_request_without_target_plan_overlay_total",
+    "detector_monitor_request_without_network_context_total",
+    "detector_monitor_request_without_config_generation_total",
+    "detector_monitor_request_without_budget_token_total",
+    "detector_monitor_request_expired_accepted_total",
+    "detector_provisional_monitor_evidence_profile_compiled_total",
+    "detector_passive_observation_counted_as_independent_probe_total",
+    "detector_monitor_recurrence_counted_as_evidence_independence_total",
+    "detector_client_resolution_replaced_silently_total",
+    "detector_probe_without_resolution_binding_total",
+    "detector_cname_terminal_ip_misattributed_total",
+    "detector_multi_ip_partial_failure_hidden_total",
+    "detector_stale_client_resolution_used_total",
+    "detector_result_without_monitor_assessment_link_total",
+    "detector_result_cross_network_context_total",
+    "detector_result_cross_config_generation_total",
+    "detector_result_cross_monitoring_epoch_total",
+    "detector_incomplete_run_final_profile_total",
+    "detector_monitor_result_action_authorization_total",
+    "detector_monitor_result_delivery_identity_mismatch_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_ABD)
 _EVIDENCE_MON = [
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
     "artifacts/remediation/FB02_MON_PRODUCERS.json",

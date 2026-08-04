@@ -79,8 +79,10 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	// + 22 SPF silent-path failure producers (FB-02 45)
 	// + 24 DDI/TGB producers (FB-02 32/33: 14 discovery + 10 mtproto)
 	// + 52 MON producers (FB-02 84-92: observation/scope/temporal/resolution/
-	// trigger/multi-vantage/ABD-DDI/legacy/reliability)).
-	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 143 && len(hardGates) == 283
+	// trigger/multi-vantage/ABD-DDI/legacy/reliability)
+	// + 79 ABD producers (FB-02 39-42: detector safety/DNS-TLS-QUIC/L4
+	// thresholds/blocking-profile-DDI/monitoring adapter)).
+	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 222 && len(hardGates) == 283
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},

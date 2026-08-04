@@ -30,11 +30,13 @@ func TestApplicableHardGates(t *testing.T) {
 	// src/discovery/hard_gate_producers.go + 10 bridge guards in
 	// src/mtproto/hard_gate_producers.go)
 	// + 52 MON producers (FB-02 84-92: guards in
-	// src/monitoring/hard_gate_producers.go).
+	// src/monitoring/hard_gate_producers.go)
+	// + 79 ABD producers (FB-02 39-42: guards in
+	// src/detector/hard_gate_producers.go).
 	// Each has a real Metrics.Inc call site, an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 143 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 143", len(gates))
+	if len(gates) != 222 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 222", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

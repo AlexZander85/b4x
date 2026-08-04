@@ -1,13 +1,13 @@
 {
-  "generated_at": "2026-08-04T11:14:26Z",
+  "generated_at": "2026-08-04T11:29:58Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 143,
-  "missing": 140,
+  "verified": 222,
+  "missing": 61,
   "families_verified_missing": {
     "abd": [
-      6,
-      79
+      85,
+      0
     ],
     "csi": [
       1,
@@ -265,15 +265,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileDirectActionAuthorizationAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileDirectActionAuth)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 479,
+        "mechanism": "increment-only counter via observability (Direct action authorization; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileDirectActionAuth",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 394,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_direct_production_write_total",
@@ -281,15 +312,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileDirectProductionWriteAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileDirectProdWrite)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 489,
+        "mechanism": "increment-only counter via observability (Direct production write; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileDirectProdWrite",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 400,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_high_confidence_with_contradiction_total",
@@ -297,15 +359,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileHighConfidenceWithContradictionAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileHighConfidenceContradiction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 469,
+        "mechanism": "increment-only counter via observability (High confidence with contradiction; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileHighConfidenceContradiction",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 388,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_mutated_after_compile_total",
@@ -313,15 +406,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileMutatedAfterCompileAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileMutatedAfterCompile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 459,
+        "mechanism": "increment-only counter via observability (Mutated after compile; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileMutatedAfterCompile",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 382,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_without_network_context_total",
@@ -329,15 +453,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileWithoutNetworkContextAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileWithoutNetCtx)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 439,
+        "mechanism": "increment-only counter via observability (Without network context; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileWithoutNetCtx",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 368,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_without_provenance_total",
@@ -345,15 +500,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileWithoutProvenanceAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileWithoutProvenance)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 449,
+        "mechanism": "increment-only counter via observability (Without provenance; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileWithoutProvenance",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 376,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "blocking_profile_without_target_plan_total",
@@ -361,15 +547,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "BlockingProfileWithoutTargetPlanAllowed -\u003e Metrics.Inc(MetricABDBlockingProfileWithoutTargetPlan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 429,
+        "mechanism": "increment-only counter via observability (Without target plan; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDBlockingProfileWithoutTargetPlan",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 360,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "classifier_layout_parity_fail_total",
@@ -492,15 +709,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ByteThresholdReportedAsPacketThresholdAllowed -\u003e Metrics.Inc(MetricABDByteThresholdAsPacket)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 367,
+        "mechanism": "increment-only counter via observability (Byte threshold reported as packet threshold; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDByteThresholdAsPacket",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 322,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_capacity_self_interference_total",
@@ -508,15 +756,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CapacitySelfInterferenceAllowed -\u003e Metrics.Inc(MetricABDCapacitySelfInterference)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 226,
+        "mechanism": "increment-only counter via observability (Capacity self interference; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDCapacitySelfInterference",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 234,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_capture_invalid_packet_verdict_total",
@@ -524,15 +803,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CaptureInvalidPacketVerdictAllowed -\u003e Metrics.Inc(MetricABDCaptureInvalidPacketVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 85,
+        "mechanism": "increment-only counter via observability (Capture invalid packet verdict; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDCaptureInvalidPacketVerdict",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 152,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_client_resolution_replaced_silently_total",
@@ -540,15 +850,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ClientResolutionReplacedSilentlyAllowed -\u003e Metrics.Inc(MetricABDClientResolutionReplacedSilently)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 739,
+        "mechanism": "increment-only counter via observability (Client resolution replaced silently; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDClientResolutionReplacedSilently",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 550,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_cname_terminal_ip_misattributed_total",
@@ -556,15 +897,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CnameTerminalIPMisattributedAllowed -\u003e Metrics.Inc(MetricABDCnameTerminalIPMisattributed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 764,
+        "mechanism": "increment-only counter via observability (Cname terminal ip misattributed; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDCnameTerminalIPMisattributed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 564,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_control_failure_ignored_total",
@@ -572,15 +944,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ControlFailureIgnoredAllowed -\u003e Metrics.Inc(MetricABDControlFailureIgnored)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 95,
+        "mechanism": "increment-only counter via observability (Control failure ignored; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDControlFailureIgnored",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 158,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_cross_component_evidence_merge_total",
@@ -588,15 +991,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossComponentEvidenceMergeAllowed -\u003e Metrics.Inc(MetricABDCrossComponentEvidenceMerge)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 127,
+        "mechanism": "increment-only counter via observability (Cross component evidence merge; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDCrossComponentEvidenceMerge",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 172,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_cross_generation_evidence_merge_total",
@@ -604,15 +1038,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossGenerationEvidenceMergeAllowed -\u003e Metrics.Inc(MetricABDCrossGenerationEvidenceMerge)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 137,
+        "mechanism": "increment-only counter via observability (Cross generation evidence merge; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDCrossGenerationEvidenceMerge",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 180,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_dns_cdn_variance_misclassified_total",
@@ -620,15 +1085,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DNSCdnVarianceMisclassifiedAllowed -\u003e Metrics.Inc(MetricABDDNSCdnVarianceMisclassified)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 248,
+        "mechanism": "increment-only counter via observability (Dns cdn variance misclassified; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDDNSCdnVarianceMisclassified",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 248,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_dns_single_resolver_spoof_confirmed_total",
@@ -636,15 +1132,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DNSSingleResolverSpoofConfirmedAllowed -\u003e Metrics.Inc(MetricABDDNSSingleResolverSpoof)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 238,
+        "mechanism": "increment-only counter via observability (Dns single resolver spoof confirmed; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDDNSSingleResolverSpoof",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 242,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_duplicate_evidence_confidence_increase_total",
@@ -652,15 +1179,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DuplicateEvidenceConfidenceIncreaseAllowed -\u003e Metrics.Inc(MetricABDDupEvidenceConfidenceIncrease)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 117,
+        "mechanism": "increment-only counter via observability (Duplicate evidence confidence increase; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDDupEvidenceConfidenceIncrease",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 164,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_exact_endpoint_service_resolution_conflated_total",
@@ -721,15 +1279,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ExceptionStringOnlyConfirmedAllowed -\u003e Metrics.Inc(MetricABDExceptionStringOnlyConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 45,
+        "mechanism": "increment-only counter via observability (Exception string only confirmed; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDExceptionStringOnlyConfirmed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 128,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_first_success_erased_address_failures_total",
@@ -790,15 +1379,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Fixed16kbWindowConfirmedWithoutProfileAllowed -\u003e Metrics.Inc(MetricABDFixed16kbWindowNoProfile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 345,
+        "mechanism": "increment-only counter via observability (Fixed 16kb window confirmed without profile; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDFixed16kbWindowNoProfile",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 308,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_gso_skb_count_as_wire_packet_total",
@@ -806,15 +1426,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GsoSkbCountAsWirePacketAllowed -\u003e Metrics.Inc(MetricABDGsoSkbCountAsWirePacket)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 377,
+        "mechanism": "increment-only counter via observability (Gso skb count as wire packet; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGsoSkbCountAsWirePacket",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 328,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_head_only_available_verdict_total",
@@ -822,15 +1473,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "HeadOnlyAvailableVerdictAllowed -\u003e Metrics.Inc(MetricABDHeadOnlyAvailableVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 315,
+        "mechanism": "increment-only counter via observability (Head only available verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDHeadOnlyAvailableVerdict",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 290,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_host_dead_from_single_reference_failure_total",
@@ -838,15 +1520,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "HostDeadFromSingleReferenceFailureAllowed -\u003e Metrics.Inc(MetricABDHostDeadSingleReferenceFailure)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 176,
+        "mechanism": "increment-only counter via observability (Host dead from single reference failure; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDHostDeadSingleReferenceFailure",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 204,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_http_hypothesis_from_tcp_tls_only_observer_total",
@@ -907,15 +1620,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "IncompleteRunFinalProfileAllowed -\u003e Metrics.Inc(MetricABDIncompleteRunFinalProfile)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 840,
+        "mechanism": "increment-only counter via observability (Incomplete run final profile; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDIncompleteRunFinalProfile",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 612,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_l4_threshold_without_controls_total",
@@ -923,15 +1667,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "L4ThresholdWithoutControlsAllowed -\u003e Metrics.Inc(MetricABDL4ThresholdWithoutControls)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 417,
+        "mechanism": "increment-only counter via observability (L4 threshold without controls; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDL4ThresholdWithoutControls",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 352,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_recurrence_counted_as_evidence_independence_total",
@@ -939,15 +1714,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRecurrenceCountedAsIndependenceAllowed -\u003e Metrics.Inc(MetricABDMonitorRecurrenceAsIndependence)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 729,
+        "mechanism": "increment-only counter via observability (Monitor recurrence counted as evidence independence; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRecurrenceAsIndependence",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 544,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_direct_action_total",
@@ -955,15 +1761,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestDirectActionAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestDirectAction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 649,
+        "mechanism": "increment-only counter via observability (Monitor request direct action; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestDirectAction",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 489,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_expired_accepted_total",
@@ -971,15 +1808,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestExpiredAcceptedAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestExpiredAccepted)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 699,
+        "mechanism": "increment-only counter via observability (Monitor request expired accepted; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestExpiredAccepted",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 526,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_without_budget_token_total",
@@ -987,15 +1855,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestWithoutBudgetTokenAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestWithoutBudgetToken)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 689,
+        "mechanism": "increment-only counter via observability (Monitor request without budget token; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestWithoutBudgetToken",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 519,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_without_config_generation_total",
@@ -1003,15 +1902,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestWithoutConfigGenerationAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestWithoutConfigGen)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 679,
+        "mechanism": "increment-only counter via observability (Monitor request without config generation; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestWithoutConfigGen",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 513,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_without_network_context_total",
@@ -1019,15 +1949,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestWithoutNetworkContextAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestWithoutNetworkCtx)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 669,
+        "mechanism": "increment-only counter via observability (Monitor request without network context; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestWithoutNetworkCtx",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 505,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_request_without_target_plan_overlay_total",
@@ -1035,15 +1996,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorRequestWithoutTargetPlanOverlayAllowed -\u003e Metrics.Inc(MetricABDMonitorRequestWithoutTargetPlan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 659,
+        "mechanism": "increment-only counter via observability (Monitor request without target plan overlay; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorRequestWithoutTargetPlan",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 497,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_result_action_authorization_total",
@@ -1051,15 +2043,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorResultActionAuthorizationAllowed -\u003e Metrics.Inc(MetricABDMonitorResultActionAuthorization)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 850,
+        "mechanism": "increment-only counter via observability (Monitor result action authorization; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorResultActionAuthorization",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 618,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_monitor_result_delivery_identity_mismatch_total",
@@ -1067,15 +2090,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MonitorResultDeliveryIdentityMismatchAllowed -\u003e Metrics.Inc(MetricABDMonitorResultDeliveryIdentityMismatch)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 860,
+        "mechanism": "increment-only counter via observability (Monitor result delivery identity mismatch; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMonitorResultDeliveryIdentityMismatch",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 627,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_multi_ip_partial_failure_hidden_total",
@@ -1083,15 +2137,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MultiIPPartialFailureHiddenAllowed -\u003e Metrics.Inc(MetricABDMultiIPPartialFailureHidden)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 781,
+        "mechanism": "increment-only counter via observability (Multi ip partial failure hidden; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDMultiIPPartialFailureHidden",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 574,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_multivantage_stage_mismatch_total",
@@ -1152,15 +2237,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "NativePathUnprovenAllowed -\u003e Metrics.Inc(MetricABDNativePathUnproven)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 75,
+        "mechanism": "increment-only counter via observability (Native path unproven; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDNativePathUnproven",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 146,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_observer_capability_unproven_total",
@@ -1274,15 +2390,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PacketThresholdReportedAsByteThresholdAllowed -\u003e Metrics.Inc(MetricABDPacketThresholdAsByte)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 357,
+        "mechanism": "increment-only counter via observability (Packet threshold reported as byte threshold; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDPacketThresholdAsByte",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 316,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_partial_progress_discarded_total",
@@ -1290,15 +2437,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PartialProgressDiscardedAllowed -\u003e Metrics.Inc(MetricABDPartialProgressDiscarded)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 325,
+        "mechanism": "increment-only counter via observability (Partial progress discarded; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDPartialProgressDiscarded",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 296,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_partial_run_profile_compiled_total",
@@ -1306,15 +2484,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PartialRunProfileCompiledAllowed -\u003e Metrics.Inc(MetricABDPartialRunProfileCompiled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 206,
+        "mechanism": "increment-only counter via observability (Partial run profile compiled; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDPartialRunProfileCompiled",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 222,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_passive_observation_counted_as_independent_probe_total",
@@ -1322,15 +2531,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PassiveObservationCountedAsIndependentProbeAllowed -\u003e Metrics.Inc(MetricABDPassiveObservationAsIndependentProbe)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 719,
+        "mechanism": "increment-only counter via observability (Passive observation counted as independent probe; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDPassiveObservationAsIndependentProbe",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 538,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_probe_without_resolution_binding_total",
@@ -1338,15 +2578,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProbeWithoutResolutionBindingAllowed -\u003e Metrics.Inc(MetricABDProbeWithoutResolutionBinding)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 749,
+        "mechanism": "increment-only counter via observability (Probe without resolution binding; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDProbeWithoutResolutionBinding",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 556,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_provisional_monitor_evidence_profile_compiled_total",
@@ -1354,15 +2625,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProvisionalMonitorEvidenceProfileCompiledAllowed -\u003e Metrics.Inc(MetricABDProvisionalMonitorProfileCompiled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 709,
+        "mechanism": "increment-only counter via observability (Provisional monitor evidence profile compiled; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDProvisionalMonitorProfileCompiled",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 532,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_quic_single_target_global_udp_verdict_total",
@@ -1370,15 +2672,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "QUICSingleTargetGlobalUDPVerdictAllowed -\u003e Metrics.Inc(MetricABDQUICSingleTargetGlobalUDP)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 286,
+        "mechanism": "increment-only counter via observability (Quic single target global udp verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDQUICSingleTargetGlobalUDP",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 272,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_quic_tcp_evidence_conflation_total",
@@ -1386,15 +2719,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "QUICTCPEvidenceConflationAllowed -\u003e Metrics.Inc(MetricABDQUICTCPEvidenceConflation)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 296,
+        "mechanism": "increment-only counter via observability (Quic tcp evidence conflation; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDQUICTCPEvidenceConflation",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 278,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_reference_path_unhealthy_used_total",
@@ -1402,15 +2766,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ReferencePathUnhealthyUsedAllowed -\u003e Metrics.Inc(MetricABDReferencePathUnhealthyUsed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 186,
+        "mechanism": "increment-only counter via observability (Reference path unhealthy used; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDReferencePathUnhealthyUsed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 210,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_reference_path_used_as_action_authorization_total",
@@ -1418,15 +2813,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ReferencePathUsedAsActionAuthorizationAllowed -\u003e Metrics.Inc(MetricABDReferencePathAsActionAuth)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 196,
+        "mechanism": "increment-only counter via observability (Reference path used as action authorization; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDReferencePathAsActionAuth",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 216,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_resource_budget_bypass_total",
@@ -1434,15 +2860,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResourceBudgetBypassAllowed -\u003e Metrics.Inc(MetricABDResourceBudgetBypass)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 157,
+        "mechanism": "increment-only counter via observability (Resource budget bypass; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResourceBudgetBypass",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 192,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_result_cross_config_generation_total",
@@ -1450,15 +2907,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResultCrossConfigGenerationAllowed -\u003e Metrics.Inc(MetricABDResultCrossConfigGeneration)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 820,
+        "mechanism": "increment-only counter via observability (Result cross config generation; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResultCrossConfigGeneration",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 600,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_result_cross_monitoring_epoch_total",
@@ -1466,15 +2954,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResultCrossMonitoringEpochAllowed -\u003e Metrics.Inc(MetricABDResultCrossMonitoringEpoch)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 830,
+        "mechanism": "increment-only counter via observability (Result cross monitoring epoch; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResultCrossMonitoringEpoch",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 606,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_result_cross_network_context_total",
@@ -1482,15 +3001,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResultCrossNetworkContextAllowed -\u003e Metrics.Inc(MetricABDResultCrossNetworkContext)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 810,
+        "mechanism": "increment-only counter via observability (Result cross network context; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResultCrossNetworkContext",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 594,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_result_without_monitor_assessment_link_total",
@@ -1498,15 +3048,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResultWithoutMonitorAssessmentLinkAllowed -\u003e Metrics.Inc(MetricABDResultWithoutAssessmentLink)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 800,
+        "mechanism": "increment-only counter via observability (Result without monitor assessment link; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResultWithoutAssessmentLink",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 588,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_resume_cross_network_context_total",
@@ -1514,15 +3095,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ResumeCrossNetworkContextAllowed -\u003e Metrics.Inc(MetricABDResumeCrossNetworkContext)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 216,
+        "mechanism": "increment-only counter via observability (Resume cross network context; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDResumeCrossNetworkContext",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 228,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_retransmission_counted_as_progress_total",
@@ -1530,15 +3142,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RetransmissionCountedAsProgressAllowed -\u003e Metrics.Inc(MetricABDRetransmissionAsProgress)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 407,
+        "mechanism": "increment-only counter via observability (Retransmission counted as progress; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDRetransmissionAsProgress",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 346,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_self_interference_total",
@@ -1546,15 +3189,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SelfInterferenceAllowed -\u003e Metrics.Inc(MetricABDSelfInterference)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 65,
+        "mechanism": "increment-only counter via observability (Self interference; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDSelfInterference",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 140,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_sensitive_export_total",
@@ -1562,15 +3236,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SensitiveExportAllowed -\u003e Metrics.Inc(MetricABDSensitiveExport)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 166,
+        "mechanism": "increment-only counter via observability (Sensitive export; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDSensitiveExport",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 198,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_server_header_limit_dpi_total",
@@ -1578,15 +3283,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ServerHeaderLimitDPIDeniedAllowed -\u003e Metrics.Inc(MetricABDServerHeaderLimitDPI)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 397,
+        "mechanism": "increment-only counter via observability (Server header limit dpi; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDServerHeaderLimitDPI",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 340,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_single_origin_l4_budget_confirmed_total",
@@ -1594,15 +3330,46 @@
       "class": "l4_threshold",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SingleOriginL4BudgetConfirmedAllowed -\u003e Metrics.Inc(MetricABDSingleOriginL4BudgetConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 387,
+        "mechanism": "increment-only counter via observability (Single origin l4 budget confirmed; ABD addendum v1.2 sect. 41)",
+        "production_root": "detector lifecycle guards (sect. 41; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDSingleOriginL4BudgetConfirmed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 334,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_single_probe_confirmed_total",
@@ -1610,15 +3377,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SingleProbeConfirmedAllowed -\u003e Metrics.Inc(MetricABDSingleProbeConfirmed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 35,
+        "mechanism": "increment-only counter via observability (Single probe confirmed; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDSingleProbeConfirmed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 122,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_small_object_classified_throttled_total",
@@ -1626,15 +3424,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SmallObjectClassifiedThrottledAllowed -\u003e Metrics.Inc(MetricABDSmallObjectClassifiedThrottled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 335,
+        "mechanism": "increment-only counter via observability (Small object classified throttled; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDSmallObjectClassifiedThrottled",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 302,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_stale_client_resolution_used_total",
@@ -1642,15 +3471,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "StaleClientResolutionUsedAllowed -\u003e Metrics.Inc(MetricABDStaleClientResolutionUsed)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 790,
+        "mechanism": "increment-only counter via observability (Stale client resolution used; ABD addendum v1.2 sect. 43)",
+        "production_root": "detector lifecycle guards (sect. 43; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDStaleClientResolutionUsed",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 582,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_static_target_only_high_confidence_total",
@@ -1658,15 +3518,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "StaticTargetOnlyHighConfidenceAllowed -\u003e Metrics.Inc(MetricABDStaticTargetOnlyHighConfidence)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 55,
+        "mechanism": "increment-only counter via observability (Static target only high confidence; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDStaticTargetOnlyHighConfidence",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 134,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_tls_availability_integrity_conflation_total",
@@ -1674,15 +3565,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TLSAvailabilityIntegrityConflationAllowed -\u003e Metrics.Inc(MetricABDTLSAvailabilityIntegrityConflate)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 267,
+        "mechanism": "increment-only counter via observability (Tls availability integrity conflation; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDTLSAvailabilityIntegrityConflation",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 260,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_tls_fingerprint_unlabeled_total",
@@ -1690,15 +3612,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TLSFingerprintUnlabeledAllowed -\u003e Metrics.Inc(MetricABDTLSFingerprintUnlabeled)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 276,
+        "mechanism": "increment-only counter via observability (Tls fingerprint unlabeled; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDTLSFingerprintUnlabeled",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 266,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_unbounded_dynamic_scan_total",
@@ -1706,15 +3659,46 @@
       "class": "detector_safety",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UnboundedDynamicScanAllowed -\u003e Metrics.Inc(MetricABDUnboundedDynamicScan)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 147,
+        "mechanism": "increment-only counter via observability (Unbounded dynamic scan; ABD addendum v1.2 sect. 39)",
+        "production_root": "detector lifecycle guards (sect. 39; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDUnboundedDynamicScan",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 186,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_unverified_mitm_verdict_total",
@@ -1722,15 +3706,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UnverifiedMITMVerdictAllowed -\u003e Metrics.Inc(MetricABDUnverifiedMITMVerdict)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 257,
+        "mechanism": "increment-only counter via observability (Unverified mitm verdict; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDUnverifiedMITMVerdict",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 254,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "detector_valid_application_error_dpi_total",
@@ -1738,15 +3753,46 @@
       "class": "dns_tls_quic",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ValidApplicationErrorDPIAllowed -\u003e Metrics.Inc(MetricABDValidAppErrorDPI)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 306,
+        "mechanism": "increment-only counter via observability (Valid application error dpi; ABD addendum v1.2 sect. 40)",
+        "production_root": "detector lifecycle guards (sect. 40; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDValidAppErrorDPI",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 284,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_allowed_sni_direct_promotion_total",
@@ -2412,15 +4458,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchCoverageIgnoredControlRegressionAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchCoverageIgnoredControlRegression)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 591,
+        "mechanism": "increment-only counter via observability (Coverage ignored control regression; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchCoverageIgnoredControlRegression",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 457,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_cross_service_action_total",
@@ -2428,15 +4505,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchCrossServiceActionAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchCrossServiceAction)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 545,
+        "mechanism": "increment-only counter via observability (Cross service action; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchCrossServiceAction",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 433,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_cross_service_set_cover_total",
@@ -2444,15 +4552,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchCrossServiceSetCoverAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchCrossServiceSetCover)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 601,
+        "mechanism": "increment-only counter via observability (Cross service set cover; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchCrossServiceSetCover",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 463,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_disabled_full_fallback_total",
@@ -2460,15 +4599,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchDisabledFullFallbackAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchDisabledFullFallback)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 515,
+        "mechanism": "increment-only counter via observability (Disabled full fallback; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchDisabledFullFallback",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 413,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_excluded_target_hidden_total",
@@ -2476,15 +4646,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchExcludedTargetHiddenAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchExcludedTargetHidden)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 616,
+        "mechanism": "increment-only counter via observability (Excluded target hidden; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchExcludedTargetHidden",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 469,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_false_savings_report_total",
@@ -2492,15 +4693,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchFalseSavingsReportAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchFalseSavingsReport)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 565,
+        "mechanism": "increment-only counter via observability (False savings report; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchFalseSavingsReport",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 445,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_more_complex_candidate_preferred_without_gain_total",
@@ -2508,15 +4740,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchMoreComplexPreferredWithoutGainAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchMoreComplexPreferredNoGain)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 627,
+        "mechanism": "increment-only counter via observability (More complex candidate preferred without gain; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchMoreComplexPreferredNoGain",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 475,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_profile_overrode_current_baseline_total",
@@ -2524,15 +4787,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchProfileOverrodeBaselineAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchOverrodeBaseline)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 525,
+        "mechanism": "increment-only counter via observability (Profile overrode current baseline; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchOverrodeBaseline",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 419,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_required_component_uncovered_total",
@@ -2540,15 +4834,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchRequiredComponentUncoveredAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchRequiredComponentUncovered)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 580,
+        "mechanism": "increment-only counter via observability (Required component uncovered; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchRequiredComponentUncovered",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 451,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_skipped_baseline_total",
@@ -2556,15 +4881,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchSkippedBaselineAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchSkippedBaseline)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 504,
+        "mechanism": "increment-only counter via observability (Skipped baseline; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchSkippedBaseline",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 407,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_target_unvalidated_promotion_total",
@@ -2572,15 +4928,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchTargetUnvalidatedPromotionAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchUnvalidatedPromotion)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 535,
+        "mechanism": "increment-only counter via observability (Target unvalidated promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchUnvalidatedPromotion",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 425,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_unverified_shortlist_promotion_total",
@@ -2588,15 +4975,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchUnverifiedShortlistPromotionAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchUnverifiedShortlist)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 637,
+        "mechanism": "increment-only counter via observability (Unverified shortlist promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchUnverifiedShortlist",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 481,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_white_sni_direct_promotion_total",
@@ -2604,15 +5022,46 @@
       "class": "blocking_profile_ddi",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedSearchWhiteSNIDirectPromotionAllowed -\u003e Metrics.Inc(MetricABDGuidedSearchWhiteSNIDirectPromotion)",
+        "file": "src/detector/hard_gate_producers.go",
+        "line": 555,
+        "mechanism": "increment-only counter via observability (White sni direct promotion; ABD addendum v1.2 sect. 42)",
+        "production_root": "detector lifecycle guards (sect. 42; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.abd; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestABDGuidedSearchWhiteSNIDirectPromotion",
+          "file": "src/detector/hard_gate_producers_test.go",
+          "line": 439,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB02_ABD_PRODUCERS.json",
+        "src/detector/hard_gate_producers_test.go",
+        "src/detector/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "masque_camouflage_cross_instance_total",

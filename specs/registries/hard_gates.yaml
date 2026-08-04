@@ -4991,18 +4991,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SingleProbeConfirmedAllowed -> Metrics.Inc(MetricABDSingleProbeConfirmed)
+      file: src/detector/hard_gate_producers.go
+      line: 35
+      mechanism: increment-only counter via observability (Single probe confirmed; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDSingleProbeConfirmed
+      file: src/detector/hard_gate_producers_test.go
+      line: 122
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_exception_string_only_confirmed_total
     canonical_metric_name: detector_exception_string_only_confirmed_total
     global_gate_class: detector_safety
@@ -5011,18 +5035,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ExceptionStringOnlyConfirmedAllowed -> Metrics.Inc(MetricABDExceptionStringOnlyConfirmed)
+      file: src/detector/hard_gate_producers.go
+      line: 45
+      mechanism: increment-only counter via observability (Exception string only confirmed; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDExceptionStringOnlyConfirmed
+      file: src/detector/hard_gate_producers_test.go
+      line: 128
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_static_target_only_high_confidence_total
     canonical_metric_name: detector_static_target_only_high_confidence_total
     global_gate_class: detector_safety
@@ -5031,18 +5079,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: StaticTargetOnlyHighConfidenceAllowed -> Metrics.Inc(MetricABDStaticTargetOnlyHighConfidence)
+      file: src/detector/hard_gate_producers.go
+      line: 55
+      mechanism: increment-only counter via observability (Static target only high confidence; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDStaticTargetOnlyHighConfidence
+      file: src/detector/hard_gate_producers_test.go
+      line: 134
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_self_interference_total
     canonical_metric_name: detector_self_interference_total
     global_gate_class: detector_safety
@@ -5051,18 +5123,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SelfInterferenceAllowed -> Metrics.Inc(MetricABDSelfInterference)
+      file: src/detector/hard_gate_producers.go
+      line: 65
+      mechanism: increment-only counter via observability (Self interference; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDSelfInterference
+      file: src/detector/hard_gate_producers_test.go
+      line: 140
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_native_path_unproven_total
     canonical_metric_name: detector_native_path_unproven_total
     global_gate_class: detector_safety
@@ -5071,18 +5167,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: NativePathUnprovenAllowed -> Metrics.Inc(MetricABDNativePathUnproven)
+      file: src/detector/hard_gate_producers.go
+      line: 75
+      mechanism: increment-only counter via observability (Native path unproven; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDNativePathUnproven
+      file: src/detector/hard_gate_producers_test.go
+      line: 146
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_capture_invalid_packet_verdict_total
     canonical_metric_name: detector_capture_invalid_packet_verdict_total
     global_gate_class: detector_safety
@@ -5091,18 +5211,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CaptureInvalidPacketVerdictAllowed -> Metrics.Inc(MetricABDCaptureInvalidPacketVerdict)
+      file: src/detector/hard_gate_producers.go
+      line: 85
+      mechanism: increment-only counter via observability (Capture invalid packet verdict; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDCaptureInvalidPacketVerdict
+      file: src/detector/hard_gate_producers_test.go
+      line: 152
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_control_failure_ignored_total
     canonical_metric_name: detector_control_failure_ignored_total
     global_gate_class: detector_safety
@@ -5111,18 +5255,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ControlFailureIgnoredAllowed -> Metrics.Inc(MetricABDControlFailureIgnored)
+      file: src/detector/hard_gate_producers.go
+      line: 95
+      mechanism: increment-only counter via observability (Control failure ignored; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDControlFailureIgnored
+      file: src/detector/hard_gate_producers_test.go
+      line: 158
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_duplicate_evidence_confidence_increase_total
     canonical_metric_name: detector_duplicate_evidence_confidence_increase_total
     global_gate_class: detector_safety
@@ -5131,18 +5299,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: DuplicateEvidenceConfidenceIncreaseAllowed -> Metrics.Inc(MetricABDDupEvidenceConfidenceIncrease)
+      file: src/detector/hard_gate_producers.go
+      line: 117
+      mechanism: increment-only counter via observability (Duplicate evidence confidence increase; ABD addendum v1.2 sect.
+        39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDDupEvidenceConfidenceIncrease
+      file: src/detector/hard_gate_producers_test.go
+      line: 164
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_cross_component_evidence_merge_total
     canonical_metric_name: detector_cross_component_evidence_merge_total
     global_gate_class: detector_safety
@@ -5151,18 +5344,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CrossComponentEvidenceMergeAllowed -> Metrics.Inc(MetricABDCrossComponentEvidenceMerge)
+      file: src/detector/hard_gate_producers.go
+      line: 127
+      mechanism: increment-only counter via observability (Cross component evidence merge; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDCrossComponentEvidenceMerge
+      file: src/detector/hard_gate_producers_test.go
+      line: 172
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_cross_generation_evidence_merge_total
     canonical_metric_name: detector_cross_generation_evidence_merge_total
     global_gate_class: detector_safety
@@ -5171,18 +5388,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CrossGenerationEvidenceMergeAllowed -> Metrics.Inc(MetricABDCrossGenerationEvidenceMerge)
+      file: src/detector/hard_gate_producers.go
+      line: 137
+      mechanism: increment-only counter via observability (Cross generation evidence merge; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDCrossGenerationEvidenceMerge
+      file: src/detector/hard_gate_producers_test.go
+      line: 180
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_unbounded_dynamic_scan_total
     canonical_metric_name: detector_unbounded_dynamic_scan_total
     global_gate_class: detector_safety
@@ -5191,18 +5432,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UnboundedDynamicScanAllowed -> Metrics.Inc(MetricABDUnboundedDynamicScan)
+      file: src/detector/hard_gate_producers.go
+      line: 147
+      mechanism: increment-only counter via observability (Unbounded dynamic scan; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDUnboundedDynamicScan
+      file: src/detector/hard_gate_producers_test.go
+      line: 186
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_resource_budget_bypass_total
     canonical_metric_name: detector_resource_budget_bypass_total
     global_gate_class: detector_safety
@@ -5211,18 +5476,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResourceBudgetBypassAllowed -> Metrics.Inc(MetricABDResourceBudgetBypass)
+      file: src/detector/hard_gate_producers.go
+      line: 157
+      mechanism: increment-only counter via observability (Resource budget bypass; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResourceBudgetBypass
+      file: src/detector/hard_gate_producers_test.go
+      line: 192
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_sensitive_export_total
     canonical_metric_name: detector_sensitive_export_total
     global_gate_class: detector_safety
@@ -5231,18 +5520,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SensitiveExportAllowed -> Metrics.Inc(MetricABDSensitiveExport)
+      file: src/detector/hard_gate_producers.go
+      line: 166
+      mechanism: increment-only counter via observability (Sensitive export; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDSensitiveExport
+      file: src/detector/hard_gate_producers_test.go
+      line: 198
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_host_dead_from_single_reference_failure_total
     canonical_metric_name: detector_host_dead_from_single_reference_failure_total
     global_gate_class: detector_safety
@@ -5251,18 +5564,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: HostDeadFromSingleReferenceFailureAllowed -> Metrics.Inc(MetricABDHostDeadSingleReferenceFailure)
+      file: src/detector/hard_gate_producers.go
+      line: 176
+      mechanism: increment-only counter via observability (Host dead from single reference failure; ABD addendum v1.2 sect.
+        39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDHostDeadSingleReferenceFailure
+      file: src/detector/hard_gate_producers_test.go
+      line: 204
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_reference_path_unhealthy_used_total
     canonical_metric_name: detector_reference_path_unhealthy_used_total
     global_gate_class: detector_safety
@@ -5271,18 +5609,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ReferencePathUnhealthyUsedAllowed -> Metrics.Inc(MetricABDReferencePathUnhealthyUsed)
+      file: src/detector/hard_gate_producers.go
+      line: 186
+      mechanism: increment-only counter via observability (Reference path unhealthy used; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDReferencePathUnhealthyUsed
+      file: src/detector/hard_gate_producers_test.go
+      line: 210
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_reference_path_used_as_action_authorization_total
     canonical_metric_name: detector_reference_path_used_as_action_authorization_total
     global_gate_class: detector_safety
@@ -5291,18 +5653,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ReferencePathUsedAsActionAuthorizationAllowed -> Metrics.Inc(MetricABDReferencePathAsActionAuth)
+      file: src/detector/hard_gate_producers.go
+      line: 196
+      mechanism: increment-only counter via observability (Reference path used as action authorization; ABD addendum v1.2
+        sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDReferencePathAsActionAuth
+      file: src/detector/hard_gate_producers_test.go
+      line: 216
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_partial_run_profile_compiled_total
     canonical_metric_name: detector_partial_run_profile_compiled_total
     global_gate_class: detector_safety
@@ -5311,18 +5698,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PartialRunProfileCompiledAllowed -> Metrics.Inc(MetricABDPartialRunProfileCompiled)
+      file: src/detector/hard_gate_producers.go
+      line: 206
+      mechanism: increment-only counter via observability (Partial run profile compiled; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDPartialRunProfileCompiled
+      file: src/detector/hard_gate_producers_test.go
+      line: 222
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_resume_cross_network_context_total
     canonical_metric_name: detector_resume_cross_network_context_total
     global_gate_class: detector_safety
@@ -5331,18 +5742,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResumeCrossNetworkContextAllowed -> Metrics.Inc(MetricABDResumeCrossNetworkContext)
+      file: src/detector/hard_gate_producers.go
+      line: 216
+      mechanism: increment-only counter via observability (Resume cross network context; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResumeCrossNetworkContext
+      file: src/detector/hard_gate_producers_test.go
+      line: 228
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_capacity_self_interference_total
     canonical_metric_name: detector_capacity_self_interference_total
     global_gate_class: detector_safety
@@ -5351,18 +5786,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '39'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CapacitySelfInterferenceAllowed -> Metrics.Inc(MetricABDCapacitySelfInterference)
+      file: src/detector/hard_gate_producers.go
+      line: 226
+      mechanism: increment-only counter via observability (Capacity self interference; ABD addendum v1.2 sect. 39)
+      production_root: detector lifecycle guards (sect. 39; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDCapacitySelfInterference
+      file: src/detector/hard_gate_producers_test.go
+      line: 234
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_dns_single_resolver_spoof_confirmed_total
     canonical_metric_name: detector_dns_single_resolver_spoof_confirmed_total
     global_gate_class: dns_tls_quic
@@ -5371,18 +5830,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: DNSSingleResolverSpoofConfirmedAllowed -> Metrics.Inc(MetricABDDNSSingleResolverSpoof)
+      file: src/detector/hard_gate_producers.go
+      line: 238
+      mechanism: increment-only counter via observability (Dns single resolver spoof confirmed; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDDNSSingleResolverSpoof
+      file: src/detector/hard_gate_producers_test.go
+      line: 242
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_dns_cdn_variance_misclassified_total
     canonical_metric_name: detector_dns_cdn_variance_misclassified_total
     global_gate_class: dns_tls_quic
@@ -5391,18 +5874,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: DNSCdnVarianceMisclassifiedAllowed -> Metrics.Inc(MetricABDDNSCdnVarianceMisclassified)
+      file: src/detector/hard_gate_producers.go
+      line: 248
+      mechanism: increment-only counter via observability (Dns cdn variance misclassified; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDDNSCdnVarianceMisclassified
+      file: src/detector/hard_gate_producers_test.go
+      line: 248
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_unverified_mitm_verdict_total
     canonical_metric_name: detector_unverified_mitm_verdict_total
     global_gate_class: dns_tls_quic
@@ -5411,18 +5918,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UnverifiedMITMVerdictAllowed -> Metrics.Inc(MetricABDUnverifiedMITMVerdict)
+      file: src/detector/hard_gate_producers.go
+      line: 257
+      mechanism: increment-only counter via observability (Unverified mitm verdict; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDUnverifiedMITMVerdict
+      file: src/detector/hard_gate_producers_test.go
+      line: 254
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_tls_availability_integrity_conflation_total
     canonical_metric_name: detector_tls_availability_integrity_conflation_total
     global_gate_class: dns_tls_quic
@@ -5431,18 +5962,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: TLSAvailabilityIntegrityConflationAllowed -> Metrics.Inc(MetricABDTLSAvailabilityIntegrityConflate)
+      file: src/detector/hard_gate_producers.go
+      line: 267
+      mechanism: increment-only counter via observability (Tls availability integrity conflation; ABD addendum v1.2 sect.
+        40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDTLSAvailabilityIntegrityConflation
+      file: src/detector/hard_gate_producers_test.go
+      line: 260
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_tls_fingerprint_unlabeled_total
     canonical_metric_name: detector_tls_fingerprint_unlabeled_total
     global_gate_class: dns_tls_quic
@@ -5451,18 +6007,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: TLSFingerprintUnlabeledAllowed -> Metrics.Inc(MetricABDTLSFingerprintUnlabeled)
+      file: src/detector/hard_gate_producers.go
+      line: 276
+      mechanism: increment-only counter via observability (Tls fingerprint unlabeled; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDTLSFingerprintUnlabeled
+      file: src/detector/hard_gate_producers_test.go
+      line: 266
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_quic_single_target_global_udp_verdict_total
     canonical_metric_name: detector_quic_single_target_global_udp_verdict_total
     global_gate_class: dns_tls_quic
@@ -5471,18 +6051,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: QUICSingleTargetGlobalUDPVerdictAllowed -> Metrics.Inc(MetricABDQUICSingleTargetGlobalUDP)
+      file: src/detector/hard_gate_producers.go
+      line: 286
+      mechanism: increment-only counter via observability (Quic single target global udp verdict; ABD addendum v1.2 sect.
+        40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDQUICSingleTargetGlobalUDP
+      file: src/detector/hard_gate_producers_test.go
+      line: 272
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_quic_tcp_evidence_conflation_total
     canonical_metric_name: detector_quic_tcp_evidence_conflation_total
     global_gate_class: dns_tls_quic
@@ -5491,18 +6096,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: QUICTCPEvidenceConflationAllowed -> Metrics.Inc(MetricABDQUICTCPEvidenceConflation)
+      file: src/detector/hard_gate_producers.go
+      line: 296
+      mechanism: increment-only counter via observability (Quic tcp evidence conflation; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDQUICTCPEvidenceConflation
+      file: src/detector/hard_gate_producers_test.go
+      line: 278
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_valid_application_error_dpi_total
     canonical_metric_name: detector_valid_application_error_dpi_total
     global_gate_class: dns_tls_quic
@@ -5511,18 +6140,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ValidApplicationErrorDPIAllowed -> Metrics.Inc(MetricABDValidAppErrorDPI)
+      file: src/detector/hard_gate_producers.go
+      line: 306
+      mechanism: increment-only counter via observability (Valid application error dpi; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDValidAppErrorDPI
+      file: src/detector/hard_gate_producers_test.go
+      line: 284
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_head_only_available_verdict_total
     canonical_metric_name: detector_head_only_available_verdict_total
     global_gate_class: dns_tls_quic
@@ -5531,18 +6184,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: HeadOnlyAvailableVerdictAllowed -> Metrics.Inc(MetricABDHeadOnlyAvailableVerdict)
+      file: src/detector/hard_gate_producers.go
+      line: 315
+      mechanism: increment-only counter via observability (Head only available verdict; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDHeadOnlyAvailableVerdict
+      file: src/detector/hard_gate_producers_test.go
+      line: 290
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_partial_progress_discarded_total
     canonical_metric_name: detector_partial_progress_discarded_total
     global_gate_class: dns_tls_quic
@@ -5551,18 +6228,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PartialProgressDiscardedAllowed -> Metrics.Inc(MetricABDPartialProgressDiscarded)
+      file: src/detector/hard_gate_producers.go
+      line: 325
+      mechanism: increment-only counter via observability (Partial progress discarded; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDPartialProgressDiscarded
+      file: src/detector/hard_gate_producers_test.go
+      line: 296
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_small_object_classified_throttled_total
     canonical_metric_name: detector_small_object_classified_throttled_total
     global_gate_class: dns_tls_quic
@@ -5571,18 +6272,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SmallObjectClassifiedThrottledAllowed -> Metrics.Inc(MetricABDSmallObjectClassifiedThrottled)
+      file: src/detector/hard_gate_producers.go
+      line: 335
+      mechanism: increment-only counter via observability (Small object classified throttled; ABD addendum v1.2 sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDSmallObjectClassifiedThrottled
+      file: src/detector/hard_gate_producers_test.go
+      line: 302
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_fixed_16kb_window_confirmed_without_profile_total
     canonical_metric_name: detector_fixed_16kb_window_confirmed_without_profile_total
     global_gate_class: dns_tls_quic
@@ -5591,18 +6316,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '40'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: Fixed16kbWindowConfirmedWithoutProfileAllowed -> Metrics.Inc(MetricABDFixed16kbWindowNoProfile)
+      file: src/detector/hard_gate_producers.go
+      line: 345
+      mechanism: increment-only counter via observability (Fixed 16kb window confirmed without profile; ABD addendum v1.2
+        sect. 40)
+      production_root: detector lifecycle guards (sect. 40; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDFixed16kbWindowNoProfile
+      file: src/detector/hard_gate_producers_test.go
+      line: 308
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_packet_threshold_reported_as_byte_threshold_total
     canonical_metric_name: detector_packet_threshold_reported_as_byte_threshold_total
     global_gate_class: l4_threshold
@@ -5611,18 +6361,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PacketThresholdReportedAsByteThresholdAllowed -> Metrics.Inc(MetricABDPacketThresholdAsByte)
+      file: src/detector/hard_gate_producers.go
+      line: 357
+      mechanism: increment-only counter via observability (Packet threshold reported as byte threshold; ABD addendum v1.2
+        sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDPacketThresholdAsByte
+      file: src/detector/hard_gate_producers_test.go
+      line: 316
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_byte_threshold_reported_as_packet_threshold_total
     canonical_metric_name: detector_byte_threshold_reported_as_packet_threshold_total
     global_gate_class: l4_threshold
@@ -5631,18 +6406,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ByteThresholdReportedAsPacketThresholdAllowed -> Metrics.Inc(MetricABDByteThresholdAsPacket)
+      file: src/detector/hard_gate_producers.go
+      line: 367
+      mechanism: increment-only counter via observability (Byte threshold reported as packet threshold; ABD addendum v1.2
+        sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDByteThresholdAsPacket
+      file: src/detector/hard_gate_producers_test.go
+      line: 322
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_gso_skb_count_as_wire_packet_total
     canonical_metric_name: detector_gso_skb_count_as_wire_packet_total
     global_gate_class: l4_threshold
@@ -5651,18 +6451,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GsoSkbCountAsWirePacketAllowed -> Metrics.Inc(MetricABDGsoSkbCountAsWirePacket)
+      file: src/detector/hard_gate_producers.go
+      line: 377
+      mechanism: increment-only counter via observability (Gso skb count as wire packet; ABD addendum v1.2 sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGsoSkbCountAsWirePacket
+      file: src/detector/hard_gate_producers_test.go
+      line: 328
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_single_origin_l4_budget_confirmed_total
     canonical_metric_name: detector_single_origin_l4_budget_confirmed_total
     global_gate_class: l4_threshold
@@ -5671,18 +6495,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: SingleOriginL4BudgetConfirmedAllowed -> Metrics.Inc(MetricABDSingleOriginL4BudgetConfirmed)
+      file: src/detector/hard_gate_producers.go
+      line: 387
+      mechanism: increment-only counter via observability (Single origin l4 budget confirmed; ABD addendum v1.2 sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDSingleOriginL4BudgetConfirmed
+      file: src/detector/hard_gate_producers_test.go
+      line: 334
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_server_header_limit_dpi_total
     canonical_metric_name: detector_server_header_limit_dpi_total
     global_gate_class: l4_threshold
@@ -5691,18 +6539,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ServerHeaderLimitDPIDeniedAllowed -> Metrics.Inc(MetricABDServerHeaderLimitDPI)
+      file: src/detector/hard_gate_producers.go
+      line: 397
+      mechanism: increment-only counter via observability (Server header limit dpi; ABD addendum v1.2 sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDServerHeaderLimitDPI
+      file: src/detector/hard_gate_producers_test.go
+      line: 340
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_retransmission_counted_as_progress_total
     canonical_metric_name: detector_retransmission_counted_as_progress_total
     global_gate_class: l4_threshold
@@ -5711,18 +6583,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RetransmissionCountedAsProgressAllowed -> Metrics.Inc(MetricABDRetransmissionAsProgress)
+      file: src/detector/hard_gate_producers.go
+      line: 407
+      mechanism: increment-only counter via observability (Retransmission counted as progress; ABD addendum v1.2 sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDRetransmissionAsProgress
+      file: src/detector/hard_gate_producers_test.go
+      line: 346
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_l4_threshold_without_controls_total
     canonical_metric_name: detector_l4_threshold_without_controls_total
     global_gate_class: l4_threshold
@@ -5731,18 +6627,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '41'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: L4ThresholdWithoutControlsAllowed -> Metrics.Inc(MetricABDL4ThresholdWithoutControls)
+      file: src/detector/hard_gate_producers.go
+      line: 417
+      mechanism: increment-only counter via observability (L4 threshold without controls; ABD addendum v1.2 sect. 41)
+      production_root: detector lifecycle guards (sect. 41; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDL4ThresholdWithoutControls
+      file: src/detector/hard_gate_producers_test.go
+      line: 352
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_without_target_plan_total
     canonical_metric_name: blocking_profile_without_target_plan_total
     global_gate_class: blocking_profile_ddi
@@ -5751,18 +6671,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileWithoutTargetPlanAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutTargetPlan)
+      file: src/detector/hard_gate_producers.go
+      line: 429
+      mechanism: increment-only counter via observability (Without target plan; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileWithoutTargetPlan
+      file: src/detector/hard_gate_producers_test.go
+      line: 360
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_without_network_context_total
     canonical_metric_name: blocking_profile_without_network_context_total
     global_gate_class: blocking_profile_ddi
@@ -5771,18 +6715,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileWithoutNetworkContextAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutNetCtx)
+      file: src/detector/hard_gate_producers.go
+      line: 439
+      mechanism: increment-only counter via observability (Without network context; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileWithoutNetCtx
+      file: src/detector/hard_gate_producers_test.go
+      line: 368
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_without_provenance_total
     canonical_metric_name: blocking_profile_without_provenance_total
     global_gate_class: blocking_profile_ddi
@@ -5791,18 +6759,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileWithoutProvenanceAllowed -> Metrics.Inc(MetricABDBlockingProfileWithoutProvenance)
+      file: src/detector/hard_gate_producers.go
+      line: 449
+      mechanism: increment-only counter via observability (Without provenance; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileWithoutProvenance
+      file: src/detector/hard_gate_producers_test.go
+      line: 376
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_mutated_after_compile_total
     canonical_metric_name: blocking_profile_mutated_after_compile_total
     global_gate_class: blocking_profile_ddi
@@ -5811,18 +6803,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileMutatedAfterCompileAllowed -> Metrics.Inc(MetricABDBlockingProfileMutatedAfterCompile)
+      file: src/detector/hard_gate_producers.go
+      line: 459
+      mechanism: increment-only counter via observability (Mutated after compile; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileMutatedAfterCompile
+      file: src/detector/hard_gate_producers_test.go
+      line: 382
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_high_confidence_with_contradiction_total
     canonical_metric_name: blocking_profile_high_confidence_with_contradiction_total
     global_gate_class: blocking_profile_ddi
@@ -5831,18 +6847,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileHighConfidenceWithContradictionAllowed -> Metrics.Inc(MetricABDBlockingProfileHighConfidenceContradiction)
+      file: src/detector/hard_gate_producers.go
+      line: 469
+      mechanism: increment-only counter via observability (High confidence with contradiction; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileHighConfidenceContradiction
+      file: src/detector/hard_gate_producers_test.go
+      line: 388
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_direct_action_authorization_total
     canonical_metric_name: blocking_profile_direct_action_authorization_total
     global_gate_class: blocking_profile_ddi
@@ -5851,18 +6891,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileDirectActionAuthorizationAllowed -> Metrics.Inc(MetricABDBlockingProfileDirectActionAuth)
+      file: src/detector/hard_gate_producers.go
+      line: 479
+      mechanism: increment-only counter via observability (Direct action authorization; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileDirectActionAuth
+      file: src/detector/hard_gate_producers_test.go
+      line: 394
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: blocking_profile_direct_production_write_total
     canonical_metric_name: blocking_profile_direct_production_write_total
     global_gate_class: blocking_profile_ddi
@@ -5871,18 +6935,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: BlockingProfileDirectProductionWriteAllowed -> Metrics.Inc(MetricABDBlockingProfileDirectProdWrite)
+      file: src/detector/hard_gate_producers.go
+      line: 489
+      mechanism: increment-only counter via observability (Direct production write; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDBlockingProfileDirectProdWrite
+      file: src/detector/hard_gate_producers_test.go
+      line: 400
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_skipped_baseline_total
     canonical_metric_name: guided_search_skipped_baseline_total
     global_gate_class: blocking_profile_ddi
@@ -5891,18 +6979,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchSkippedBaselineAllowed -> Metrics.Inc(MetricABDGuidedSearchSkippedBaseline)
+      file: src/detector/hard_gate_producers.go
+      line: 504
+      mechanism: increment-only counter via observability (Skipped baseline; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchSkippedBaseline
+      file: src/detector/hard_gate_producers_test.go
+      line: 407
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_disabled_full_fallback_total
     canonical_metric_name: guided_search_disabled_full_fallback_total
     global_gate_class: blocking_profile_ddi
@@ -5911,18 +7023,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchDisabledFullFallbackAllowed -> Metrics.Inc(MetricABDGuidedSearchDisabledFullFallback)
+      file: src/detector/hard_gate_producers.go
+      line: 515
+      mechanism: increment-only counter via observability (Disabled full fallback; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchDisabledFullFallback
+      file: src/detector/hard_gate_producers_test.go
+      line: 413
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_profile_overrode_current_baseline_total
     canonical_metric_name: guided_search_profile_overrode_current_baseline_total
     global_gate_class: blocking_profile_ddi
@@ -5931,18 +7067,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchProfileOverrodeBaselineAllowed -> Metrics.Inc(MetricABDGuidedSearchOverrodeBaseline)
+      file: src/detector/hard_gate_producers.go
+      line: 525
+      mechanism: increment-only counter via observability (Profile overrode current baseline; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchOverrodeBaseline
+      file: src/detector/hard_gate_producers_test.go
+      line: 419
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_target_unvalidated_promotion_total
     canonical_metric_name: guided_search_target_unvalidated_promotion_total
     global_gate_class: blocking_profile_ddi
@@ -5951,18 +7111,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchTargetUnvalidatedPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchUnvalidatedPromotion)
+      file: src/detector/hard_gate_producers.go
+      line: 535
+      mechanism: increment-only counter via observability (Target unvalidated promotion; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchUnvalidatedPromotion
+      file: src/detector/hard_gate_producers_test.go
+      line: 425
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_cross_service_action_total
     canonical_metric_name: guided_search_cross_service_action_total
     global_gate_class: blocking_profile_ddi
@@ -5971,18 +7155,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchCrossServiceActionAllowed -> Metrics.Inc(MetricABDGuidedSearchCrossServiceAction)
+      file: src/detector/hard_gate_producers.go
+      line: 545
+      mechanism: increment-only counter via observability (Cross service action; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchCrossServiceAction
+      file: src/detector/hard_gate_producers_test.go
+      line: 433
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_white_sni_direct_promotion_total
     canonical_metric_name: guided_search_white_sni_direct_promotion_total
     global_gate_class: blocking_profile_ddi
@@ -5991,18 +7199,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchWhiteSNIDirectPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchWhiteSNIDirectPromotion)
+      file: src/detector/hard_gate_producers.go
+      line: 555
+      mechanism: increment-only counter via observability (White sni direct promotion; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchWhiteSNIDirectPromotion
+      file: src/detector/hard_gate_producers_test.go
+      line: 439
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_false_savings_report_total
     canonical_metric_name: guided_search_false_savings_report_total
     global_gate_class: blocking_profile_ddi
@@ -6011,18 +7243,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchFalseSavingsReportAllowed -> Metrics.Inc(MetricABDGuidedSearchFalseSavingsReport)
+      file: src/detector/hard_gate_producers.go
+      line: 565
+      mechanism: increment-only counter via observability (False savings report; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchFalseSavingsReport
+      file: src/detector/hard_gate_producers_test.go
+      line: 445
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_required_component_uncovered_total
     canonical_metric_name: guided_search_required_component_uncovered_total
     global_gate_class: blocking_profile_ddi
@@ -6031,18 +7287,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchRequiredComponentUncoveredAllowed -> Metrics.Inc(MetricABDGuidedSearchRequiredComponentUncovered)
+      file: src/detector/hard_gate_producers.go
+      line: 580
+      mechanism: increment-only counter via observability (Required component uncovered; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchRequiredComponentUncovered
+      file: src/detector/hard_gate_producers_test.go
+      line: 451
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_coverage_ignored_control_regression_total
     canonical_metric_name: guided_search_coverage_ignored_control_regression_total
     global_gate_class: blocking_profile_ddi
@@ -6051,18 +7331,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchCoverageIgnoredControlRegressionAllowed -> Metrics.Inc(MetricABDGuidedSearchCoverageIgnoredControlRegression)
+      file: src/detector/hard_gate_producers.go
+      line: 591
+      mechanism: increment-only counter via observability (Coverage ignored control regression; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchCoverageIgnoredControlRegression
+      file: src/detector/hard_gate_producers_test.go
+      line: 457
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_cross_service_set_cover_total
     canonical_metric_name: guided_search_cross_service_set_cover_total
     global_gate_class: blocking_profile_ddi
@@ -6071,18 +7375,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchCrossServiceSetCoverAllowed -> Metrics.Inc(MetricABDGuidedSearchCrossServiceSetCover)
+      file: src/detector/hard_gate_producers.go
+      line: 601
+      mechanism: increment-only counter via observability (Cross service set cover; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchCrossServiceSetCover
+      file: src/detector/hard_gate_producers_test.go
+      line: 463
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_excluded_target_hidden_total
     canonical_metric_name: guided_search_excluded_target_hidden_total
     global_gate_class: blocking_profile_ddi
@@ -6091,18 +7419,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchExcludedTargetHiddenAllowed -> Metrics.Inc(MetricABDGuidedSearchExcludedTargetHidden)
+      file: src/detector/hard_gate_producers.go
+      line: 616
+      mechanism: increment-only counter via observability (Excluded target hidden; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchExcludedTargetHidden
+      file: src/detector/hard_gate_producers_test.go
+      line: 469
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_more_complex_candidate_preferred_without_gain_total
     canonical_metric_name: guided_search_more_complex_candidate_preferred_without_gain_total
     global_gate_class: blocking_profile_ddi
@@ -6111,18 +7463,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchMoreComplexPreferredWithoutGainAllowed -> Metrics.Inc(MetricABDGuidedSearchMoreComplexPreferredNoGain)
+      file: src/detector/hard_gate_producers.go
+      line: 627
+      mechanism: increment-only counter via observability (More complex candidate preferred without gain; ABD addendum v1.2
+        sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchMoreComplexPreferredNoGain
+      file: src/detector/hard_gate_producers_test.go
+      line: 475
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: guided_search_unverified_shortlist_promotion_total
     canonical_metric_name: guided_search_unverified_shortlist_promotion_total
     global_gate_class: blocking_profile_ddi
@@ -6131,18 +7508,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedSearchUnverifiedShortlistPromotionAllowed -> Metrics.Inc(MetricABDGuidedSearchUnverifiedShortlist)
+      file: src/detector/hard_gate_producers.go
+      line: 637
+      mechanism: increment-only counter via observability (Unverified shortlist promotion; ABD addendum v1.2 sect. 42)
+      production_root: detector lifecycle guards (sect. 42; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDGuidedSearchUnverifiedShortlist
+      file: src/detector/hard_gate_producers_test.go
+      line: 481
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_direct_action_total
     canonical_metric_name: detector_monitor_request_direct_action_total
     global_gate_class: blocking_profile_ddi
@@ -6151,18 +7552,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestDirectActionAllowed -> Metrics.Inc(MetricABDMonitorRequestDirectAction)
+      file: src/detector/hard_gate_producers.go
+      line: 649
+      mechanism: increment-only counter via observability (Monitor request direct action; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestDirectAction
+      file: src/detector/hard_gate_producers_test.go
+      line: 489
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_without_target_plan_overlay_total
     canonical_metric_name: detector_monitor_request_without_target_plan_overlay_total
     global_gate_class: blocking_profile_ddi
@@ -6171,18 +7596,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestWithoutTargetPlanOverlayAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutTargetPlan)
+      file: src/detector/hard_gate_producers.go
+      line: 659
+      mechanism: increment-only counter via observability (Monitor request without target plan overlay; ABD addendum v1.2
+        sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestWithoutTargetPlan
+      file: src/detector/hard_gate_producers_test.go
+      line: 497
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_without_network_context_total
     canonical_metric_name: detector_monitor_request_without_network_context_total
     global_gate_class: blocking_profile_ddi
@@ -6191,18 +7641,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestWithoutNetworkContextAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutNetworkCtx)
+      file: src/detector/hard_gate_producers.go
+      line: 669
+      mechanism: increment-only counter via observability (Monitor request without network context; ABD addendum v1.2 sect.
+        43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestWithoutNetworkCtx
+      file: src/detector/hard_gate_producers_test.go
+      line: 505
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_without_config_generation_total
     canonical_metric_name: detector_monitor_request_without_config_generation_total
     global_gate_class: blocking_profile_ddi
@@ -6211,18 +7686,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestWithoutConfigGenerationAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutConfigGen)
+      file: src/detector/hard_gate_producers.go
+      line: 679
+      mechanism: increment-only counter via observability (Monitor request without config generation; ABD addendum v1.2 sect.
+        43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestWithoutConfigGen
+      file: src/detector/hard_gate_producers_test.go
+      line: 513
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_without_budget_token_total
     canonical_metric_name: detector_monitor_request_without_budget_token_total
     global_gate_class: blocking_profile_ddi
@@ -6231,18 +7731,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestWithoutBudgetTokenAllowed -> Metrics.Inc(MetricABDMonitorRequestWithoutBudgetToken)
+      file: src/detector/hard_gate_producers.go
+      line: 689
+      mechanism: increment-only counter via observability (Monitor request without budget token; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestWithoutBudgetToken
+      file: src/detector/hard_gate_producers_test.go
+      line: 519
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_request_expired_accepted_total
     canonical_metric_name: detector_monitor_request_expired_accepted_total
     global_gate_class: blocking_profile_ddi
@@ -6251,18 +7775,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRequestExpiredAcceptedAllowed -> Metrics.Inc(MetricABDMonitorRequestExpiredAccepted)
+      file: src/detector/hard_gate_producers.go
+      line: 699
+      mechanism: increment-only counter via observability (Monitor request expired accepted; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRequestExpiredAccepted
+      file: src/detector/hard_gate_producers_test.go
+      line: 526
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_provisional_monitor_evidence_profile_compiled_total
     canonical_metric_name: detector_provisional_monitor_evidence_profile_compiled_total
     global_gate_class: blocking_profile_ddi
@@ -6271,18 +7819,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ProvisionalMonitorEvidenceProfileCompiledAllowed -> Metrics.Inc(MetricABDProvisionalMonitorProfileCompiled)
+      file: src/detector/hard_gate_producers.go
+      line: 709
+      mechanism: increment-only counter via observability (Provisional monitor evidence profile compiled; ABD addendum v1.2
+        sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDProvisionalMonitorProfileCompiled
+      file: src/detector/hard_gate_producers_test.go
+      line: 532
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_passive_observation_counted_as_independent_probe_total
     canonical_metric_name: detector_passive_observation_counted_as_independent_probe_total
     global_gate_class: blocking_profile_ddi
@@ -6291,18 +7864,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PassiveObservationCountedAsIndependentProbeAllowed -> Metrics.Inc(MetricABDPassiveObservationAsIndependentProbe)
+      file: src/detector/hard_gate_producers.go
+      line: 719
+      mechanism: increment-only counter via observability (Passive observation counted as independent probe; ABD addendum
+        v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDPassiveObservationAsIndependentProbe
+      file: src/detector/hard_gate_producers_test.go
+      line: 538
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_recurrence_counted_as_evidence_independence_total
     canonical_metric_name: detector_monitor_recurrence_counted_as_evidence_independence_total
     global_gate_class: blocking_profile_ddi
@@ -6311,18 +7909,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorRecurrenceCountedAsIndependenceAllowed -> Metrics.Inc(MetricABDMonitorRecurrenceAsIndependence)
+      file: src/detector/hard_gate_producers.go
+      line: 729
+      mechanism: increment-only counter via observability (Monitor recurrence counted as evidence independence; ABD addendum
+        v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorRecurrenceAsIndependence
+      file: src/detector/hard_gate_producers_test.go
+      line: 544
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_client_resolution_replaced_silently_total
     canonical_metric_name: detector_client_resolution_replaced_silently_total
     global_gate_class: blocking_profile_ddi
@@ -6331,18 +7954,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ClientResolutionReplacedSilentlyAllowed -> Metrics.Inc(MetricABDClientResolutionReplacedSilently)
+      file: src/detector/hard_gate_producers.go
+      line: 739
+      mechanism: increment-only counter via observability (Client resolution replaced silently; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDClientResolutionReplacedSilently
+      file: src/detector/hard_gate_producers_test.go
+      line: 550
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_probe_without_resolution_binding_total
     canonical_metric_name: detector_probe_without_resolution_binding_total
     global_gate_class: blocking_profile_ddi
@@ -6351,18 +7998,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ProbeWithoutResolutionBindingAllowed -> Metrics.Inc(MetricABDProbeWithoutResolutionBinding)
+      file: src/detector/hard_gate_producers.go
+      line: 749
+      mechanism: increment-only counter via observability (Probe without resolution binding; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDProbeWithoutResolutionBinding
+      file: src/detector/hard_gate_producers_test.go
+      line: 556
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_cname_terminal_ip_misattributed_total
     canonical_metric_name: detector_cname_terminal_ip_misattributed_total
     global_gate_class: blocking_profile_ddi
@@ -6371,18 +8042,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CnameTerminalIPMisattributedAllowed -> Metrics.Inc(MetricABDCnameTerminalIPMisattributed)
+      file: src/detector/hard_gate_producers.go
+      line: 764
+      mechanism: increment-only counter via observability (Cname terminal ip misattributed; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDCnameTerminalIPMisattributed
+      file: src/detector/hard_gate_producers_test.go
+      line: 564
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_multi_ip_partial_failure_hidden_total
     canonical_metric_name: detector_multi_ip_partial_failure_hidden_total
     global_gate_class: blocking_profile_ddi
@@ -6391,18 +8086,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MultiIPPartialFailureHiddenAllowed -> Metrics.Inc(MetricABDMultiIPPartialFailureHidden)
+      file: src/detector/hard_gate_producers.go
+      line: 781
+      mechanism: increment-only counter via observability (Multi ip partial failure hidden; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMultiIPPartialFailureHidden
+      file: src/detector/hard_gate_producers_test.go
+      line: 574
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_first_success_erased_address_failures_total
     canonical_metric_name: detector_first_success_erased_address_failures_total
     global_gate_class: blocking_profile_ddi
@@ -6459,18 +8178,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: StaleClientResolutionUsedAllowed -> Metrics.Inc(MetricABDStaleClientResolutionUsed)
+      file: src/detector/hard_gate_producers.go
+      line: 790
+      mechanism: increment-only counter via observability (Stale client resolution used; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDStaleClientResolutionUsed
+      file: src/detector/hard_gate_producers_test.go
+      line: 582
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_multivantage_stage_mismatch_total
     canonical_metric_name: detector_multivantage_stage_mismatch_total
     global_gate_class: blocking_profile_ddi
@@ -6724,18 +8467,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResultWithoutMonitorAssessmentLinkAllowed -> Metrics.Inc(MetricABDResultWithoutAssessmentLink)
+      file: src/detector/hard_gate_producers.go
+      line: 800
+      mechanism: increment-only counter via observability (Result without monitor assessment link; ABD addendum v1.2 sect.
+        43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResultWithoutAssessmentLink
+      file: src/detector/hard_gate_producers_test.go
+      line: 588
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_result_cross_network_context_total
     canonical_metric_name: detector_result_cross_network_context_total
     global_gate_class: blocking_profile_ddi
@@ -6744,18 +8512,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResultCrossNetworkContextAllowed -> Metrics.Inc(MetricABDResultCrossNetworkContext)
+      file: src/detector/hard_gate_producers.go
+      line: 810
+      mechanism: increment-only counter via observability (Result cross network context; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResultCrossNetworkContext
+      file: src/detector/hard_gate_producers_test.go
+      line: 594
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_result_cross_config_generation_total
     canonical_metric_name: detector_result_cross_config_generation_total
     global_gate_class: blocking_profile_ddi
@@ -6764,18 +8556,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResultCrossConfigGenerationAllowed -> Metrics.Inc(MetricABDResultCrossConfigGeneration)
+      file: src/detector/hard_gate_producers.go
+      line: 820
+      mechanism: increment-only counter via observability (Result cross config generation; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResultCrossConfigGeneration
+      file: src/detector/hard_gate_producers_test.go
+      line: 600
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_result_cross_monitoring_epoch_total
     canonical_metric_name: detector_result_cross_monitoring_epoch_total
     global_gate_class: blocking_profile_ddi
@@ -6784,18 +8600,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ResultCrossMonitoringEpochAllowed -> Metrics.Inc(MetricABDResultCrossMonitoringEpoch)
+      file: src/detector/hard_gate_producers.go
+      line: 830
+      mechanism: increment-only counter via observability (Result cross monitoring epoch; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDResultCrossMonitoringEpoch
+      file: src/detector/hard_gate_producers_test.go
+      line: 606
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_incomplete_run_final_profile_total
     canonical_metric_name: detector_incomplete_run_final_profile_total
     global_gate_class: blocking_profile_ddi
@@ -6804,18 +8644,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: IncompleteRunFinalProfileAllowed -> Metrics.Inc(MetricABDIncompleteRunFinalProfile)
+      file: src/detector/hard_gate_producers.go
+      line: 840
+      mechanism: increment-only counter via observability (Incomplete run final profile; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDIncompleteRunFinalProfile
+      file: src/detector/hard_gate_producers_test.go
+      line: 612
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_result_action_authorization_total
     canonical_metric_name: detector_monitor_result_action_authorization_total
     global_gate_class: blocking_profile_ddi
@@ -6824,18 +8688,42 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorResultActionAuthorizationAllowed -> Metrics.Inc(MetricABDMonitorResultActionAuthorization)
+      file: src/detector/hard_gate_producers.go
+      line: 850
+      mechanism: increment-only counter via observability (Monitor result action authorization; ABD addendum v1.2 sect. 43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorResultActionAuthorization
+      file: src/detector/hard_gate_producers_test.go
+      line: 618
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   - gate_id: detector_monitor_result_delivery_identity_mismatch_total
     canonical_metric_name: detector_monitor_result_delivery_identity_mismatch_total
     global_gate_class: blocking_profile_ddi
@@ -6844,18 +8732,43 @@ families:
     source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
     source_section: '42'
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonitorResultDeliveryIdentityMismatchAllowed -> Metrics.Inc(MetricABDMonitorResultDeliveryIdentityMismatch)
+      file: src/detector/hard_gate_producers.go
+      line: 860
+      mechanism: increment-only counter via observability (Monitor result delivery identity mismatch; ABD addendum v1.2 sect.
+        43)
+      production_root: detector lifecycle guards (sect. 43; release pipeline root from validation)
+    verified_commit: 3e42845b
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.abd; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:abd
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestABDMonitorResultDeliveryIdentityMismatch
+      file: src/detector/hard_gate_producers_test.go
+      line: 627
+      assertion: violating branch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    - artifacts/remediation/FB02_ABD_PRODUCERS.json
+    - src/detector/hard_gate_producers_test.go
+    - src/detector/hard_gate_producers.go
   ddi_tgb:
   - gate_id: discovery_profile_without_context_validation_total
     canonical_metric_name: discovery_profile_without_context_validation_total
