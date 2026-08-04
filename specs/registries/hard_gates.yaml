@@ -20,7 +20,7 @@ families:
       line: 407
       mechanism: increment-only counter via observability (trace payload carries raw session secret)
       production_root: warp.Runtime.PublishTrace (trace export redaction check; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -69,7 +69,7 @@ families:
       line: 292
       mechanism: increment-only counter via observability (TunRegistry.Claim rejects foreign session lease)
       production_root: warp.Runtime.ApplyRoute (TUN ownership check; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -118,7 +118,7 @@ families:
       line: 299
       mechanism: increment-only counter via observability (policy.Mark == warp-control-direct mark 0x6001)
       production_root: warp.Runtime.ApplyRoute (recursion guard, addendum §17/WARP-6; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -167,7 +167,7 @@ families:
       line: 306
       mechanism: increment-only counter via observability (policy-pinned mark owned by another session)
       production_root: warp.Runtime.ApplyRoute (mark ownership; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -216,7 +216,7 @@ families:
       line: 284
       mechanism: increment-only counter via observability (promotion while HealthTracker != data-alive)
       production_root: warp.Runtime.ApplyRoute (liveness gate; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -265,7 +265,7 @@ families:
       line: 317
       mechanism: increment-only counter via observability (non-atomic destination set application)
       production_root: warp.Runtime.ApplyRoute (atomic destination set; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -314,7 +314,7 @@ families:
       line: 349
       mechanism: increment-only counter via observability (restart beyond Config.MaxRestarts)
       production_root: warp.Runtime.Restart (bounded restart budget; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -363,7 +363,7 @@ families:
       line: 224
       mechanism: increment-only counter via observability (enrollment attempt beyond policy MaxAttempts)
       production_root: warp.Runtime.Register (bounded enrollment; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -412,7 +412,7 @@ families:
       line: 366
       mechanism: increment-only counter via observability (control action on flow outside session authorization)
       production_root: warp.Runtime.ControlAction (exact-scoped authorization; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -461,7 +461,7 @@ families:
       line: 383
       mechanism: increment-only counter via observability (rollback with no previous applied state)
       production_root: warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1432,7 +1432,7 @@ families:
       mechanism: increment-only counter via observability (recovery/canary action without a final action authorization)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1477,7 +1477,7 @@ families:
       mechanism: increment-only counter via observability (active action while capture visibility proofs incomplete)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1522,7 +1522,7 @@ families:
       mechanism: increment-only counter via observability (decision from destination-only scope)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1567,7 +1567,7 @@ families:
       mechanism: increment-only counter via observability (scope.ClientKey != auth.Client)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1612,7 +1612,7 @@ families:
       mechanism: increment-only counter via observability (scope.DomainKey != auth.Domain)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1657,7 +1657,7 @@ families:
       mechanism: increment-only counter via observability (scope.ComponentID != authorized component)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1702,7 +1702,7 @@ families:
       mechanism: increment-only counter via observability (scope.ConfigGen != auth.ConfigGen)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1747,7 +1747,7 @@ families:
       mechanism: increment-only counter via observability (auto-fallback with fewer than two independent evidence families)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1792,7 +1792,7 @@ families:
       mechanism: increment-only counter via observability (auto-fallback using evidence without declared independent family)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1837,7 +1837,7 @@ families:
       mechanism: increment-only counter via observability (active suppressor bypassed by recovery)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1882,7 +1882,7 @@ families:
       mechanism: increment-only counter via observability (likely-parallel evidence treated as failure)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1927,7 +1927,7 @@ families:
       mechanism: increment-only counter via observability (fresh same-scope success suppressor bypassed)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -1972,7 +1972,7 @@ families:
       mechanism: increment-only counter via observability (explicit server response treated as network failure)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2017,7 +2017,7 @@ families:
       mechanism: increment-only counter via observability (GSO segment bytes not MSS-aligned counted as wire progress)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2062,7 +2062,7 @@ families:
       mechanism: increment-only counter via observability (promotion while PPE/offload or GSO-parity proof missing)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2107,7 +2107,7 @@ families:
       mechanism: increment-only counter via observability (differential probe beyond bounded budget)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2152,7 +2152,7 @@ families:
       mechanism: increment-only counter via observability (lease rotation beyond MaxAttempts)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2197,7 +2197,7 @@ families:
       mechanism: increment-only counter via observability (recursive fallback onto the same transport path)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2242,7 +2242,7 @@ families:
       mechanism: increment-only counter via observability (recovery lease without a known rollback target)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2287,7 +2287,7 @@ families:
       mechanism: increment-only counter via observability (promotion while control probe unhealthy/regressed)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2332,7 +2332,7 @@ families:
       mechanism: increment-only counter via observability (recovery while rollback monitor is observe-only after budget breach)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2377,7 +2377,7 @@ families:
       mechanism: increment-only counter via observability (user revert without matching active lease)
       production_root: silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release
         pipeline root from validation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -2883,7 +2883,7 @@ families:
       mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
       production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
         sibling surfaced, never dropped)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3118,7 +3118,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (rejection recorded,
         NO_OPINION returned)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3166,7 +3166,7 @@ families:
       mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
         (FB-30)
       production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted for unavailable observers)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3216,7 +3216,7 @@ families:
         conflated (FB-30)
       production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
         recorded)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -3266,7 +3266,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
         returned)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5165,7 +5165,7 @@ families:
       mechanism: increment-only counter via observability; first-success must never erase sibling address failures (FB-29)
       production_root: detector.SummarizeResolutionDNS -> ErasedByFirstSuccess projection -> RecordResolutionErasure (masked
         sibling surfaced, never dropped)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5232,7 +5232,7 @@ families:
       line: 151
       mechanism: increment-only counter via observability; multi-vantage comparison must be stage-aligned (FB-30)
       production_root: detector.CompareVantage stage-alignment gate -> RecordMultiVantageViolation (NO_OPINION returned)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5281,7 +5281,7 @@ families:
       mechanism: increment-only counter via observability; a TCP/TLS-only observer must never confirm an HTTP/body hypothesis
         (FB-30)
       production_root: detector.CompareVantage stage-aware capability gate -> RecordMultiVantageViolation (NO_OPINION returned)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5330,7 +5330,7 @@ families:
       mechanism: increment-only counter via observability; an unavailable observer must never become a target-failure claim
         (FB-30)
       production_root: detector.CompareVantage unavailable-gate -> NO_OPINION (no failure claim emitted)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5380,7 +5380,7 @@ families:
         conflated (FB-30)
       production_root: detector.CompareVantage identity/mode gate -> RecordMultiVantageViolation (NO_OPINION returned, violation
         recorded)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -5430,7 +5430,7 @@ families:
         (FB-30)
       production_root: detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION
         returned)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6380,7 +6380,7 @@ families:
       line: 392
       mechanism: increment-only counter via observability; report field incremented at validation.go:265
       production_root: crossservice.Validate() / (*Store).ValidateAndStore (CSI-18 same-client negative control)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6449,7 +6449,7 @@ families:
       line: 212
       mechanism: increment-only counter via observability (label result=selected|unselected)
       production_root: nfq.handleTCPPacket -> traceNFQDecision (reassembled-TCP-SNI evidence selected)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6493,7 +6493,7 @@ families:
       line: 214
       mechanism: increment-only counter via observability (reassembled SNI without logical ID)
       production_root: nfq.handleTCPPacket -> traceNFQDecision (layout parity violation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -6552,7 +6552,7 @@ families:
       line: 106
       mechanism: increment-only counter via observability (per GSO-flagged packet)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6596,7 +6596,7 @@ families:
       line: 107
       mechanism: increment-only byte counter via observability
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (NFQA_CFG_F_GSO metadata)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6640,7 +6640,7 @@ families:
       line: 109
       mechanism: increment-only counter via observability (OriginalLength > PayloadLength)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (truncated GSO envelope)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -6694,7 +6694,7 @@ families:
       line: 112
       mechanism: increment-only counter via observability (NFQA_SKB_CSUMNOTREADY)
       production_root: nfq.handlePacket -> DecodeOffloadMetadata (unverified checksum GSO)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -6748,7 +6748,7 @@ families:
       line: 209
       mechanism: increment-only counter via observability (label path=result)
       production_root: nfq.handleGSOFastPath (GSO fast-path verdict)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6792,7 +6792,7 @@ families:
       line: 211
       mechanism: increment-only counter via observability (normalize-queued path)
       production_root: nfq.handleGSOFastPath (normalizer direct queue)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6836,7 +6836,7 @@ families:
       line: 214
       mechanism: increment-only counter via observability (action-suppressed result)
       production_root: nfq.handleGSOFastPath (suppression budget)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6880,7 +6880,7 @@ families:
       line: 61
       mechanism: increment-only counter via observability (secondary-pass fail-open)
       production_root: nfq GSO normalizer secondary pass (pass-token miss)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -6934,7 +6934,7 @@ families:
       line: 38
       mechanism: increment-only counter via observability (deferred; result=success|rollback)
       production_root: http API ApplyRuntimeControlTopology (double-buffered GSO topology switch)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -6978,7 +6978,7 @@ families:
       line: 106
       mechanism: increment-only counter via observability (per signal)
       production_root: nfq.observePassiveRSTIncoming/Outgoing (passive RST observation)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7022,7 +7022,7 @@ families:
       line: 108
       mechanism: increment-only counter via observability (label decision=...)
       production_root: nfq.observePassiveRSTIncoming (enforcement decision)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7066,7 +7066,7 @@ families:
       line: 113
       mechanism: increment-only counter via observability (suppress decision)
       production_root: nfq.observePassiveRSTIncoming (suppression)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7110,7 +7110,7 @@ families:
       line: 116
       mechanism: increment-only counter via observability (fail-open decision)
       production_root: nfq.observePassiveRSTIncoming (fail-open enforcement)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7164,7 +7164,7 @@ families:
       line: 109
       mechanism: increment-only counter via observability (label quality=...)
       production_root: nfq.observePassiveRSTIncoming (baseline quality)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7208,7 +7208,7 @@ families:
       line: 118
       mechanism: increment-only counter via observability (fail-open reason=budget)
       production_root: nfq.observePassiveRSTIncoming (suppression budget exhausted)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7252,7 +7252,7 @@ families:
       line: 134
       mechanism: increment-only counter via observability (scoped rollback commit)
       production_root: pool.RecordPassiveRSTHealth -> PassiveRSTStore.RecordHealth (scope-local rollback)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7296,7 +7296,7 @@ families:
       line: 136
       mechanism: increment-only counter via observability (reason=reconnect failure regression)
       production_root: pool.RecordPassiveRSTHealth (reconnect failure regression)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: promotion_blocker
@@ -7356,7 +7356,7 @@ families:
       line: 513
       mechanism: increment-only counter via observability (label result=success|failure)
       production_root: PPE lifecycle reapply (reconciler Assert/Reapply loop)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7400,7 +7400,7 @@ families:
       line: 348
       mechanism: increment-only counter via observability (label verdict=...)
       production_root: PPE self-test controller run (visibility A/B probe)
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer
@@ -7444,7 +7444,7 @@ families:
       line: 110
       mechanism: increment-only counter via observability (visibility gate degradation)
       production_root: visibility gate Degrade -> ProductService subscriber
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: readiness_observer
@@ -7498,7 +7498,7 @@ families:
       line: 111
       mechanism: increment-only counter via observability (hold disabled while visibility degraded)
       production_root: visibility gate Degrade -> ProductService subscriber
-    verified_commit: 790c8f6f
+    verified_commit: fed07a5d
     expected_producer_location: null
     verdict_consumer:
     - kind: aggregation_observer

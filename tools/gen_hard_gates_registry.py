@@ -667,7 +667,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "790c8f6f"  # FB-02 WARP: 10 base-transport producers verified (2026-08-04); FB-29/30 re-declared (45 applicable)
+REGISTER_VERIFIED_COMMIT = "fed07a5d"  # FB-02 SPF: 22 silent-path failure producers verified (2026-08-04); 67 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
