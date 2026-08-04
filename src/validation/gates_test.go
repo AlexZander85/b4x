@@ -34,11 +34,14 @@ func TestApplicableHardGates(t *testing.T) {
 	// + 79 ABD producers (FB-02 39-42: guards in
 	// src/detector/hard_gate_producers.go)
 	// + 14 SP producers (FB-02 28A.11: guards in
-	// src/serviceprofile/hard_gate_producers.go).
-	// Each has a real Metrics.Inc call site, an executed fixture and (for
+	// src/serviceprofile/hard_gate_producers.go)
+	// + 1 FB-28 mon_production_ready readiness gate (IV-18 reverse
+	// reachability + production dependencies, src/validation/iv18_reachability.go).
+	// Each has a real Metrics.Inc call site (or, for the FB-28 readiness
+	// gate, a static reverse-reachability scan), an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 236 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 236", len(gates))
+	if len(gates) != 237 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 237", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

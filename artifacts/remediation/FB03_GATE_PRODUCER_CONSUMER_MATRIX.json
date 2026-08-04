@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-04T12:47:16Z",
+  "generated_at": "2026-08-04T18:07:01Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 236,
-  "missing": 47,
+  "verified": 237,
+  "missing": 46,
   "families_verified_missing": {
     "abd": [
       85,
@@ -18,8 +18,8 @@
       0
     ],
     "mon": [
-      57,
-      1
+      58,
+      0
     ],
     "ppe": [
       4,
@@ -5261,14 +5261,14 @@
       "class": "monitoring_conformance",
       "stage": "cutover",
       "kind": "current_generation_readiness_input",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": false,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
+        "symbol": "MonProductionReady()",
+        "file": "src/validation/iv18_reachability.go",
+        "line": 235,
+        "mechanism": "static reverse-reachability AST scan (legacy applyBatchResults unreachable) + production dependency wiring (ObservationBus, DiagnosticScheduler, ABD-DDI chain, /api/monitor/v1); readiness input, not a counter",
+        "production_root": "validation suite + release pipeline root (FB-28 cutover readiness)"
       },
       "consumers": [
         {
@@ -5287,6 +5287,12 @@
           "line": 1,
           "assertion": "applyBatchResults reachable -\u003e mon_production_ready blocked"
         }
+      ],
+      "evidence": [
+        "B4X_AUDIT_FIX_TASKS v2.md §FB-28",
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "src/validation/iv18_reachability.go",
+        "src/validation/iv18_reachability_test.go"
       ]
     },
     {

@@ -4960,9 +4960,15 @@ families:
     source_doc: B4X_AUDIT_FIX_TASKS v2.md §FB-28
     source_section: FB-28
     kind: current_generation_readiness_input
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: MonProductionReady()
+      file: src/validation/iv18_reachability.go
+      line: 235
+      mechanism: static reverse-reachability AST scan (legacy applyBatchResults unreachable) + production dependency wiring
+        (ObservationBus, DiagnosticScheduler, ABD-DDI chain, /api/monitor/v1); readiness input, not a counter
+      production_root: validation suite + release pipeline root (FB-28 cutover readiness)
+    verified_commit: 04c35ccf
     expected_producer_location: src/validation/iv18_reachability.go
     verdict_consumer:
     - kind: registry_suite_verdict
@@ -4981,7 +4987,11 @@ families:
       line: 1
       assertion: applyBatchResults reachable -> mon_production_ready blocked
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_AUDIT_FIX_TASKS v2.md §FB-28
+    - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
+    - src/validation/iv18_reachability.go
+    - src/validation/iv18_reachability_test.go
   abd:
   - gate_id: detector_single_probe_confirmed_total
     canonical_metric_name: detector_single_probe_confirmed_total

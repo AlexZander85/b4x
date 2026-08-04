@@ -120,8 +120,14 @@ EXTRA_GATES: dict[str, dict] = {
         "source_doc": "B4X_AUDIT_FIX_TASKS v2.md §FB-28",
         "source_section": "FB-28",
         "kind": "current_generation_readiness_input",
-        "producer_status": "missing",
-        "runtime_producer": None,
+        "producer_status": "verified",
+        "runtime_producer": {
+            "symbol": "MonProductionReady()",
+            "file": "src/validation/iv18_reachability.go",
+            "line": 235,
+            "mechanism": "static reverse-reachability AST scan (legacy applyBatchResults unreachable) + production dependency wiring (ObservationBus, DiagnosticScheduler, ABD-DDI chain, /api/monitor/v1); readiness input, not a counter",
+            "production_root": "validation suite + release pipeline root (FB-28 cutover readiness)",
+        },
         "verified_commit": None,
         "expected_producer_location": "src/validation/iv18_reachability.go",
         "verdict_consumer": [
@@ -147,7 +153,12 @@ EXTRA_GATES: dict[str, dict] = {
             },
         ],
         "mutation_test": None,
-        "evidence_artifact": None,
+        "evidence_artifact": [
+            "B4X_AUDIT_FIX_TASKS v2.md §FB-28",
+            "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+            "src/validation/iv18_reachability.go",
+            "src/validation/iv18_reachability_test.go",
+        ],
     },
 }
 
@@ -4425,7 +4436,12 @@ def build_gates() -> tuple[dict[str, list[dict]], dict[str, str]]:
             print(f"WARN: extra gate {name!r} already owned by {index[name]}", file=sys.stderr)
             continue
         index[name] = fam
-        families.setdefault(fam, []).append(dict(entry))
+        e = dict(entry)
+        # Verified extra gates follow the same commitment rule as the
+        # addendum-extracted producers (verified_commit = REGISTER_VERIFIED_COMMIT).
+        if e.get("producer_status") == "verified" and not e.get("verified_commit"):
+            e["verified_commit"] = REGISTER_VERIFIED_COMMIT
+        families.setdefault(fam, []).append(e)
     return families, index
 
 
