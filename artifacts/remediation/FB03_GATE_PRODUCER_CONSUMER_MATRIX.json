@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-04T10:53:26Z",
+  "generated_at": "2026-08-04T11:14:26Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 91,
-  "missing": 192,
+  "verified": 143,
+  "missing": 140,
   "families_verified_missing": {
     "abd": [
       6,
@@ -18,8 +18,8 @@
       0
     ],
     "mon": [
-      5,
-      53
+      57,
+      1
     ],
     "ppe": [
       4,
@@ -2846,15 +2846,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ABDPartialResultProfileReadyAllowed -\u003e Metrics.Inc(MetricMONABDPartialResultProfileReady)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 423,
+        "mechanism": "increment-only counter via observability (Abd partial result profile ready; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONABDPartialResultProfileReady",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 362,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_abd_request_without_target_plan_total",
@@ -2862,15 +2893,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ABDRequestWithoutTargetPlanAllowed -\u003e Metrics.Inc(MetricMONABDRequestWithoutTargetPlan)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 413,
+        "mechanism": "increment-only counter via observability (Abd request without target plan; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONABDRequestWithoutTargetPlan",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 356,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_abd_result_bypassed_ddi_total",
@@ -2878,15 +2940,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ABDResultBypassedDDIAllowed -\u003e Metrics.Inc(MetricMONABDResultBypassedDDI)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 433,
+        "mechanism": "increment-only counter via observability (Abd result bypassed ddi; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONABDResultBypassedDDI",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 368,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_checkpoint_corruption_false_ready_total",
@@ -2894,15 +2987,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CheckpointCorruptionFalseReadyAllowed -\u003e Metrics.Inc(MetricMONCheckpointCorruptionFalseReady)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 565,
+        "mechanism": "increment-only counter via observability (Checkpoint corruption false ready; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCheckpointCorruptionFalseReady",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 450,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_client_dns_answer_replaced_silently_total",
@@ -2910,15 +3034,46 @@
       "class": "resolution",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ClientDNSAnswerReplacedSilentlyAllowed -\u003e Metrics.Inc(MetricMONClientDNSAnswerReplacedSilently)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 261,
+        "mechanism": "increment-only counter via observability (Client dns answer replaced silently; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONClientDNSAnswerReplacedSilently",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 261,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cname_terminal_ip_misattributed_total",
@@ -2926,15 +3081,46 @@
       "class": "resolution",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CnameTerminalIPMisattributedAllowed -\u003e Metrics.Inc(MetricMONCnameTerminalIPMisattributed)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 277,
+        "mechanism": "increment-only counter via observability (Cname terminal ip misattributed; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCnameTerminalIPMisattributed",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 269,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cross_client_merge_total",
@@ -2942,15 +3128,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossClientMergeAllowed -\u003e Metrics.Inc(MetricMONCrossClientMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 114,
+        "mechanism": "increment-only counter via observability (Cross client merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCrossClientMerge",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 168,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cross_component_merge_total",
@@ -2958,15 +3175,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossComponentMergeAllowed -\u003e Metrics.Inc(MetricMONCrossComponentMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 132,
+        "mechanism": "increment-only counter via observability (Cross component merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCrossComponentMerge",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 184,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cross_generation_evidence_merge_total",
@@ -2974,15 +3222,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossGenerationEvidenceMergeAllowed -\u003e Metrics.Inc(MetricMONCrossGenerationEvidenceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 152,
+        "mechanism": "increment-only counter via observability (Cross generation evidence merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCrossGenerationEvidenceMerge",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 200,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cross_service_merge_total",
@@ -2990,15 +3269,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossServiceMergeAllowed -\u003e Metrics.Inc(MetricMONCrossServiceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 123,
+        "mechanism": "increment-only counter via observability (Cross service merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCrossServiceMerge",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 176,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_cross_wan_evidence_merge_total",
@@ -3006,15 +3316,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossWanEvidenceMergeAllowed -\u003e Metrics.Inc(MetricMONCrossWanEvidenceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 142,
+        "mechanism": "increment-only counter via observability (Cross wan evidence merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONCrossWanEvidenceMerge",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 192,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_decay_disabled_without_policy_total",
@@ -3022,15 +3363,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DecayDisabledWithoutPolicyAllowed -\u003e Metrics.Inc(MetricMONDecayDisabledWithoutPolicy)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 237,
+        "mechanism": "increment-only counter via observability (Decay disabled without policy; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDecayDisabledWithoutPolicy",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 246,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_destination_only_deep_trigger_total",
@@ -3038,15 +3410,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DeepTriggerOnDestinationOnlyScope -\u003e Metrics.Inc(MetricMONDestinationOnlyDeepTrigger)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 104,
+        "mechanism": "increment-only counter via observability (Destination only deep trigger; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDestinationOnlyDeepTrigger",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 162,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_discovery_skipped_mandatory_baseline_total",
@@ -3054,15 +3457,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DiscoverySkippedMandatoryBaselineAllowed -\u003e Metrics.Inc(MetricMONDiscoverySkippedMandatoryBaseline)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 458,
+        "mechanism": "increment-only counter via observability (Discovery skipped mandatory baseline; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDiscoverySkippedMandatoryBaseline",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 384,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_discovery_without_authoritative_profile_total",
@@ -3070,15 +3504,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DiscoveryWithoutAuthoritativeProfileAllowed -\u003e Metrics.Inc(MetricMONDiscoveryWithoutAuthProfile)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 443,
+        "mechanism": "increment-only counter via observability (Discovery without authoritative profile; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDiscoveryWithoutAuthProfile",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 374,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_duplicate_concurrent_abd_run_total",
@@ -3086,15 +3551,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DuplicateConcurrentABDRunAllowed -\u003e Metrics.Inc(MetricMONDupConcurrentABDRun)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 357,
+        "mechanism": "increment-only counter via observability (Duplicate concurrent abd run; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDupConcurrentABDRun",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 320,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_duplicate_evidence_independence_total",
@@ -3102,15 +3598,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DuplicateEvidenceIndependenceAllowed -\u003e Metrics.Inc(MetricMONDupEvidenceIndependence)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 180,
+        "mechanism": "increment-only counter via observability (Duplicate evidence independence; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONDupEvidenceIndependence",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 214,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_exact_endpoint_service_resolution_conflated_total",
@@ -3171,15 +3698,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ExpiredEvidenceUsedAllowed -\u003e Metrics.Inc(MetricMONExpiredEvidenceUsed)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 226,
+        "mechanism": "increment-only counter via observability (Expired evidence used; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONExpiredEvidenceUsed",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 240,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_fast_lane_action_total",
@@ -3187,15 +3745,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "FastLaneActionTaken -\u003e Metrics.Inc(MetricMONFastLaneAction)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 80,
+        "mechanism": "increment-only counter via observability (Fast lane action; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONFastLaneAction",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 146,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_fast_lane_promoted_as_authoritative_total",
@@ -3203,15 +3792,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "FastLanePromotedAsAuthoritative -\u003e Metrics.Inc(MetricMONFastLanePromotedAsAuthoritative)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 91,
+        "mechanism": "increment-only counter via observability (Fast lane promoted as authoritative; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONFastLanePromotedAsAuthoritative",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 152,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_first_success_erased_address_failures_total",
@@ -3279,15 +3899,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "HighCardinalityMetricLabelAllowed -\u003e Metrics.Inc(MetricMONHighCardinalityMetricLabel)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 605,
+        "mechanism": "increment-only counter via observability (High cardinality metric label; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONHighCardinalityMetricLabel",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 476,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_http_hypothesis_from_tcp_tls_only_observer_total",
@@ -3348,15 +3999,46 @@
       "class": "legacy_migration",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "LegacyAPIProjectionMutationAllowed -\u003e Metrics.Inc(MetricMONLegacyAPIProjectionMutation)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 522,
+        "mechanism": "increment-only counter via observability (Legacy api projection mutation; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONLegacyAPIProjectionMutation",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 423,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_legacy_watchdog_created_unvalidated_set_total",
@@ -3364,15 +4046,46 @@
       "class": "legacy_migration",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "LegacyWatchdogCreatedUnvalidatedSetAllowed -\u003e Metrics.Inc(MetricMONLegacyWatchdogUnvalidatedSet)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 501,
+        "mechanism": "increment-only counter via observability (Legacy watchdog created unvalidated set; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONLegacyWatchdogUnvalidatedSet",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 411,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_legacy_watchdog_direct_apply_total",
@@ -3380,15 +4093,46 @@
       "class": "legacy_migration",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "LegacyWatchdogDirectApplyAllowed -\u003e Metrics.Inc(MetricMONLegacyWatchdogDirectApply)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 491,
+        "mechanism": "increment-only counter via observability (Legacy watchdog direct apply; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONLegacyWatchdogDirectApply",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 405,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_legacy_watchdog_overwrote_set_without_canary_total",
@@ -3396,15 +4140,46 @@
       "class": "legacy_migration",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "LegacyWatchdogOverwriteWithoutCanaryAllowed -\u003e Metrics.Inc(MetricMONLegacyWatchdogOverwriteNoCanary)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 511,
+        "mechanism": "increment-only counter via observability (Legacy watchdog overwrote set without canary; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONLegacyWatchdogOverwriteNoCanary",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 417,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_multi_ip_partial_failure_hidden_total",
@@ -3412,15 +4187,46 @@
       "class": "resolution",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "MultiIPPartialFailureHiddenAllowed -\u003e Metrics.Inc(MetricMONMultiIPPartialFailureHidden)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 294,
+        "mechanism": "increment-only counter via observability (Multi ip partial failure hidden; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONMultiIPPartialFailureHidden",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 279,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_observation_direct_action_total",
@@ -3428,15 +4234,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ObservationDirectActionAllowed -\u003e Metrics.Inc(MetricMONObservationDirectAction)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 39,
+        "mechanism": "increment-only counter via observability (Observation direct action; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONObservationDirectAction",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 122,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_observer_capability_unproven_total",
@@ -3550,15 +4387,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PassiveDiscoveryStart -\u003e Metrics.Inc(MetricMONPassiveDiscoveryStart)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 60,
+        "mechanism": "increment-only counter via observability (Passive discovery start; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONPassiveDiscoveryStart",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 134,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_passive_warp_enable_total",
@@ -3566,15 +4434,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PassiveWarpEnable -\u003e Metrics.Inc(MetricMONPassiveWarpEnable)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 70,
+        "mechanism": "increment-only counter via observability (Passive warp enable; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONPassiveWarpEnable",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 140,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_probe_without_resolution_binding_total",
@@ -3582,15 +4481,46 @@
       "class": "resolution",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProbeWithoutResolutionBindingAllowed -\u003e Metrics.Inc(MetricMONProbeWithoutResolutionBinding)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 250,
+        "mechanism": "increment-only counter via observability (Probe without resolution binding; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONProbeWithoutResolutionBinding",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 254,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_provisional_profile_compiled_total",
@@ -3598,15 +4528,46 @@
       "class": "observation",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProvisionalProfileCompiled -\u003e Metrics.Inc(MetricMONProvisionalProfileCompiled)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 50,
+        "mechanism": "increment-only counter via observability (Provisional profile compiled; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONProvisionalProfileCompiled",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 128,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_recommendation_without_scope_total",
@@ -3614,15 +4575,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendationWithoutScopeAllowed -\u003e Metrics.Inc(MetricMONRecommendationWithoutScope)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 469,
+        "mechanism": "increment-only counter via observability (Recommendation without scope; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONRecommendationWithoutScope",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 390,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_recovered_subject_not_demoted_total",
@@ -3630,15 +4622,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecoveredSubjectNotDemotedAllowed -\u003e Metrics.Inc(MetricMONRecoveredSubjectNotDemoted)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 217,
+        "mechanism": "increment-only counter via observability (Recovered subject not demoted; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONRecoveredSubjectNotDemoted",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 233,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_reference_result_as_action_authorization_total",
@@ -3646,15 +4669,46 @@
       "class": "multi_vantage",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ReferenceResultAsActionAuthorizationAllowed -\u003e Metrics.Inc(MetricMONReferenceResultAsAuthorization)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 401,
+        "mechanism": "increment-only counter via observability (Reference result as action authorization; MON addendum v1.0 sect. 89)",
+        "production_root": "monitoring lifecycle guards (sect. 89; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONReferenceResultAsAuthorization",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 346,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_required_event_drop_hidden_total",
@@ -3662,15 +4716,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RequiredEventDropHiddenAllowed -\u003e Metrics.Inc(MetricMONRequiredEventDropHidden)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 544,
+        "mechanism": "increment-only counter via observability (Required event drop hidden; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONRequiredEventDropHidden",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 437,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_restart_reused_expired_lease_total",
@@ -3678,15 +4763,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RestartReusedExpiredLeaseAllowed -\u003e Metrics.Inc(MetricMONRestartReusedExpiredLease)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 575,
+        "mechanism": "increment-only counter via observability (Restart reused expired lease; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONRestartReusedExpiredLease",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 458,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_router_origin_as_forwarded_proof_total",
@@ -3694,15 +4810,46 @@
       "class": "scope",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RouterOriginAsForwardedProofAllowed -\u003e Metrics.Inc(MetricMONRouterOriginAsForwardedProof)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 163,
+        "mechanism": "increment-only counter via observability (Router origin as forwarded proof; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONRouterOriginAsForwardedProof",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 206,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_secret_trace_leak_total",
@@ -3710,15 +4857,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SecretTraceLeakAllowed -\u003e Metrics.Inc(MetricMONSecretTraceLeak)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 595,
+        "mechanism": "increment-only counter via observability (Secret trace leak; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONSecretTraceLeak",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 470,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_self_interference_total",
@@ -3726,15 +4904,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SelfInterferenceAllowed -\u003e Metrics.Inc(MetricMONSelfInterference)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 388,
+        "mechanism": "increment-only counter via observability (Self interference; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONSelfInterference",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 338,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_sensitive_dns_history_export_total",
@@ -3742,15 +4951,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SensitiveDNSHistoryExportAllowed -\u003e Metrics.Inc(MetricMONSensitiveDNSHistoryExport)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 585,
+        "mechanism": "increment-only counter via observability (Sensitive dns history export; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONSensitiveDNSHistoryExport",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 464,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_shadow_and_active_writer_overlap_total",
@@ -3758,15 +4998,46 @@
       "class": "legacy_migration",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ShadowActiveWriterOverlapAllowed -\u003e Metrics.Inc(MetricMONShadowActiveWriterOverlap)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 532,
+        "mechanism": "increment-only counter via observability (Shadow and active writer overlap; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONShadowActiveWriterOverlap",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 429,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_source_heartbeat_stale_auto_diagnose_total",
@@ -3774,15 +5045,46 @@
       "class": "reliability_privacy",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SourceHeartbeatStaleAutoDiagnoseAllowed -\u003e Metrics.Inc(MetricMONSourceHeartbeatStaleAutoDiagnose)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 555,
+        "mechanism": "increment-only counter via observability (Source heartbeat stale auto diagnose; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONSourceHeartbeatStaleAutoDiagnose",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 444,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_stale_resolution_used_as_exact_proof_total",
@@ -3790,15 +5092,46 @@
       "class": "resolution",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "StaleResolutionUsedAsExactProofAllowed -\u003e Metrics.Inc(MetricMONStaleResolutionExactProof)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 304,
+        "mechanism": "increment-only counter via observability (Stale resolution used as exact proof; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONStaleResolutionExactProof",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 287,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_success_suppressor_ignored_total",
@@ -3806,15 +5139,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "SuccessSuppressorIgnoredAllowed -\u003e Metrics.Inc(MetricMONSuccessSuppressorIgnored)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 206,
+        "mechanism": "increment-only counter via observability (Success suppressor ignored; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONSuccessSuppressorIgnored",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 227,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_temporal_persistence_without_time_separation_total",
@@ -3822,15 +5186,46 @@
       "class": "temporal",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TemporalPersistenceWithoutSeparationAllowed -\u003e Metrics.Inc(MetricMONTemporalPersistenceNoSeparation)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 196,
+        "mechanism": "increment-only counter via observability (Temporal persistence without time separation; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONTemporalPersistenceNoSeparation",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 221,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_trigger_during_global_wan_failure_total",
@@ -3838,15 +5233,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TriggerDuringGlobalWanFailureAllowed -\u003e Metrics.Inc(MetricMONTriggerDuringGlobalWanFailure)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 336,
+        "mechanism": "increment-only counter via observability (Trigger during global wan failure; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONTriggerDuringGlobalWanFailure",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 307,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_trigger_with_stale_source_heartbeat_total",
@@ -3854,15 +5280,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TriggerWithStaleSourceHeartbeatAllowed -\u003e Metrics.Inc(MetricMONTriggerWithStaleHeartbeat)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 346,
+        "mechanism": "increment-only counter via observability (Trigger with stale source heartbeat; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONTriggerWithStaleHeartbeat",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 314,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_trigger_without_budget_total",
@@ -3870,15 +5327,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TriggerWithoutBudgetAllowed -\u003e Metrics.Inc(MetricMONTriggerWithoutBudget)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 326,
+        "mechanism": "increment-only counter via observability (Trigger without budget; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONTriggerWithoutBudget",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 301,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_trigger_without_visibility_total",
@@ -3886,15 +5374,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TriggerWithoutVisibilityAllowed -\u003e Metrics.Inc(MetricMONTriggerWithoutVisibility)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 316,
+        "mechanism": "increment-only counter via observability (Trigger without visibility; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONTriggerWithoutVisibility",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 295,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_unbounded_probe_parallelism_total",
@@ -3902,15 +5421,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UnboundedProbeParallelismAllowed -\u003e Metrics.Inc(MetricMONUnboundedProbeParallelism)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 378,
+        "mechanism": "increment-only counter via observability (Unbounded probe parallelism; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONUnboundedProbeParallelism",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 332,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_unbounded_target_intake_total",
@@ -3918,15 +5468,46 @@
       "class": "trigger_resource",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UnboundedTargetIntakeAllowed -\u003e Metrics.Inc(MetricMONUnboundedTargetIntake)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 368,
+        "mechanism": "increment-only counter via observability (Unbounded target intake; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONUnboundedTargetIntake",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 326,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "monitor_warp_recommendation_without_ip_path_evidence_total",
@@ -3934,15 +5515,46 @@
       "class": "abd_ddi_discovery",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "WarpRecommendationWithoutIPPathAllowed -\u003e Metrics.Inc(MetricMONWarpRecommendationWithoutIPPath)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 479,
+        "mechanism": "increment-only counter via observability (Warp recommendation without ip path evidence; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.mon; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestMONWarpRecommendationWithoutIPPath",
+          "file": "src/monitoring/hard_gate_producers_test.go",
+          "line": 397,
+          "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "src/monitoring/hard_gate_producers_test.go",
+        "src/monitoring/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_fixed_5s_destructive_timeout_total",

@@ -826,7 +826,374 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability; an observer with unproven capability must never produce an opinion (FB-30)",
         "production_root": "detector.CompareVantage stale/unsupported-capability branch -> RecordMultiVantageViolation (NO_OPINION returned)",
     },
-}
+
+    # --- MON producers (FB-02 MON section, 2026-08-04): every counter
+    # emitted by a guard in src/monitoring/hard_gate_producers.go (sect. 84-92),
+    # reachable from the validation controller loop via the release pipeline. ---
+    "monitor_observation_direct_action_total": {
+        "symbol": "ObservationDirectActionAllowed -> Metrics.Inc(MetricMONObservationDirectAction)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 39,
+        "mechanism": "increment-only counter via observability (Observation direct action; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_provisional_profile_compiled_total": {
+        "symbol": "ProvisionalProfileCompiled -> Metrics.Inc(MetricMONProvisionalProfileCompiled)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 50,
+        "mechanism": "increment-only counter via observability (Provisional profile compiled; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_passive_discovery_start_total": {
+        "symbol": "PassiveDiscoveryStart -> Metrics.Inc(MetricMONPassiveDiscoveryStart)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 60,
+        "mechanism": "increment-only counter via observability (Passive discovery start; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_passive_warp_enable_total": {
+        "symbol": "PassiveWarpEnable -> Metrics.Inc(MetricMONPassiveWarpEnable)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 70,
+        "mechanism": "increment-only counter via observability (Passive warp enable; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_fast_lane_action_total": {
+        "symbol": "FastLaneActionTaken -> Metrics.Inc(MetricMONFastLaneAction)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 80,
+        "mechanism": "increment-only counter via observability (Fast lane action; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_fast_lane_promoted_as_authoritative_total": {
+        "symbol": "FastLanePromotedAsAuthoritative -> Metrics.Inc(MetricMONFastLanePromotedAsAuthoritative)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 91,
+        "mechanism": "increment-only counter via observability (Fast lane promoted as authoritative; MON addendum v1.0 sect. 84)",
+        "production_root": "monitoring lifecycle guards (sect. 84; release pipeline root from validation)",
+    },
+    "monitor_destination_only_deep_trigger_total": {
+        "symbol": "DeepTriggerOnDestinationOnlyScope -> Metrics.Inc(MetricMONDestinationOnlyDeepTrigger)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 104,
+        "mechanism": "increment-only counter via observability (Destination only deep trigger; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_cross_client_merge_total": {
+        "symbol": "CrossClientMergeAllowed -> Metrics.Inc(MetricMONCrossClientMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 114,
+        "mechanism": "increment-only counter via observability (Cross client merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_cross_service_merge_total": {
+        "symbol": "CrossServiceMergeAllowed -> Metrics.Inc(MetricMONCrossServiceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 123,
+        "mechanism": "increment-only counter via observability (Cross service merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_cross_component_merge_total": {
+        "symbol": "CrossComponentMergeAllowed -> Metrics.Inc(MetricMONCrossComponentMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 132,
+        "mechanism": "increment-only counter via observability (Cross component merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_cross_wan_evidence_merge_total": {
+        "symbol": "CrossWanEvidenceMergeAllowed -> Metrics.Inc(MetricMONCrossWanEvidenceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 142,
+        "mechanism": "increment-only counter via observability (Cross wan evidence merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_cross_generation_evidence_merge_total": {
+        "symbol": "CrossGenerationEvidenceMergeAllowed -> Metrics.Inc(MetricMONCrossGenerationEvidenceMerge)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 152,
+        "mechanism": "increment-only counter via observability (Cross generation evidence merge; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_router_origin_as_forwarded_proof_total": {
+        "symbol": "RouterOriginAsForwardedProofAllowed -> Metrics.Inc(MetricMONRouterOriginAsForwardedProof)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 163,
+        "mechanism": "increment-only counter via observability (Router origin as forwarded proof; MON addendum v1.0 sect. 85)",
+        "production_root": "monitoring lifecycle guards (sect. 85; release pipeline root from validation)",
+    },
+    "monitor_duplicate_evidence_independence_total": {
+        "symbol": "DuplicateEvidenceIndependenceAllowed -> Metrics.Inc(MetricMONDupEvidenceIndependence)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 180,
+        "mechanism": "increment-only counter via observability (Duplicate evidence independence; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_temporal_persistence_without_time_separation_total": {
+        "symbol": "TemporalPersistenceWithoutSeparationAllowed -> Metrics.Inc(MetricMONTemporalPersistenceNoSeparation)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 196,
+        "mechanism": "increment-only counter via observability (Temporal persistence without time separation; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_success_suppressor_ignored_total": {
+        "symbol": "SuccessSuppressorIgnoredAllowed -> Metrics.Inc(MetricMONSuccessSuppressorIgnored)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 206,
+        "mechanism": "increment-only counter via observability (Success suppressor ignored; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_recovered_subject_not_demoted_total": {
+        "symbol": "RecoveredSubjectNotDemotedAllowed -> Metrics.Inc(MetricMONRecoveredSubjectNotDemoted)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 217,
+        "mechanism": "increment-only counter via observability (Recovered subject not demoted; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_expired_evidence_used_total": {
+        "symbol": "ExpiredEvidenceUsedAllowed -> Metrics.Inc(MetricMONExpiredEvidenceUsed)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 226,
+        "mechanism": "increment-only counter via observability (Expired evidence used; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_decay_disabled_without_policy_total": {
+        "symbol": "DecayDisabledWithoutPolicyAllowed -> Metrics.Inc(MetricMONDecayDisabledWithoutPolicy)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 237,
+        "mechanism": "increment-only counter via observability (Decay disabled without policy; MON addendum v1.0 sect. 86)",
+        "production_root": "monitoring lifecycle guards (sect. 86; release pipeline root from validation)",
+    },
+    "monitor_probe_without_resolution_binding_total": {
+        "symbol": "ProbeWithoutResolutionBindingAllowed -> Metrics.Inc(MetricMONProbeWithoutResolutionBinding)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 250,
+        "mechanism": "increment-only counter via observability (Probe without resolution binding; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)",
+    },
+    "monitor_client_dns_answer_replaced_silently_total": {
+        "symbol": "ClientDNSAnswerReplacedSilentlyAllowed -> Metrics.Inc(MetricMONClientDNSAnswerReplacedSilently)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 261,
+        "mechanism": "increment-only counter via observability (Client dns answer replaced silently; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)",
+    },
+    "monitor_cname_terminal_ip_misattributed_total": {
+        "symbol": "CnameTerminalIPMisattributedAllowed -> Metrics.Inc(MetricMONCnameTerminalIPMisattributed)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 277,
+        "mechanism": "increment-only counter via observability (Cname terminal ip misattributed; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)",
+    },
+    "monitor_multi_ip_partial_failure_hidden_total": {
+        "symbol": "MultiIPPartialFailureHiddenAllowed -> Metrics.Inc(MetricMONMultiIPPartialFailureHidden)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 294,
+        "mechanism": "increment-only counter via observability (Multi ip partial failure hidden; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)",
+    },
+    "monitor_stale_resolution_used_as_exact_proof_total": {
+        "symbol": "StaleResolutionUsedAsExactProofAllowed -> Metrics.Inc(MetricMONStaleResolutionExactProof)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 304,
+        "mechanism": "increment-only counter via observability (Stale resolution used as exact proof; MON addendum v1.0 sect. 87)",
+        "production_root": "monitoring lifecycle guards (sect. 87; release pipeline root from validation)",
+    },
+    "monitor_trigger_without_visibility_total": {
+        "symbol": "TriggerWithoutVisibilityAllowed -> Metrics.Inc(MetricMONTriggerWithoutVisibility)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 316,
+        "mechanism": "increment-only counter via observability (Trigger without visibility; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_trigger_without_budget_total": {
+        "symbol": "TriggerWithoutBudgetAllowed -> Metrics.Inc(MetricMONTriggerWithoutBudget)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 326,
+        "mechanism": "increment-only counter via observability (Trigger without budget; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_trigger_during_global_wan_failure_total": {
+        "symbol": "TriggerDuringGlobalWanFailureAllowed -> Metrics.Inc(MetricMONTriggerDuringGlobalWanFailure)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 336,
+        "mechanism": "increment-only counter via observability (Trigger during global wan failure; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_trigger_with_stale_source_heartbeat_total": {
+        "symbol": "TriggerWithStaleSourceHeartbeatAllowed -> Metrics.Inc(MetricMONTriggerWithStaleHeartbeat)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 346,
+        "mechanism": "increment-only counter via observability (Trigger with stale source heartbeat; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_duplicate_concurrent_abd_run_total": {
+        "symbol": "DuplicateConcurrentABDRunAllowed -> Metrics.Inc(MetricMONDupConcurrentABDRun)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 357,
+        "mechanism": "increment-only counter via observability (Duplicate concurrent abd run; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_unbounded_target_intake_total": {
+        "symbol": "UnboundedTargetIntakeAllowed -> Metrics.Inc(MetricMONUnboundedTargetIntake)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 368,
+        "mechanism": "increment-only counter via observability (Unbounded target intake; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_unbounded_probe_parallelism_total": {
+        "symbol": "UnboundedProbeParallelismAllowed -> Metrics.Inc(MetricMONUnboundedProbeParallelism)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 378,
+        "mechanism": "increment-only counter via observability (Unbounded probe parallelism; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_self_interference_total": {
+        "symbol": "SelfInterferenceAllowed -> Metrics.Inc(MetricMONSelfInterference)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 388,
+        "mechanism": "increment-only counter via observability (Self interference; MON addendum v1.0 sect. 88)",
+        "production_root": "monitoring lifecycle guards (sect. 88; release pipeline root from validation)",
+    },
+    "monitor_reference_result_as_action_authorization_total": {
+        "symbol": "ReferenceResultAsActionAuthorizationAllowed -> Metrics.Inc(MetricMONReferenceResultAsAuthorization)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 401,
+        "mechanism": "increment-only counter via observability (Reference result as action authorization; MON addendum v1.0 sect. 89)",
+        "production_root": "monitoring lifecycle guards (sect. 89; release pipeline root from validation)",
+    },
+    "monitor_abd_request_without_target_plan_total": {
+        "symbol": "ABDRequestWithoutTargetPlanAllowed -> Metrics.Inc(MetricMONABDRequestWithoutTargetPlan)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 413,
+        "mechanism": "increment-only counter via observability (Abd request without target plan; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_abd_partial_result_profile_ready_total": {
+        "symbol": "ABDPartialResultProfileReadyAllowed -> Metrics.Inc(MetricMONABDPartialResultProfileReady)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 423,
+        "mechanism": "increment-only counter via observability (Abd partial result profile ready; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_abd_result_bypassed_ddi_total": {
+        "symbol": "ABDResultBypassedDDIAllowed -> Metrics.Inc(MetricMONABDResultBypassedDDI)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 433,
+        "mechanism": "increment-only counter via observability (Abd result bypassed ddi; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_discovery_without_authoritative_profile_total": {
+        "symbol": "DiscoveryWithoutAuthoritativeProfileAllowed -> Metrics.Inc(MetricMONDiscoveryWithoutAuthProfile)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 443,
+        "mechanism": "increment-only counter via observability (Discovery without authoritative profile; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_discovery_skipped_mandatory_baseline_total": {
+        "symbol": "DiscoverySkippedMandatoryBaselineAllowed -> Metrics.Inc(MetricMONDiscoverySkippedMandatoryBaseline)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 458,
+        "mechanism": "increment-only counter via observability (Discovery skipped mandatory baseline; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_recommendation_without_scope_total": {
+        "symbol": "RecommendationWithoutScopeAllowed -> Metrics.Inc(MetricMONRecommendationWithoutScope)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 469,
+        "mechanism": "increment-only counter via observability (Recommendation without scope; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_warp_recommendation_without_ip_path_evidence_total": {
+        "symbol": "WarpRecommendationWithoutIPPathAllowed -> Metrics.Inc(MetricMONWarpRecommendationWithoutIPPath)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 479,
+        "mechanism": "increment-only counter via observability (Warp recommendation without ip path evidence; MON addendum v1.0 sect. 90)",
+        "production_root": "monitoring lifecycle guards (sect. 90; release pipeline root from validation)",
+    },
+    "monitor_legacy_watchdog_direct_apply_total": {
+        "symbol": "LegacyWatchdogDirectApplyAllowed -> Metrics.Inc(MetricMONLegacyWatchdogDirectApply)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 491,
+        "mechanism": "increment-only counter via observability (Legacy watchdog direct apply; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)",
+    },
+    "monitor_legacy_watchdog_created_unvalidated_set_total": {
+        "symbol": "LegacyWatchdogCreatedUnvalidatedSetAllowed -> Metrics.Inc(MetricMONLegacyWatchdogUnvalidatedSet)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 501,
+        "mechanism": "increment-only counter via observability (Legacy watchdog created unvalidated set; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)",
+    },
+    "monitor_legacy_watchdog_overwrote_set_without_canary_total": {
+        "symbol": "LegacyWatchdogOverwriteWithoutCanaryAllowed -> Metrics.Inc(MetricMONLegacyWatchdogOverwriteNoCanary)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 511,
+        "mechanism": "increment-only counter via observability (Legacy watchdog overwrote set without canary; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)",
+    },
+    "monitor_legacy_api_projection_mutation_total": {
+        "symbol": "LegacyAPIProjectionMutationAllowed -> Metrics.Inc(MetricMONLegacyAPIProjectionMutation)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 522,
+        "mechanism": "increment-only counter via observability (Legacy api projection mutation; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)",
+    },
+    "monitor_shadow_and_active_writer_overlap_total": {
+        "symbol": "ShadowActiveWriterOverlapAllowed -> Metrics.Inc(MetricMONShadowActiveWriterOverlap)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 532,
+        "mechanism": "increment-only counter via observability (Shadow and active writer overlap; MON addendum v1.0 sect. 91)",
+        "production_root": "monitoring lifecycle guards (sect. 91; release pipeline root from validation)",
+    },
+    "monitor_required_event_drop_hidden_total": {
+        "symbol": "RequiredEventDropHiddenAllowed -> Metrics.Inc(MetricMONRequiredEventDropHidden)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 544,
+        "mechanism": "increment-only counter via observability (Required event drop hidden; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_source_heartbeat_stale_auto_diagnose_total": {
+        "symbol": "SourceHeartbeatStaleAutoDiagnoseAllowed -> Metrics.Inc(MetricMONSourceHeartbeatStaleAutoDiagnose)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 555,
+        "mechanism": "increment-only counter via observability (Source heartbeat stale auto diagnose; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_checkpoint_corruption_false_ready_total": {
+        "symbol": "CheckpointCorruptionFalseReadyAllowed -> Metrics.Inc(MetricMONCheckpointCorruptionFalseReady)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 565,
+        "mechanism": "increment-only counter via observability (Checkpoint corruption false ready; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_restart_reused_expired_lease_total": {
+        "symbol": "RestartReusedExpiredLeaseAllowed -> Metrics.Inc(MetricMONRestartReusedExpiredLease)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 575,
+        "mechanism": "increment-only counter via observability (Restart reused expired lease; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_sensitive_dns_history_export_total": {
+        "symbol": "SensitiveDNSHistoryExportAllowed -> Metrics.Inc(MetricMONSensitiveDNSHistoryExport)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 585,
+        "mechanism": "increment-only counter via observability (Sensitive dns history export; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_secret_trace_leak_total": {
+        "symbol": "SecretTraceLeakAllowed -> Metrics.Inc(MetricMONSecretTraceLeak)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 595,
+        "mechanism": "increment-only counter via observability (Secret trace leak; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },
+    "monitor_high_cardinality_metric_label_total": {
+        "symbol": "HighCardinalityMetricLabelAllowed -> Metrics.Inc(MetricMONHighCardinalityMetricLabel)",
+        "file": "src/monitoring/hard_gate_producers.go",
+        "line": 605,
+        "mechanism": "increment-only counter via observability (High cardinality metric label; MON addendum v1.0 sect. 92)",
+        "production_root": "monitoring lifecycle guards (sect. 92; release pipeline root from validation)",
+    },}
 
 # Expected (normative) producer locations for gates whose producer is not yet
 # implemented. Field runtime_producer stays null; the mapping below is only
@@ -906,7 +1273,60 @@ GATE_KINDS: dict[str, str] = {
     "mtproto_bridge_primary_failure_silent_drop_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_overflow_without_reason_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_shutdown_leak_total": "zero_tolerance_violation_counter",
-    # --- SPF silent-path failure zero-tolerance counters (addendum v1.0 45) ---
+        # --- MON continuous-blocking monitoring zero-tolerance counters (addendum v1.0 84-92) ---
+    "monitor_observation_direct_action_total": "zero_tolerance_violation_counter",
+    "monitor_provisional_profile_compiled_total": "zero_tolerance_violation_counter",
+    "monitor_passive_discovery_start_total": "zero_tolerance_violation_counter",
+    "monitor_passive_warp_enable_total": "zero_tolerance_violation_counter",
+    "monitor_fast_lane_action_total": "zero_tolerance_violation_counter",
+    "monitor_fast_lane_promoted_as_authoritative_total": "zero_tolerance_violation_counter",
+    "monitor_destination_only_deep_trigger_total": "zero_tolerance_violation_counter",
+    "monitor_cross_client_merge_total": "zero_tolerance_violation_counter",
+    "monitor_cross_service_merge_total": "zero_tolerance_violation_counter",
+    "monitor_cross_component_merge_total": "zero_tolerance_violation_counter",
+    "monitor_cross_wan_evidence_merge_total": "zero_tolerance_violation_counter",
+    "monitor_cross_generation_evidence_merge_total": "zero_tolerance_violation_counter",
+    "monitor_router_origin_as_forwarded_proof_total": "zero_tolerance_violation_counter",
+    "monitor_duplicate_evidence_independence_total": "zero_tolerance_violation_counter",
+    "monitor_temporal_persistence_without_time_separation_total": "zero_tolerance_violation_counter",
+    "monitor_success_suppressor_ignored_total": "zero_tolerance_violation_counter",
+    "monitor_recovered_subject_not_demoted_total": "zero_tolerance_violation_counter",
+    "monitor_expired_evidence_used_total": "zero_tolerance_violation_counter",
+    "monitor_decay_disabled_without_policy_total": "zero_tolerance_violation_counter",
+    "monitor_probe_without_resolution_binding_total": "zero_tolerance_violation_counter",
+    "monitor_client_dns_answer_replaced_silently_total": "zero_tolerance_violation_counter",
+    "monitor_cname_terminal_ip_misattributed_total": "zero_tolerance_violation_counter",
+    "monitor_multi_ip_partial_failure_hidden_total": "zero_tolerance_violation_counter",
+    "monitor_stale_resolution_used_as_exact_proof_total": "zero_tolerance_violation_counter",
+    "monitor_trigger_without_visibility_total": "zero_tolerance_violation_counter",
+    "monitor_trigger_without_budget_total": "zero_tolerance_violation_counter",
+    "monitor_trigger_during_global_wan_failure_total": "zero_tolerance_violation_counter",
+    "monitor_trigger_with_stale_source_heartbeat_total": "zero_tolerance_violation_counter",
+    "monitor_duplicate_concurrent_abd_run_total": "zero_tolerance_violation_counter",
+    "monitor_unbounded_target_intake_total": "zero_tolerance_violation_counter",
+    "monitor_unbounded_probe_parallelism_total": "zero_tolerance_violation_counter",
+    "monitor_self_interference_total": "zero_tolerance_violation_counter",
+    "monitor_reference_result_as_action_authorization_total": "zero_tolerance_violation_counter",
+    "monitor_abd_request_without_target_plan_total": "zero_tolerance_violation_counter",
+    "monitor_abd_partial_result_profile_ready_total": "zero_tolerance_violation_counter",
+    "monitor_abd_result_bypassed_ddi_total": "zero_tolerance_violation_counter",
+    "monitor_discovery_without_authoritative_profile_total": "zero_tolerance_violation_counter",
+    "monitor_discovery_skipped_mandatory_baseline_total": "zero_tolerance_violation_counter",
+    "monitor_recommendation_without_scope_total": "zero_tolerance_violation_counter",
+    "monitor_warp_recommendation_without_ip_path_evidence_total": "zero_tolerance_violation_counter",
+    "monitor_legacy_watchdog_direct_apply_total": "zero_tolerance_violation_counter",
+    "monitor_legacy_watchdog_created_unvalidated_set_total": "zero_tolerance_violation_counter",
+    "monitor_legacy_watchdog_overwrote_set_without_canary_total": "zero_tolerance_violation_counter",
+    "monitor_legacy_api_projection_mutation_total": "zero_tolerance_violation_counter",
+    "monitor_shadow_and_active_writer_overlap_total": "zero_tolerance_violation_counter",
+    "monitor_required_event_drop_hidden_total": "zero_tolerance_violation_counter",
+    "monitor_source_heartbeat_stale_auto_diagnose_total": "zero_tolerance_violation_counter",
+    "monitor_checkpoint_corruption_false_ready_total": "zero_tolerance_violation_counter",
+    "monitor_restart_reused_expired_lease_total": "zero_tolerance_violation_counter",
+    "monitor_sensitive_dns_history_export_total": "zero_tolerance_violation_counter",
+    "monitor_secret_trace_leak_total": "zero_tolerance_violation_counter",
+    "monitor_high_cardinality_metric_label_total": "zero_tolerance_violation_counter",
+# --- SPF silent-path failure zero-tolerance counters (addendum v1.0 45) ---
     "silent_failure_action_without_authorization_total": "zero_tolerance_violation_counter",
     "silent_failure_action_with_incomplete_visibility_total": "zero_tolerance_violation_counter",
     "silent_failure_destination_only_state_total": "zero_tolerance_violation_counter",
@@ -987,7 +1407,217 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport consumers (FB-02 WARP section): the narrow
     # causal-trace verdict evaluates exactly these ten gates (FB-14
-    # --- SPF zero-tolerance counters (addendum v1.0 45; fail-closed via
+        # --- MON zero-tolerance counters (addendum v1.0 84-92; fail-closed via
+    # EvaluateHardGates scope.mon, release pipeline) ---
+    "monitor_observation_direct_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_provisional_profile_compiled_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_passive_discovery_start_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_passive_warp_enable_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_fast_lane_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_fast_lane_promoted_as_authoritative_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_destination_only_deep_trigger_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cross_client_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cross_service_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cross_component_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cross_wan_evidence_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cross_generation_evidence_merge_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_router_origin_as_forwarded_proof_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_duplicate_evidence_independence_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_temporal_persistence_without_time_separation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_success_suppressor_ignored_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_recovered_subject_not_demoted_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_expired_evidence_used_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_decay_disabled_without_policy_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_probe_without_resolution_binding_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_client_dns_answer_replaced_silently_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_cname_terminal_ip_misattributed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_multi_ip_partial_failure_hidden_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_stale_resolution_used_as_exact_proof_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_trigger_without_visibility_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_trigger_without_budget_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_trigger_during_global_wan_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_trigger_with_stale_source_heartbeat_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_duplicate_concurrent_abd_run_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_unbounded_target_intake_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_unbounded_probe_parallelism_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_self_interference_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_reference_result_as_action_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_abd_request_without_target_plan_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_abd_partial_result_profile_ready_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_abd_result_bypassed_ddi_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_discovery_without_authoritative_profile_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_discovery_skipped_mandatory_baseline_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_recommendation_without_scope_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_warp_recommendation_without_ip_path_evidence_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_legacy_watchdog_direct_apply_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_legacy_watchdog_created_unvalidated_set_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_legacy_watchdog_overwrote_set_without_canary_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_legacy_api_projection_mutation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_shadow_and_active_writer_overlap_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_required_event_drop_hidden_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_source_heartbeat_stale_auto_diagnose_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_checkpoint_corruption_false_ready_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_restart_reused_expired_lease_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_sensitive_dns_history_export_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_secret_trace_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "monitor_high_cardinality_metric_label_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.mon; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+# --- SPF zero-tolerance counters (addendum v1.0 45; fail-closed via
     # EvaluateHardGates scope.spf, release pipeline) ---
     "silent_failure_action_without_authorization_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
@@ -1460,7 +2090,166 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     # --- WARP base-transport negative fixtures (FB-02 WARP section):
     # each test drives the violating branch of the production runtime and
-    # --- SPF negative fixtures (addendum v1.0 45): each test drives the
+        # --- MON negative fixtures (addendum v1.0 84-92): each test drives the
+    # violating branch of the production guard and asserts the
+    # zero-tolerance counter moved. ---
+    "monitor_observation_direct_action_total": [
+        {"kind": "negative_fixture", "name": "TestMONObservationDirectAction", "file": "src/monitoring/hard_gate_producers_test.go", "line": 122, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_provisional_profile_compiled_total": [
+        {"kind": "negative_fixture", "name": "TestMONProvisionalProfileCompiled", "file": "src/monitoring/hard_gate_producers_test.go", "line": 128, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_passive_discovery_start_total": [
+        {"kind": "negative_fixture", "name": "TestMONPassiveDiscoveryStart", "file": "src/monitoring/hard_gate_producers_test.go", "line": 134, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_passive_warp_enable_total": [
+        {"kind": "negative_fixture", "name": "TestMONPassiveWarpEnable", "file": "src/monitoring/hard_gate_producers_test.go", "line": 140, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_fast_lane_action_total": [
+        {"kind": "negative_fixture", "name": "TestMONFastLaneAction", "file": "src/monitoring/hard_gate_producers_test.go", "line": 146, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_fast_lane_promoted_as_authoritative_total": [
+        {"kind": "negative_fixture", "name": "TestMONFastLanePromotedAsAuthoritative", "file": "src/monitoring/hard_gate_producers_test.go", "line": 152, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_destination_only_deep_trigger_total": [
+        {"kind": "negative_fixture", "name": "TestMONDestinationOnlyDeepTrigger", "file": "src/monitoring/hard_gate_producers_test.go", "line": 162, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cross_client_merge_total": [
+        {"kind": "negative_fixture", "name": "TestMONCrossClientMerge", "file": "src/monitoring/hard_gate_producers_test.go", "line": 168, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cross_service_merge_total": [
+        {"kind": "negative_fixture", "name": "TestMONCrossServiceMerge", "file": "src/monitoring/hard_gate_producers_test.go", "line": 176, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cross_component_merge_total": [
+        {"kind": "negative_fixture", "name": "TestMONCrossComponentMerge", "file": "src/monitoring/hard_gate_producers_test.go", "line": 184, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cross_wan_evidence_merge_total": [
+        {"kind": "negative_fixture", "name": "TestMONCrossWanEvidenceMerge", "file": "src/monitoring/hard_gate_producers_test.go", "line": 192, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cross_generation_evidence_merge_total": [
+        {"kind": "negative_fixture", "name": "TestMONCrossGenerationEvidenceMerge", "file": "src/monitoring/hard_gate_producers_test.go", "line": 200, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_router_origin_as_forwarded_proof_total": [
+        {"kind": "negative_fixture", "name": "TestMONRouterOriginAsForwardedProof", "file": "src/monitoring/hard_gate_producers_test.go", "line": 206, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_duplicate_evidence_independence_total": [
+        {"kind": "negative_fixture", "name": "TestMONDupEvidenceIndependence", "file": "src/monitoring/hard_gate_producers_test.go", "line": 214, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_temporal_persistence_without_time_separation_total": [
+        {"kind": "negative_fixture", "name": "TestMONTemporalPersistenceNoSeparation", "file": "src/monitoring/hard_gate_producers_test.go", "line": 221, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_success_suppressor_ignored_total": [
+        {"kind": "negative_fixture", "name": "TestMONSuccessSuppressorIgnored", "file": "src/monitoring/hard_gate_producers_test.go", "line": 227, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_recovered_subject_not_demoted_total": [
+        {"kind": "negative_fixture", "name": "TestMONRecoveredSubjectNotDemoted", "file": "src/monitoring/hard_gate_producers_test.go", "line": 233, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_expired_evidence_used_total": [
+        {"kind": "negative_fixture", "name": "TestMONExpiredEvidenceUsed", "file": "src/monitoring/hard_gate_producers_test.go", "line": 240, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_decay_disabled_without_policy_total": [
+        {"kind": "negative_fixture", "name": "TestMONDecayDisabledWithoutPolicy", "file": "src/monitoring/hard_gate_producers_test.go", "line": 246, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_probe_without_resolution_binding_total": [
+        {"kind": "negative_fixture", "name": "TestMONProbeWithoutResolutionBinding", "file": "src/monitoring/hard_gate_producers_test.go", "line": 254, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_client_dns_answer_replaced_silently_total": [
+        {"kind": "negative_fixture", "name": "TestMONClientDNSAnswerReplacedSilently", "file": "src/monitoring/hard_gate_producers_test.go", "line": 261, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_cname_terminal_ip_misattributed_total": [
+        {"kind": "negative_fixture", "name": "TestMONCnameTerminalIPMisattributed", "file": "src/monitoring/hard_gate_producers_test.go", "line": 269, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_multi_ip_partial_failure_hidden_total": [
+        {"kind": "negative_fixture", "name": "TestMONMultiIPPartialFailureHidden", "file": "src/monitoring/hard_gate_producers_test.go", "line": 279, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_stale_resolution_used_as_exact_proof_total": [
+        {"kind": "negative_fixture", "name": "TestMONStaleResolutionExactProof", "file": "src/monitoring/hard_gate_producers_test.go", "line": 287, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_trigger_without_visibility_total": [
+        {"kind": "negative_fixture", "name": "TestMONTriggerWithoutVisibility", "file": "src/monitoring/hard_gate_producers_test.go", "line": 295, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_trigger_without_budget_total": [
+        {"kind": "negative_fixture", "name": "TestMONTriggerWithoutBudget", "file": "src/monitoring/hard_gate_producers_test.go", "line": 301, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_trigger_during_global_wan_failure_total": [
+        {"kind": "negative_fixture", "name": "TestMONTriggerDuringGlobalWanFailure", "file": "src/monitoring/hard_gate_producers_test.go", "line": 307, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_trigger_with_stale_source_heartbeat_total": [
+        {"kind": "negative_fixture", "name": "TestMONTriggerWithStaleHeartbeat", "file": "src/monitoring/hard_gate_producers_test.go", "line": 314, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_duplicate_concurrent_abd_run_total": [
+        {"kind": "negative_fixture", "name": "TestMONDupConcurrentABDRun", "file": "src/monitoring/hard_gate_producers_test.go", "line": 320, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_unbounded_target_intake_total": [
+        {"kind": "negative_fixture", "name": "TestMONUnboundedTargetIntake", "file": "src/monitoring/hard_gate_producers_test.go", "line": 326, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_unbounded_probe_parallelism_total": [
+        {"kind": "negative_fixture", "name": "TestMONUnboundedProbeParallelism", "file": "src/monitoring/hard_gate_producers_test.go", "line": 332, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_self_interference_total": [
+        {"kind": "negative_fixture", "name": "TestMONSelfInterference", "file": "src/monitoring/hard_gate_producers_test.go", "line": 338, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_reference_result_as_action_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestMONReferenceResultAsAuthorization", "file": "src/monitoring/hard_gate_producers_test.go", "line": 346, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_abd_request_without_target_plan_total": [
+        {"kind": "negative_fixture", "name": "TestMONABDRequestWithoutTargetPlan", "file": "src/monitoring/hard_gate_producers_test.go", "line": 356, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_abd_partial_result_profile_ready_total": [
+        {"kind": "negative_fixture", "name": "TestMONABDPartialResultProfileReady", "file": "src/monitoring/hard_gate_producers_test.go", "line": 362, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_abd_result_bypassed_ddi_total": [
+        {"kind": "negative_fixture", "name": "TestMONABDResultBypassedDDI", "file": "src/monitoring/hard_gate_producers_test.go", "line": 368, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_discovery_without_authoritative_profile_total": [
+        {"kind": "negative_fixture", "name": "TestMONDiscoveryWithoutAuthProfile", "file": "src/monitoring/hard_gate_producers_test.go", "line": 374, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_discovery_skipped_mandatory_baseline_total": [
+        {"kind": "negative_fixture", "name": "TestMONDiscoverySkippedMandatoryBaseline", "file": "src/monitoring/hard_gate_producers_test.go", "line": 384, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_recommendation_without_scope_total": [
+        {"kind": "negative_fixture", "name": "TestMONRecommendationWithoutScope", "file": "src/monitoring/hard_gate_producers_test.go", "line": 390, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_warp_recommendation_without_ip_path_evidence_total": [
+        {"kind": "negative_fixture", "name": "TestMONWarpRecommendationWithoutIPPath", "file": "src/monitoring/hard_gate_producers_test.go", "line": 397, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_legacy_watchdog_direct_apply_total": [
+        {"kind": "negative_fixture", "name": "TestMONLegacyWatchdogDirectApply", "file": "src/monitoring/hard_gate_producers_test.go", "line": 405, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_legacy_watchdog_created_unvalidated_set_total": [
+        {"kind": "negative_fixture", "name": "TestMONLegacyWatchdogUnvalidatedSet", "file": "src/monitoring/hard_gate_producers_test.go", "line": 411, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_legacy_watchdog_overwrote_set_without_canary_total": [
+        {"kind": "negative_fixture", "name": "TestMONLegacyWatchdogOverwriteNoCanary", "file": "src/monitoring/hard_gate_producers_test.go", "line": 417, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_legacy_api_projection_mutation_total": [
+        {"kind": "negative_fixture", "name": "TestMONLegacyAPIProjectionMutation", "file": "src/monitoring/hard_gate_producers_test.go", "line": 423, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_shadow_and_active_writer_overlap_total": [
+        {"kind": "negative_fixture", "name": "TestMONShadowActiveWriterOverlap", "file": "src/monitoring/hard_gate_producers_test.go", "line": 429, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_required_event_drop_hidden_total": [
+        {"kind": "negative_fixture", "name": "TestMONRequiredEventDropHidden", "file": "src/monitoring/hard_gate_producers_test.go", "line": 437, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_source_heartbeat_stale_auto_diagnose_total": [
+        {"kind": "negative_fixture", "name": "TestMONSourceHeartbeatStaleAutoDiagnose", "file": "src/monitoring/hard_gate_producers_test.go", "line": 444, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_checkpoint_corruption_false_ready_total": [
+        {"kind": "negative_fixture", "name": "TestMONCheckpointCorruptionFalseReady", "file": "src/monitoring/hard_gate_producers_test.go", "line": 450, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_restart_reused_expired_lease_total": [
+        {"kind": "negative_fixture", "name": "TestMONRestartReusedExpiredLease", "file": "src/monitoring/hard_gate_producers_test.go", "line": 458, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_sensitive_dns_history_export_total": [
+        {"kind": "negative_fixture", "name": "TestMONSensitiveDNSHistoryExport", "file": "src/monitoring/hard_gate_producers_test.go", "line": 464, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_secret_trace_leak_total": [
+        {"kind": "negative_fixture", "name": "TestMONSecretTraceLeak", "file": "src/monitoring/hard_gate_producers_test.go", "line": 470, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+    "monitor_high_cardinality_metric_label_total": [
+        {"kind": "negative_fixture", "name": "TestMONHighCardinalityMetricLabel", "file": "src/monitoring/hard_gate_producers_test.go", "line": 476, "assertion": "violating branch -> denied && counter > 0"},
+    ],
+# --- SPF negative fixtures (addendum v1.0 45): each test drives the
     # violating branch of the production guard and asserts the
     # zero-tolerance counter moved. ---
     "silent_failure_action_without_authorization_total": [
@@ -1891,6 +2680,67 @@ for _name in [
     "mtproto_bridge_shutdown_leak_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_TGB)
+_EVIDENCE_MON = [
+    "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
+    "artifacts/remediation/FB02_MON_PRODUCERS.json",
+    "src/monitoring/hard_gate_producers_test.go",
+    "src/monitoring/hard_gate_producers.go",
+]
+for _name in [
+    "monitor_observation_direct_action_total",
+    "monitor_provisional_profile_compiled_total",
+    "monitor_passive_discovery_start_total",
+    "monitor_passive_warp_enable_total",
+    "monitor_fast_lane_action_total",
+    "monitor_fast_lane_promoted_as_authoritative_total",
+    "monitor_destination_only_deep_trigger_total",
+    "monitor_cross_client_merge_total",
+    "monitor_cross_service_merge_total",
+    "monitor_cross_component_merge_total",
+    "monitor_cross_wan_evidence_merge_total",
+    "monitor_cross_generation_evidence_merge_total",
+    "monitor_router_origin_as_forwarded_proof_total",
+    "monitor_duplicate_evidence_independence_total",
+    "monitor_temporal_persistence_without_time_separation_total",
+    "monitor_success_suppressor_ignored_total",
+    "monitor_recovered_subject_not_demoted_total",
+    "monitor_expired_evidence_used_total",
+    "monitor_decay_disabled_without_policy_total",
+    "monitor_probe_without_resolution_binding_total",
+    "monitor_client_dns_answer_replaced_silently_total",
+    "monitor_cname_terminal_ip_misattributed_total",
+    "monitor_multi_ip_partial_failure_hidden_total",
+    "monitor_stale_resolution_used_as_exact_proof_total",
+    "monitor_trigger_without_visibility_total",
+    "monitor_trigger_without_budget_total",
+    "monitor_trigger_during_global_wan_failure_total",
+    "monitor_trigger_with_stale_source_heartbeat_total",
+    "monitor_duplicate_concurrent_abd_run_total",
+    "monitor_unbounded_target_intake_total",
+    "monitor_unbounded_probe_parallelism_total",
+    "monitor_self_interference_total",
+    "monitor_reference_result_as_action_authorization_total",
+    "monitor_abd_request_without_target_plan_total",
+    "monitor_abd_partial_result_profile_ready_total",
+    "monitor_abd_result_bypassed_ddi_total",
+    "monitor_discovery_without_authoritative_profile_total",
+    "monitor_discovery_skipped_mandatory_baseline_total",
+    "monitor_recommendation_without_scope_total",
+    "monitor_warp_recommendation_without_ip_path_evidence_total",
+    "monitor_legacy_watchdog_direct_apply_total",
+    "monitor_legacy_watchdog_created_unvalidated_set_total",
+    "monitor_legacy_watchdog_overwrote_set_without_canary_total",
+    "monitor_legacy_api_projection_mutation_total",
+    "monitor_shadow_and_active_writer_overlap_total",
+    "monitor_required_event_drop_hidden_total",
+    "monitor_source_heartbeat_stale_auto_diagnose_total",
+    "monitor_checkpoint_corruption_false_ready_total",
+    "monitor_restart_reused_expired_lease_total",
+    "monitor_sensitive_dns_history_export_total",
+    "monitor_secret_trace_leak_total",
+    "monitor_high_cardinality_metric_label_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_MON)
 _EVIDENCE_MONABD = [
     "artifacts/audit/hard_gates_audit.md",
     "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
