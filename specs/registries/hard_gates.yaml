@@ -5611,18 +5611,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UseProfileWithContext -> Metrics.Inc(MetricDiscoveryProfileWithoutContextValidation)
+      file: src/discovery/hard_gate_producers.go
+      line: 34
+      mechanism: increment-only counter via observability (guided discovery from a context mismatch/expired profile)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIContextValidation
+      file: src/discovery/hard_gate_producers_test.go
+      line: 58
+      assertion: mismatched context ID -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_stale_without_revalidation_total
     canonical_metric_name: discovery_profile_stale_without_revalidation_total
     global_gate_class: discovery_profile
@@ -5631,18 +5656,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UseProfileRevalidated -> Metrics.Inc(MetricDiscoveryProfileStaleWithoutRevalidation)
+      file: src/discovery/hard_gate_producers.go
+      line: 44
+      mechanism: increment-only counter via observability (stale profile served without revalidation)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIStaleWithoutRevalidation
+      file: src/discovery/hard_gate_producers_test.go
+      line: 67
+      assertion: expired profile + not revalidated -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_cross_wan_use_total
     canonical_metric_name: discovery_profile_cross_wan_use_total
     global_gate_class: discovery_profile
@@ -5651,18 +5701,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UseProfileSameWAN -> Metrics.Inc(MetricDiscoveryProfileCrossWANUse)
+      file: src/discovery/hard_gate_producers.go
+      line: 54
+      mechanism: increment-only counter via observability (profile built for a different WAN fingerprint)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDICrossWANUse
+      file: src/discovery/hard_gate_producers_test.go
+      line: 76
+      assertion: WAN fingerprint mismatch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_mutable_runtime_pointer_total
     canonical_metric_name: discovery_profile_mutable_runtime_pointer_total
     global_gate_class: discovery_profile
@@ -5671,18 +5746,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RuntimeProfileBinding -> Metrics.Inc(MetricDiscoveryProfileMutableRuntimePointer)
+      file: src/discovery/hard_gate_producers.go
+      line: 65
+      mechanism: increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIMutableRuntimePointer
+      file: src/discovery/hard_gate_producers_test.go
+      line: 82
+      assertion: mutable binding -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_hint_without_provenance_total
     canonical_metric_name: discovery_profile_hint_without_provenance_total
     global_gate_class: discovery_profile
@@ -5691,18 +5791,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: UseSearchHint -> Metrics.Inc(MetricDiscoveryProfileHintWithoutProvenance)
+      file: src/discovery/hard_gate_producers.go
+      line: 76
+      mechanism: increment-only counter via observability (hint with candidate but no provenance)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIHintWithoutProvenance
+      file: src/discovery/hard_gate_producers_test.go
+      line: 88
+      assertion: candidate without provenance -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_hint_overrode_current_baseline_total
     canonical_metric_name: discovery_profile_hint_overrode_current_baseline_total
     global_gate_class: discovery_profile
@@ -5711,18 +5836,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: HintOrderRespectsBaseline -> Metrics.Inc(MetricDiscoveryProfileHintOverrodeBaseline)
+      file: src/discovery/hard_gate_producers.go
+      line: 87
+      mechanism: increment-only counter via observability (hint displaced the current baseline from the leading position)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIHintOverrodeBaseline
+      file: src/discovery/hard_gate_producers_test.go
+      line: 94
+      assertion: leading candidate not in baseline -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_skipped_target_validation_total
     canonical_metric_name: discovery_profile_skipped_target_validation_total
     global_gate_class: discovery_profile
@@ -5731,18 +5881,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedRunTargetValidated -> Metrics.Inc(MetricDiscoveryProfileSkippedTargetValidation)
+      file: src/discovery/hard_gate_producers.go
+      line: 109
+      mechanism: increment-only counter via observability (guided run without target-specific validation)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDISkippedTargetValidation
+      file: src/discovery/hard_gate_producers_test.go
+      line: 101
+      assertion: not target-validated -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_disabled_exhaustive_fallback_total
     canonical_metric_name: discovery_profile_disabled_exhaustive_fallback_total
     global_gate_class: discovery_profile
@@ -5751,18 +5926,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ExhaustiveFallbackEnabled -> Metrics.Inc(MetricDiscoveryProfileDisabledExhaustiveFallback)
+      file: src/discovery/hard_gate_producers.go
+      line: 119
+      mechanism: increment-only counter via observability (guided plan disabled exhaustive fallback)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIDisabledExhaustiveFallback
+      file: src/discovery/hard_gate_producers_test.go
+      line: 107
+      assertion: ExhaustiveFallback=false -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_direct_production_write_total
     canonical_metric_name: discovery_profile_direct_production_write_total
     global_gate_class: discovery_profile
@@ -5771,18 +5971,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ProfileProductionWrite -> Metrics.Inc(MetricDiscoveryProfileDirectProductionWrite)
+      file: src/discovery/hard_gate_producers.go
+      line: 129
+      mechanism: increment-only counter via observability (direct production write of an unstaged profile)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIDirectProductionWrite
+      file: src/discovery/hard_gate_producers_test.go
+      line: 113
+      assertion: unstaged write -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_allowed_sni_direct_promotion_total
     canonical_metric_name: discovery_profile_allowed_sni_direct_promotion_total
     global_gate_class: discovery_profile
@@ -5791,18 +6016,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PromoteViaSNI -> Metrics.Inc(MetricDiscoveryProfileAllowedSNIDirectPromotion)
+      file: src/discovery/hard_gate_producers.go
+      line: 139
+      mechanism: increment-only counter via observability (SNI direct promotion without target validation)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIAllowedSNIDirectPromotion
+      file: src/discovery/hard_gate_producers_test.go
+      line: 119
+      assertion: SNI promotion of unvalidated target -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_threshold_out_of_budget_total
     canonical_metric_name: discovery_profile_threshold_out_of_budget_total
     global_gate_class: discovery_profile
@@ -5811,18 +6061,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CheckHintThreshold -> Metrics.Inc(MetricDiscoveryProfileThresholdOutOfBudget)
+      file: src/discovery/hard_gate_producers.go
+      line: 149
+      mechanism: increment-only counter via observability (hint threshold above the bounded probe budget)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIThresholdOutOfBudget
+      file: src/discovery/hard_gate_producers_test.go
+      line: 125
+      assertion: threshold 100 > budget 50 -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_capture_gate_bypass_total
     canonical_metric_name: discovery_profile_capture_gate_bypass_total
     global_gate_class: discovery_profile
@@ -5831,18 +6106,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PromotionCaptureGate -> Metrics.Inc(MetricDiscoveryProfileCaptureGateBypass)
+      file: src/discovery/hard_gate_producers.go
+      line: 159
+      mechanism: increment-only counter via observability (discovery promotion while capture gate not ready)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDICaptureGateBypass
+      file: src/discovery/hard_gate_producers_test.go
+      line: 131
+      assertion: capture not ready -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_cross_service_action_total
     canonical_metric_name: discovery_profile_cross_service_action_total
     global_gate_class: discovery_profile
@@ -5851,18 +6151,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ProfileActionScope -> Metrics.Inc(MetricDiscoveryProfileCrossServiceAction)
+      file: src/discovery/hard_gate_producers.go
+      line: 169
+      mechanism: increment-only counter via observability (profile action scope differs from the target service scope)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDICrossServiceAction
+      file: src/discovery/hard_gate_producers_test.go
+      line: 137
+      assertion: service profile / component mismatch -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: discovery_profile_false_pass_total
     canonical_metric_name: discovery_profile_false_pass_total
     global_gate_class: discovery_profile
@@ -5871,18 +6196,43 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: discovery
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PublishIssue -> Metrics.Inc(MetricDiscoveryProfileFalsePass)
+      file: src/discovery/hard_gate_producers.go
+      line: 183
+      mechanism: increment-only counter via observability (causal A/B bundle published with false promotion)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIFalsePass
+      file: src/discovery/hard_gate_producers_test.go
+      line: 146
+      assertion: FalsePromotion=true -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
   - gate_id: mtproto_bridge_zero_byte_handled_drop_total
     canonical_metric_name: mtproto_bridge_zero_byte_handled_drop_total
     global_gate_class: mtproto_bridge
@@ -5891,18 +6241,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ZeroByteHandledDrop -> Metrics.Inc(MetricMTProtoZeroByteHandledDrop)
+      file: src/mtproto/hard_gate_producers.go
+      line: 26
+      mechanism: increment-only counter via observability (zero-byte connection recorded as handled)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBZeroByteHandledDrop
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 45
+      assertion: ReasonZeroByte + BridgeHandled -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_fixed_5s_destructive_timeout_total
     canonical_metric_name: mtproto_bridge_fixed_5s_destructive_timeout_total
     global_gate_class: mtproto_bridge
@@ -5911,18 +6285,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: DestructiveTimeout -> Metrics.Inc(MetricMTProtoFixed5sDestructiveTimeout)
+      file: src/mtproto/hard_gate_producers.go
+      line: 36
+      mechanism: increment-only counter via observability (fixed 5s destructive timeout instead of adaptive)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBFixed5sDestructiveTimeout
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 51
+      assertion: fixed 5s timeout -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_unbounded_pending_total
     canonical_metric_name: mtproto_bridge_unbounded_pending_total
     global_gate_class: mtproto_bridge
@@ -5931,18 +6329,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PendingBudgetBounded -> Metrics.Inc(MetricMTProtoUnboundedPending)
+      file: src/mtproto/hard_gate_producers.go
+      line: 46
+      mechanism: increment-only counter via observability (unbounded global pending-handshake budget)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBUnboundedPending
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 57
+      assertion: maxGlobal <= 0 -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_pending_per_client_limit_bypass_total
     canonical_metric_name: mtproto_bridge_pending_per_client_limit_bypass_total
     global_gate_class: mtproto_bridge
@@ -5951,18 +6373,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PerClientPendingBounded -> Metrics.Inc(MetricMTProtoPendingPerClientBypass)
+      file: src/mtproto/hard_gate_producers.go
+      line: 57
+      mechanism: increment-only counter via observability (per-client pending limit disabled or above global bound)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBPendingPerClientBypass
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 63
+      assertion: maxClient <= 0 -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_prefix_loss_total
     canonical_metric_name: mtproto_bridge_prefix_loss_total
     global_gate_class: mtproto_bridge
@@ -5971,18 +6417,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PrefixHandoffComplete -> Metrics.Inc(MetricMTProtoPrefixLoss)
+      file: src/mtproto/hard_gate_producers.go
+      line: 67
+      mechanism: increment-only counter via observability (prefix handoff delivered fewer bytes than captured)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBPrefixLoss
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 69
+      assertion: delivered < len(prefix) -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_prefix_duplicate_total
     canonical_metric_name: mtproto_bridge_prefix_duplicate_total
     global_gate_class: mtproto_bridge
@@ -5991,18 +6461,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PrefixHandoffNonDuplicate -> Metrics.Inc(MetricMTProtoPrefixDuplicate)
+      file: src/mtproto/hard_gate_producers.go
+      line: 77
+      mechanism: increment-only counter via observability (prefix handoff replayed more bytes than captured)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBPrefixDuplicate
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 75
+      assertion: delivered > len(prefix) -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_route_recursion_total
     canonical_metric_name: mtproto_bridge_route_recursion_total
     global_gate_class: mtproto_bridge
@@ -6011,18 +6505,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RoutePlanNonRecursive -> Metrics.Inc(MetricMTProtoRouteRecursion)
+      file: src/mtproto/hard_gate_producers.go
+      line: 87
+      mechanism: increment-only counter via observability (route plan executed without recursion guard)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBRouteRecursion
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 81
+      assertion: RecursionGuard=false -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_primary_failure_silent_drop_total
     canonical_metric_name: mtproto_bridge_primary_failure_silent_drop_total
     global_gate_class: mtproto_bridge
@@ -6031,18 +6549,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: PrimaryFailureDisposition -> Metrics.Inc(MetricMTProtoPrimaryFailureSilentDrop)
+      file: src/mtproto/hard_gate_producers.go
+      line: 97
+      mechanism: increment-only counter via observability (primary route failure silently dropped instead of fail-open)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBPrimaryFailureSilentDrop
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 87
+      assertion: ReasonDialFailed + BridgeDrop -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_overflow_without_reason_total
     canonical_metric_name: mtproto_bridge_overflow_without_reason_total
     global_gate_class: mtproto_bridge
@@ -6051,18 +6593,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: OverflowWithReason -> Metrics.Inc(MetricMTProtoOverflowWithoutReason)
+      file: src/mtproto/hard_gate_producers.go
+      line: 107
+      mechanism: increment-only counter via observability (pending overflow reported without budget attribution)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBOverflowWithoutReason
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 93
+      assertion: ErrPendingOverflow + empty reason -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   - gate_id: mtproto_bridge_shutdown_leak_total
     canonical_metric_name: mtproto_bridge_shutdown_leak_total
     global_gate_class: mtproto_bridge
@@ -6071,18 +6637,42 @@ families:
     source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
     source_section: tgb
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: ShutdownPendingDrained -> Metrics.Inc(MetricMTProtoShutdownLeak)
+      file: src/mtproto/hard_gate_producers.go
+      line: 121
+      mechanism: increment-only counter via observability (shutdown left pending handshake tokens unreleased)
+      production_root: mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)
+    verified_commit: fed07a5d
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:ddi_tgb
-    test_producer: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_TGBShutdownLeak
+      file: src/mtproto/hard_gate_producers_test.go
+      line: 99
+      assertion: pending tokens at shutdown -> denied && counter > 0
     mutation_test: null
-    evidence_artifact: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/mtproto/hard_gate_producers_test.go
+    - src/mtproto/hard_gate_producers.go
   sp:
   - gate_id: profile_warp_recommended_without_ip_path_evidence_total
     canonical_metric_name: profile_warp_recommended_without_ip_path_evidence_total

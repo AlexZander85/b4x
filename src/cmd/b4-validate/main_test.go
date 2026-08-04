@@ -61,7 +61,7 @@ func TestPlanFull(t *testing.T) {
 	if !strings.Contains(out, "applicable=") {
 		t.Errorf("plan full: missing applicable= summary:\n%s", out)
 	}
-	// The release profile applies exactly the registry-verified set (67)
+	// The release profile applies exactly the registry-verified set (91)
 	// as proven producers; the plan must carry producer/consumer refs.
 	if !strings.Contains(out, "verified=") {
 		t.Errorf("plan full: missing verified= summary:\n%s", out)

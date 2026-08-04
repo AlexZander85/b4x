@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-04T10:36:41Z",
+  "generated_at": "2026-08-04T10:53:26Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 67,
-  "missing": 216,
+  "verified": 91,
+  "missing": 192,
   "families_verified_missing": {
     "abd": [
       6,
@@ -14,8 +14,8 @@
       0
     ],
     "ddi_tgb": [
-      0,
-      24
+      24,
+      0
     ],
     "mon": [
       5,
@@ -1754,15 +1754,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PromoteViaSNI -\u003e Metrics.Inc(MetricDiscoveryProfileAllowedSNIDirectPromotion)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 139,
+        "mechanism": "increment-only counter via observability (SNI direct promotion without target validation)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIAllowedSNIDirectPromotion",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 119,
+          "assertion": "SNI promotion of unvalidated target -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_capture_gate_bypass_total",
@@ -1770,15 +1801,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PromotionCaptureGate -\u003e Metrics.Inc(MetricDiscoveryProfileCaptureGateBypass)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 159,
+        "mechanism": "increment-only counter via observability (discovery promotion while capture gate not ready)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDICaptureGateBypass",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 131,
+          "assertion": "capture not ready -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_cross_service_action_total",
@@ -1786,15 +1848,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProfileActionScope -\u003e Metrics.Inc(MetricDiscoveryProfileCrossServiceAction)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 169,
+        "mechanism": "increment-only counter via observability (profile action scope differs from the target service scope)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDICrossServiceAction",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 137,
+          "assertion": "service profile / component mismatch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_cross_wan_use_total",
@@ -1802,15 +1895,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UseProfileSameWAN -\u003e Metrics.Inc(MetricDiscoveryProfileCrossWANUse)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 54,
+        "mechanism": "increment-only counter via observability (profile built for a different WAN fingerprint)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDICrossWANUse",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 76,
+          "assertion": "WAN fingerprint mismatch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_direct_production_write_total",
@@ -1818,15 +1942,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ProfileProductionWrite -\u003e Metrics.Inc(MetricDiscoveryProfileDirectProductionWrite)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 129,
+        "mechanism": "increment-only counter via observability (direct production write of an unstaged profile)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIDirectProductionWrite",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 113,
+          "assertion": "unstaged write -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_disabled_exhaustive_fallback_total",
@@ -1834,15 +1989,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ExhaustiveFallbackEnabled -\u003e Metrics.Inc(MetricDiscoveryProfileDisabledExhaustiveFallback)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 119,
+        "mechanism": "increment-only counter via observability (guided plan disabled exhaustive fallback)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIDisabledExhaustiveFallback",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 107,
+          "assertion": "ExhaustiveFallback=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_false_pass_total",
@@ -1850,15 +2036,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PublishIssue -\u003e Metrics.Inc(MetricDiscoveryProfileFalsePass)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 183,
+        "mechanism": "increment-only counter via observability (causal A/B bundle published with false promotion)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIFalsePass",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 146,
+          "assertion": "FalsePromotion=true -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_hint_overrode_current_baseline_total",
@@ -1866,15 +2083,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "HintOrderRespectsBaseline -\u003e Metrics.Inc(MetricDiscoveryProfileHintOverrodeBaseline)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 87,
+        "mechanism": "increment-only counter via observability (hint displaced the current baseline from the leading position)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIHintOverrodeBaseline",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 94,
+          "assertion": "leading candidate not in baseline -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_hint_without_provenance_total",
@@ -1882,15 +2130,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UseSearchHint -\u003e Metrics.Inc(MetricDiscoveryProfileHintWithoutProvenance)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 76,
+        "mechanism": "increment-only counter via observability (hint with candidate but no provenance)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIHintWithoutProvenance",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 88,
+          "assertion": "candidate without provenance -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_mutable_runtime_pointer_total",
@@ -1898,15 +2177,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RuntimeProfileBinding -\u003e Metrics.Inc(MetricDiscoveryProfileMutableRuntimePointer)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 65,
+        "mechanism": "increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIMutableRuntimePointer",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 82,
+          "assertion": "mutable binding -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_skipped_target_validation_total",
@@ -1914,15 +2224,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "GuidedRunTargetValidated -\u003e Metrics.Inc(MetricDiscoveryProfileSkippedTargetValidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (guided run without target-specific validation)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDISkippedTargetValidation",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 101,
+          "assertion": "not target-validated -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_stale_without_revalidation_total",
@@ -1930,15 +2271,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UseProfileRevalidated -\u003e Metrics.Inc(MetricDiscoveryProfileStaleWithoutRevalidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 44,
+        "mechanism": "increment-only counter via observability (stale profile served without revalidation)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIStaleWithoutRevalidation",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 67,
+          "assertion": "expired profile + not revalidated -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_threshold_out_of_budget_total",
@@ -1946,15 +2318,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CheckHintThreshold -\u003e Metrics.Inc(MetricDiscoveryProfileThresholdOutOfBudget)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 149,
+        "mechanism": "increment-only counter via observability (hint threshold above the bounded probe budget)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIThresholdOutOfBudget",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 125,
+          "assertion": "threshold 100 \u003e budget 50 -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "discovery_profile_without_context_validation_total",
@@ -1962,15 +2365,46 @@
       "class": "discovery_profile",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "UseProfileWithContext -\u003e Metrics.Inc(MetricDiscoveryProfileWithoutContextValidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 34,
+        "mechanism": "increment-only counter via observability (guided discovery from a context mismatch/expired profile)",
+        "production_root": "discovery.guards (profile lifecycle -\u003e context/revalidation -\u003e hint planning -\u003e guided run; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_DDIContextValidation",
+          "file": "src/discovery/hard_gate_producers_test.go",
+          "line": 58,
+          "assertion": "mismatched context ID -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/discovery/hard_gate_producers_test.go",
+        "src/discovery/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "guided_search_coverage_ignored_control_regression_total",
@@ -3516,15 +3950,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DestructiveTimeout -\u003e Metrics.Inc(MetricMTProtoFixed5sDestructiveTimeout)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 36,
+        "mechanism": "increment-only counter via observability (fixed 5s destructive timeout instead of adaptive)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBFixed5sDestructiveTimeout",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 51,
+          "assertion": "fixed 5s timeout -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_overflow_without_reason_total",
@@ -3532,15 +3997,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "OverflowWithReason -\u003e Metrics.Inc(MetricMTProtoOverflowWithoutReason)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 107,
+        "mechanism": "increment-only counter via observability (pending overflow reported without budget attribution)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBOverflowWithoutReason",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 93,
+          "assertion": "ErrPendingOverflow + empty reason -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_pending_per_client_limit_bypass_total",
@@ -3548,15 +4044,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PerClientPendingBounded -\u003e Metrics.Inc(MetricMTProtoPendingPerClientBypass)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 57,
+        "mechanism": "increment-only counter via observability (per-client pending limit disabled or above global bound)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBPendingPerClientBypass",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 63,
+          "assertion": "maxClient \u003c= 0 -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_prefix_duplicate_total",
@@ -3564,15 +4091,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PrefixHandoffNonDuplicate -\u003e Metrics.Inc(MetricMTProtoPrefixDuplicate)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 77,
+        "mechanism": "increment-only counter via observability (prefix handoff replayed more bytes than captured)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBPrefixDuplicate",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 75,
+          "assertion": "delivered \u003e len(prefix) -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_prefix_loss_total",
@@ -3580,15 +4138,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PrefixHandoffComplete -\u003e Metrics.Inc(MetricMTProtoPrefixLoss)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 67,
+        "mechanism": "increment-only counter via observability (prefix handoff delivered fewer bytes than captured)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBPrefixLoss",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 69,
+          "assertion": "delivered \u003c len(prefix) -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_primary_failure_silent_drop_total",
@@ -3596,15 +4185,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PrimaryFailureDisposition -\u003e Metrics.Inc(MetricMTProtoPrimaryFailureSilentDrop)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 97,
+        "mechanism": "increment-only counter via observability (primary route failure silently dropped instead of fail-open)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBPrimaryFailureSilentDrop",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 87,
+          "assertion": "ReasonDialFailed + BridgeDrop -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_route_recursion_total",
@@ -3612,15 +4232,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RoutePlanNonRecursive -\u003e Metrics.Inc(MetricMTProtoRouteRecursion)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 87,
+        "mechanism": "increment-only counter via observability (route plan executed without recursion guard)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBRouteRecursion",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 81,
+          "assertion": "RecursionGuard=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_shutdown_leak_total",
@@ -3628,15 +4279,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ShutdownPendingDrained -\u003e Metrics.Inc(MetricMTProtoShutdownLeak)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 121,
+        "mechanism": "increment-only counter via observability (shutdown left pending handshake tokens unreleased)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBShutdownLeak",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 99,
+          "assertion": "pending tokens at shutdown -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_unbounded_pending_total",
@@ -3644,15 +4326,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PendingBudgetBounded -\u003e Metrics.Inc(MetricMTProtoUnboundedPending)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 46,
+        "mechanism": "increment-only counter via observability (unbounded global pending-handshake budget)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBUnboundedPending",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 57,
+          "assertion": "maxGlobal \u003c= 0 -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "mtproto_bridge_zero_byte_handled_drop_total",
@@ -3660,15 +4373,46 @@
       "class": "mtproto_bridge",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ZeroByteHandledDrop -\u003e Metrics.Inc(MetricMTProtoZeroByteHandledDrop)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 26,
+        "mechanism": "increment-only counter via observability (zero-byte connection recorded as handled)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.ddi_tgb; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_TGBZeroByteHandledDrop",
+          "file": "src/mtproto/hard_gate_producers_test.go",
+          "line": 45,
+          "assertion": "ReasonZeroByte + BridgeHandled -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "evidence": [
+        "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/mtproto/hard_gate_producers_test.go",
+        "src/mtproto/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "nfqueue_gso_action_suppressed_total",

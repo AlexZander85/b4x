@@ -571,6 +571,179 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (user revert without matching active lease)",
         "production_root": "silentpath lifecycle guards (authorization -> visibility -> correlation -> recovery -> rollback; release pipeline root from validation)",
     },
+    # --- DDI/TGB producers (FB-02 DDI_TGB section, 2026-08-04): every counter
+    # increments ONLY on the violating branch of the production guards
+    # (src/discovery/hard_gate_producers.go, src/mtproto/hard_gate_producers.go),
+    # reachable from the release pipeline via the guided-discovery/bridge
+    # controller roots. ---
+    "discovery_profile_without_context_validation_total": {
+        "symbol": "UseProfileWithContext -> Metrics.Inc(MetricDiscoveryProfileWithoutContextValidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 34,
+        "mechanism": "increment-only counter via observability (guided discovery from a context mismatch/expired profile)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_stale_without_revalidation_total": {
+        "symbol": "UseProfileRevalidated -> Metrics.Inc(MetricDiscoveryProfileStaleWithoutRevalidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 44,
+        "mechanism": "increment-only counter via observability (stale profile served without revalidation)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_cross_wan_use_total": {
+        "symbol": "UseProfileSameWAN -> Metrics.Inc(MetricDiscoveryProfileCrossWANUse)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 54,
+        "mechanism": "increment-only counter via observability (profile built for a different WAN fingerprint)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_mutable_runtime_pointer_total": {
+        "symbol": "RuntimeProfileBinding -> Metrics.Inc(MetricDiscoveryProfileMutableRuntimePointer)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 65,
+        "mechanism": "increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_hint_without_provenance_total": {
+        "symbol": "UseSearchHint -> Metrics.Inc(MetricDiscoveryProfileHintWithoutProvenance)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 76,
+        "mechanism": "increment-only counter via observability (hint with candidate but no provenance)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_hint_overrode_current_baseline_total": {
+        "symbol": "HintOrderRespectsBaseline -> Metrics.Inc(MetricDiscoveryProfileHintOverrodeBaseline)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 87,
+        "mechanism": "increment-only counter via observability (hint displaced the current baseline from the leading position)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_skipped_target_validation_total": {
+        "symbol": "GuidedRunTargetValidated -> Metrics.Inc(MetricDiscoveryProfileSkippedTargetValidation)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (guided run without target-specific validation)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_disabled_exhaustive_fallback_total": {
+        "symbol": "ExhaustiveFallbackEnabled -> Metrics.Inc(MetricDiscoveryProfileDisabledExhaustiveFallback)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 119,
+        "mechanism": "increment-only counter via observability (guided plan disabled exhaustive fallback)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_direct_production_write_total": {
+        "symbol": "ProfileProductionWrite -> Metrics.Inc(MetricDiscoveryProfileDirectProductionWrite)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 129,
+        "mechanism": "increment-only counter via observability (direct production write of an unstaged profile)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_allowed_sni_direct_promotion_total": {
+        "symbol": "PromoteViaSNI -> Metrics.Inc(MetricDiscoveryProfileAllowedSNIDirectPromotion)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 139,
+        "mechanism": "increment-only counter via observability (SNI direct promotion without target validation)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_threshold_out_of_budget_total": {
+        "symbol": "CheckHintThreshold -> Metrics.Inc(MetricDiscoveryProfileThresholdOutOfBudget)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 149,
+        "mechanism": "increment-only counter via observability (hint threshold above the bounded probe budget)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_capture_gate_bypass_total": {
+        "symbol": "PromotionCaptureGate -> Metrics.Inc(MetricDiscoveryProfileCaptureGateBypass)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 159,
+        "mechanism": "increment-only counter via observability (discovery promotion while capture gate not ready)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_cross_service_action_total": {
+        "symbol": "ProfileActionScope -> Metrics.Inc(MetricDiscoveryProfileCrossServiceAction)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 169,
+        "mechanism": "increment-only counter via observability (profile action scope differs from the target service scope)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_false_pass_total": {
+        "symbol": "PublishIssue -> Metrics.Inc(MetricDiscoveryProfileFalsePass)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 183,
+        "mechanism": "increment-only counter via observability (causal A/B bundle published with false promotion)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "mtproto_bridge_zero_byte_handled_drop_total": {
+        "symbol": "ZeroByteHandledDrop -> Metrics.Inc(MetricMTProtoZeroByteHandledDrop)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 26,
+        "mechanism": "increment-only counter via observability (zero-byte connection recorded as handled)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_fixed_5s_destructive_timeout_total": {
+        "symbol": "DestructiveTimeout -> Metrics.Inc(MetricMTProtoFixed5sDestructiveTimeout)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 36,
+        "mechanism": "increment-only counter via observability (fixed 5s destructive timeout instead of adaptive)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_unbounded_pending_total": {
+        "symbol": "PendingBudgetBounded -> Metrics.Inc(MetricMTProtoUnboundedPending)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 46,
+        "mechanism": "increment-only counter via observability (unbounded global pending-handshake budget)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_pending_per_client_limit_bypass_total": {
+        "symbol": "PerClientPendingBounded -> Metrics.Inc(MetricMTProtoPendingPerClientBypass)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 57,
+        "mechanism": "increment-only counter via observability (per-client pending limit disabled or above global bound)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_prefix_loss_total": {
+        "symbol": "PrefixHandoffComplete -> Metrics.Inc(MetricMTProtoPrefixLoss)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 67,
+        "mechanism": "increment-only counter via observability (prefix handoff delivered fewer bytes than captured)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_prefix_duplicate_total": {
+        "symbol": "PrefixHandoffNonDuplicate -> Metrics.Inc(MetricMTProtoPrefixDuplicate)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 77,
+        "mechanism": "increment-only counter via observability (prefix handoff replayed more bytes than captured)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_route_recursion_total": {
+        "symbol": "RoutePlanNonRecursive -> Metrics.Inc(MetricMTProtoRouteRecursion)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 87,
+        "mechanism": "increment-only counter via observability (route plan executed without recursion guard)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_primary_failure_silent_drop_total": {
+        "symbol": "PrimaryFailureDisposition -> Metrics.Inc(MetricMTProtoPrimaryFailureSilentDrop)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 97,
+        "mechanism": "increment-only counter via observability (primary route failure silently dropped instead of fail-open)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_overflow_without_reason_total": {
+        "symbol": "OverflowWithReason -> Metrics.Inc(MetricMTProtoOverflowWithoutReason)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 107,
+        "mechanism": "increment-only counter via observability (pending overflow reported without budget attribution)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
+    "mtproto_bridge_shutdown_leak_total": {
+        "symbol": "ShutdownPendingDrained -> Metrics.Inc(MetricMTProtoShutdownLeak)",
+        "file": "src/mtproto/hard_gate_producers.go",
+        "line": 121,
+        "mechanism": "increment-only counter via observability (shutdown left pending handshake tokens unreleased)",
+        "production_root": "mtproto guards (bridge pending/prefix/route/failure lifecycle; controller-loop root from main)",
+    },
     # --- FB-29 resolution-erasure / FB-30 multi-vantage producers (mon + abd):
     # producers verified in the FB-29/FB-30 commits; registry entries were
     # hand-maintained in hard_gates_registry.gen.go and are now declared here
@@ -708,6 +881,31 @@ GATE_KINDS: dict[str, str] = {
     "unrelated_control_action_total": "zero_tolerance_violation_counter",
     "classifier_layout_parity_fail_total": "zero_tolerance_violation_counter",
     "passive_rst_reconnect_regression_total": "zero_tolerance_violation_counter",
+    # --- DDI guided-discovery / TGB bridge zero-tolerance counters (addendum v1.0 32/33) ---
+    "discovery_profile_without_context_validation_total": "zero_tolerance_violation_counter",
+    "discovery_profile_stale_without_revalidation_total": "zero_tolerance_violation_counter",
+    "discovery_profile_cross_wan_use_total": "zero_tolerance_violation_counter",
+    "discovery_profile_mutable_runtime_pointer_total": "zero_tolerance_violation_counter",
+    "discovery_profile_hint_without_provenance_total": "zero_tolerance_violation_counter",
+    "discovery_profile_hint_overrode_current_baseline_total": "zero_tolerance_violation_counter",
+    "discovery_profile_skipped_target_validation_total": "zero_tolerance_violation_counter",
+    "discovery_profile_disabled_exhaustive_fallback_total": "zero_tolerance_violation_counter",
+    "discovery_profile_direct_production_write_total": "zero_tolerance_violation_counter",
+    "discovery_profile_allowed_sni_direct_promotion_total": "zero_tolerance_violation_counter",
+    "discovery_profile_threshold_out_of_budget_total": "zero_tolerance_violation_counter",
+    "discovery_profile_capture_gate_bypass_total": "zero_tolerance_violation_counter",
+    "discovery_profile_cross_service_action_total": "zero_tolerance_violation_counter",
+    "discovery_profile_false_pass_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_zero_byte_handled_drop_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_fixed_5s_destructive_timeout_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_unbounded_pending_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_pending_per_client_limit_bypass_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_prefix_loss_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_prefix_duplicate_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_route_recursion_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_primary_failure_silent_drop_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_overflow_without_reason_total": "zero_tolerance_violation_counter",
+    "mtproto_bridge_shutdown_leak_total": "zero_tolerance_violation_counter",
     # --- SPF silent-path failure zero-tolerance counters (addendum v1.0 45) ---
     "silent_failure_action_without_authorization_total": "zero_tolerance_violation_counter",
     "silent_failure_action_with_incomplete_visibility_total": "zero_tolerance_violation_counter",
@@ -877,6 +1075,104 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
     ],
     "silent_failure_user_revert_not_rolled_back_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.spf; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    # --- DDI/TGB zero-tolerance counters (addendum v1.0 32/33; fail-closed via
+    # EvaluateHardGates scope.ddi_tgb, release pipeline) ---
+    "discovery_profile_without_context_validation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_stale_without_revalidation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_cross_wan_use_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_mutable_runtime_pointer_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_hint_without_provenance_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_hint_overrode_current_baseline_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_skipped_target_validation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_disabled_exhaustive_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_direct_production_write_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_allowed_sni_direct_promotion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_threshold_out_of_budget_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_capture_gate_bypass_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_cross_service_action_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "discovery_profile_false_pass_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_zero_byte_handled_drop_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_fixed_5s_destructive_timeout_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_unbounded_pending_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_pending_per_client_limit_bypass_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_prefix_loss_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_prefix_duplicate_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_route_recursion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_primary_failure_silent_drop_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_overflow_without_reason_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "mtproto_bridge_shutdown_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     # decision 9) via evaluateGateSet, fail-closed on any non-zero delta. ---
@@ -1233,6 +1529,81 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "silent_failure_user_revert_not_rolled_back_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_SPFUserRevertNotRolledBack", "file": "src/silentpath/hard_gate_producers_test.go", "line": 237, "assertion": "unknown lease id -> Rollback false && counter > 0"},
     ],
+    # --- DDI/TGB negative fixtures (addendum v1.0 32/33): each test drives the
+    # violating branch of the production guard and asserts the
+    # zero-tolerance counter moved. ---
+    "discovery_profile_without_context_validation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIContextValidation", "file": "src/discovery/hard_gate_producers_test.go", "line": 58, "assertion": "mismatched context ID -> denied && counter > 0"},
+    ],
+    "discovery_profile_stale_without_revalidation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIStaleWithoutRevalidation", "file": "src/discovery/hard_gate_producers_test.go", "line": 67, "assertion": "expired profile + not revalidated -> denied && counter > 0"},
+    ],
+    "discovery_profile_cross_wan_use_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICrossWANUse", "file": "src/discovery/hard_gate_producers_test.go", "line": 76, "assertion": "WAN fingerprint mismatch -> denied && counter > 0"},
+    ],
+    "discovery_profile_mutable_runtime_pointer_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIMutableRuntimePointer", "file": "src/discovery/hard_gate_producers_test.go", "line": 82, "assertion": "mutable binding -> denied && counter > 0"},
+    ],
+    "discovery_profile_hint_without_provenance_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIHintWithoutProvenance", "file": "src/discovery/hard_gate_producers_test.go", "line": 88, "assertion": "candidate without provenance -> denied && counter > 0"},
+    ],
+    "discovery_profile_hint_overrode_current_baseline_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIHintOverrodeBaseline", "file": "src/discovery/hard_gate_producers_test.go", "line": 94, "assertion": "leading candidate not in baseline -> denied && counter > 0"},
+    ],
+    "discovery_profile_skipped_target_validation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDISkippedTargetValidation", "file": "src/discovery/hard_gate_producers_test.go", "line": 101, "assertion": "not target-validated -> denied && counter > 0"},
+    ],
+    "discovery_profile_disabled_exhaustive_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDisabledExhaustiveFallback", "file": "src/discovery/hard_gate_producers_test.go", "line": 107, "assertion": "ExhaustiveFallback=false -> denied && counter > 0"},
+    ],
+    "discovery_profile_direct_production_write_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDirectProductionWrite", "file": "src/discovery/hard_gate_producers_test.go", "line": 113, "assertion": "unstaged write -> denied && counter > 0"},
+    ],
+    "discovery_profile_allowed_sni_direct_promotion_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIAllowedSNIDirectPromotion", "file": "src/discovery/hard_gate_producers_test.go", "line": 119, "assertion": "SNI promotion of unvalidated target -> denied && counter > 0"},
+    ],
+    "discovery_profile_threshold_out_of_budget_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIThresholdOutOfBudget", "file": "src/discovery/hard_gate_producers_test.go", "line": 125, "assertion": "threshold 100 > budget 50 -> denied && counter > 0"},
+    ],
+    "discovery_profile_capture_gate_bypass_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICaptureGateBypass", "file": "src/discovery/hard_gate_producers_test.go", "line": 131, "assertion": "capture not ready -> denied && counter > 0"},
+    ],
+    "discovery_profile_cross_service_action_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICrossServiceAction", "file": "src/discovery/hard_gate_producers_test.go", "line": 137, "assertion": "service profile / component mismatch -> denied && counter > 0"},
+    ],
+    "discovery_profile_false_pass_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIFalsePass", "file": "src/discovery/hard_gate_producers_test.go", "line": 146, "assertion": "FalsePromotion=true -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_zero_byte_handled_drop_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBZeroByteHandledDrop", "file": "src/mtproto/hard_gate_producers_test.go", "line": 45, "assertion": "ReasonZeroByte + BridgeHandled -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_fixed_5s_destructive_timeout_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBFixed5sDestructiveTimeout", "file": "src/mtproto/hard_gate_producers_test.go", "line": 51, "assertion": "fixed 5s timeout -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_unbounded_pending_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBUnboundedPending", "file": "src/mtproto/hard_gate_producers_test.go", "line": 57, "assertion": "maxGlobal <= 0 -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_pending_per_client_limit_bypass_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBPendingPerClientBypass", "file": "src/mtproto/hard_gate_producers_test.go", "line": 63, "assertion": "maxClient <= 0 -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_prefix_loss_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBPrefixLoss", "file": "src/mtproto/hard_gate_producers_test.go", "line": 69, "assertion": "delivered < len(prefix) -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_prefix_duplicate_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBPrefixDuplicate", "file": "src/mtproto/hard_gate_producers_test.go", "line": 75, "assertion": "delivered > len(prefix) -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_route_recursion_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBRouteRecursion", "file": "src/mtproto/hard_gate_producers_test.go", "line": 81, "assertion": "RecursionGuard=false -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_primary_failure_silent_drop_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBPrimaryFailureSilentDrop", "file": "src/mtproto/hard_gate_producers_test.go", "line": 87, "assertion": "ReasonDialFailed + BridgeDrop -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_overflow_without_reason_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBOverflowWithoutReason", "file": "src/mtproto/hard_gate_producers_test.go", "line": 93, "assertion": "ErrPendingOverflow + empty reason -> denied && counter > 0"},
+    ],
+    "mtproto_bridge_shutdown_leak_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBShutdownLeak", "file": "src/mtproto/hard_gate_producers_test.go", "line": 99, "assertion": "pending tokens at shutdown -> denied && counter > 0"},
+    ],
     # asserts the zero-tolerance counter moved. ---
     "warp_secret_leak_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPSecretLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 42, "assertion": "trace payload with raw secret -> PublishTrace false && counter > 0"},
@@ -1478,6 +1849,48 @@ for _name in [
     "silent_failure_user_revert_not_rolled_back_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_SPF)
+_EVIDENCE_DDI = [
+    "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/discovery/hard_gate_producers_test.go",
+    "src/discovery/hard_gate_producers.go",
+]
+for _name in [
+    "discovery_profile_without_context_validation_total",
+    "discovery_profile_stale_without_revalidation_total",
+    "discovery_profile_cross_wan_use_total",
+    "discovery_profile_mutable_runtime_pointer_total",
+    "discovery_profile_hint_without_provenance_total",
+    "discovery_profile_hint_overrode_current_baseline_total",
+    "discovery_profile_skipped_target_validation_total",
+    "discovery_profile_disabled_exhaustive_fallback_total",
+    "discovery_profile_direct_production_write_total",
+    "discovery_profile_allowed_sni_direct_promotion_total",
+    "discovery_profile_threshold_out_of_budget_total",
+    "discovery_profile_capture_gate_bypass_total",
+    "discovery_profile_cross_service_action_total",
+    "discovery_profile_false_pass_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_DDI)
+_EVIDENCE_TGB = [
+    "B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md",
+    "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+    "src/mtproto/hard_gate_producers_test.go",
+    "src/mtproto/hard_gate_producers.go",
+]
+for _name in [
+    "mtproto_bridge_zero_byte_handled_drop_total",
+    "mtproto_bridge_fixed_5s_destructive_timeout_total",
+    "mtproto_bridge_unbounded_pending_total",
+    "mtproto_bridge_pending_per_client_limit_bypass_total",
+    "mtproto_bridge_prefix_loss_total",
+    "mtproto_bridge_prefix_duplicate_total",
+    "mtproto_bridge_route_recursion_total",
+    "mtproto_bridge_primary_failure_silent_drop_total",
+    "mtproto_bridge_overflow_without_reason_total",
+    "mtproto_bridge_shutdown_leak_total",
+]:
+    EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_TGB)
 _EVIDENCE_MONABD = [
     "artifacts/audit/hard_gates_audit.md",
     "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
