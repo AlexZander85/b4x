@@ -74,6 +74,8 @@ func (w *Worker) Start() error {
 		return err
 	}
 	w.clientSock = cs
+	w.actionSender = s
+	w.actionMark = uint32(capture.ProcessedMarkFor(mark))
 
 	c := nfqueueOpenConfig(cfg, w.qnum, false)
 	q, err := nfqueue.Open(&c)
@@ -227,7 +229,9 @@ func (w *Worker) dropAndInjectTCP(cfg *config.SetConfig, raw []byte, dst net.IP)
 	case "hybrid":
 		w.sendHybridFragments(cfg, raw, dst)
 	case config.ConfigNone:
-		_ = w.sock.SendIPv4(raw, dst)
+		if !w.executeActionPlan(w.ctx, raw, dst, false) {
+			_ = w.sock.SendIPv4(raw, dst)
+		}
 	default:
 		w.sendComboFragments(cfg, raw, dst)
 	}

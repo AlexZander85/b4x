@@ -67,7 +67,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
 | FB-21 | открыта | — |
-| FB-22 | открыта | — |
+| FB-22 | ВЫПОЛНЕНА | Beads b4x-0xa, closed 04.08; nfq drop-path v4/v6: action.Plan+Executor fail-open (action_executor.go), интеграционные тесты |
 | FB-23 | открыта | — |
 | FB-24 | открыта | — |
 | FB-25 | открыта | — |
@@ -888,7 +888,7 @@ offload_policy=detect
 - **Критерий:** NDM+MediaTek+probe+self-test → committed exclude; failure/unknown → detect и 0 leaked rules; user detect не перетирается; `disable-global` никогда auto; target-side proof или `BLOCKED_BY_TARGET`.
 - **Зависит:** FB-12, FB-03 PPE gates; нормативная правка разрешена правилом 0.3.
 
-### FB-22. Stage 19: подключить action/executor.go в production NFQ-путь [M]
+### FB-22. Stage 19: подключить action/executor.go в production NFQ-путь [M] **— ВЫПОЛНЕНО** (Beads b4x-0xa, 04.08)
 - **Проблема:** `src/action/executor.go` («centralized packet builder» по PATCH_PLAN Stage 19) вызывается только из тестов; в production пути NFQ не используется.
 - **Что сделать:** подключить executor в реальный путь обработки (nfq handler → action executor), сохранив fail-open; покрыть интеграционным тестом. Детали: `patch_plan_audit.md` (Stage 19).
 - **Критерий:** executor достижим из nfq-пути (не только тесты); интеграционный тест PASS.

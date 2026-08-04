@@ -73,6 +73,8 @@ type Worker struct {
 	gsoCapability      atomic.Value // GSOCapabilityStatus
 	gsoPassTokens      *GSOPassTokenStore
 	actionTokens       *action.ActionTokenStore
+	actionSender       packetInjector // raw injector for the centralized action executor (nil until Start)
+	actionMark         uint32         // processed provenance mark used for action plans
 	passiveRST         *PassiveRSTStore
 	normalizerQueue    uint16
 	normalizer         bool
