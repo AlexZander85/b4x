@@ -9849,18 +9849,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendedWithoutIPPathEvidenceAllowed -> Metrics.Inc(MetricSPRecommendedWithoutIPPathEvidence)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 36
+      mechanism: increment-only counter via observability (recommendation without IP-path evidence; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendedWithoutIPPathEvidence
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 82
+      assertion: no IP-path evidence -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPRecommendedWithoutIPPathEvidence (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 82
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommended_from_destination_ip_only_total
     canonical_metric_name: profile_warp_recommended_from_destination_ip_only_total
     global_gate_class: profile_warp
@@ -9869,18 +9899,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendedFromDestinationIPOnlyAllowed -> Metrics.Inc(MetricSPRecommendedFromDestinationIPOnly)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 47
+      mechanism: increment-only counter via observability (recommendation from destination-only scope; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendedFromDestinationIPOnly
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 90
+      assertion: empty ClientScopeHash -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPRecommendedFromDestinationIPOnly (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 90
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommended_for_origin_dead_total
     canonical_metric_name: profile_warp_recommended_for_origin_dead_total
     global_gate_class: profile_warp
@@ -9889,18 +9949,47 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendedForOriginDeadAllowed -> Metrics.Inc(MetricSPRecommendedForOriginDead)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 58
+      mechanism: increment-only counter via observability (recommendation for dead origin; SP addendum v1.6 sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendedForOriginDead
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 100
+      assertion: dead origin -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPRecommendedForOriginDead (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 100
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommended_with_unhealthy_controls_total
     canonical_metric_name: profile_warp_recommended_with_unhealthy_controls_total
     global_gate_class: profile_warp
@@ -9909,18 +9998,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendedWithUnhealthyControlsAllowed -> Metrics.Inc(MetricSPRecommendedWithUnhealthyControls)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 69
+      mechanism: increment-only counter via observability (recommendation while control probes unhealthy; SP addendum v1.6
+        sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendedWithUnhealthyControls
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 108
+      assertion: unhealthy controls -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPRecommendedWithUnhealthyControls (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 108
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_cross_service_total
     canonical_metric_name: profile_warp_recommendation_cross_service_total
     global_gate_class: profile_warp
@@ -9929,18 +10048,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CrossServiceRecommendationAllowed -> Metrics.Inc(MetricSPCrossService)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 81
+      mechanism: increment-only counter via observability (recommendation consumed by another service; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPCrossServiceRecommendation
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 116
+      assertion: consumer service mismatch -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPCrossServiceRecommendation (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 116
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_stale_profile_total
     canonical_metric_name: profile_warp_recommendation_stale_profile_total
     global_gate_class: profile_warp
@@ -9949,18 +10098,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: StaleProfileRecommendationAllowed -> Metrics.Inc(MetricSPStaleProfile)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 92
+      mechanism: increment-only counter via observability (eligible recommendation from non-current profile; SP addendum v1.6
+        sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPStaleProfileRecommendation
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 124
+      assertion: expired eligible recommendation -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPStaleProfileRecommendation (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 124
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_without_causal_trace_gate_total
     canonical_metric_name: profile_warp_recommendation_without_causal_trace_gate_total
     global_gate_class: profile_warp
@@ -9969,18 +10148,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: WithoutCausalTraceGateAllowed -> Metrics.Inc(MetricSPWithoutCausalTraceGate)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 103
+      mechanism: increment-only counter via observability (recommendation while causal trace gate not ready; SP addendum v1.6
+        sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPWithoutCausalTraceGate
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 134
+      assertion: CausalTraceReady=false -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPWithoutCausalTraceGate (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 134
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_enabled_without_target_canary_total
     canonical_metric_name: profile_warp_enabled_without_target_canary_total
     global_gate_class: profile_warp
@@ -9989,18 +10198,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: EnabledWithoutTargetCanaryAllowed -> Metrics.Inc(MetricSPEnabledWithoutTargetCanary)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 115
+      mechanism: increment-only counter via observability (WARP enabled without passed target canary; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPEnabledWithoutTargetCanary
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 144
+      assertion: TargetCanarySupported=false -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPEnabledWithoutTargetCanary (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 144
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_test_token_reused_as_production_authorization_total
     canonical_metric_name: profile_warp_test_token_reused_as_production_authorization_total
     global_gate_class: profile_warp
@@ -10009,18 +10248,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: TestTokenReusedAsProductionAuthorizationAllowed -> Metrics.Inc(MetricSPTestTokenReusedAsProdAuthorization)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 127
+      mechanism: increment-only counter via observability (live test token authorizing production; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPTestTokenReusedAsProductionAuthorization
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 154
+      assertion: live TestToken with ProductionAuthorized -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPTestTokenReusedAsProductionAuthorization (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 154
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_ignored_control_regression_total
     canonical_metric_name: profile_warp_recommendation_ignored_control_regression_total
     global_gate_class: profile_warp
@@ -10029,18 +10298,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: IgnoredControlRegressionAllowed -> Metrics.Inc(MetricSPIgnoredControlRegression)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 138
+      mechanism: increment-only counter via observability (control regression reported as healthy; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPIgnoredControlRegression
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 163
+      assertion: regression reported healthy -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPIgnoredControlRegression (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 163
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_hidden_fail_policy_total
     canonical_metric_name: profile_warp_recommendation_hidden_fail_policy_total
     global_gate_class: profile_warp
@@ -10049,18 +10348,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: HiddenFailPolicyAllowed -> Metrics.Inc(MetricSPHiddenFailPolicy)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 149
+      mechanism: increment-only counter via observability (recommendation without explicit failure policy; SP addendum v1.6
+        sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPHiddenFailPolicy
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 171
+      assertion: empty failure policy preview -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPHiddenFailPolicy (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 171
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_nonru_suggested_without_geo_requirement_total
     canonical_metric_name: profile_nonru_suggested_without_geo_requirement_total
     global_gate_class: profile_warp
@@ -10069,18 +10398,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: NonRUSuggestedWithoutGeoRequirementAllowed -> Metrics.Inc(MetricSPNonRUSuggestedWithoutGeoRequirement)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 160
+      mechanism: increment-only counter via observability (non-RU option without declared geo requirement; SP addendum v1.6
+        sect. 28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPNonRUSuggestedWithoutGeoRequirement
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 179
+      assertion: strict non-ru without geo requirement -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPNonRUSuggestedWithoutGeoRequirement (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 179
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_camouflage_suggested_for_target_ip_block_total
     canonical_metric_name: profile_warp_camouflage_suggested_for_target_ip_block_total
     global_gate_class: profile_warp
@@ -10089,18 +10448,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: CamouflageSuggestedForTargetIPBlockAllowed -> Metrics.Inc(MetricSPCamouflageSuggestedForTargetIPBlock)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 171
+      mechanism: increment-only counter via observability (camouflage suggested for IP-blocked target; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPCamouflageSuggestedForTargetIPBlock
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 188
+      assertion: camouflage for ip-blocked target -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPCamouflageSuggestedForTargetIPBlock (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 188
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   - gate_id: profile_warp_recommendation_cleanup_failure_total
     canonical_metric_name: profile_warp_recommendation_cleanup_failure_total
     global_gate_class: profile_warp
@@ -10109,18 +10498,48 @@ families:
     source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     source_section: warp_recommendation
     kind: zero_tolerance_violation_counter
-    producer_status: missing
-    runtime_producer: null
-    verified_commit: null
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendationCleanupFailureAllowed -> Metrics.Inc(MetricSPCleanupFailure)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 182
+      mechanism: increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect.
+        28A.11)
+      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+    verified_commit: a69ebcad
     expected_producer_location: null
-    verdict_consumer: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
     promotion_blocker: true
     reset_semantics: increment-only; window-delta == 0
     expiry_generation_binding: null
     applicability: family:sp
-    test_producer: null
-    mutation_test: null
-    evidence_artifact: null
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendationCleanupFailure
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 197
+      assertion: CleanedUp=false -> denied && counter > 0
+    mutation_test:
+    - kind: removed_inc
+      name: TestSPRecommendationCleanupFailure (producer removed)
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 197
+      status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
   csi:
   - gate_id: unrelated_control_action_total
     canonical_metric_name: unrelated_control_action_total

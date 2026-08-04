@@ -1,9 +1,9 @@
 {
-  "generated_at": "2026-08-04T11:29:58Z",
+  "generated_at": "2026-08-04T12:47:16Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
-  "verified": 222,
-  "missing": 61,
+  "verified": 236,
+  "missing": 47,
   "families_verified_missing": {
     "abd": [
       85,
@@ -30,8 +30,8 @@
       0
     ],
     "sp": [
-      0,
-      14
+      14,
+      0
     ],
     "spf": [
       22,
@@ -9485,15 +9485,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "NonRUSuggestedWithoutGeoRequirementAllowed -\u003e Metrics.Inc(MetricSPNonRUSuggestedWithoutGeoRequirement)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 160,
+        "mechanism": "increment-only counter via observability (non-RU option without declared geo requirement; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPNonRUSuggestedWithoutGeoRequirement",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 179,
+          "assertion": "strict non-ru without geo requirement -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPNonRUSuggestedWithoutGeoRequirement (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_camouflage_suggested_for_target_ip_block_total",
@@ -9501,15 +9540,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CamouflageSuggestedForTargetIPBlockAllowed -\u003e Metrics.Inc(MetricSPCamouflageSuggestedForTargetIPBlock)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 171,
+        "mechanism": "increment-only counter via observability (camouflage suggested for IP-blocked target; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPCamouflageSuggestedForTargetIPBlock",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 188,
+          "assertion": "camouflage for ip-blocked target -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPCamouflageSuggestedForTargetIPBlock (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_enabled_without_target_canary_total",
@@ -9517,15 +9595,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "EnabledWithoutTargetCanaryAllowed -\u003e Metrics.Inc(MetricSPEnabledWithoutTargetCanary)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 115,
+        "mechanism": "increment-only counter via observability (WARP enabled without passed target canary; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPEnabledWithoutTargetCanary",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 144,
+          "assertion": "TargetCanarySupported=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPEnabledWithoutTargetCanary (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_cleanup_failure_total",
@@ -9533,15 +9650,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendationCleanupFailureAllowed -\u003e Metrics.Inc(MetricSPCleanupFailure)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 182,
+        "mechanism": "increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPRecommendationCleanupFailure",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 197,
+          "assertion": "CleanedUp=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPRecommendationCleanupFailure (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_cross_service_total",
@@ -9549,15 +9705,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CrossServiceRecommendationAllowed -\u003e Metrics.Inc(MetricSPCrossService)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 81,
+        "mechanism": "increment-only counter via observability (recommendation consumed by another service; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPCrossServiceRecommendation",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 116,
+          "assertion": "consumer service mismatch -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPCrossServiceRecommendation (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_hidden_fail_policy_total",
@@ -9565,15 +9760,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "HiddenFailPolicyAllowed -\u003e Metrics.Inc(MetricSPHiddenFailPolicy)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 149,
+        "mechanism": "increment-only counter via observability (recommendation without explicit failure policy; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPHiddenFailPolicy",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 171,
+          "assertion": "empty failure policy preview -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPHiddenFailPolicy (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_ignored_control_regression_total",
@@ -9581,15 +9815,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "IgnoredControlRegressionAllowed -\u003e Metrics.Inc(MetricSPIgnoredControlRegression)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 138,
+        "mechanism": "increment-only counter via observability (control regression reported as healthy; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPIgnoredControlRegression",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 163,
+          "assertion": "regression reported healthy -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPIgnoredControlRegression (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_stale_profile_total",
@@ -9597,15 +9870,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "StaleProfileRecommendationAllowed -\u003e Metrics.Inc(MetricSPStaleProfile)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 92,
+        "mechanism": "increment-only counter via observability (eligible recommendation from non-current profile; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPStaleProfileRecommendation",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 124,
+          "assertion": "expired eligible recommendation -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPStaleProfileRecommendation (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommendation_without_causal_trace_gate_total",
@@ -9613,15 +9925,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "WithoutCausalTraceGateAllowed -\u003e Metrics.Inc(MetricSPWithoutCausalTraceGate)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 103,
+        "mechanism": "increment-only counter via observability (recommendation while causal trace gate not ready; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPWithoutCausalTraceGate",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 134,
+          "assertion": "CausalTraceReady=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPWithoutCausalTraceGate (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommended_for_origin_dead_total",
@@ -9629,15 +9980,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendedForOriginDeadAllowed -\u003e Metrics.Inc(MetricSPRecommendedForOriginDead)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 58,
+        "mechanism": "increment-only counter via observability (recommendation for dead origin; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPRecommendedForOriginDead",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 100,
+          "assertion": "dead origin -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPRecommendedForOriginDead (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommended_from_destination_ip_only_total",
@@ -9645,15 +10035,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendedFromDestinationIPOnlyAllowed -\u003e Metrics.Inc(MetricSPRecommendedFromDestinationIPOnly)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 47,
+        "mechanism": "increment-only counter via observability (recommendation from destination-only scope; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPRecommendedFromDestinationIPOnly",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 90,
+          "assertion": "empty ClientScopeHash -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPRecommendedFromDestinationIPOnly (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommended_with_unhealthy_controls_total",
@@ -9661,15 +10090,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendedWithUnhealthyControlsAllowed -\u003e Metrics.Inc(MetricSPRecommendedWithUnhealthyControls)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 69,
+        "mechanism": "increment-only counter via observability (recommendation while control probes unhealthy; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPRecommendedWithUnhealthyControls",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 108,
+          "assertion": "unhealthy controls -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPRecommendedWithUnhealthyControls (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_recommended_without_ip_path_evidence_total",
@@ -9677,15 +10145,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "RecommendedWithoutIPPathEvidenceAllowed -\u003e Metrics.Inc(MetricSPRecommendedWithoutIPPathEvidence)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 36,
+        "mechanism": "increment-only counter via observability (recommendation without IP-path evidence; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPRecommendedWithoutIPPathEvidence",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 82,
+          "assertion": "no IP-path evidence -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPRecommendedWithoutIPPathEvidence (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "profile_warp_test_token_reused_as_production_authorization_total",
@@ -9693,15 +10200,54 @@
       "class": "profile_warp",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "TestTokenReusedAsProductionAuthorizationAllowed -\u003e Metrics.Inc(MetricSPTestTokenReusedAsProdAuthorization)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 127,
+        "mechanism": "increment-only counter via observability (live test token authorizing production; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 329,
+          "binding": "scope.sp; count != 0 -\u003e GateFail"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestSPTestTokenReusedAsProductionAuthorization",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "line": 154,
+          "assertion": "live TestToken with ProductionAuthorized -\u003e denied \u0026\u0026 counter \u003e 0"
+        }
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestSPTestTokenReusedAsProductionAuthorization (producer removed)",
+          "file": "src/serviceprofile/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ],
+      "evidence": [
+        "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
+        "artifacts/remediation/FB02_SP_PRODUCERS.json",
+        "src/serviceprofile/hard_gate_producers_test.go",
+        "src/serviceprofile/hard_gate_producers.go"
+      ]
     },
     {
       "gate_id": "silent_failure_action_with_incomplete_visibility_total",

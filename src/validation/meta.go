@@ -81,8 +81,10 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	// + 52 MON producers (FB-02 84-92: observation/scope/temporal/resolution/
 	// trigger/multi-vantage/ABD-DDI/legacy/reliability)
 	// + 79 ABD producers (FB-02 39-42: detector safety/DNS-TLS-QUIC/L4
-	// thresholds/blocking-profile-DDI/monitoring adapter)).
-	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 222 && len(hardGates) == 283
+	// thresholds/blocking-profile-DDI/monitoring adapter)
+	// + 14 SP producers (FB-02 28A.11: WARP recommendation lifecycle guards
+	// in src/serviceprofile/hard_gate_producers.go)).
+	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 236 && len(hardGates) == 283
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},
