@@ -2,12 +2,17 @@ package mtproto
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"io"
 	"net"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/observability"
 )
 
 func TestReservedFirst4(t *testing.T) {
@@ -185,5 +190,183 @@ func TestHandleUnresolvedDCFailsOpenWithFullFrame(t *testing.T) {
 	got, _ := io.ReadAll(failover)
 	if len(got) != obfuscatedFrameLen || !bytes.Equal(got, frame) {
 		t.Errorf("failover replayed %d bytes, want full %d-byte frame intact", len(got), obfuscatedFrameLen)
+	}
+}
+
+// parkConn simulates a client that sends nothing within the soft first-byte
+// window: every Read honors the deadline set via SetReadDeadline and returns
+// a timeout error (0 bytes) when it expires. Once the test pushes delayed
+// bytes (closing deliver), Read returns them before the deadline.
+type parkConn struct {
+	fakeConn
+	mu       sync.Mutex
+	deadline time.Time
+	deliver  chan struct{}
+	delayed  []byte
+}
+
+func (c *parkConn) SetReadDeadline(t time.Time) error {
+	c.mu.Lock()
+	c.deadline = t
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *parkConn) Read(p []byte) (int, error) {
+	c.mu.Lock()
+	d := c.deadline
+	c.mu.Unlock()
+	if d.IsZero() || time.Now().After(d) {
+		return 0, &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}
+	}
+	timer := time.NewTimer(time.Until(d))
+	defer timer.Stop()
+	select {
+	case <-c.deliver:
+		c.mu.Lock()
+		payload := c.delayed
+		c.delayed = nil
+		c.mu.Unlock()
+		n := copy(p, payload)
+		return n, nil
+	case <-timer.C:
+		return 0, &net.OpError{Op: "read", Net: "tcp", Err: os.ErrDeadlineExceeded}
+	}
+}
+
+// validObfuscatedFrame builds a 64-byte obfuscated handshake frame whose
+// first 4 bytes are non-reserved and whose decoded connection tag is abridged
+// with the given DC, using the same AES-CTR scheme the decoder applies.
+func validObfuscatedFrame(t *testing.T, dc int) []byte {
+	t.Helper()
+	frame := make([]byte, obfuscatedFrameLen)
+	for i := range frame {
+		frame[i] = byte(i + 1) // arbitrary; key=frame[8:40], iv=frame[40:56] stay untouched
+	}
+	stream, err := newAESCTR(frame[8:40], frame[40:56])
+	if err != nil {
+		t.Fatalf("newAESCTR: %v", err)
+	}
+	ks := make([]byte, obfuscatedFrameLen)
+	stream.XORKeyStream(ks, ks) // keystream at every offset
+	binary.LittleEndian.PutUint32(frame[56:60], connectionTagAbridged^binary.LittleEndian.Uint32(ks[56:60]))
+	binary.LittleEndian.PutUint16(frame[60:62], uint16(dc)^binary.LittleEndian.Uint16(ks[60:62]))
+	return frame
+}
+
+func TestHandleZeroByteParksThenExpires(t *testing.T) {
+	// zero bytes within the soft window, then silence up to the hard
+	// deadline: the connection is parked (pending token acquired), only
+	// observable cleanup happens on expiry, and the pending slot is released.
+	observability.Default().Metrics.Reset()
+	b := newBridge()
+	b.zeroByteSoft = 30 * time.Millisecond
+	b.zeroByteHard = 60 * time.Millisecond
+	pc := &parkConn{deliver: make(chan struct{})}
+	start := time.Now()
+	handled, failover := b.Handle(pc, net.ParseIP("1.2.3.4"), 443)
+	if !handled || failover != nil {
+		t.Fatalf("idle conn: got (handled=%v, failover=%v), want (true, nil) after observable cleanup", handled, failover)
+	}
+	if elapsed := time.Since(start); elapsed < 80*time.Millisecond {
+		t.Errorf("parked conn closed too early: %v (soft+hard windows not honored)", elapsed)
+	}
+	if got := tgbCounterValue(t, observability.MetricMTProtoIdlePreconnectExpired); got == 0 {
+		t.Error("idle_preconnect_expired counter not incremented on hard-deadline cleanup")
+	}
+	if b.pending.Len() != 0 {
+		t.Errorf("pending token not released after expiry: %d slots busy", b.pending.Len())
+	}
+}
+
+func TestHandleZeroByteDelayedFirstByteContinues(t *testing.T) {
+	// a first byte arriving after the soft window must NOT drop the
+	// connection: the parked conn is resumed and the handshake continues.
+	observability.Default().Metrics.Reset()
+	b := newBridge()
+	b.zeroByteSoft = 30 * time.Millisecond
+	b.zeroByteHard = 500 * time.Millisecond
+	pc := &parkConn{deliver: make(chan struct{})}
+	go func() {
+		time.Sleep(60 * time.Millisecond) // after the soft window
+		pc.mu.Lock()
+		pc.delayed = []byte{0x16, 0x03, 0x01, 0x02} // reserved TLS-like prefix
+		close(pc.deliver)
+		pc.mu.Unlock()
+	}()
+	handled, failover := b.Handle(pc, net.ParseIP("1.2.3.4"), 443)
+	if handled {
+		t.Fatal("delayed first byte must not be dropped by the bridge")
+	}
+	if failover == nil {
+		t.Fatal("delayed first byte: expected failover conn")
+	}
+	got, _ := io.ReadAll(failover)
+	want := []byte{0x16, 0x03, 0x01, 0x02}
+	if !bytes.Equal(got, want) {
+		t.Errorf("failover replayed % x, want delayed bytes % x intact", got, want)
+	}
+	if got := tgbCounterValue(t, observability.MetricMTProtoIdlePreconnectExpired); got != 0 {
+		t.Errorf("idle_preconnect_expired must not move when bytes arrive late: %d", got)
+	}
+	if b.pending.Len() != 0 {
+		t.Errorf("pending token not released after handoff: %d slots busy", b.pending.Len())
+	}
+}
+
+func TestHandleZeroByteOverflowFailsOpen(t *testing.T) {
+	// pending budget exhausted -> fail open, never a silent drop, and the
+	// overflow carries an explicit budget attribution.
+	b := newBridge()
+	b.zeroByteSoft = 20 * time.Millisecond
+	b.zeroByteHard = 200 * time.Millisecond
+	for i := 0; i < 128; i++ {
+		if _, err := b.pending.Acquire("client-"+string(rune('a'+i%26))+string(rune('0'+i%10)), time.Now()); err != nil {
+			t.Fatalf("pre-fill acquire %d: %v", i, err)
+		}
+	}
+	pc := &parkConn{deliver: make(chan struct{})}
+	handled, failover := b.Handle(pc, net.ParseIP("1.2.3.4"), 443)
+	if handled {
+		t.Fatal("pending overflow must fail open, not be handled")
+	}
+	if failover == nil {
+		t.Fatal("pending overflow: expected failover conn")
+	}
+	got, _ := io.ReadAll(failover)
+	if len(got) != 0 {
+		t.Errorf("overflow failover replayed %d bytes, want 0 (nothing was read)", len(got))
+	}
+}
+
+func TestHandleDialFailureFailsOpenWithFullFrame(t *testing.T) {
+	// a valid obfuscated handshake whose primary-route dial fails must not
+	// be silently dropped: the full 64-byte frame is handed back so the
+	// listener route ladder (worker -> direct) fails open.
+	observability.Default().Metrics.Reset()
+	b := newBridge()
+	orig := dialDC
+	dialDC = func(cfg *config.MTProtoConfig, queueCfg config.QueueConfig, dc int, protoTag uint32, pool *wsPool, logID string) (*ObfuscatedConn, string, error) {
+		return nil, "", errors.New("forced primary failure")
+	}
+	t.Cleanup(func() { dialDC = orig })
+
+	frame := validObfuscatedFrame(t, 2)
+	handled, failover := b.Handle(fakeConn{r: bytes.NewReader(frame)}, net.ParseIP("8.8.8.8"), 443)
+	if handled {
+		t.Fatal("dial failure must fail open, not be silently dropped")
+	}
+	if failover == nil {
+		t.Fatal("dial failure: expected failover conn")
+	}
+	got, _ := io.ReadAll(failover)
+	if !bytes.Equal(got, frame) {
+		t.Errorf("failover replayed %d bytes, want full %d-byte frame intact", len(got), len(frame))
+	}
+	if got := tgbCounterValue(t, observability.MetricMTProtoPrimaryFailureSilentDrop); got != 0 {
+		t.Errorf("primary_failure_silent_drop must stay 0 after fail-open: %d", got)
+	}
+	if got := tgbCounterValue(t, observability.MetricMTProtoRouteRecursion); got != 0 {
+		t.Errorf("route_recursion must stay 0 for the default plan: %d", got)
 	}
 }

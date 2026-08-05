@@ -10,6 +10,11 @@ package observability
 // run -> bridge pending/prefix/route lifecycle). All twenty-four are
 // zero-tolerance violation counters: the window delta must stay 0 for the
 // DDI/TGB production readiness verdict.
+//
+// MetricMTProtoIdlePreconnectExpired is NOT a zero-tolerance violation
+// counter: it is the observable lifecycle counter for the FB-04 hard-deadline
+// cleanup of a parked zero-byte connection (idle preconnect), so the close is
+// observable instead of a silent drop.
 const (
 	MetricDiscoveryProfileWithoutContextValidation   = "discovery_profile_without_context_validation_total"
 	MetricDiscoveryProfileStaleWithoutRevalidation   = "discovery_profile_stale_without_revalidation_total"
@@ -37,4 +42,6 @@ const (
 	MetricMTProtoPrimaryFailureSilentDrop  = "mtproto_bridge_primary_failure_silent_drop_total"
 	MetricMTProtoOverflowWithoutReason     = "mtproto_bridge_overflow_without_reason_total"
 	MetricMTProtoShutdownLeak              = "mtproto_bridge_shutdown_leak_total"
+
+	MetricMTProtoIdlePreconnectExpired = "mtproto_bridge_idle_preconnect_expired_total"
 )

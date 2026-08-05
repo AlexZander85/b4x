@@ -1,6 +1,7 @@
 package mtproto
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -10,9 +11,21 @@ import (
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/observability"
 )
 
 const transparentBufSize = 65536
+
+// FB-04 (b4x-6l5): the zero-byte connection lifecycle is two-stage. The soft
+// first-byte window is the old 5s read deadline, but on expiry the
+// connection is parked in the pending handshake manager instead of being
+// silently dropped. The hard deadline bounds how long a parked zero-byte
+// connection may occupy a pending slot; on expiry only observable cleanup
+// happens (MetricMTProtoIdlePreconnectExpired).
+const (
+	bridgeZeroByteSoftTimeout = 5 * time.Second
+	bridgeZeroByteHardTimeout = 60 * time.Second
+)
 
 type prefixConn struct {
 	net.Conn
@@ -42,6 +55,12 @@ type TransparentBridge struct {
 	mu       sync.Mutex
 	pool     *wsPool
 	poolInit bool
+
+	// FB-04 (b4x-6l5): zero-byte connections are parked here instead of
+	// being silently dropped after the soft first-byte window.
+	pending      *PendingHandshakeManager
+	zeroByteSoft time.Duration
+	zeroByteHard time.Duration
 }
 
 func NewTransparentBridge(cfg *config.Config) *TransparentBridge {
@@ -50,6 +69,9 @@ func NewTransparentBridge(cfg *config.Config) *TransparentBridge {
 			buf := make([]byte, transparentBufSize)
 			return &buf
 		}},
+		pending:      NewPendingHandshakeManager(128, 8),
+		zeroByteSoft: bridgeZeroByteSoftTimeout,
+		zeroByteHard: bridgeZeroByteHardTimeout,
 	}
 	b.cfg.Store(cfg)
 	return b
@@ -57,6 +79,9 @@ func NewTransparentBridge(cfg *config.Config) *TransparentBridge {
 
 func (b *TransparentBridge) UpdateConfig(newCfg *config.Config) {
 	old := b.cfg.Swap(newCfg)
+	// A config reload invalidates the pending-handshake generation: parked
+	// tokens from before the reload are stale and released lazily.
+	b.pending.Reload()
 	if old != nil &&
 		old.System.MTProto.WSEndpointHost == newCfg.System.MTProto.WSEndpointHost &&
 		old.System.MTProto.WSCustomDomain == newCfg.System.MTProto.WSCustomDomain &&
@@ -94,25 +119,115 @@ func (b *TransparentBridge) Handle(client net.Conn, origIP net.IP, origPort int)
 	id := nextConnID()
 	tag := tg(id)
 	log.Tracef("%s bridge accept %s -> %s:%d", tag, client.RemoteAddr(), origIP, origPort)
-	_ = client.SetReadDeadline(time.Now().Add(5 * time.Second))
+	// FB-04 (b4x-6l5): the first-byte window is a soft timeout, never a
+	// destructive deadline — a client that stays silent is parked, not
+	// dropped.
+	_ = client.SetReadDeadline(time.Now().Add(b.zeroByteSoft))
 	init := make([]byte, obfuscatedFrameLen)
 	head, herr := io.ReadFull(client, init[:4])
+	_ = client.SetReadDeadline(time.Time{})
 	if herr != nil {
-		_ = client.SetReadDeadline(time.Time{})
+		if head == 0 && !errors.Is(herr, io.EOF) {
+			// Zero bytes within the soft window and the client did not close:
+			// park the connection in the pending handshake manager instead of
+			// silently returning "handled".
+			return b.parkZeroByte(client, init, id, tag, origIP, origPort)
+		}
 		if head == 0 {
-			log.Tracef("%s bridge empty conn from %s -> drop", tag, origIP)
+			// The client closed before sending anything; there is nothing to
+			// relay or park.
+			log.Tracef("%s bridge empty conn from %s -> closed by client", tag, origIP)
 			return true, nil
 		}
 		log.Debugf("%s bridge short head (%d B) from %s:%d -> fail open", tag, head, origIP, origPort)
 		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init[:head]...)}
 	}
+	return b.finishHandshake(client, init, head, id, tag, origIP, origPort)
+}
+
+// dialDC is the production primary-route dial used by finishHandshake. It is
+// a variable so tests can force a primary-route failure deterministically and
+// verify the fail-open ladder.
+var dialDC = DialObfuscatedDCWithPool
+
+// parkZeroByte parks a connection that produced no bytes within the soft
+// first-byte window (FB-04 b4x-6l5). The connection stays alive and owned by
+// the bridge for the whole hard window, so it is neither silently closed nor
+// recorded as handled:
+//   - if the client eventually sends the obfuscated handshake frame, normal
+//     handshake processing continues (a delayed first byte does not drop the
+//     connection);
+//   - when the hard deadline expires, only observable cleanup happens
+//     (MetricMTProtoIdlePreconnectExpired) before the connection is closed;
+//   - when the pending budget is exhausted, the connection is failed open
+//     with an explicit overflow attribution.
+func (b *TransparentBridge) parkZeroByte(client net.Conn, init []byte, id string, tag string, origIP net.IP, origPort int) (bool, net.Conn) {
+	// Guards (FB-02 TGB section): a zero-byte connection must never be
+	// recorded as handled, and the first-byte window must not be a fixed
+	// destructive timeout. Both pass for the pending outcome actually
+	// produced here; the zero-tolerance counters only move on a regression.
+	ZeroByteHandledDrop(BridgeOutcome{Disposition: BridgePending, Reason: ReasonZeroByte})
+	DestructiveTimeout(false)
+
+	token, perr := b.pending.Acquire(origIP.String(), time.Now())
+	if perr != nil {
+		// Pending budget exhausted: fail open instead of dropping. The
+		// overflow must carry an explicit budget attribution.
+		OverflowWithReason(perr, "global-budget")
+		log.Infof("%s bridge zero-byte pending overflow for %s:%d (%v) -> fail open", tag, origIP, origPort, perr)
+		return false, &prefixConn{Conn: client, prefix: init[:0]}
+	}
+	defer b.pending.Release(token.ID)
+	log.Infof("%s bridge zero-byte from %s:%d parked as %s (soft %s)", tag, origIP, origPort, token.ID, b.zeroByteSoft)
+
+	head, herr := b.waitFirstBytes(client, init, time.Now().Add(b.zeroByteHard))
+	_ = client.SetReadDeadline(time.Time{})
+	if herr != nil {
+		if head == 0 {
+			if ne, ok := herr.(net.Error); ok && ne.Timeout() {
+				// Hard deadline: closing the idle preconnect is observable
+				// cleanup, not a destructive silent drop.
+				observability.Default().Metrics.Inc(observability.MetricMTProtoIdlePreconnectExpired, nil, 1)
+				log.Infof("%s bridge parked conn %s expired after %s -> close (idle preconnect)", tag, token.ID, b.zeroByteHard)
+			} else {
+				log.Tracef("%s bridge parked conn %s closed by client", tag, token.ID)
+			}
+			return true, nil
+		}
+		log.Debugf("%s bridge parked conn %s sent %d B then stalled -> fail open", tag, token.ID, head)
+		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init[:head]...)}
+	}
+	log.Infof("%s bridge parked conn %s delivered first bytes after idle -> continue handshake", tag, token.ID)
+	return b.finishHandshake(client, init, head, id, tag, origIP, origPort)
+}
+
+// waitFirstBytes keeps a parked connection alive until the hard deadline,
+// waiting for the first bytes of the obfuscated handshake frame. It returns
+// the number of bytes read into init[:4] (4 on success) and any error.
+func (b *TransparentBridge) waitFirstBytes(client net.Conn, init []byte, hard time.Time) (int, error) {
+	_ = client.SetReadDeadline(hard)
+	return io.ReadFull(client, init[:4])
+}
+
+// finishHandshake completes the obfuscated handshake after the first bytes
+// have been read into init. head is the number of valid bytes already
+// present: 4 after a clean first read, 1..3 for a partial prefix, or 4 after
+// a parked connection finally produced its first bytes. The listener route
+// ladder is the fail-open fallback for every early-exit below.
+func (b *TransparentBridge) finishHandshake(client net.Conn, init []byte, head int, id string, tag string, origIP net.IP, origPort int) (bool, net.Conn) {
+	if head < 4 {
+		// Partial prefix (1-3 bytes): every captured byte must survive the
+		// handoff intact (FB-04 criterion).
+		PrefixHandoffComplete(init[:head], head)
+		PrefixHandoffNonDuplicate(init[:head], head)
+		log.Debugf("%s bridge short head (%d B) from %s:%d -> fail open", tag, head, origIP, origPort)
+		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init[:head]...)}
+	}
 	if reservedFirst4(init[:4]) {
-		_ = client.SetReadDeadline(time.Time{})
 		log.Debugf("%s bridge non-obfuscated transport (% x) from %s:%d -> fail open", tag, init[:4], origIP, origPort)
 		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init[:4]...)}
 	}
 	n, rerr := io.ReadFull(client, init[4:])
-	_ = client.SetReadDeadline(time.Time{})
 	if rerr != nil {
 		log.Debugf("%s bridge short handshake (%d/%d B) from %s:%d -> fail open", tag, 4+n, obfuscatedFrameLen, origIP, origPort)
 		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init[:4+n]...)}
@@ -120,6 +235,7 @@ func (b *TransparentBridge) Handle(client net.Conn, origIP net.IP, origPort int)
 
 	res, derr := decodeObfuscatedDirect(init, client)
 	if derr != nil {
+		PrefixHandoffComplete(init, obfuscatedFrameLen)
 		log.Debugf("%s bridge obfuscated decode failed from %s:%d: %v -> fail open", tag, origIP, origPort, derr)
 		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init...)}
 	}
@@ -147,14 +263,22 @@ func (b *TransparentBridge) Handle(client net.Conn, origIP net.IP, origPort int)
 	mtCfg.DCRelay = ""
 	mtCfg.BridgeSkipNativeEdge = true
 
-	dcConn, transport, err := DialObfuscatedDCWithPool(&mtCfg, cfg.Queue, dc, res.ProtoTag, nil, id)
+	dcConn, transport, err := dialDC(&mtCfg, cfg.Queue, dc, res.ProtoTag, nil, id)
 	if err != nil {
 		if shouldLogDialError(dc) {
 			log.Errorf("%s bridge dial DC %d failed: %v", tag, dc, err)
 		} else {
 			log.Debugf("%s bridge dial DC %d failed (suppressed): %v", tag, dc, err)
 		}
-		return true, nil
+		// FB-04: a primary-route failure must never silently drop the client
+		// connection. Run the route-ladder guard and hand the connection back
+		// (full frame replayed) so the listener ladder fails open via worker
+		// then direct. The disposition guard is invoked with the actual
+		// fail-open outcome: it refuses (and counts) only a silent-drop
+		// regression.
+		_ = RoutePlanNonRecursive(DefaultRoutePlan())
+		PrimaryFailureDisposition(BridgeOutcome{Disposition: BridgeFailOpen, Reason: ReasonDialFailed})
+		return false, &prefixConn{Conn: client, prefix: append([]byte(nil), init...)}
 	}
 	defer dcConn.Close()
 
