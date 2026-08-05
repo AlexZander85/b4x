@@ -24,8 +24,8 @@ func TestList(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("list exit=%d out=%s", code, out)
 	}
-	if !strings.Contains(out, "registered=283") {
-		t.Errorf("list: expected registered=283, got:\n%s", out)
+	if !strings.Contains(out, "registered=285") {
+		t.Errorf("list: expected registered=285, got:\n%s", out)
 	}
 	if !strings.Contains(out, "warp_secret_leak_total") {
 		t.Errorf("list: expected warp_secret_leak_total row:\n%s", out)
@@ -48,8 +48,8 @@ func TestListJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &gates); err != nil {
 		t.Fatalf("list --json is not valid JSON: %v\n%s", err, out)
 	}
-	if len(gates) != 283 {
-		t.Errorf("list --json: expected 283 gates, got %d", len(gates))
+	if len(gates) != 285 {
+		t.Errorf("list --json: expected 285 gates, got %d", len(gates))
 	}
 }
 
@@ -61,7 +61,7 @@ func TestPlanFull(t *testing.T) {
 	if !strings.Contains(out, "applicable=") {
 		t.Errorf("plan full: missing applicable= summary:\n%s", out)
 	}
-	// The release profile applies exactly the registry-verified set (237)
+	// The release profile applies exactly the registry-verified set (239)
 	// as proven producers; the plan must carry producer/consumer refs.
 	if !strings.Contains(out, "verified=") {
 		t.Errorf("plan full: missing verified= summary:\n%s", out)
@@ -267,8 +267,8 @@ func TestMatrix(t *testing.T) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("matrix JSON invalid: %v", err)
 	}
-	if doc.Total != 283 || len(doc.Gates) != 283 {
-		t.Errorf("matrix: total=%d gates=%d, want 283/283", doc.Total, len(doc.Gates))
+	if doc.Total != 285 || len(doc.Gates) != 285 {
+		t.Errorf("matrix: total=%d gates=%d, want 285/285", doc.Total, len(doc.Gates))
 	}
 	if doc.Verified+doc.Missing != doc.Total {
 		t.Errorf("matrix: verified+missing=%d != total=%d", doc.Verified+doc.Missing, doc.Total)

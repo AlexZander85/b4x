@@ -56,8 +56,63 @@ func CompileHintPlan(prior detector.DiscoverySearchPrior, current []string, hint
 		return valid[i].Weight > valid[j].Weight
 	})
 	p.Hints = append([]SearchHint(nil), valid...)
-	_ = prior
+	// FB-05 (b4x-1z5, #278): apply the detector search prior for
+	// ordering/ranking only. The current baseline keeps its dominant
+	// position (ABD-11: "keep current active target evidence dominant over
+	// stored/passive priors") and the prior can never add or remove
+	// candidates: it only reorders the non-baseline extension.
+	if prior.Valid() {
+		ordered, preferred, deferred := applyPriorOrder(p.Ordered, len(current), prior)
+		p.Ordered = ordered
+		p.Explanation += "; detector prior ranked " + strconv.Itoa(preferred) + " preferred, deferred " + strconv.Itoa(deferred) + " (excluded targets stay visible)"
+	}
 	return p
+}
+
+// applyPriorOrder reorders the non-baseline part of the plan by the
+// detector search prior (FB-05): prior.TargetOrder candidates present in
+// the extension are ranked first (in prior order), prior.ExcludedTargets
+// are deferred to the end but stay visible ("excluded targets remain
+// visible", ABD-11 exit gate), the rest keeps its hint-derived order. The
+// baseline prefix is never touched and no candidate is added or removed.
+// Returns the reordered plan and the preferred/deferred counts.
+func applyPriorOrder(ordered []string, baselineLen int, prior detector.DiscoverySearchPrior) ([]string, int, int) {
+	preferred, deferred := 0, 0
+	if baselineLen >= len(ordered) {
+		return ordered, preferred, deferred
+	}
+	ext := ordered[baselineLen:]
+	excluded := make(map[string]bool, len(prior.ExcludedTargets))
+	for _, e := range prior.ExcludedTargets {
+		excluded[e] = true
+	}
+	picked := make(map[string]bool, len(prior.TargetOrder))
+	head := make([]string, 0, len(prior.TargetOrder))
+	for _, t := range prior.TargetOrder {
+		if !picked[t] && containsCandidate(ext, t) {
+			head = append(head, t)
+			picked[t] = true
+			preferred++
+		}
+	}
+	middle := make([]string, 0, len(ext))
+	tail := make([]string, 0, len(prior.ExcludedTargets))
+	for _, c := range ext {
+		switch {
+		case picked[c]:
+			// already ranked by the prior
+		case excluded[c]:
+			tail = append(tail, c)
+			deferred++
+		default:
+			middle = append(middle, c)
+		}
+	}
+	out := append([]string(nil), ordered[:baselineLen]...)
+	out = append(out, head...)
+	out = append(out, middle...)
+	out = append(out, tail...)
+	return out, preferred, deferred
 }
 func (p GuidedSearchPlan) Valid() bool {
 	return len(p.Baseline) > 0 && len(p.Ordered) >= len(p.Baseline) && p.ExhaustiveFallback

@@ -8,8 +8,8 @@ import (
 func TestHardGateCount(t *testing.T) {
 	// Registry totals are computed, not hard-coded (owner decision).
 	// These assertions pin the extraction against the addenda.
-	if n := HardGateCount(); n != 283 {
-		t.Fatalf("HardGateCount() = %d, want 283 (282 addendum + mon_production_ready FB-28)", n)
+	if n := HardGateCount(); n != 285 {
+		t.Fatalf("HardGateCount() = %d, want 285 (284 addendum + mon_production_ready FB-28)", n)
 	}
 }
 
@@ -40,8 +40,8 @@ func TestApplicableHardGates(t *testing.T) {
 	// Each has a real Metrics.Inc call site (or, for the FB-28 readiness
 	// gate, a static reverse-reachability scan), an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 237 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 237", len(gates))
+	if len(gates) != 239 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 239", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {
@@ -119,8 +119,8 @@ func TestRequiredHardGatesServiceProfilesRequireCapability(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gates) != 14 {
-		t.Fatalf("SP with capability selected %d gates, want 14", len(gates))
+	if len(gates) != 15 {
+		t.Fatalf("SP with capability selected %d gates, want 15", len(gates))
 	}
 }
 

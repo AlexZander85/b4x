@@ -24,7 +24,7 @@ documents:
 - name: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   version: '1.6'
   category: service-profiles
-  sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
 - name: B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
   version: '1.2'
   category: warp
@@ -52,7 +52,7 @@ documents:
 - name: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   version: '1.0'
   category: ddi-tgb
-  sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
 - name: B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
   version: '1.0'
   category: mon
@@ -1747,7 +1747,7 @@ requirements:
 - requirement_id: SP-24
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1760,7 +1760,7 @@ requirements:
 - requirement_id: SP-25
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1773,7 +1773,7 @@ requirements:
 - requirement_id: SP-26
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1786,7 +1786,7 @@ requirements:
 - requirement_id: SP-27
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1799,7 +1799,7 @@ requirements:
 - requirement_id: SP-28
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1812,7 +1812,7 @@ requirements:
 - requirement_id: SP-29
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1825,7 +1825,7 @@ requirements:
 - requirement_id: SP-30
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1838,7 +1838,7 @@ requirements:
 - requirement_id: SP-31
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -1851,7 +1851,7 @@ requirements:
 - requirement_id: SP-32
   source_document: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
   source_version: '1.6'
-  source_sha256: 1608e7c34e092bf0b14da46c3cdb657622bdc655e04c460ef2275879681a3d49
+  source_sha256: 300f2b1af9ae3d08cb7f89c6f8565ea1651c4d255deabf93f6d4e3c822a848d1
   section: recommendation
   stage: service-profiles
   category: service-profiles
@@ -2363,7 +2363,7 @@ requirements:
 - requirement_id: DDI-1
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2379,7 +2379,7 @@ requirements:
 - requirement_id: DDI-2
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2395,7 +2395,7 @@ requirements:
 - requirement_id: DDI-3
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2411,7 +2411,7 @@ requirements:
 - requirement_id: DDI-4
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2427,7 +2427,7 @@ requirements:
 - requirement_id: DDI-5
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2443,7 +2443,7 @@ requirements:
 - requirement_id: DDI-6
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2463,7 +2463,7 @@ requirements:
 - requirement_id: DDI-7
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2483,7 +2483,7 @@ requirements:
 - requirement_id: DDI-8
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2503,7 +2503,7 @@ requirements:
 - requirement_id: DDI-9
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2523,7 +2523,7 @@ requirements:
 - requirement_id: DDI-10
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: discovery
   stage: source-stage
   category: ddi
@@ -2543,7 +2543,7 @@ requirements:
 - requirement_id: TGB-1
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2559,7 +2559,7 @@ requirements:
 - requirement_id: TGB-2
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2575,7 +2575,7 @@ requirements:
 - requirement_id: TGB-3
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2591,7 +2591,7 @@ requirements:
 - requirement_id: TGB-4
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2607,7 +2607,7 @@ requirements:
 - requirement_id: TGB-5
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2623,7 +2623,7 @@ requirements:
 - requirement_id: TGB-6
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2639,7 +2639,7 @@ requirements:
 - requirement_id: TGB-7
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2657,7 +2657,7 @@ requirements:
 - requirement_id: TGB-8
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2675,7 +2675,7 @@ requirements:
 - requirement_id: TGB-9
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb
@@ -2693,7 +2693,7 @@ requirements:
 - requirement_id: TGB-10
   source_document: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
   source_version: '1.0'
-  source_sha256: a9748ec6ffc5e307ad5b2fc7006d7ba4cc4250d9bcdc20ee8a5134ea210b87e7
+  source_sha256: ed7a92648b741a24a36206d964b4a948e91bfda126a8a47e8ebe976b5f255f10
   section: bridge
   stage: source-stage
   category: ddi-tgb

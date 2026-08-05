@@ -72,21 +72,23 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	r.VerdictMutationDetected = forcedZero.Verdict != GatePass
 
 	// Reproducible: gate/applicable counts must match the generator output
-	// (283 gates: 282 addendum-extracted + 1 FB-28 mon_production_ready;
+	// (285 gates: 284 addendum-extracted + 1 FB-28 mon_production_ready;
 	// 91 applicable: 24 FB-03 scope producers + 10 WARP base-transport
 	// producers (FB-02 72) + 2 FB-29 resolution first-success-erasure
 	// producers + 9 FB-30 multi-vantage producers, mon + abd
 	// + 22 SPF silent-path failure producers (FB-02 45)
-	// + 24 DDI/TGB producers (FB-02 32/33: 14 discovery + 10 mtproto)
+	// + 25 DDI/TGB producers (FB-02 32/33: 15 discovery + 10 mtproto; FB-31
+	// adds guided_plan_outside_causal_eligibility)
 	// + 52 MON producers (FB-02 84-92: observation/scope/temporal/resolution/
 	// trigger/multi-vantage/ABD-DDI/legacy/reliability)
 	// + 79 ABD producers (FB-02 39-42: detector safety/DNS-TLS-QUIC/L4
 	// thresholds/blocking-profile-DDI/monitoring adapter)
-	// + 14 SP producers (FB-02 28A.11: WARP recommendation lifecycle guards
-	// in src/serviceprofile/hard_gate_producers.go)
+	// + 15 SP producers (FB-02 28A.11: WARP recommendation lifecycle guards
+	// in src/serviceprofile/hard_gate_producers.go; FB-31 adds
+	// recommended_outside_causal_eligibility)
 	// + 1 FB-28 mon_production_ready readiness gate (IV-18 reverse
 	// reachability + production dependency wiring, src/validation/iv18_reachability.go)).
-	r.Reproducible = HardGateCount() == 283 && len(ApplicableHardGates()) == 237 && len(hardGates) == 283
+	r.Reproducible = HardGateCount() == 285 && len(ApplicableHardGates()) == 239 && len(hardGates) == 285
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},
