@@ -1599,6 +1599,7 @@ discovery_profile_threshold_out_of_budget_total == 0
 discovery_profile_capture_gate_bypass_total == 0
 discovery_profile_cross_service_action_total == 0
 discovery_profile_false_pass_total == 0
+discovery_profile_guided_plan_outside_causal_eligibility_total == 0
 ```
 
 ## 33. TGB hard gates

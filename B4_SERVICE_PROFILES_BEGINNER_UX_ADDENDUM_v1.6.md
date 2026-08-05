@@ -3504,6 +3504,7 @@ profile_warp_recommendation_duration_seconds
 profile_warp_recommendation_control_regression_total
 profile_warp_recommendation_expired_total
 profile_warp_recommendation_cleanup_failure_total
+profile_warp_recommended_outside_causal_eligibility_total
 ```
 
 Hard gates:
@@ -3523,6 +3524,7 @@ profile_warp_recommendation_hidden_fail_policy_total == 0
 profile_nonru_suggested_without_geo_requirement_total == 0
 profile_warp_camouflage_suggested_for_target_ip_block_total == 0
 profile_warp_recommendation_cleanup_failure_total == 0
+profile_warp_recommended_outside_causal_eligibility_total == 0
 ```
 
 ## 28A.12. Release verdict
