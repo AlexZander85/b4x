@@ -83,11 +83,19 @@ type FB18BSummary struct {
 	BlockedByTask map[string]int `json:"blocked_by_task"`
 }
 
-// FB18BDocumentHashes are the post-FB-14 canonical document hashes the
-// crosswalk is tied to (verified 2026-08-04, B4X_FB14_REMEDIATION_REPORT).
-var FB18BDocumentHashes = map[string]string{
-	"B4_FORK_ARCHITECTURE_v2.4.md":                  "6df1c1a245158addd7837296c3e927a714970bb761e3f1e7e68064fbecbdc73b",
-	"B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md": "aae0c3e63fb1c2b1fd2fdaa3f9b27662132521cd50a8862240c3f0eea60484b5",
+// FB18BDocumentHashes returns the canonical document hashes the crosswalk is
+// tied to, sourced from the FB-33 Canonical Exact Source-Stage Registry
+// (specs/registries/source_stage_registry.yaml generated into
+// source_stage_registry.gen.go). The registry is the single source of truth:
+// FB-18 reads document hashes from it instead of carrying manual numbers
+// (FB-33 criterion: FB-18 uses the registry, not hard-coded totals).
+func FB18BDocumentHashes() map[string]string {
+	docs := SourceStageDocuments()
+	out := make(map[string]string, len(docs))
+	for _, d := range docs {
+		out[d.Name] = d.SHA256
+	}
+	return out
 }
 
 // FB18BCommit is the HEAD the crosswalk artifact was generated against.
@@ -370,7 +378,7 @@ func FB18BCrosswalkReportJSON(entries []FB18BEntry, now time.Time) ([]byte, erro
 		Name:         "B4X FB-18B executable production crosswalk (ARCH v2.4 <-> IV v1.5)",
 		Commit:       FB18BCommit,
 		GeneratedAt:  now,
-		Documents:    FB18BDocumentHashes,
+		Documents:    FB18BDocumentHashes(),
 		Requirements: entries,
 	}
 	r.Summary.Total = len(entries)

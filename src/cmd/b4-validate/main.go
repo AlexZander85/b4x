@@ -10,6 +10,10 @@
 //	b4-validate meta                      run the FB-03 meta-suite (registry
 //	                                      integrity + API parity + mutation
 //	                                      detection)
+//	b4-validate registry                  print the FB-33 canonical source-stage
+//	                                      registry totals (computed, by
+//	                                      category) and run registry-integrity
+//	                                      checks
 //	b4-validate matrix                    regenerate the gate producer/consumer
 //	                                      matrix artifact (FB-03 criterion 6)
 //
@@ -54,6 +58,7 @@ Usage:
   b4-validate requirement <ID> [--json]
   b4-validate meta [--json]
   b4-validate matrix [--out PATH]
+  b4-validate registry [--json]
 
 Exit codes: 0 PASS / not applicable; 1 non-pass verdict (FAIL/BLOCKED/STALE);
 2 usage or lookup error. All commands log to artifacts/remediation/logs/.`)
@@ -79,6 +84,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdMeta(rest, stdout)
 	case "matrix":
 		return cmdMatrix(rest, stdout)
+	case "registry":
+		return cmdRegistry(rest, stdout)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0
@@ -598,4 +605,73 @@ func cmdMatrix(args []string, stdout io.Writer) int {
 	fmt.Fprintf(w, "matrix written: %s (total=%d verified=%d missing=%d)\n", path, len(gates), verified, missing)
 	closer(0)
 	return 0
+}
+
+// cmdRegistry implements `b4-validate registry [--json]` (FB-33, b4x-yzt):
+// prints the canonical source-stage registry totals — computed from the
+// generated registry, never hard-coded — grouped by category, and runs the
+// registry-integrity checks. Exit codes: 0 = registry consistent,
+// 1 = integrity failure (duplicate/orphan/missing hash/stage/dependency/
+// verdict, declared_total mismatch), 2 = usage error.
+func cmdRegistry(args []string, stdout io.Writer) int {
+	fs := flag.NewFlagSet("registry", flag.ContinueOnError)
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	w, closer, _ := tee("registry", stdout, args)
+
+	errs := validation.ValidateSourceStageRegistry()
+	totals := validation.SourceStageTotalsByCategory()
+	criteria := validation.CriteriaTotal()
+
+	type catTotal struct {
+		Category string `json:"category"`
+		Total    int    `json:"total"`
+	}
+	cats := make([]catTotal, 0, len(totals))
+	for _, c := range validation.SourceStageCategories() {
+		cats = append(cats, catTotal{Category: c, Total: totals[c]})
+	}
+	doc := struct {
+		DeclaredTotal int        `json:"declared_total"`
+		CriteriaTotal int        `json:"criteria_total"`
+		Consistent    bool       `json:"consistent"`
+		Categories    []catTotal `json:"categories"`
+		Errors        []string   `json:"errors,omitempty"`
+	}{DeclaredTotal: validation.SourceStageDeclaredTotal, CriteriaTotal: criteria,
+		Consistent: len(errs) == 0, Categories: cats, Errors: errs}
+
+	code := 1
+	if doc.Consistent {
+		code = 0
+	}
+
+	if *jsonOut {
+		out, err := json.MarshalIndent(doc, "", "  ")
+		if err != nil {
+			fmt.Fprintln(w, "error:", err)
+			closer(1)
+			return 1
+		}
+		fmt.Fprintln(w, string(out))
+		closer(code)
+		return code
+	}
+	fmt.Fprintf(w, "criteria_total=%d declared_total=%d consistent=%t\n",
+		doc.CriteriaTotal, doc.DeclaredTotal, doc.Consistent)
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, "CATEGORY\tTOTAL")
+	for _, c := range cats {
+		fmt.Fprintf(tw, "%s\t%d\n", c.Category, c.Total)
+	}
+	_ = tw.Flush()
+	if len(errs) > 0 {
+		fmt.Fprintf(w, "errors=%d\n", len(errs))
+		for _, e := range errs {
+			fmt.Fprintf(w, "  error: %s\n", e)
+		}
+	}
+	closer(code)
+	return code
 }

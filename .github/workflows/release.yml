@@ -92,6 +92,12 @@ jobs:
         working-directory: src
         run: go vet ./...
 
+      - name: Validate generated registries
+        working-directory: .
+        run: |
+          python tools/gen_source_stage_registry.py --check
+          python tools/gen_hard_gates_registry.py --check
+
       - name: Run tests with race detector
         working-directory: src
         run: go test -race -count=1 ./...
