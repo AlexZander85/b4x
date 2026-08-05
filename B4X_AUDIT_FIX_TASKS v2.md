@@ -78,7 +78,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-30 | ВЫПОЛНЕНА | Beads b4x-ivz, closed 03.08; commit f1149b3f |
 | FB-31 | открыта | — |
 | FB-32 | открыта | — |
-| FB-33 | открыта | — |
+| FB-33 | ВЫПОЛНЕНА | Beads b4x-yzt, closed 05.08; commit f112c72e: canonical Exact Source-Stage Registry (specs/registries/source_stage_registry.yaml, 291 требований / 13 документов), генераторы tools/gen_source_stage_registry.py + gen_source_stage_go.py, Go-реестр source_stage_registry.gen.go + CriteriaTotal()/ValidateSourceStageRegistry(), b4-validate registry, FB-18B хэши из реестра, CI --check шаги |
 | FB-34 | открыта | — |
 | FB-35 | открыта | — |
 | FB-36 | открыта | — |
