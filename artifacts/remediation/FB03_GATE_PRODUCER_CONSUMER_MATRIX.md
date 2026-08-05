@@ -211,3 +211,30 @@ Tests proving the chain (all pass, `go test -count=1 ./...`):
 - GSO owner-state consumers (truncated/csum_not_ready/token_miss): live state wiring — **FB-27/PPE**; в production wired как Unknown (non-zero → readiness DEGRADED, никогда молчаливый READY).
 - Optional separate GateID for "hold remained active under incomplete visibility" (owner requirement 1; not in normative docs).
 - Labelled aggregation for `b4_ppe_self_test_total{verdict}` / `b4_ppe_rule_reapply_total{result}` and derived-state gating for `passive_rst_fail_open_total`/`passive_rst_rollback_total` (owner requirements 2/3; reserved kinds, out of evaluator scope).
+
+## Progress note (2026-08-06, FB-03 b4x-q58 — WARP §73B causal-trace producers)
+
+Registry is now **285 gates / 245 verified producers / 40 missing** (was 283/237/46;
++2 verified gates landed with FB-31 discovery gate and FB-31 SP recommendation gate).
+This commit adds the **six WARP causal-trace producers** (`FB03_GATE_PRODUCER_CONSUMER_MATRIX.json`
+regenerated, `specs/registries/hard_gates.yaml` + `hard_gates_registry.gen.go` regenerated,
+`ApplicableHardGates() == 245`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `warp_trace_secret_leak_total` | `Runtime.PublishTrace` deny-list (never-emit payload key, addendum §61.3) — `src/warp/runtime.go:450` | `TestHardGateProducer_WARPTraceSecretLeak` |
+| `warp_trace_required_event_missing_total` | `Runtime.VerifyTraceCompleteness` (required-event completeness, §63.2) — `runtime.go:511` | `TestHardGateProducer_WARPTraceRequiredEventMissing` |
+| `warp_trace_dropped_required_event_total` | `Runtime.PublishTrace` `HasCapacityFor` pre-check (P0/P1 durability, §61.2) — `runtime.go:482` | `TestHardGateProducer_WARPTraceDroppedRequiredEvent` |
+| `warp_trace_event_order_violation_total` | `Runtime.PublishTrace` per-session monotonic sequence (§61.1) — `runtime.go:456` | `TestHardGateProducer_WARPTraceEventOrderViolation` |
+| `warp_trace_generation_mismatch_total` | `Runtime.PublishTrace` current-generation rule (§61.1) — `runtime.go:463` | `TestHardGateProducer_WARPTraceGenerationMismatch` |
+| `warp_trace_state_mismatch_total` | `Runtime.PublishTrace` trace-derived state vs runtime state (§63.2) — `runtime.go:471` | `TestHardGateProducer_WARPTraceStateMismatch` |
+
+Trace pipeline hardening (`src/warp/trace.go`): P0/P1 required events are never evicted
+in favor of other events (P2 evicted first; required event dropped only when the ring
+holds only P0/P1 — counted as `warp_trace_dropped_required_event_total`).
+`Runtime.Config.TraceCapacity` (default 256 = `warp_trace.memory_events`) added for the
+bounded-ring fixture.
+
+**Remaining missing (40):** masque_* (12) + nonru_* (8) + warp causal/route gates (20:
+nested x6, geo x3, path proof x5, non-RU x2, cleanup/ownership x3, post-cutoff/connect-IP x2
+— follows as the next FB-03 slice).
