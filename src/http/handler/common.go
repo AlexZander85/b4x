@@ -19,6 +19,7 @@ import (
 	"github.com/daniellavrushin/b4/monitoring"
 	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/nfq"
+	"github.com/daniellavrushin/b4/serviceprofile"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/utils"
 	"github.com/daniellavrushin/b4/warp"
@@ -49,6 +50,7 @@ var (
 	globalWatchdog       *watchdog.Watchdog
 	globalMonitoring     *monitoring.Runtime
 	globalWarp           *warp.Runtime
+	globalServiceProfile *serviceprofile.Runtime
 	globalAIManager      *ai.Manager
 	globalTUNEngine      *b4tun.Engine
 )
@@ -237,6 +239,13 @@ func SetMonitoringRuntime(rt *monitoring.Runtime) {
 // future WARP control plane and the hard-gate check endpoints.
 func SetWarpRuntime(rt *warp.Runtime) {
 	globalWarp = rt
+}
+
+// SetServiceProfileRuntime binds the WARP-recommendation lifecycle controller
+// (FB-02 sp section §28A.11) for the future service-profile control plane and
+// the hard-gate check endpoints.
+func SetServiceProfileRuntime(rt *serviceprofile.Runtime) {
+	globalServiceProfile = rt
 }
 
 func checkDiskSpace(dir string, needed int64) error {

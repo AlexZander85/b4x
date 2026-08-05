@@ -1765,105 +1765,107 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
     # --- SP WARP-recommendation producers (FB-02 sp section, 2026-08-04):
     # every counter increments ONLY on the violating branch of the production
     # guards in src/serviceprofile/hard_gate_producers.go (§28A.11 of
-    # B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md), reachable from the
-    # validation controller loop via the release pipeline. ---
+    # B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md), reachable through
+    # the serviceprofile.Runtime lifecycle controller (compile/validate/
+    # begin-test/enable/validate-policy/promote; controller-loop root from
+    # main). ---
     "profile_warp_recommended_without_ip_path_evidence_total": {
         "symbol": "RecommendedWithoutIPPathEvidenceAllowed -> Metrics.Inc(MetricSPRecommendedWithoutIPPathEvidence)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 36,
         "mechanism": "increment-only counter via observability (recommendation without IP-path evidence; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommended_from_destination_ip_only_total": {
         "symbol": "RecommendedFromDestinationIPOnlyAllowed -> Metrics.Inc(MetricSPRecommendedFromDestinationIPOnly)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 47,
         "mechanism": "increment-only counter via observability (recommendation from destination-only scope; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommended_for_origin_dead_total": {
         "symbol": "RecommendedForOriginDeadAllowed -> Metrics.Inc(MetricSPRecommendedForOriginDead)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 58,
         "mechanism": "increment-only counter via observability (recommendation for dead origin; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommended_with_unhealthy_controls_total": {
         "symbol": "RecommendedWithUnhealthyControlsAllowed -> Metrics.Inc(MetricSPRecommendedWithUnhealthyControls)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 69,
         "mechanism": "increment-only counter via observability (recommendation while control probes unhealthy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_cross_service_total": {
         "symbol": "CrossServiceRecommendationAllowed -> Metrics.Inc(MetricSPCrossService)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 81,
         "mechanism": "increment-only counter via observability (recommendation consumed by another service; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_stale_profile_total": {
         "symbol": "StaleProfileRecommendationAllowed -> Metrics.Inc(MetricSPStaleProfile)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 92,
         "mechanism": "increment-only counter via observability (eligible recommendation from non-current profile; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_without_causal_trace_gate_total": {
         "symbol": "WithoutCausalTraceGateAllowed -> Metrics.Inc(MetricSPWithoutCausalTraceGate)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 103,
         "mechanism": "increment-only counter via observability (recommendation while causal trace gate not ready; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_enabled_without_target_canary_total": {
         "symbol": "EnabledWithoutTargetCanaryAllowed -> Metrics.Inc(MetricSPEnabledWithoutTargetCanary)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 115,
         "mechanism": "increment-only counter via observability (WARP enabled without passed target canary; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_test_token_reused_as_production_authorization_total": {
         "symbol": "TestTokenReusedAsProductionAuthorizationAllowed -> Metrics.Inc(MetricSPTestTokenReusedAsProdAuthorization)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 127,
         "mechanism": "increment-only counter via observability (live test token authorizing production; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_ignored_control_regression_total": {
         "symbol": "IgnoredControlRegressionAllowed -> Metrics.Inc(MetricSPIgnoredControlRegression)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 138,
         "mechanism": "increment-only counter via observability (control regression reported as healthy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_hidden_fail_policy_total": {
         "symbol": "HiddenFailPolicyAllowed -> Metrics.Inc(MetricSPHiddenFailPolicy)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 149,
         "mechanism": "increment-only counter via observability (recommendation without explicit failure policy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_nonru_suggested_without_geo_requirement_total": {
         "symbol": "NonRUSuggestedWithoutGeoRequirementAllowed -> Metrics.Inc(MetricSPNonRUSuggestedWithoutGeoRequirement)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 160,
         "mechanism": "increment-only counter via observability (non-RU option without declared geo requirement; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_camouflage_suggested_for_target_ip_block_total": {
         "symbol": "CamouflageSuggestedForTargetIPBlockAllowed -> Metrics.Inc(MetricSPCamouflageSuggestedForTargetIPBlock)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 171,
         "mechanism": "increment-only counter via observability (camouflage suggested for IP-blocked target; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
     "profile_warp_recommendation_cleanup_failure_total": {
         "symbol": "RecommendationCleanupFailureAllowed -> Metrics.Inc(MetricSPCleanupFailure)",
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 182,
         "mechanism": "increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
 }
 
@@ -3478,6 +3480,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     # zero-tolerance counter moved. ---
     "monitor_observation_direct_action_total": [
         {"kind": "negative_fixture", "name": "TestMONObservationDirectAction", "file": "src/monitoring/hard_gate_producers_test.go", "line": 122, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONCPassiveFlowHealthBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 110, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_provisional_profile_compiled_total": [
         {"kind": "negative_fixture", "name": "TestMONProvisionalProfileCompiled", "file": "src/monitoring/hard_gate_producers_test.go", "line": 128, "assertion": "violating branch -> denied && counter > 0"},
@@ -3493,6 +3496,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_fast_lane_promoted_as_authoritative_total": [
         {"kind": "negative_fixture", "name": "TestMONFastLanePromotedAsAuthoritative", "file": "src/monitoring/hard_gate_producers_test.go", "line": 152, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONFFastLaneBudgetBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 131, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_destination_only_deep_trigger_total": [
         {"kind": "negative_fixture", "name": "TestMONDestinationOnlyDeepTrigger", "file": "src/monitoring/hard_gate_producers_test.go", "line": 162, "assertion": "violating branch -> denied && counter > 0"},
@@ -3520,6 +3524,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_temporal_persistence_without_time_separation_total": [
         {"kind": "negative_fixture", "name": "TestMONTemporalPersistenceNoSeparation", "file": "src/monitoring/hard_gate_producers_test.go", "line": 221, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONDTemporalRecurrenceBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 117, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_success_suppressor_ignored_total": [
         {"kind": "negative_fixture", "name": "TestMONSuccessSuppressorIgnored", "file": "src/monitoring/hard_gate_producers_test.go", "line": 227, "assertion": "violating branch -> denied && counter > 0"},
@@ -3559,12 +3564,14 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_trigger_with_stale_source_heartbeat_total": [
         {"kind": "negative_fixture", "name": "TestMONTriggerWithStaleHeartbeat", "file": "src/monitoring/hard_gate_producers_test.go", "line": 314, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONEStaleSourceHeartbeatBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 124, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_duplicate_concurrent_abd_run_total": [
         {"kind": "negative_fixture", "name": "TestMONDupConcurrentABDRun", "file": "src/monitoring/hard_gate_producers_test.go", "line": 320, "assertion": "violating branch -> denied && counter > 0"},
     ],
     "monitor_unbounded_target_intake_total": [
         {"kind": "negative_fixture", "name": "TestMONUnboundedTargetIntake", "file": "src/monitoring/hard_gate_producers_test.go", "line": 326, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONBDemandIntakeCorrelationBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 103, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_unbounded_probe_parallelism_total": [
         {"kind": "negative_fixture", "name": "TestMONUnboundedProbeParallelism", "file": "src/monitoring/hard_gate_producers_test.go", "line": 332, "assertion": "violating branch -> denied && counter > 0"},
@@ -3577,6 +3584,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_abd_request_without_target_plan_total": [
         {"kind": "negative_fixture", "name": "TestMONABDRequestWithoutTargetPlan", "file": "src/monitoring/hard_gate_producers_test.go", "line": 356, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONGAbdEscalationChainBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 138, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_abd_partial_result_profile_ready_total": [
         {"kind": "negative_fixture", "name": "TestMONABDPartialResultProfileReady", "file": "src/monitoring/hard_gate_producers_test.go", "line": 362, "assertion": "violating branch -> denied && counter > 0"},
@@ -3586,6 +3594,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_discovery_without_authoritative_profile_total": [
         {"kind": "negative_fixture", "name": "TestMONDiscoveryWithoutAuthProfile", "file": "src/monitoring/hard_gate_producers_test.go", "line": 374, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONHDdiDiscoveryChainBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 145, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_discovery_skipped_mandatory_baseline_total": [
         {"kind": "negative_fixture", "name": "TestMONDiscoverySkippedMandatoryBaseline", "file": "src/monitoring/hard_gate_producers_test.go", "line": 384, "assertion": "violating branch -> denied && counter > 0"},
@@ -3598,6 +3607,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_legacy_watchdog_direct_apply_total": [
         {"kind": "negative_fixture", "name": "TestMONLegacyWatchdogDirectApply", "file": "src/monitoring/hard_gate_producers_test.go", "line": 405, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONALegacyWatchdogBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 96, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_legacy_watchdog_created_unvalidated_set_total": [
         {"kind": "negative_fixture", "name": "TestMONLegacyWatchdogUnvalidatedSet", "file": "src/monitoring/hard_gate_producers_test.go", "line": 411, "assertion": "violating branch -> denied && counter > 0"},
@@ -3619,6 +3629,7 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     "monitor_checkpoint_corruption_false_ready_total": [
         {"kind": "negative_fixture", "name": "TestMONCheckpointCorruptionFalseReady", "file": "src/monitoring/hard_gate_producers_test.go", "line": 450, "assertion": "violating branch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestFTMONIRestartFaultStorageBlocksPromotion", "file": "src/fieldtest/hard_gates_ftmon_test.go", "line": 152, "assertion": "production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)"},
     ],
     "monitor_restart_reused_expired_lease_total": [
         {"kind": "negative_fixture", "name": "TestMONRestartReusedExpiredLease", "file": "src/monitoring/hard_gate_producers_test.go", "line": 458, "assertion": "violating branch -> denied && counter > 0"},
@@ -3845,48 +3856,65 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     ],
     # --- SP WARP-recommendation negative fixtures (addendum v1.6 28A.11):
     # each test drives the violating branch of the production guard and
-    # asserts the zero-tolerance counter moved. ---
+    # asserts the zero-tolerance counter moved. Guard fixtures live in
+    # hard_gate_producers_test.go; production-root (Runtime) integration
+    # fixtures live in runtime_integration_test.go. ---
     "profile_warp_recommended_without_ip_path_evidence_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendedWithoutIPPathEvidence", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 82, "assertion": "no IP-path evidence -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendedWithoutIPPathEvidence", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 84, "assertion": "no IP-path evidence -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesWithoutIPPathEvidence", "file": "src/serviceprofile/runtime_integration_test.go", "line": 40, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_recommended_from_destination_ip_only_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendedFromDestinationIPOnly", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 90, "assertion": "empty ClientScopeHash -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendedFromDestinationIPOnly", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 92, "assertion": "empty ClientScopeHash -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesDestinationIPOnly", "file": "src/serviceprofile/runtime_integration_test.go", "line": 54, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_recommended_for_origin_dead_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendedForOriginDead", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 100, "assertion": "dead origin -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendedForOriginDead", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 102, "assertion": "dead origin -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesOriginDead", "file": "src/serviceprofile/runtime_integration_test.go", "line": 68, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_recommended_with_unhealthy_controls_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendedWithUnhealthyControls", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 108, "assertion": "unhealthy controls -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendedWithUnhealthyControls", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 110, "assertion": "unhealthy controls -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesUnhealthyControls", "file": "src/serviceprofile/runtime_integration_test.go", "line": 82, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_recommendation_cross_service_total": [
-        {"kind": "negative_fixture", "name": "TestSPCrossServiceRecommendation", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 116, "assertion": "consumer service mismatch -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPCrossServiceRecommendation", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 118, "assertion": "consumer service mismatch -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesCrossService", "file": "src/serviceprofile/runtime_integration_test.go", "line": 96, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_recommendation_stale_profile_total": [
-        {"kind": "negative_fixture", "name": "TestSPStaleProfileRecommendation", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 124, "assertion": "expired eligible recommendation -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPStaleProfileRecommendation", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 126, "assertion": "expired eligible recommendation -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeBeginTestDeniesStaleProfile", "file": "src/serviceprofile/runtime_integration_test.go", "line": 164, "assertion": "production BeginTest root denies and increments"},
     ],
     "profile_warp_recommendation_without_causal_trace_gate_total": [
-        {"kind": "negative_fixture", "name": "TestSPWithoutCausalTraceGate", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 134, "assertion": "CausalTraceReady=false -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPWithoutCausalTraceGate", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 136, "assertion": "CausalTraceReady=false -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesWithoutCausalTraceGate", "file": "src/serviceprofile/runtime_integration_test.go", "line": 124, "assertion": "production Compile root denies and increments"},
     ],
     "profile_warp_enabled_without_target_canary_total": [
-        {"kind": "negative_fixture", "name": "TestSPEnabledWithoutTargetCanary", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 144, "assertion": "TargetCanarySupported=false -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPEnabledWithoutTargetCanary", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 146, "assertion": "TargetCanarySupported=false -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeEnableDeniesWithoutTargetCanary", "file": "src/serviceprofile/runtime_integration_test.go", "line": 198, "assertion": "production Enable root denies and increments"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimePromoteBlocksWithoutTargetCanary", "file": "src/serviceprofile/runtime_integration_test.go", "line": 245, "assertion": "production Promote root blocks and increments"},
     ],
     "profile_warp_test_token_reused_as_production_authorization_total": [
-        {"kind": "negative_fixture", "name": "TestSPTestTokenReusedAsProductionAuthorization", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 154, "assertion": "live TestToken with ProductionAuthorized -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPTestTokenReusedAsProductionAuthorization", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 156, "assertion": "live TestToken with ProductionAuthorized -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeEnableDeniesTestTokenReuse", "file": "src/serviceprofile/runtime_integration_test.go", "line": 178, "assertion": "production Enable root denies and increments"},
     ],
     "profile_warp_recommendation_ignored_control_regression_total": [
-        {"kind": "negative_fixture", "name": "TestSPIgnoredControlRegression", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 163, "assertion": "regression reported healthy -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPIgnoredControlRegression", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 165, "assertion": "regression reported healthy -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeValidateBlocksIgnoredControlRegression", "file": "src/serviceprofile/runtime_integration_test.go", "line": 138, "assertion": "production Validate root blocks and increments"},
     ],
     "profile_warp_recommendation_hidden_fail_policy_total": [
-        {"kind": "negative_fixture", "name": "TestSPHiddenFailPolicy", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 171, "assertion": "empty failure policy preview -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPHiddenFailPolicy", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 173, "assertion": "empty failure policy preview -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesHiddenFailPolicy", "file": "src/serviceprofile/runtime_integration_test.go", "line": 110, "assertion": "production Compile root denies and increments"},
     ],
     "profile_nonru_suggested_without_geo_requirement_total": [
-        {"kind": "negative_fixture", "name": "TestSPNonRUSuggestedWithoutGeoRequirement", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 179, "assertion": "strict non-ru without geo requirement -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPNonRUSuggestedWithoutGeoRequirement", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 181, "assertion": "strict non-ru without geo requirement -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeValidatePolicyDeniesNonRUWithoutGeo", "file": "src/serviceprofile/runtime_integration_test.go", "line": 218, "assertion": "production ValidatePolicy root denies and increments"},
     ],
     "profile_warp_camouflage_suggested_for_target_ip_block_total": [
-        {"kind": "negative_fixture", "name": "TestSPCamouflageSuggestedForTargetIPBlock", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 188, "assertion": "camouflage for ip-blocked target -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPCamouflageSuggestedForTargetIPBlock", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 190, "assertion": "camouflage for ip-blocked target -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeValidatePolicyDeniesCamouflageForIPBlock", "file": "src/serviceprofile/runtime_integration_test.go", "line": 232, "assertion": "production ValidatePolicy root denies and increments"},
     ],
     "profile_warp_recommendation_cleanup_failure_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendationCleanupFailure", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 197, "assertion": "CleanedUp=false -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendationCleanupFailure", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 199, "assertion": "CleanedUp=false -> denied && counter > 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeValidateBlocksCleanupFailure", "file": "src/serviceprofile/runtime_integration_test.go", "line": 151, "assertion": "production Validate root blocks and increments"},
     ],
 }
 
@@ -4245,6 +4273,8 @@ _EVIDENCE_SP = [
     "artifacts/remediation/FB02_SP_PRODUCERS.json",
     "src/serviceprofile/hard_gate_producers_test.go",
     "src/serviceprofile/hard_gate_producers.go",
+    "src/serviceprofile/runtime.go",
+    "src/serviceprofile/runtime_integration_test.go",
 ]
 for _name in [
     "profile_warp_recommended_without_ip_path_evidence_total",
@@ -4266,8 +4296,10 @@ for _name in [
 _EVIDENCE_MON = [
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
     "artifacts/remediation/FB02_MON_PRODUCERS.json",
+    "artifacts/remediation/FB02_FIELDTEST_FTC.json",
     "src/monitoring/hard_gate_producers_test.go",
     "src/monitoring/hard_gate_producers.go",
+    "src/fieldtest/hard_gates_ftmon_test.go",
 ]
 for _name in [
     "monitor_observation_direct_action_total",

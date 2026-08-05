@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-08-05T00:00:00Z",
+  "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
+  "scope": "fieldtest FT-C (B4_FIELD_TEST_AUTOMATION_ADDENDUM_v1.5.md FT-C; FB-02)",
+  "controller_root": {
+    "symbol": "Controller.EvaluateHardGates -> fieldtest.EvaluateHardGates -> validation.EvaluateHardGates",
+    "file": "src/fieldtest/controller.go",
+    "binding": "the Field Test Controller calls the canonical hard-gate evaluator against observed counters (never a shadow copy); the recorded verdict drives canary/promotion"
+  },
+  "ftmon_fixtures": [
+    {
+      "id": "FT-MON-A",
+      "scenario": "legacy Watchdog compatibility and no-direct-apply",
+      "metric": "monitor_legacy_watchdog_direct_apply_total",
+      "test": "TestFTMONALegacyWatchdogBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 96
+    },
+    {
+      "id": "FT-MON-B",
+      "scenario": "demand intake and exact client-resolution correlation",
+      "metric": "monitor_unbounded_target_intake_total",
+      "test": "TestFTMONBDemandIntakeCorrelationBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 103
+    },
+    {
+      "id": "FT-MON-C",
+      "scenario": "passive flow health and control separation",
+      "metric": "monitor_observation_direct_action_total",
+      "test": "TestFTMONCPassiveFlowHealthBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 110
+    },
+    {
+      "id": "FT-MON-D",
+      "scenario": "temporal recurrence, decay and recovery",
+      "metric": "monitor_temporal_persistence_without_time_separation_total",
+      "test": "TestFTMONDTemporalRecurrenceBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 117
+    },
+    {
+      "id": "FT-MON-E",
+      "scenario": "source health, PPE/capture suppressors",
+      "metric": "monitor_trigger_with_stale_source_heartbeat_total",
+      "test": "TestFTMONEStaleSourceHeartbeatBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 124
+    },
+    {
+      "id": "FT-MON-F",
+      "scenario": "fast lane and trigger budgets",
+      "metric": "monitor_fast_lane_promoted_as_authoritative_total",
+      "test": "TestFTMONFFastLaneBudgetBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 131
+    },
+    {
+      "id": "FT-MON-G",
+      "scenario": "MON -> ABD quick/deep escalation",
+      "metric": "monitor_abd_request_without_target_plan_total",
+      "test": "TestFTMONGAbdEscalationChainBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 138
+    },
+    {
+      "id": "FT-MON-H",
+      "scenario": "ABD -> DDI -> Discovery/WARP recommendation chain",
+      "metric": "monitor_discovery_without_authoritative_profile_total",
+      "test": "TestFTMONHDdiDiscoveryChainBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 145
+    },
+    {
+      "id": "FT-MON-I",
+      "scenario": "restart/fault/storage/privacy",
+      "metric": "monitor_checkpoint_corruption_false_ready_total",
+      "test": "TestFTMONIRestartFaultStorageBlocksPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 152
+    },
+    {
+      "id": "FT-MON-J",
+      "scenario": "real Keenetic + Android end-to-end (clean window admits)",
+      "metric": "all applicable MON gates zero",
+      "test": "TestFTMONJCleanWindowAdmitsPromotion",
+      "file": "src/fieldtest/hard_gates_ftmon_test.go",
+      "line": 159
+    }
+  ],
+  "verification": {
+    "command": "go test -race -count=1 ./fieldtest/... (full: go build ./... && go vet ./... && go test -race -count=1 ./...)",
+    "status": "PASS",
+    "note": "FT-MON-A..I fixtures drive a violating MON counter through Controller.EvaluateHardGates and assert FAIL + PromotionFail; FT-MON-J asserts PASS + PromotionPass + CanaryEligible on a clean window; registered as evaluator_fixture in the generator for the 9 MON gates"
+  }
+}

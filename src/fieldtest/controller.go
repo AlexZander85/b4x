@@ -88,3 +88,15 @@ func (c *Controller) RecordGateEvaluation(id string, eval validation.GateEvaluat
 	c.runs[id] = s
 	return nil
 }
+
+// EvaluateHardGates runs the production hard-gate evaluation (FT-C: the
+// controller calls the canonical evaluator — fieldtest.EvaluateHardGates —
+// against observed counters, never a shadow copy) and records the structured
+// result on a running session. The recorded verdict drives canary/promotion.
+func (c *Controller) EvaluateHardGates(id string, scope validation.ReleaseScope, caps validation.CapabilitySet, claim validation.VerdictID, generation validation.GenerationSet, counters map[string]uint64, produced map[string]bool) (validation.GateEvaluation, error) {
+	eval := EvaluateHardGates(scope, caps, claim, generation, counters, produced)
+	if err := c.RecordGateEvaluation(id, eval); err != nil {
+		return validation.GateEvaluation{}, err
+	}
+	return eval, nil
+}

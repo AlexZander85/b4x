@@ -56,6 +56,8 @@ func spRecommendation() TransportRecommendation {
 		BlockingHypothesisID: "path_local_syn_filter_probable",
 		NetworkContextID:     "wan-a",
 		EvidenceRefs:         []string{"ev-1", "ev-2"},
+		TransportKind:        "cloudflare-warp-masque",
+		TransportMode:        "base",
 		FailurePolicyPreview: "fail-open",
 		ConfigGen:            7,
 		SessionGen:           7,

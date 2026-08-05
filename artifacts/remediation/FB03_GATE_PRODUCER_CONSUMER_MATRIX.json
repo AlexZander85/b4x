@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-04T18:07:01Z",
+  "generated_at": "2026-08-05T07:35:08Z",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 283,
   "verified": 237,
@@ -5338,8 +5338,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5380,13 +5382,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 356,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONGAbdEscalationChainBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 138,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5432,8 +5443,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5474,13 +5487,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 450,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONIRestartFaultStorageBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 152,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5526,8 +5548,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5573,8 +5597,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5620,8 +5646,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5667,8 +5695,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5714,8 +5744,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5761,8 +5793,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5808,8 +5842,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5855,8 +5891,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5902,8 +5940,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5949,8 +5989,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -5991,13 +6033,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 374,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONHDdiDiscoveryChainBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 145,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6043,8 +6094,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6090,8 +6143,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6190,8 +6245,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6237,8 +6294,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6279,13 +6338,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 152,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONFFastLaneBudgetBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 131,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6391,8 +6459,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6491,8 +6561,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6538,8 +6610,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6580,13 +6654,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 405,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONALegacyWatchdogBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 96,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6632,8 +6715,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6679,8 +6764,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6721,13 +6808,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 122,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONCPassiveFlowHealthBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 110,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6879,8 +6975,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6926,8 +7024,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -6973,8 +7073,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7020,8 +7122,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7067,8 +7171,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7114,8 +7220,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7161,8 +7269,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7208,8 +7318,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7255,8 +7367,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7302,8 +7416,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7349,8 +7465,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7396,8 +7514,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7443,8 +7563,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7490,8 +7612,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7537,8 +7661,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7584,8 +7710,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7631,8 +7759,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7673,13 +7803,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 221,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONDTemporalRecurrenceBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 117,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7725,8 +7864,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7767,13 +7908,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 314,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONEStaleSourceHeartbeatBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 124,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7819,8 +7969,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7866,8 +8018,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7913,8 +8067,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -7955,13 +8111,22 @@
           "file": "src/monitoring/hard_gate_producers_test.go",
           "line": 326,
           "assertion": "violating branch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestFTMONBDemandIntakeCorrelationBlocksPromotion",
+          "file": "src/fieldtest/hard_gates_ftmon_test.go",
+          "line": 103,
+          "assertion": "production Controller.EvaluateHardGates root -\u003e FAIL -\u003e promotion rejected (FT-C)"
         }
       ],
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -8007,8 +8172,10 @@
       "evidence": [
         "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md",
         "artifacts/remediation/FB02_MON_PRODUCERS.json",
+        "artifacts/remediation/FB02_FIELDTEST_FTC.json",
         "src/monitoring/hard_gate_producers_test.go",
-        "src/monitoring/hard_gate_producers.go"
+        "src/monitoring/hard_gate_producers.go",
+        "src/fieldtest/hard_gates_ftmon_test.go"
       ]
     },
     {
@@ -9498,7 +9665,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 160,
         "mechanism": "increment-only counter via observability (non-RU option without declared geo requirement; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9521,8 +9688,15 @@
           "kind": "negative_fixture",
           "name": "TestSPNonRUSuggestedWithoutGeoRequirement",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 179,
+          "line": 181,
           "assertion": "strict non-ru without geo requirement -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeValidatePolicyDeniesNonRUWithoutGeo",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 218,
+          "assertion": "production ValidatePolicy root denies and increments"
         }
       ],
       "mutations": [
@@ -9537,7 +9711,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9553,7 +9729,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 171,
         "mechanism": "increment-only counter via observability (camouflage suggested for IP-blocked target; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9576,8 +9752,15 @@
           "kind": "negative_fixture",
           "name": "TestSPCamouflageSuggestedForTargetIPBlock",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 188,
+          "line": 190,
           "assertion": "camouflage for ip-blocked target -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeValidatePolicyDeniesCamouflageForIPBlock",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 232,
+          "assertion": "production ValidatePolicy root denies and increments"
         }
       ],
       "mutations": [
@@ -9592,7 +9775,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9608,7 +9793,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 115,
         "mechanism": "increment-only counter via observability (WARP enabled without passed target canary; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9631,8 +9816,22 @@
           "kind": "negative_fixture",
           "name": "TestSPEnabledWithoutTargetCanary",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 144,
+          "line": 146,
           "assertion": "TargetCanarySupported=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeEnableDeniesWithoutTargetCanary",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 198,
+          "assertion": "production Enable root denies and increments"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimePromoteBlocksWithoutTargetCanary",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 245,
+          "assertion": "production Promote root blocks and increments"
         }
       ],
       "mutations": [
@@ -9647,7 +9846,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9663,7 +9864,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 182,
         "mechanism": "increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9686,8 +9887,15 @@
           "kind": "negative_fixture",
           "name": "TestSPRecommendationCleanupFailure",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 197,
+          "line": 199,
           "assertion": "CleanedUp=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeValidateBlocksCleanupFailure",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 151,
+          "assertion": "production Validate root blocks and increments"
         }
       ],
       "mutations": [
@@ -9702,7 +9910,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9718,7 +9928,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 81,
         "mechanism": "increment-only counter via observability (recommendation consumed by another service; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9741,8 +9951,15 @@
           "kind": "negative_fixture",
           "name": "TestSPCrossServiceRecommendation",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 116,
+          "line": 118,
           "assertion": "consumer service mismatch -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesCrossService",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 96,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -9757,7 +9974,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9773,7 +9992,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 149,
         "mechanism": "increment-only counter via observability (recommendation without explicit failure policy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9796,8 +10015,15 @@
           "kind": "negative_fixture",
           "name": "TestSPHiddenFailPolicy",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 171,
+          "line": 173,
           "assertion": "empty failure policy preview -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesHiddenFailPolicy",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 110,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -9812,7 +10038,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9828,7 +10056,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 138,
         "mechanism": "increment-only counter via observability (control regression reported as healthy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9851,8 +10079,15 @@
           "kind": "negative_fixture",
           "name": "TestSPIgnoredControlRegression",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 163,
+          "line": 165,
           "assertion": "regression reported healthy -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeValidateBlocksIgnoredControlRegression",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 138,
+          "assertion": "production Validate root blocks and increments"
         }
       ],
       "mutations": [
@@ -9867,7 +10102,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9883,7 +10120,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 92,
         "mechanism": "increment-only counter via observability (eligible recommendation from non-current profile; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9906,8 +10143,15 @@
           "kind": "negative_fixture",
           "name": "TestSPStaleProfileRecommendation",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 124,
+          "line": 126,
           "assertion": "expired eligible recommendation -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeBeginTestDeniesStaleProfile",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 164,
+          "assertion": "production BeginTest root denies and increments"
         }
       ],
       "mutations": [
@@ -9922,7 +10166,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9938,7 +10184,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 103,
         "mechanism": "increment-only counter via observability (recommendation while causal trace gate not ready; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -9961,8 +10207,15 @@
           "kind": "negative_fixture",
           "name": "TestSPWithoutCausalTraceGate",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 134,
+          "line": 136,
           "assertion": "CausalTraceReady=false -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesWithoutCausalTraceGate",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 124,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -9977,7 +10230,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -9993,7 +10248,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 58,
         "mechanism": "increment-only counter via observability (recommendation for dead origin; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -10016,8 +10271,15 @@
           "kind": "negative_fixture",
           "name": "TestSPRecommendedForOriginDead",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 100,
+          "line": 102,
           "assertion": "dead origin -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesOriginDead",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 68,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -10032,7 +10294,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -10048,7 +10312,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 47,
         "mechanism": "increment-only counter via observability (recommendation from destination-only scope; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -10071,8 +10335,15 @@
           "kind": "negative_fixture",
           "name": "TestSPRecommendedFromDestinationIPOnly",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 90,
+          "line": 92,
           "assertion": "empty ClientScopeHash -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesDestinationIPOnly",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 54,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -10087,7 +10358,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -10103,7 +10376,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 69,
         "mechanism": "increment-only counter via observability (recommendation while control probes unhealthy; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -10126,8 +10399,15 @@
           "kind": "negative_fixture",
           "name": "TestSPRecommendedWithUnhealthyControls",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 108,
+          "line": 110,
           "assertion": "unhealthy controls -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesUnhealthyControls",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 82,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -10142,7 +10422,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -10158,7 +10440,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 36,
         "mechanism": "increment-only counter via observability (recommendation without IP-path evidence; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -10181,8 +10463,15 @@
           "kind": "negative_fixture",
           "name": "TestSPRecommendedWithoutIPPathEvidence",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 82,
+          "line": 84,
           "assertion": "no IP-path evidence -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeCompileDeniesWithoutIPPathEvidence",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 40,
+          "assertion": "production Compile root denies and increments"
         }
       ],
       "mutations": [
@@ -10197,7 +10486,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {
@@ -10213,7 +10504,7 @@
         "file": "src/serviceprofile/hard_gate_producers.go",
         "line": 127,
         "mechanism": "increment-only counter via observability (live test token authorizing production; SP addendum v1.6 sect. 28A.11)",
-        "production_root": "serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)"
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)"
       },
       "consumers": [
         {
@@ -10236,8 +10527,15 @@
           "kind": "negative_fixture",
           "name": "TestSPTestTokenReusedAsProductionAuthorization",
           "file": "src/serviceprofile/hard_gate_producers_test.go",
-          "line": 154,
+          "line": 156,
           "assertion": "live TestToken with ProductionAuthorized -\u003e denied \u0026\u0026 counter \u003e 0"
+        },
+        {
+          "kind": "evaluator_fixture",
+          "name": "TestRuntimeEnableDeniesTestTokenReuse",
+          "file": "src/serviceprofile/runtime_integration_test.go",
+          "line": 178,
+          "assertion": "production Enable root denies and increments"
         }
       ],
       "mutations": [
@@ -10252,7 +10550,9 @@
         "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md",
         "artifacts/remediation/FB02_SP_PRODUCERS.json",
         "src/serviceprofile/hard_gate_producers_test.go",
-        "src/serviceprofile/hard_gate_producers.go"
+        "src/serviceprofile/hard_gate_producers.go",
+        "src/serviceprofile/runtime.go",
+        "src/serviceprofile/runtime_integration_test.go"
       ]
     },
     {

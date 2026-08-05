@@ -30,6 +30,7 @@ import (
 	"github.com/daniellavrushin/b4/nfq"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/socks5"
+	"github.com/daniellavrushin/b4/serviceprofile"
 	"github.com/daniellavrushin/b4/tables"
 	"github.com/daniellavrushin/b4/tproxy"
 	b4tun "github.com/daniellavrushin/b4/tun"
@@ -451,6 +452,16 @@ func runB4(cmd *cobra.Command, args []string) error {
 	warpRT := warp.NewRuntime(warp.DefaultConfig())
 	warpRT.Start()
 	handler.SetWarpRuntime(warpRT)
+
+	// Service-profile WARP-recommendation lifecycle controller (FB-02 sp
+	// section §28A.11): owns the recommendation state machine
+	// (compile -> begin-test -> validate -> enable/promote) and the fourteen
+	// §28A.11 hard-gate producers. Mirrors the warp runtime: Start/Stop bound
+	// its controller loop; the future service-profile control plane feeds it
+	// via Submit (bounded, non-blocking).
+	serviceprofileRT := serviceprofile.NewRuntime(serviceprofile.DefaultConfig())
+	serviceprofileRT.Start()
+	handler.SetServiceProfileRuntime(serviceprofileRT)
 
 	var geoScheduler *geodat.Scheduler
 	if apiHandler != nil {

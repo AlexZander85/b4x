@@ -1,0 +1,185 @@
+{
+  "generated_at": "2026-08-05T00:00:00Z",
+  "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
+  "family": "sp",
+  "family_name": "serviceprofile WARP-recommendation lifecycle",
+  "scope_doc": "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md section 28A.11",
+  "total_gates": 14,
+  "verified": 14,
+  "verified_commit": "8d5223f0",
+  "producer_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
+  "call_graph": {
+    "root": {
+      "symbol": "serviceprofile.NewRuntime + Runtime.Start (controller loop)",
+      "file": "src/serviceprofile/runtime.go",
+      "line": 0,
+      "wired_from": [
+        {
+          "symbol": "main -> handler.SetServiceProfileRuntime",
+          "file": "src/main.go",
+          "line": 455,
+          "binding": "production process bootstraps the lifecycle controller"
+        }
+      ]
+    },
+    "methods": {
+      "Compile": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_warp_recommended_without_ip_path_evidence_total",
+          "profile_warp_recommended_from_destination_ip_only_total",
+          "profile_warp_recommended_for_origin_dead_total",
+          "profile_warp_recommended_with_unhealthy_controls_total",
+          "profile_warp_recommendation_cross_service_total",
+          "profile_warp_recommendation_hidden_fail_policy_total",
+          "profile_warp_recommendation_without_causal_trace_gate_total"
+        ]
+      },
+      "Validate": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_warp_recommendation_ignored_control_regression_total",
+          "profile_warp_recommendation_cleanup_failure_total"
+        ]
+      },
+      "BeginTest": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_warp_recommendation_stale_profile_total"
+        ]
+      },
+      "Enable": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_warp_test_token_reused_as_production_authorization_total",
+          "profile_warp_enabled_without_target_canary_total"
+        ]
+      },
+      "ValidatePolicy": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_nonru_suggested_without_geo_requirement_total",
+          "profile_warp_camouflage_suggested_for_target_ip_block_total"
+        ]
+      },
+      "Promote": {
+        "file": "src/serviceprofile/runtime.go",
+        "gates": [
+          "profile_warp_enabled_without_target_canary_total"
+        ]
+      }
+    }
+  },
+  "guards": [
+    {
+      "gate_id": "profile_warp_recommended_without_ip_path_evidence_total",
+      "guard_symbol": "RecommendedWithoutIPPathEvidenceAllowed -> Metrics.Inc(MetricSPRecommendedWithoutIPPathEvidence)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 36,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommended_from_destination_ip_only_total",
+      "guard_symbol": "RecommendedFromDestinationIPOnlyAllowed -> Metrics.Inc(MetricSPRecommendedFromDestinationIPOnly)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 47,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommended_for_origin_dead_total",
+      "guard_symbol": "RecommendedForOriginDeadAllowed -> Metrics.Inc(MetricSPRecommendedForOriginDead)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 58,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommended_with_unhealthy_controls_total",
+      "guard_symbol": "RecommendedWithUnhealthyControlsAllowed -> Metrics.Inc(MetricSPRecommendedWithUnhealthyControls)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 69,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_cross_service_total",
+      "guard_symbol": "CrossServiceRecommendationAllowed -> Metrics.Inc(MetricSPCrossServiceRecommendation)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 81,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_hidden_fail_policy_total",
+      "guard_symbol": "HiddenFailPolicyAllowed -> Metrics.Inc(MetricSPHiddenFailPolicy)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 149,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_without_causal_trace_gate_total",
+      "guard_symbol": "WithoutCausalTraceGateAllowed -> Metrics.Inc(MetricSPWithoutCausalTraceGate)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 103,
+      "runtime_method": "Compile"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_stale_profile_total",
+      "guard_symbol": "StaleProfileRecommendationAllowed -> Metrics.Inc(MetricSPStaleProfileRecommendation)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 92,
+      "runtime_method": "BeginTest"
+    },
+    {
+      "gate_id": "profile_warp_test_token_reused_as_production_authorization_total",
+      "guard_symbol": "TestTokenReusedAsProductionAuthorizationAllowed -> Metrics.Inc(MetricSPTestTokenReusedAsProductionAuthorization)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 127,
+      "runtime_method": "Enable"
+    },
+    {
+      "gate_id": "profile_warp_enabled_without_target_canary_total",
+      "guard_symbol": "EnabledWithoutTargetCanaryAllowed -> Metrics.Inc(MetricSPEnabledWithoutTargetCanary)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 115,
+      "runtime_method": "Enable, Promote"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_ignored_control_regression_total",
+      "guard_symbol": "IgnoredControlRegressionAllowed -> Metrics.Inc(MetricSPIgnoredControlRegression)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 138,
+      "runtime_method": "Validate"
+    },
+    {
+      "gate_id": "profile_warp_recommendation_cleanup_failure_total",
+      "guard_symbol": "RecommendationCleanupFailureAllowed -> Metrics.Inc(MetricSPRecommendationCleanupFailure)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 182,
+      "runtime_method": "Validate"
+    },
+    {
+      "gate_id": "profile_nonru_suggested_without_geo_requirement_total",
+      "guard_symbol": "NonRUSuggestedWithoutGeoRequirementAllowed -> Metrics.Inc(MetricSPNonRUSuggestedWithoutGeoRequirement)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 160,
+      "runtime_method": "ValidatePolicy"
+    },
+    {
+      "gate_id": "profile_warp_camouflage_suggested_for_target_ip_block_total",
+      "guard_symbol": "CamouflageSuggestedForTargetIPBlockAllowed -> Metrics.Inc(MetricSPCamouflageSuggestedForTargetIPBlock)",
+      "guard_file": "src/serviceprofile/hard_gate_producers.go",
+      "guard_line": 171,
+      "runtime_method": "ValidatePolicy"
+    }
+  ],
+  "evidence": [
+    "src/serviceprofile/runtime.go",
+    "src/serviceprofile/runtime_integration_test.go",
+    "src/serviceprofile/hard_gate_producers.go",
+    "src/serviceprofile/hard_gate_producers_test.go",
+    "B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md"
+  ],
+  "verification": {
+    "command": "go test -race -count=1 ./serviceprofile/... ./validation/... ./cmd/b4-validate/...",
+    "status": "PASS",
+    "note": "14 evaluator fixtures in runtime_integration_test.go drive the violating branches of the 14 guards through the production Runtime roots (Compile/Validate/BeginTest/Enable/ValidatePolicy/Promote)"
+  }
+}

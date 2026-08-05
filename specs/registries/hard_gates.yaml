@@ -2445,12 +2445,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 122
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONCPassiveFlowHealthBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 110
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_provisional_profile_compiled_total
     canonical_metric_name: monitor_provisional_profile_compiled_total
     global_gate_class: observation
@@ -2493,8 +2500,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_passive_discovery_start_total
     canonical_metric_name: monitor_passive_discovery_start_total
     global_gate_class: observation
@@ -2537,8 +2546,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_passive_warp_enable_total
     canonical_metric_name: monitor_passive_warp_enable_total
     global_gate_class: observation
@@ -2581,8 +2592,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_fast_lane_action_total
     canonical_metric_name: monitor_fast_lane_action_total
     global_gate_class: observation
@@ -2625,8 +2638,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_fast_lane_promoted_as_authoritative_total
     canonical_metric_name: monitor_fast_lane_promoted_as_authoritative_total
     global_gate_class: observation
@@ -2665,12 +2680,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 152
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONFFastLaneBudgetBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 131
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_destination_only_deep_trigger_total
     canonical_metric_name: monitor_destination_only_deep_trigger_total
     global_gate_class: scope
@@ -2713,8 +2735,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cross_client_merge_total
     canonical_metric_name: monitor_cross_client_merge_total
     global_gate_class: scope
@@ -2757,8 +2781,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cross_service_merge_total
     canonical_metric_name: monitor_cross_service_merge_total
     global_gate_class: scope
@@ -2801,8 +2827,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cross_component_merge_total
     canonical_metric_name: monitor_cross_component_merge_total
     global_gate_class: scope
@@ -2845,8 +2873,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cross_wan_evidence_merge_total
     canonical_metric_name: monitor_cross_wan_evidence_merge_total
     global_gate_class: scope
@@ -2889,8 +2919,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cross_generation_evidence_merge_total
     canonical_metric_name: monitor_cross_generation_evidence_merge_total
     global_gate_class: scope
@@ -2933,8 +2965,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_router_origin_as_forwarded_proof_total
     canonical_metric_name: monitor_router_origin_as_forwarded_proof_total
     global_gate_class: scope
@@ -2977,8 +3011,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_duplicate_evidence_independence_total
     canonical_metric_name: monitor_duplicate_evidence_independence_total
     global_gate_class: temporal
@@ -3021,8 +3057,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_temporal_persistence_without_time_separation_total
     canonical_metric_name: monitor_temporal_persistence_without_time_separation_total
     global_gate_class: temporal
@@ -3062,12 +3100,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 221
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONDTemporalRecurrenceBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 117
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_success_suppressor_ignored_total
     canonical_metric_name: monitor_success_suppressor_ignored_total
     global_gate_class: temporal
@@ -3110,8 +3155,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_recovered_subject_not_demoted_total
     canonical_metric_name: monitor_recovered_subject_not_demoted_total
     global_gate_class: temporal
@@ -3154,8 +3201,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_expired_evidence_used_total
     canonical_metric_name: monitor_expired_evidence_used_total
     global_gate_class: temporal
@@ -3198,8 +3247,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_decay_disabled_without_policy_total
     canonical_metric_name: monitor_decay_disabled_without_policy_total
     global_gate_class: temporal
@@ -3242,8 +3293,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_probe_without_resolution_binding_total
     canonical_metric_name: monitor_probe_without_resolution_binding_total
     global_gate_class: resolution
@@ -3286,8 +3339,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_client_dns_answer_replaced_silently_total
     canonical_metric_name: monitor_client_dns_answer_replaced_silently_total
     global_gate_class: resolution
@@ -3330,8 +3385,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_cname_terminal_ip_misattributed_total
     canonical_metric_name: monitor_cname_terminal_ip_misattributed_total
     global_gate_class: resolution
@@ -3374,8 +3431,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_multi_ip_partial_failure_hidden_total
     canonical_metric_name: monitor_multi_ip_partial_failure_hidden_total
     global_gate_class: resolution
@@ -3418,8 +3477,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_first_success_erased_address_failures_total
     canonical_metric_name: monitor_first_success_erased_address_failures_total
     global_gate_class: resolution
@@ -3515,8 +3576,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_trigger_without_visibility_total
     canonical_metric_name: monitor_trigger_without_visibility_total
     global_gate_class: trigger_resource
@@ -3559,8 +3622,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_trigger_without_budget_total
     canonical_metric_name: monitor_trigger_without_budget_total
     global_gate_class: trigger_resource
@@ -3603,8 +3668,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_trigger_during_global_wan_failure_total
     canonical_metric_name: monitor_trigger_during_global_wan_failure_total
     global_gate_class: trigger_resource
@@ -3647,8 +3714,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_trigger_with_stale_source_heartbeat_total
     canonical_metric_name: monitor_trigger_with_stale_source_heartbeat_total
     global_gate_class: trigger_resource
@@ -3687,12 +3756,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 314
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONEStaleSourceHeartbeatBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 124
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_duplicate_concurrent_abd_run_total
     canonical_metric_name: monitor_duplicate_concurrent_abd_run_total
     global_gate_class: trigger_resource
@@ -3735,8 +3811,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_unbounded_target_intake_total
     canonical_metric_name: monitor_unbounded_target_intake_total
     global_gate_class: trigger_resource
@@ -3775,12 +3853,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 326
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONBDemandIntakeCorrelationBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 103
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_unbounded_probe_parallelism_total
     canonical_metric_name: monitor_unbounded_probe_parallelism_total
     global_gate_class: trigger_resource
@@ -3823,8 +3908,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_self_interference_total
     canonical_metric_name: monitor_self_interference_total
     global_gate_class: trigger_resource
@@ -3867,8 +3954,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_http_hypothesis_from_tcp_tls_only_observer_total
     canonical_metric_name: monitor_http_hypothesis_from_tcp_tls_only_observer_total
     global_gate_class: multi_vantage
@@ -4110,8 +4199,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_abd_request_without_target_plan_total
     canonical_metric_name: monitor_abd_request_without_target_plan_total
     global_gate_class: abd_ddi_discovery
@@ -4150,12 +4241,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 356
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONGAbdEscalationChainBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 138
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_abd_partial_result_profile_ready_total
     canonical_metric_name: monitor_abd_partial_result_profile_ready_total
     global_gate_class: abd_ddi_discovery
@@ -4198,8 +4296,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_abd_result_bypassed_ddi_total
     canonical_metric_name: monitor_abd_result_bypassed_ddi_total
     global_gate_class: abd_ddi_discovery
@@ -4242,8 +4342,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_discovery_without_authoritative_profile_total
     canonical_metric_name: monitor_discovery_without_authoritative_profile_total
     global_gate_class: abd_ddi_discovery
@@ -4283,12 +4385,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 374
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONHDdiDiscoveryChainBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 145
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_discovery_skipped_mandatory_baseline_total
     canonical_metric_name: monitor_discovery_skipped_mandatory_baseline_total
     global_gate_class: abd_ddi_discovery
@@ -4331,8 +4440,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_recommendation_without_scope_total
     canonical_metric_name: monitor_recommendation_without_scope_total
     global_gate_class: abd_ddi_discovery
@@ -4375,8 +4486,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_warp_recommendation_without_ip_path_evidence_total
     canonical_metric_name: monitor_warp_recommendation_without_ip_path_evidence_total
     global_gate_class: abd_ddi_discovery
@@ -4420,8 +4533,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_legacy_watchdog_direct_apply_total
     canonical_metric_name: monitor_legacy_watchdog_direct_apply_total
     global_gate_class: legacy_migration
@@ -4460,12 +4575,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 405
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONALegacyWatchdogBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 96
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_legacy_watchdog_created_unvalidated_set_total
     canonical_metric_name: monitor_legacy_watchdog_created_unvalidated_set_total
     global_gate_class: legacy_migration
@@ -4509,8 +4631,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_legacy_watchdog_overwrote_set_without_canary_total
     canonical_metric_name: monitor_legacy_watchdog_overwrote_set_without_canary_total
     global_gate_class: legacy_migration
@@ -4554,8 +4678,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_legacy_api_projection_mutation_total
     canonical_metric_name: monitor_legacy_api_projection_mutation_total
     global_gate_class: legacy_migration
@@ -4598,8 +4724,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_shadow_and_active_writer_overlap_total
     canonical_metric_name: monitor_shadow_and_active_writer_overlap_total
     global_gate_class: legacy_migration
@@ -4642,8 +4770,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_required_event_drop_hidden_total
     canonical_metric_name: monitor_required_event_drop_hidden_total
     global_gate_class: reliability_privacy
@@ -4686,8 +4816,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_source_heartbeat_stale_auto_diagnose_total
     canonical_metric_name: monitor_source_heartbeat_stale_auto_diagnose_total
     global_gate_class: reliability_privacy
@@ -4730,8 +4862,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_checkpoint_corruption_false_ready_total
     canonical_metric_name: monitor_checkpoint_corruption_false_ready_total
     global_gate_class: reliability_privacy
@@ -4770,12 +4904,19 @@ families:
       file: src/monitoring/hard_gate_producers_test.go
       line: 450
       assertion: violating branch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestFTMONIRestartFaultStorageBlocksPromotion
+      file: src/fieldtest/hard_gates_ftmon_test.go
+      line: 152
+      assertion: production Controller.EvaluateHardGates root -> FAIL -> promotion rejected (FT-C)
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_restart_reused_expired_lease_total
     canonical_metric_name: monitor_restart_reused_expired_lease_total
     global_gate_class: reliability_privacy
@@ -4818,8 +4959,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_sensitive_dns_history_export_total
     canonical_metric_name: monitor_sensitive_dns_history_export_total
     global_gate_class: reliability_privacy
@@ -4862,8 +5005,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_secret_trace_leak_total
     canonical_metric_name: monitor_secret_trace_leak_total
     global_gate_class: reliability_privacy
@@ -4906,8 +5051,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: monitor_high_cardinality_metric_label_total
     canonical_metric_name: monitor_high_cardinality_metric_label_total
     global_gate_class: reliability_privacy
@@ -4950,8 +5097,10 @@ families:
     evidence_artifact:
     - B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md
     - artifacts/remediation/FB02_MON_PRODUCERS.json
+    - artifacts/remediation/FB02_FIELDTEST_FTC.json
     - src/monitoring/hard_gate_producers_test.go
     - src/monitoring/hard_gate_producers.go
+    - src/fieldtest/hard_gates_ftmon_test.go
   - gate_id: mon_production_ready
     canonical_metric_name: mon_production_ready
     global_gate_class: monitoring_conformance
@@ -9866,7 +10015,8 @@ families:
       line: 36
       mechanism: increment-only counter via observability (recommendation without IP-path evidence; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -9888,8 +10038,13 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendedWithoutIPPathEvidence
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 82
+      line: 84
       assertion: no IP-path evidence -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesWithoutIPPathEvidence
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 40
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPRecommendedWithoutIPPathEvidence (producer removed)
@@ -9901,6 +10056,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommended_from_destination_ip_only_total
     canonical_metric_name: profile_warp_recommended_from_destination_ip_only_total
     global_gate_class: profile_warp
@@ -9916,7 +10073,8 @@ families:
       line: 47
       mechanism: increment-only counter via observability (recommendation from destination-only scope; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -9938,8 +10096,13 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendedFromDestinationIPOnly
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 90
+      line: 92
       assertion: empty ClientScopeHash -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesDestinationIPOnly
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 54
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPRecommendedFromDestinationIPOnly (producer removed)
@@ -9951,6 +10114,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommended_for_origin_dead_total
     canonical_metric_name: profile_warp_recommended_for_origin_dead_total
     global_gate_class: profile_warp
@@ -9965,7 +10130,8 @@ families:
       file: src/serviceprofile/hard_gate_producers.go
       line: 58
       mechanism: increment-only counter via observability (recommendation for dead origin; SP addendum v1.6 sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -9987,8 +10153,13 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendedForOriginDead
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 100
+      line: 102
       assertion: dead origin -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesOriginDead
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 68
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPRecommendedForOriginDead (producer removed)
@@ -10000,6 +10171,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommended_with_unhealthy_controls_total
     canonical_metric_name: profile_warp_recommended_with_unhealthy_controls_total
     global_gate_class: profile_warp
@@ -10015,7 +10188,8 @@ families:
       line: 69
       mechanism: increment-only counter via observability (recommendation while control probes unhealthy; SP addendum v1.6
         sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10037,8 +10211,13 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendedWithUnhealthyControls
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 108
+      line: 110
       assertion: unhealthy controls -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesUnhealthyControls
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 82
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPRecommendedWithUnhealthyControls (producer removed)
@@ -10050,6 +10229,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_cross_service_total
     canonical_metric_name: profile_warp_recommendation_cross_service_total
     global_gate_class: profile_warp
@@ -10065,7 +10246,8 @@ families:
       line: 81
       mechanism: increment-only counter via observability (recommendation consumed by another service; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10087,8 +10269,13 @@ families:
     - kind: negative_fixture
       name: TestSPCrossServiceRecommendation
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 116
+      line: 118
       assertion: consumer service mismatch -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesCrossService
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 96
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPCrossServiceRecommendation (producer removed)
@@ -10100,6 +10287,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_stale_profile_total
     canonical_metric_name: profile_warp_recommendation_stale_profile_total
     global_gate_class: profile_warp
@@ -10115,7 +10304,8 @@ families:
       line: 92
       mechanism: increment-only counter via observability (eligible recommendation from non-current profile; SP addendum v1.6
         sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10137,8 +10327,13 @@ families:
     - kind: negative_fixture
       name: TestSPStaleProfileRecommendation
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 124
+      line: 126
       assertion: expired eligible recommendation -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeBeginTestDeniesStaleProfile
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 164
+      assertion: production BeginTest root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPStaleProfileRecommendation (producer removed)
@@ -10150,6 +10345,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_without_causal_trace_gate_total
     canonical_metric_name: profile_warp_recommendation_without_causal_trace_gate_total
     global_gate_class: profile_warp
@@ -10165,7 +10362,8 @@ families:
       line: 103
       mechanism: increment-only counter via observability (recommendation while causal trace gate not ready; SP addendum v1.6
         sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10187,8 +10385,13 @@ families:
     - kind: negative_fixture
       name: TestSPWithoutCausalTraceGate
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 134
+      line: 136
       assertion: CausalTraceReady=false -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesWithoutCausalTraceGate
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 124
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPWithoutCausalTraceGate (producer removed)
@@ -10200,6 +10403,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_enabled_without_target_canary_total
     canonical_metric_name: profile_warp_enabled_without_target_canary_total
     global_gate_class: profile_warp
@@ -10215,7 +10420,8 @@ families:
       line: 115
       mechanism: increment-only counter via observability (WARP enabled without passed target canary; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10237,8 +10443,18 @@ families:
     - kind: negative_fixture
       name: TestSPEnabledWithoutTargetCanary
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 144
+      line: 146
       assertion: TargetCanarySupported=false -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeEnableDeniesWithoutTargetCanary
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 198
+      assertion: production Enable root denies and increments
+    - kind: evaluator_fixture
+      name: TestRuntimePromoteBlocksWithoutTargetCanary
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 245
+      assertion: production Promote root blocks and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPEnabledWithoutTargetCanary (producer removed)
@@ -10250,6 +10466,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_test_token_reused_as_production_authorization_total
     canonical_metric_name: profile_warp_test_token_reused_as_production_authorization_total
     global_gate_class: profile_warp
@@ -10265,7 +10483,8 @@ families:
       line: 127
       mechanism: increment-only counter via observability (live test token authorizing production; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10287,8 +10506,13 @@ families:
     - kind: negative_fixture
       name: TestSPTestTokenReusedAsProductionAuthorization
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 154
+      line: 156
       assertion: live TestToken with ProductionAuthorized -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeEnableDeniesTestTokenReuse
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 178
+      assertion: production Enable root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPTestTokenReusedAsProductionAuthorization (producer removed)
@@ -10300,6 +10524,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_ignored_control_regression_total
     canonical_metric_name: profile_warp_recommendation_ignored_control_regression_total
     global_gate_class: profile_warp
@@ -10315,7 +10541,8 @@ families:
       line: 138
       mechanism: increment-only counter via observability (control regression reported as healthy; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10337,8 +10564,13 @@ families:
     - kind: negative_fixture
       name: TestSPIgnoredControlRegression
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 163
+      line: 165
       assertion: regression reported healthy -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeValidateBlocksIgnoredControlRegression
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 138
+      assertion: production Validate root blocks and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPIgnoredControlRegression (producer removed)
@@ -10350,6 +10582,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_hidden_fail_policy_total
     canonical_metric_name: profile_warp_recommendation_hidden_fail_policy_total
     global_gate_class: profile_warp
@@ -10365,7 +10599,8 @@ families:
       line: 149
       mechanism: increment-only counter via observability (recommendation without explicit failure policy; SP addendum v1.6
         sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10387,8 +10622,13 @@ families:
     - kind: negative_fixture
       name: TestSPHiddenFailPolicy
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 171
+      line: 173
       assertion: empty failure policy preview -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesHiddenFailPolicy
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 110
+      assertion: production Compile root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPHiddenFailPolicy (producer removed)
@@ -10400,6 +10640,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_nonru_suggested_without_geo_requirement_total
     canonical_metric_name: profile_nonru_suggested_without_geo_requirement_total
     global_gate_class: profile_warp
@@ -10415,7 +10657,8 @@ families:
       line: 160
       mechanism: increment-only counter via observability (non-RU option without declared geo requirement; SP addendum v1.6
         sect. 28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10437,8 +10680,13 @@ families:
     - kind: negative_fixture
       name: TestSPNonRUSuggestedWithoutGeoRequirement
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 179
+      line: 181
       assertion: strict non-ru without geo requirement -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeValidatePolicyDeniesNonRUWithoutGeo
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 218
+      assertion: production ValidatePolicy root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPNonRUSuggestedWithoutGeoRequirement (producer removed)
@@ -10450,6 +10698,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_camouflage_suggested_for_target_ip_block_total
     canonical_metric_name: profile_warp_camouflage_suggested_for_target_ip_block_total
     global_gate_class: profile_warp
@@ -10465,7 +10715,8 @@ families:
       line: 171
       mechanism: increment-only counter via observability (camouflage suggested for IP-blocked target; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10487,8 +10738,13 @@ families:
     - kind: negative_fixture
       name: TestSPCamouflageSuggestedForTargetIPBlock
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 188
+      line: 190
       assertion: camouflage for ip-blocked target -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeValidatePolicyDeniesCamouflageForIPBlock
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 232
+      assertion: production ValidatePolicy root denies and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPCamouflageSuggestedForTargetIPBlock (producer removed)
@@ -10500,6 +10756,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   - gate_id: profile_warp_recommendation_cleanup_failure_total
     canonical_metric_name: profile_warp_recommendation_cleanup_failure_total
     global_gate_class: profile_warp
@@ -10515,7 +10773,8 @@ families:
       line: 182
       mechanism: increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect.
         28A.11)
-      production_root: serviceprofile WARP-recommendation guards (sect. 28A.11; release pipeline root from validation)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
     verified_commit: 8d5223f0
     expected_producer_location: null
     verdict_consumer:
@@ -10537,8 +10796,13 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendationCleanupFailure
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 197
+      line: 199
       assertion: CleanedUp=false -> denied && counter > 0
+    - kind: evaluator_fixture
+      name: TestRuntimeValidateBlocksCleanupFailure
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 151
+      assertion: production Validate root blocks and increments
     mutation_test:
     - kind: removed_inc
       name: TestSPRecommendationCleanupFailure (producer removed)
@@ -10550,6 +10814,8 @@ families:
     - artifacts/remediation/FB02_SP_PRODUCERS.json
     - src/serviceprofile/hard_gate_producers_test.go
     - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
   csi:
   - gate_id: unrelated_control_action_total
     canonical_metric_name: unrelated_control_action_total
