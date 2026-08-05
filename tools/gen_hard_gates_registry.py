@@ -78,11 +78,11 @@ SECTIONS: dict[str, list[tuple[str, str, int, int, str]]] = {
         (ABD_DOC, "42", 3581, 3644, "blocking_profile_ddi"),
     ],
     "ddi_tgb": [
-        (DDI_DOC, "discovery", 1588, 1601, "discovery_profile"),
-        (DDI_DOC, "tgb", 1607, 1616, "mtproto_bridge"),
+        (DDI_DOC, "discovery", 1588, 1602, "discovery_profile"),
+        (DDI_DOC, "tgb", 1608, 1617, "mtproto_bridge"),
     ],
     "sp": [
-        (SP_DOC, "warp_recommendation", 3512, 3525, "profile_warp"),
+        (SP_DOC, "warp_recommendation", 3512, 3527, "profile_warp"),
     ],
     "csi": [
         (CSI_DOC, "hard_gate", 1220, 1220, "unrelated_control"),
@@ -590,98 +590,105 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
     "discovery_profile_without_context_validation_total": {
         "symbol": "UseProfileWithContext -> Metrics.Inc(MetricDiscoveryProfileWithoutContextValidation)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 34,
+        "line": 33,
         "mechanism": "increment-only counter via observability (guided discovery from a context mismatch/expired profile)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_stale_without_revalidation_total": {
         "symbol": "UseProfileRevalidated -> Metrics.Inc(MetricDiscoveryProfileStaleWithoutRevalidation)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 44,
+        "line": 43,
         "mechanism": "increment-only counter via observability (stale profile served without revalidation)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_cross_wan_use_total": {
         "symbol": "UseProfileSameWAN -> Metrics.Inc(MetricDiscoveryProfileCrossWANUse)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 54,
+        "line": 53,
         "mechanism": "increment-only counter via observability (profile built for a different WAN fingerprint)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_mutable_runtime_pointer_total": {
         "symbol": "RuntimeProfileBinding -> Metrics.Inc(MetricDiscoveryProfileMutableRuntimePointer)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 65,
+        "line": 64,
         "mechanism": "increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_hint_without_provenance_total": {
         "symbol": "UseSearchHint -> Metrics.Inc(MetricDiscoveryProfileHintWithoutProvenance)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 76,
+        "line": 75,
         "mechanism": "increment-only counter via observability (hint with candidate but no provenance)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_hint_overrode_current_baseline_total": {
         "symbol": "HintOrderRespectsBaseline -> Metrics.Inc(MetricDiscoveryProfileHintOverrodeBaseline)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 87,
+        "line": 86,
         "mechanism": "increment-only counter via observability (hint displaced the current baseline from the leading position)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_skipped_target_validation_total": {
         "symbol": "GuidedRunTargetValidated -> Metrics.Inc(MetricDiscoveryProfileSkippedTargetValidation)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 109,
+        "line": 108,
         "mechanism": "increment-only counter via observability (guided run without target-specific validation)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_disabled_exhaustive_fallback_total": {
         "symbol": "ExhaustiveFallbackEnabled -> Metrics.Inc(MetricDiscoveryProfileDisabledExhaustiveFallback)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 119,
+        "line": 118,
         "mechanism": "increment-only counter via observability (guided plan disabled exhaustive fallback)",
+        "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
+    },
+    "discovery_profile_guided_plan_outside_causal_eligibility_total": {
+        "symbol": "GuidedPlanWithinCausalEligibility -> Metrics.Inc(MetricDiscoveryProfileOutsideCausalEligibility)",
+        "file": "src/discovery/hard_gate_producers.go",
+        "line": 134,
+        "mechanism": "increment-only counter via observability (guided plan tried a candidate family outside the causal eligibility matrix)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_direct_production_write_total": {
         "symbol": "ProfileProductionWrite -> Metrics.Inc(MetricDiscoveryProfileDirectProductionWrite)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 129,
+        "line": 158,
         "mechanism": "increment-only counter via observability (direct production write of an unstaged profile)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_allowed_sni_direct_promotion_total": {
         "symbol": "PromoteViaSNI -> Metrics.Inc(MetricDiscoveryProfileAllowedSNIDirectPromotion)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 139,
+        "line": 168,
         "mechanism": "increment-only counter via observability (SNI direct promotion without target validation)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_threshold_out_of_budget_total": {
         "symbol": "CheckHintThreshold -> Metrics.Inc(MetricDiscoveryProfileThresholdOutOfBudget)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 149,
+        "line": 178,
         "mechanism": "increment-only counter via observability (hint threshold above the bounded probe budget)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_capture_gate_bypass_total": {
         "symbol": "PromotionCaptureGate -> Metrics.Inc(MetricDiscoveryProfileCaptureGateBypass)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 159,
+        "line": 188,
         "mechanism": "increment-only counter via observability (discovery promotion while capture gate not ready)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_cross_service_action_total": {
         "symbol": "ProfileActionScope -> Metrics.Inc(MetricDiscoveryProfileCrossServiceAction)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 169,
+        "line": 198,
         "mechanism": "increment-only counter via observability (profile action scope differs from the target service scope)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
     "discovery_profile_false_pass_total": {
         "symbol": "PublishIssue -> Metrics.Inc(MetricDiscoveryProfileFalsePass)",
         "file": "src/discovery/hard_gate_producers.go",
-        "line": 183,
+        "line": 212,
         "mechanism": "increment-only counter via observability (causal A/B bundle published with false promotion)",
         "production_root": "discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release pipeline root from validation)",
     },
@@ -1867,6 +1874,13 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (validation result with incomplete cleanup; SP addendum v1.6 sect. 28A.11)",
         "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
+    "profile_warp_recommended_outside_causal_eligibility_total": {
+        "symbol": "RecommendedOutsideCausalEligibilityAllowed -> Metrics.Inc(MetricSPRecommendedOutsideCausalEligibility)",
+        "file": "src/serviceprofile/hard_gate_producers.go",
+        "line": 121,
+        "mechanism": "increment-only counter via observability (WARP recommendation whose hypothesis is outside the FB-31 causal eligibility for scoped transport, or evidence below authoritative-abd; SP addendum v1.6 sect. 28A.11)",
+        "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -1937,6 +1951,7 @@ GATE_KINDS: dict[str, str] = {
     "discovery_profile_capture_gate_bypass_total": "zero_tolerance_violation_counter",
     "discovery_profile_cross_service_action_total": "zero_tolerance_violation_counter",
     "discovery_profile_false_pass_total": "zero_tolerance_violation_counter",
+    "discovery_profile_guided_plan_outside_causal_eligibility_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_zero_byte_handled_drop_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_fixed_5s_destructive_timeout_total": "zero_tolerance_violation_counter",
     "mtproto_bridge_unbounded_pending_total": "zero_tolerance_violation_counter",
@@ -2135,6 +2150,7 @@ GATE_KINDS: dict[str, str] = {
     "profile_nonru_suggested_without_geo_requirement_total": "zero_tolerance_violation_counter",
     "profile_warp_camouflage_suggested_for_target_ip_block_total": "zero_tolerance_violation_counter",
     "profile_warp_recommendation_cleanup_failure_total": "zero_tolerance_violation_counter",
+    "profile_warp_recommended_outside_causal_eligibility_total": "zero_tolerance_violation_counter",
 }
 
 # Verdict consumers wired in production (2026-08-01): metric name -> list of
@@ -2852,6 +2868,10 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "discovery_profile_guided_plan_outside_causal_eligibility_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     "mtproto_bridge_zero_byte_handled_drop_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.ddi_tgb; count != 0 -> GateFail"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
@@ -3133,6 +3153,10 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
     "profile_warp_recommendation_cleanup_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.sp; count != 0 -> GateFail"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "profile_warp_recommended_outside_causal_eligibility_total": [
         {"kind": "promotion_blocker", "symbol": "EvaluateHardGates zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 329, "binding": "scope.sp; count != 0 -> GateFail"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
@@ -3734,28 +3758,32 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
         {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIHintOverrodeBaseline", "file": "src/discovery/hard_gate_producers_test.go", "line": 94, "assertion": "leading candidate not in baseline -> denied && counter > 0"},
     ],
     "discovery_profile_skipped_target_validation_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDISkippedTargetValidation", "file": "src/discovery/hard_gate_producers_test.go", "line": 101, "assertion": "not target-validated -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDISkippedTargetValidation", "file": "src/discovery/hard_gate_producers_test.go", "line": 154, "assertion": "not target-validated -> denied && counter > 0"},
     ],
     "discovery_profile_disabled_exhaustive_fallback_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDisabledExhaustiveFallback", "file": "src/discovery/hard_gate_producers_test.go", "line": 107, "assertion": "ExhaustiveFallback=false -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDisabledExhaustiveFallback", "file": "src/discovery/hard_gate_producers_test.go", "line": 148, "assertion": "ExhaustiveFallback=false -> denied && counter > 0"},
     ],
     "discovery_profile_direct_production_write_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDirectProductionWrite", "file": "src/discovery/hard_gate_producers_test.go", "line": 113, "assertion": "unstaged write -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIDirectProductionWrite", "file": "src/discovery/hard_gate_producers_test.go", "line": 160, "assertion": "unstaged write -> denied && counter > 0"},
     ],
     "discovery_profile_allowed_sni_direct_promotion_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIAllowedSNIDirectPromotion", "file": "src/discovery/hard_gate_producers_test.go", "line": 119, "assertion": "SNI promotion of unvalidated target -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIAllowedSNIDirectPromotion", "file": "src/discovery/hard_gate_producers_test.go", "line": 166, "assertion": "SNI promotion of unvalidated target -> denied && counter > 0"},
     ],
     "discovery_profile_threshold_out_of_budget_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIThresholdOutOfBudget", "file": "src/discovery/hard_gate_producers_test.go", "line": 125, "assertion": "threshold 100 > budget 50 -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIThresholdOutOfBudget", "file": "src/discovery/hard_gate_producers_test.go", "line": 172, "assertion": "threshold 100 > budget 50 -> denied && counter > 0"},
     ],
     "discovery_profile_capture_gate_bypass_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICaptureGateBypass", "file": "src/discovery/hard_gate_producers_test.go", "line": 131, "assertion": "capture not ready -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICaptureGateBypass", "file": "src/discovery/hard_gate_producers_test.go", "line": 178, "assertion": "capture not ready -> denied && counter > 0"},
     ],
     "discovery_profile_cross_service_action_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICrossServiceAction", "file": "src/discovery/hard_gate_producers_test.go", "line": 137, "assertion": "service profile / component mismatch -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDICrossServiceAction", "file": "src/discovery/hard_gate_producers_test.go", "line": 184, "assertion": "service profile / component mismatch -> denied && counter > 0"},
     ],
     "discovery_profile_false_pass_total": [
-        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIFalsePass", "file": "src/discovery/hard_gate_producers_test.go", "line": 146, "assertion": "FalsePromotion=true -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIFalsePass", "file": "src/discovery/hard_gate_producers_test.go", "line": 193, "assertion": "FalsePromotion=true -> denied && counter > 0"},
+    ],
+    "discovery_profile_guided_plan_outside_causal_eligibility_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_DDIOutsideCausalEligibility", "file": "src/discovery/hard_gate_producers_test.go", "line": 105, "assertion": "outside eligibility -> denied && counter > 0"},
+        {"kind": "positive_fixture", "name": "TestHardGateProducer_DDIWithinCausalEligibilityPositive", "file": "src/discovery/hard_gate_producers_test.go", "line": 129, "assertion": "inside eligibility -> allowed && counter == 0"},
     ],
     "mtproto_bridge_zero_byte_handled_drop_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_TGBZeroByteHandledDrop", "file": "src/mtproto/hard_gate_producers_test.go", "line": 45, "assertion": "ReasonZeroByte + BridgeHandled -> denied && counter > 0"},
@@ -3909,12 +3937,18 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
         {"kind": "evaluator_fixture", "name": "TestRuntimeValidatePolicyDeniesNonRUWithoutGeo", "file": "src/serviceprofile/runtime_integration_test.go", "line": 218, "assertion": "production ValidatePolicy root denies and increments"},
     ],
     "profile_warp_camouflage_suggested_for_target_ip_block_total": [
-        {"kind": "negative_fixture", "name": "TestSPCamouflageSuggestedForTargetIPBlock", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 190, "assertion": "camouflage for ip-blocked target -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPCamouflageSuggestedForTargetIPBlock", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 226, "assertion": "camouflage for ip-blocked target -> denied && counter > 0"},
         {"kind": "evaluator_fixture", "name": "TestRuntimeValidatePolicyDeniesCamouflageForIPBlock", "file": "src/serviceprofile/runtime_integration_test.go", "line": 232, "assertion": "production ValidatePolicy root denies and increments"},
     ],
     "profile_warp_recommendation_cleanup_failure_total": [
-        {"kind": "negative_fixture", "name": "TestSPRecommendationCleanupFailure", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 199, "assertion": "CleanedUp=false -> denied && counter > 0"},
+        {"kind": "negative_fixture", "name": "TestSPRecommendationCleanupFailure", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 235, "assertion": "CleanedUp=false -> denied && counter > 0"},
         {"kind": "evaluator_fixture", "name": "TestRuntimeValidateBlocksCleanupFailure", "file": "src/serviceprofile/runtime_integration_test.go", "line": 151, "assertion": "production Validate root blocks and increments"},
+    ],
+    "profile_warp_recommended_outside_causal_eligibility_total": [
+        {"kind": "negative_fixture", "name": "TestSPRecommendedOutsideCausalEligibility", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 151, "assertion": "unknown hypothesis / provisional authority / empty authority -> denied && counter > 0"},
+        {"kind": "positive_fixture", "name": "TestSPRecommendedWithinCausalEligibilityPositive", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 172, "assertion": "authoritative IP-filter hypothesis -> allowed && counter stays 0"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesOutsideCausalEligibility", "file": "src/serviceprofile/runtime_integration_test.go", "line": 141, "assertion": "production Compile root denies unknown hypothesis and increments"},
+        {"kind": "evaluator_fixture", "name": "TestRuntimeCompileDeniesProvisionalWARPEscalation", "file": "src/serviceprofile/runtime_integration_test.go", "line": 156, "assertion": "production Compile root denies provisional WARP escalation (FB-14 п.13)"},
     ],
 }
 
@@ -4159,6 +4193,7 @@ for _name in [
     "discovery_profile_capture_gate_bypass_total",
     "discovery_profile_cross_service_action_total",
     "discovery_profile_false_pass_total",
+    "discovery_profile_guided_plan_outside_causal_eligibility_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_DDI)
 _EVIDENCE_TGB = [
@@ -4291,6 +4326,7 @@ for _name in [
     "profile_nonru_suggested_without_geo_requirement_total",
     "profile_warp_camouflage_suggested_for_target_ip_block_total",
     "profile_warp_recommendation_cleanup_failure_total",
+    "profile_warp_recommended_outside_causal_eligibility_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_SP)
 _EVIDENCE_MON = [

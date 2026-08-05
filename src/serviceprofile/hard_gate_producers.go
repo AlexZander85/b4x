@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/observability"
+	"github.com/daniellavrushin/b4/validation"
 )
 
 func spInc(name string) {
@@ -30,7 +31,7 @@ func spInc(name string) {
 
 // RecommendedWithoutIPPathEvidenceAllowed denies a WARP recommendation that
 // carries no IP-path evidence: only IP-level filtering hypotheses may be
-// recommended (supportedIPHypotheses), never a bare connectivity symptom.
+// recommended (supportedIPHypothesis), never a bare connectivity symptom.
 func RecommendedWithoutIPPathEvidenceAllowed(ipPathEvidence bool) bool {
 	if !ipPathEvidence {
 		spInc(observability.MetricSPRecommendedWithoutIPPathEvidence)
@@ -101,6 +102,23 @@ func StaleProfileRecommendationAllowed(r TransportRecommendation, now time.Time)
 func WithoutCausalTraceGateAllowed(p WARPProjection) bool {
 	if !p.CausalTraceReady {
 		spInc(observability.MetricSPWithoutCausalTraceGate)
+		return false
+	}
+	return true
+}
+
+// RecommendedOutsideCausalEligibilityAllowed (FB-31, b4x-cka) denies a WARP
+// recommendation whose blocking hypothesis does not resolve to a failure
+// family eligible for scoped transport with the required evidence authority:
+// WARP recommendations are legal only for families declaring
+// transport_authorization=scoped-eligible-to-test (ip_cidr_route_block
+// today) with evidence at authoritative-abd or above (FB-30). Provisional
+// hints never satisfy this gate (FB-14 п.13). Unknown hypothesis or unknown
+// authority fails closed (denied).
+func RecommendedOutsideCausalEligibilityAllowed(hypothesis, authority string) bool {
+	family, ok := validation.CausalEligibilityFamilyForHypothesis(hypothesis)
+	if !ok || !validation.TransportAuthorized(family, authority) {
+		spInc(observability.MetricSPRecommendedOutsideCausalEligibility)
 		return false
 	}
 	return true

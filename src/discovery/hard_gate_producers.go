@@ -19,6 +19,7 @@ import (
 
 	"github.com/daniellavrushin/b4/monitor"
 	"github.com/daniellavrushin/b4/observability"
+	"github.com/daniellavrushin/b4/validation"
 )
 
 func ddiInc(name string) {
@@ -118,6 +119,36 @@ func ExhaustiveFallbackEnabled(plan GuidedSearchPlan) bool {
 	if !plan.ExhaustiveFallback {
 		ddiInc(observability.MetricDiscoveryProfileDisabledExhaustiveFallback)
 		return false
+	}
+	return true
+}
+
+// GuidedPlanWithinCausalEligibility (FB-31, b4x-cka) refuses a guided plan
+// whose ordered candidate set contains a family the causal eligibility
+// matrix forbids for the failure family (or a scoped-transport candidate
+// the evidence authority does not authorize). Mandatory narrower families
+// are always allowed — a hint may reorder, never remove them. Unknown
+// failure family fails closed (denied). This is the runtime counterpart of
+// the CompileEligiblePlan filter: a plan built by any other path must still
+// pass the matrix before the guided run starts.
+func GuidedPlanWithinCausalEligibility(plan GuidedSearchPlan, family, authority string) bool {
+	entry, ok := validation.CausalEligibilityByFamily(family)
+	if !ok {
+		ddiInc(observability.MetricDiscoveryProfileOutsideCausalEligibility)
+		return false
+	}
+	for _, c := range plan.Ordered {
+		if containsCandidate(entry.MandatoryNarrowerFamilies, c) {
+			continue
+		}
+		if containsCandidate(entry.ForbiddenCandidateFamilies, c) {
+			ddiInc(observability.MetricDiscoveryProfileOutsideCausalEligibility)
+			return false
+		}
+		if c == "scoped_transport" && !validation.TransportAuthorized(family, authority) {
+			ddiInc(observability.MetricDiscoveryProfileOutsideCausalEligibility)
+			return false
+		}
 	}
 	return true
 }

@@ -69,6 +69,11 @@ type LifecycleEvent struct {
 	ControlsHealthy bool
 	ConsumerService string
 	IPBlockTarget   bool
+	// EvidenceAuthority is the FB-30 authority level of the evidence behind
+	// the recommendation (passive-monitoring, provisional-fast,
+	// authoritative-abd, android-canary). The causal eligibility gate
+	// (FB-31) requires authoritative-abd or above for scoped transport.
+	EvidenceAuthority string
 }
 
 // recommendationState is the per-recommendation lifecycle state of the
@@ -173,7 +178,8 @@ func (rt *Runtime) loop() {
 // order) call exactly one §28A.11 guard each and never reach the library
 // compiler: recommendation without IP-path evidence, destination-only scope,
 // dead origin, unhealthy controls, cross-service consumption, missing
-// failure-policy preview, missing causal-trace gate.
+// failure-policy preview, missing causal-trace gate, hypothesis outside the
+// FB-31 causal eligibility for scoped transport.
 func (rt *Runtime) Compile(now time.Time, r TransportRecommendation, ctx LifecycleEvent) (TransportRecommendation, error) {
 	if rt == nil {
 		return TransportRecommendation{}, errors.New("recommendation runtime not initialized")
@@ -198,6 +204,9 @@ func (rt *Runtime) Compile(now time.Time, r TransportRecommendation, ctx Lifecyc
 	}
 	if !WithoutCausalTraceGateAllowed(ctx.Projection) {
 		return TransportRecommendation{}, errors.New("recommendation without causal-trace gate")
+	}
+	if !RecommendedOutsideCausalEligibilityAllowed(r.BlockingHypothesisID, ctx.EvidenceAuthority) {
+		return TransportRecommendation{}, errors.New("recommendation outside FB-31 causal eligibility")
 	}
 	return CompileRecommendation(now, r)
 }

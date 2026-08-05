@@ -26,11 +26,12 @@ func newSPRuntime(t *testing.T) *Runtime {
 
 func spCompileCtx() LifecycleEvent {
 	return LifecycleEvent{
-		IPPathEvidence:  true,
-		OriginAlive:     true,
-		ControlsHealthy: true,
-		ConsumerService: "svc-a",
-		Projection:      spWARPProjection(),
+		IPPathEvidence:    true,
+		OriginAlive:       true,
+		ControlsHealthy:   true,
+		ConsumerService:   "svc-a",
+		Projection:        spWARPProjection(),
+		EvidenceAuthority: "authoritative-abd",
 	}
 }
 
@@ -128,6 +129,37 @@ func TestRuntimeCompileDeniesWithoutCausalTraceGate(t *testing.T) {
 		ctx.Projection.CausalTraceReady = false
 		if _, err := rt.Compile(time.Now(), spRecommendation(), ctx); err == nil {
 			t.Fatal("recommendation without causal-trace gate must be denied")
+		}
+	})
+}
+
+// TestRuntimeCompileDeniesOutsideCausalEligibility drives
+// RecommendedOutsideCausalEligibilityAllowed through the production Compile
+// root (profile_warp_recommended_outside_causal_eligibility_total): a
+// hypothesis that the FB-31 matrix does not map to a scoped-transport
+// eligible family is denied even with authoritative evidence.
+func TestRuntimeCompileDeniesOutsideCausalEligibility(t *testing.T) {
+	assertSPInc(t, "profile_warp_recommended_outside_causal_eligibility_total", func() {
+		rt := newSPRuntime(t)
+		r := spRecommendation()
+		r.BlockingHypothesisID = "no_such_hypothesis"
+		if _, err := rt.Compile(time.Now(), r, spCompileCtx()); err == nil {
+			t.Fatal("recommendation outside causal eligibility must be denied")
+		}
+	})
+}
+
+// TestRuntimeCompileDeniesProvisionalWARPEscalation drives
+// RecommendedOutsideCausalEligibilityAllowed for the FB-31 acceptance case:
+// provisional evidence (FB-14 п.13) never authorizes scoped transport, even
+// for a valid IP-filter hypothesis.
+func TestRuntimeCompileDeniesProvisionalWARPEscalation(t *testing.T) {
+	assertSPInc(t, "profile_warp_recommended_outside_causal_eligibility_total", func() {
+		rt := newSPRuntime(t)
+		ctx := spCompileCtx()
+		ctx.EvidenceAuthority = "provisional-fast"
+		if _, err := rt.Compile(time.Now(), spRecommendation(), ctx); err == nil {
+			t.Fatal("provisional WARP escalation must be denied")
 		}
 	})
 }

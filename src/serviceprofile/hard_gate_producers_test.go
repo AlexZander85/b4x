@@ -143,6 +143,42 @@ func TestSPWithoutCausalTraceGate(t *testing.T) {
 	})
 }
 
+// TestSPRecommendedOutsideCausalEligibility (FB-31, b4x-cka): a WARP
+// recommendation is denied when the blocking hypothesis does not resolve to
+// a scoped-transport eligible failure family (unknown hypothesis) or when
+// the evidence authority is below the family requirement (provisional hint
+// never authorizes transport, FB-14 п.13).
+func TestSPRecommendedOutsideCausalEligibility(t *testing.T) {
+	assertSPInc(t, observability.MetricSPRecommendedOutsideCausalEligibility, func() {
+		if RecommendedOutsideCausalEligibilityAllowed("no_such_hypothesis", "authoritative-abd") {
+			t.Fatal("unknown hypothesis must be denied")
+		}
+	})
+	assertSPInc(t, observability.MetricSPRecommendedOutsideCausalEligibility, func() {
+		if RecommendedOutsideCausalEligibilityAllowed("path_local_syn_filter_probable", "provisional-fast") {
+			t.Fatal("provisional WARP escalation must be denied")
+		}
+	})
+	assertSPInc(t, observability.MetricSPRecommendedOutsideCausalEligibility, func() {
+		if RecommendedOutsideCausalEligibilityAllowed("path_local_syn_filter_probable", "") {
+			t.Fatal("empty evidence authority must be denied")
+		}
+	})
+}
+
+// TestSPRecommendedWithinCausalEligibilityPositive drives the allowed branch:
+// an authoritative IP-filter hypothesis resolves to ip_cidr_route_block and
+// must NOT increment the zero-tolerance counter.
+func TestSPRecommendedWithinCausalEligibilityPositive(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	if !RecommendedOutsideCausalEligibilityAllowed("path_local_syn_filter_probable", "authoritative-abd") {
+		t.Fatal("authoritative IP-filter hypothesis must be allowed")
+	}
+	if after := spCounterValue(t, observability.MetricSPRecommendedOutsideCausalEligibility); after != 0 {
+		t.Fatalf("allowed branch must not increment counter, got %d", after)
+	}
+}
+
 func TestSPEnabledWithoutTargetCanary(t *testing.T) {
 	assertSPInc(t, observability.MetricSPEnabledWithoutTargetCanary, func() {
 		p := spWARPProjection()

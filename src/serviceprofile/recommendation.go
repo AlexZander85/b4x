@@ -3,6 +3,8 @@ package serviceprofile
 import (
 	"errors"
 	"time"
+
+	"github.com/daniellavrushin/b4/validation"
 )
 
 type TransportRecommendationState string
@@ -31,13 +33,22 @@ type TransportRecommendation struct {
 	CreatedAt, ExpiresAt                                                                                             time.Time
 }
 
-var supportedIPHypotheses = map[string]bool{"path_local_syn_filter_probable": true, "path_local_syn_filter_confirmed": true, "service_ip_filter_probable": true, "service_cidr_filter_probable": true, "multi_origin_direct_connect_failure_with_reference_success": true, "shared_transport_path_block_probable": true}
+// supportedIPHypothesis reports whether the blocking hypothesis is eligible
+// to recommend WARP (FB-31, b4x-cka). The supported set is NOT hardcoded
+// here: a hypothesis is supported exactly when the causal eligibility matrix
+// maps it to a failure family that declares scoped-eligible-to-test
+// transport (ip_cidr_route_block today). If the matrix is edited, the
+// compiler follows it automatically and fails closed on unknown hypotheses.
+func supportedIPHypothesis(h string) bool {
+	family, ok := validation.CausalEligibilityFamilyForHypothesis(h)
+	return ok && validation.TransportEligibleFamily(family)
+}
 
 func CompileRecommendation(now time.Time, r TransportRecommendation) (TransportRecommendation, error) {
 	if r.TransportKind != "cloudflare-warp-masque" || r.TransportMode != "base" {
 		return TransportRecommendation{}, errors.New("only base builtin warp recommendation is supported")
 	}
-	if !supportedIPHypotheses[r.BlockingHypothesisID] {
+	if !supportedIPHypothesis(r.BlockingHypothesisID) {
 		r.State = RecommendationNotApplicable
 		return r, nil
 	}

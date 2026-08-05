@@ -98,15 +98,62 @@ func TestHardGateProducer_DDIHintOverrodeBaseline(t *testing.T) {
 	})
 }
 
-func TestHardGateProducer_DDISkippedTargetValidation(t *testing.T) {
-	assertDDIInc(t, observability.MetricDiscoveryProfileSkippedTargetValidation, func() {
-		GuidedRunTargetValidated(false)
+// TestHardGateProducer_DDIOutsideCausalEligibility (FB-31, b4x-cka): a
+// guided plan that leaks a matrix-forbidden family into Ordered is denied
+// and increments the zero-tolerance counter; unknown failure family fails
+// closed.
+func TestHardGateProducer_DDIOutsideCausalEligibility(t *testing.T) {
+	assertDDIInc(t, observability.MetricDiscoveryProfileOutsideCausalEligibility, func() {
+		plan := GuidedSearchPlan{Baseline: []string{"trusted_doh"}, Ordered: []string{"trusted_doh", "scoped_transport"}, ExhaustiveFallback: true}
+		if GuidedPlanWithinCausalEligibility(plan, "dns_interception", "authoritative-abd") {
+			t.Fatal("scoped_transport forbidden for dns_interception must be denied")
+		}
 	})
+	assertDDIInc(t, observability.MetricDiscoveryProfileOutsideCausalEligibility, func() {
+		plan := GuidedSearchPlan{Baseline: []string{"scoped_transport"}, Ordered: []string{"scoped_transport"}, ExhaustiveFallback: true}
+		if GuidedPlanWithinCausalEligibility(plan, "ip_cidr_route_block", "provisional-fast") {
+			t.Fatal("provisional WARP escort must be denied")
+		}
+	})
+	assertDDIInc(t, observability.MetricDiscoveryProfileOutsideCausalEligibility, func() {
+		plan := GuidedSearchPlan{Baseline: []string{"trusted_doh"}, Ordered: []string{"trusted_doh"}, ExhaustiveFallback: true}
+		if GuidedPlanWithinCausalEligibility(plan, "NO_SUCH_FAMILY", "authoritative-abd") {
+			t.Fatal("unknown failure family must be denied")
+		}
+	})
+}
+
+// TestHardGateProducer_DDIWithinCausalEligibilityPositive drives the allowed
+// branch: an eligible plan (mandatory narrower retained, authoritative
+// scoped transport) must NOT increment the zero-tolerance counter.
+func TestHardGateProducer_DDIWithinCausalEligibilityPositive(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	plan := GuidedSearchPlan{
+		Baseline:           []string{"ip_family_switch"},
+		Ordered:            []string{"ip_family_switch", "scoped_transport"},
+		ExhaustiveFallback: true,
+	}
+	if !GuidedPlanWithinCausalEligibility(plan, "ip_cidr_route_block", "authoritative-abd") {
+		t.Fatal("authoritative scoped-transport plan must be allowed")
+	}
+	plan = GuidedSearchPlan{Baseline: []string{"marker_split_near_sni"}, Ordered: []string{"marker_split_near_sni", "canonical_clienthello_profile"}, ExhaustiveFallback: true}
+	if !GuidedPlanWithinCausalEligibility(plan, "tls_fingerprint_specific", "provisional-fast") {
+		t.Fatal("mandatory narrower family must always be allowed")
+	}
+	if after := ddiCounterValue(t, observability.MetricDiscoveryProfileOutsideCausalEligibility); after != 0 {
+		t.Fatalf("allowed branches must not increment counter, got %d", after)
+	}
 }
 
 func TestHardGateProducer_DDIDisabledExhaustiveFallback(t *testing.T) {
 	assertDDIInc(t, observability.MetricDiscoveryProfileDisabledExhaustiveFallback, func() {
 		ExhaustiveFallbackEnabled(GuidedSearchPlan{Baseline: []string{"1.1.1.1"}, Ordered: []string{"1.1.1.1"}})
+	})
+}
+
+func TestHardGateProducer_DDISkippedTargetValidation(t *testing.T) {
+	assertDDIInc(t, observability.MetricDiscoveryProfileSkippedTargetValidation, func() {
+		GuidedRunTargetValidated(false)
 	})
 }
 

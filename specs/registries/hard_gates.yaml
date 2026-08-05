@@ -8941,7 +8941,7 @@ families:
     runtime_producer:
       symbol: UseProfileWithContext -> Metrics.Inc(MetricDiscoveryProfileWithoutContextValidation)
       file: src/discovery/hard_gate_producers.go
-      line: 34
+      line: 33
       mechanism: increment-only counter via observability (guided discovery from a context mismatch/expired profile)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -8986,7 +8986,7 @@ families:
     runtime_producer:
       symbol: UseProfileRevalidated -> Metrics.Inc(MetricDiscoveryProfileStaleWithoutRevalidation)
       file: src/discovery/hard_gate_producers.go
-      line: 44
+      line: 43
       mechanism: increment-only counter via observability (stale profile served without revalidation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9031,7 +9031,7 @@ families:
     runtime_producer:
       symbol: UseProfileSameWAN -> Metrics.Inc(MetricDiscoveryProfileCrossWANUse)
       file: src/discovery/hard_gate_producers.go
-      line: 54
+      line: 53
       mechanism: increment-only counter via observability (profile built for a different WAN fingerprint)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9076,7 +9076,7 @@ families:
     runtime_producer:
       symbol: RuntimeProfileBinding -> Metrics.Inc(MetricDiscoveryProfileMutableRuntimePointer)
       file: src/discovery/hard_gate_producers.go
-      line: 65
+      line: 64
       mechanism: increment-only counter via observability (runtime handed a mutable profile pointer instead of a snapshot)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9121,7 +9121,7 @@ families:
     runtime_producer:
       symbol: UseSearchHint -> Metrics.Inc(MetricDiscoveryProfileHintWithoutProvenance)
       file: src/discovery/hard_gate_producers.go
-      line: 76
+      line: 75
       mechanism: increment-only counter via observability (hint with candidate but no provenance)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9166,7 +9166,7 @@ families:
     runtime_producer:
       symbol: HintOrderRespectsBaseline -> Metrics.Inc(MetricDiscoveryProfileHintOverrodeBaseline)
       file: src/discovery/hard_gate_producers.go
-      line: 87
+      line: 86
       mechanism: increment-only counter via observability (hint displaced the current baseline from the leading position)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9211,7 +9211,7 @@ families:
     runtime_producer:
       symbol: GuidedRunTargetValidated -> Metrics.Inc(MetricDiscoveryProfileSkippedTargetValidation)
       file: src/discovery/hard_gate_producers.go
-      line: 109
+      line: 108
       mechanism: increment-only counter via observability (guided run without target-specific validation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9236,7 +9236,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDISkippedTargetValidation
       file: src/discovery/hard_gate_producers_test.go
-      line: 101
+      line: 154
       assertion: not target-validated -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9256,7 +9256,7 @@ families:
     runtime_producer:
       symbol: ExhaustiveFallbackEnabled -> Metrics.Inc(MetricDiscoveryProfileDisabledExhaustiveFallback)
       file: src/discovery/hard_gate_producers.go
-      line: 119
+      line: 118
       mechanism: increment-only counter via observability (guided plan disabled exhaustive fallback)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9281,7 +9281,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDIDisabledExhaustiveFallback
       file: src/discovery/hard_gate_producers_test.go
-      line: 107
+      line: 148
       assertion: ExhaustiveFallback=false -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9301,7 +9301,7 @@ families:
     runtime_producer:
       symbol: ProfileProductionWrite -> Metrics.Inc(MetricDiscoveryProfileDirectProductionWrite)
       file: src/discovery/hard_gate_producers.go
-      line: 129
+      line: 158
       mechanism: increment-only counter via observability (direct production write of an unstaged profile)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9326,7 +9326,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDIDirectProductionWrite
       file: src/discovery/hard_gate_producers_test.go
-      line: 113
+      line: 160
       assertion: unstaged write -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9346,7 +9346,7 @@ families:
     runtime_producer:
       symbol: PromoteViaSNI -> Metrics.Inc(MetricDiscoveryProfileAllowedSNIDirectPromotion)
       file: src/discovery/hard_gate_producers.go
-      line: 139
+      line: 168
       mechanism: increment-only counter via observability (SNI direct promotion without target validation)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9371,7 +9371,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDIAllowedSNIDirectPromotion
       file: src/discovery/hard_gate_producers_test.go
-      line: 119
+      line: 166
       assertion: SNI promotion of unvalidated target -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9391,7 +9391,7 @@ families:
     runtime_producer:
       symbol: CheckHintThreshold -> Metrics.Inc(MetricDiscoveryProfileThresholdOutOfBudget)
       file: src/discovery/hard_gate_producers.go
-      line: 149
+      line: 178
       mechanism: increment-only counter via observability (hint threshold above the bounded probe budget)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9416,7 +9416,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDIThresholdOutOfBudget
       file: src/discovery/hard_gate_producers_test.go
-      line: 125
+      line: 172
       assertion: threshold 100 > budget 50 -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9436,7 +9436,7 @@ families:
     runtime_producer:
       symbol: PromotionCaptureGate -> Metrics.Inc(MetricDiscoveryProfileCaptureGateBypass)
       file: src/discovery/hard_gate_producers.go
-      line: 159
+      line: 188
       mechanism: increment-only counter via observability (discovery promotion while capture gate not ready)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9461,7 +9461,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDICaptureGateBypass
       file: src/discovery/hard_gate_producers_test.go
-      line: 131
+      line: 178
       assertion: capture not ready -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9481,7 +9481,7 @@ families:
     runtime_producer:
       symbol: ProfileActionScope -> Metrics.Inc(MetricDiscoveryProfileCrossServiceAction)
       file: src/discovery/hard_gate_producers.go
-      line: 169
+      line: 198
       mechanism: increment-only counter via observability (profile action scope differs from the target service scope)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9506,7 +9506,7 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDICrossServiceAction
       file: src/discovery/hard_gate_producers_test.go
-      line: 137
+      line: 184
       assertion: service profile / component mismatch -> denied && counter > 0
     mutation_test: null
     evidence_artifact:
@@ -9526,7 +9526,7 @@ families:
     runtime_producer:
       symbol: PublishIssue -> Metrics.Inc(MetricDiscoveryProfileFalsePass)
       file: src/discovery/hard_gate_producers.go
-      line: 183
+      line: 212
       mechanism: increment-only counter via observability (causal A/B bundle published with false promotion)
       production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
         pipeline root from validation)
@@ -9551,8 +9551,59 @@ families:
     - kind: negative_fixture
       name: TestHardGateProducer_DDIFalsePass
       file: src/discovery/hard_gate_producers_test.go
-      line: 146
+      line: 193
       assertion: FalsePromotion=true -> denied && counter > 0
+    mutation_test: null
+    evidence_artifact:
+    - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
+    - src/discovery/hard_gate_producers_test.go
+    - src/discovery/hard_gate_producers.go
+  - gate_id: discovery_profile_guided_plan_outside_causal_eligibility_total
+    canonical_metric_name: discovery_profile_guided_plan_outside_causal_eligibility_total
+    global_gate_class: discovery_profile
+    owner_family: ddi_tgb
+    owner_stage: apply
+    source_doc: B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
+    source_section: discovery
+    kind: zero_tolerance_violation_counter
+    producer_status: verified
+    runtime_producer:
+      symbol: GuidedPlanWithinCausalEligibility -> Metrics.Inc(MetricDiscoveryProfileOutsideCausalEligibility)
+      file: src/discovery/hard_gate_producers.go
+      line: 134
+      mechanism: increment-only counter via observability (guided plan tried a candidate family outside the causal eligibility
+        matrix)
+      production_root: discovery.guards (profile lifecycle -> context/revalidation -> hint planning -> guided run; release
+        pipeline root from validation)
+    verified_commit: e8d411e2
+    expected_producer_location: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.ddi_tgb; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
+    promotion_blocker: true
+    reset_semantics: increment-only; window-delta == 0
+    expiry_generation_binding: null
+    applicability: family:ddi_tgb
+    test_producer:
+    - kind: negative_fixture
+      name: TestHardGateProducer_DDIOutsideCausalEligibility
+      file: src/discovery/hard_gate_producers_test.go
+      line: 105
+      assertion: outside eligibility -> denied && counter > 0
+    - kind: positive_fixture
+      name: TestHardGateProducer_DDIWithinCausalEligibilityPositive
+      file: src/discovery/hard_gate_producers_test.go
+      line: 129
+      assertion: inside eligibility -> allowed && counter == 0
     mutation_test: null
     evidence_artifact:
     - B4X_POST_V23_DETECTOR_GUIDED_DISCOVERY_AND_TELEGRAM_BRIDGE_HARDENING_ADDENDUM_v1.0.md
@@ -10738,7 +10789,7 @@ families:
     - kind: negative_fixture
       name: TestSPCamouflageSuggestedForTargetIPBlock
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 190
+      line: 226
       assertion: camouflage for ip-blocked target -> denied && counter > 0
     - kind: evaluator_fixture
       name: TestRuntimeValidatePolicyDeniesCamouflageForIPBlock
@@ -10796,7 +10847,7 @@ families:
     - kind: negative_fixture
       name: TestSPRecommendationCleanupFailure
       file: src/serviceprofile/hard_gate_producers_test.go
-      line: 199
+      line: 235
       assertion: CleanedUp=false -> denied && counter > 0
     - kind: evaluator_fixture
       name: TestRuntimeValidateBlocksCleanupFailure
@@ -10809,6 +10860,69 @@ families:
       file: src/serviceprofile/hard_gate_producers_test.go
       line: 197
       status: executed
+    evidence_artifact:
+    - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    - artifacts/remediation/FB02_SP_PRODUCERS.json
+    - src/serviceprofile/hard_gate_producers_test.go
+    - src/serviceprofile/hard_gate_producers.go
+    - src/serviceprofile/runtime.go
+    - src/serviceprofile/runtime_integration_test.go
+  - gate_id: profile_warp_recommended_outside_causal_eligibility_total
+    canonical_metric_name: profile_warp_recommended_outside_causal_eligibility_total
+    global_gate_class: profile_warp
+    owner_family: sp
+    owner_stage: apply
+    source_doc: B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
+    source_section: warp_recommendation
+    kind: zero_tolerance_violation_counter
+    producer_status: verified
+    runtime_producer:
+      symbol: RecommendedOutsideCausalEligibilityAllowed -> Metrics.Inc(MetricSPRecommendedOutsideCausalEligibility)
+      file: src/serviceprofile/hard_gate_producers.go
+      line: 121
+      mechanism: increment-only counter via observability (WARP recommendation whose hypothesis is outside the FB-31 causal
+        eligibility for scoped transport, or evidence below authoritative-abd; SP addendum v1.6 sect. 28A.11)
+      production_root: serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote;
+        controller-loop root from main)
+    verified_commit: e8d411e2
+    expected_producer_location: null
+    verdict_consumer:
+    - kind: promotion_blocker
+      symbol: EvaluateHardGates zero-tolerance branch (evaluateGateSet)
+      file: src/validation/gates.go
+      line: 329
+      binding: scope.sp; count != 0 -> GateFail
+    - kind: http_report
+      symbol: GET /api/v2/validation/gates
+      file: src/http/handler/validation_gates.go
+      line: 0
+      binding: live snapshot
+    promotion_blocker: true
+    reset_semantics: increment-only; window-delta == 0
+    expiry_generation_binding: null
+    applicability: family:sp
+    test_producer:
+    - kind: negative_fixture
+      name: TestSPRecommendedOutsideCausalEligibility
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 151
+      assertion: unknown hypothesis / provisional authority / empty authority -> denied && counter > 0
+    - kind: positive_fixture
+      name: TestSPRecommendedWithinCausalEligibilityPositive
+      file: src/serviceprofile/hard_gate_producers_test.go
+      line: 172
+      assertion: authoritative IP-filter hypothesis -> allowed && counter stays 0
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesOutsideCausalEligibility
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 141
+      assertion: production Compile root denies unknown hypothesis and increments
+    - kind: evaluator_fixture
+      name: TestRuntimeCompileDeniesProvisionalWARPEscalation
+      file: src/serviceprofile/runtime_integration_test.go
+      line: 156
+      assertion: production Compile root denies provisional WARP escalation (FB-14 п.13)
+    mutation_test: null
     evidence_artifact:
     - B4_SERVICE_PROFILES_BEGINNER_UX_ADDENDUM_v1.6.md
     - artifacts/remediation/FB02_SP_PRODUCERS.json

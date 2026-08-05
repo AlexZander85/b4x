@@ -26,4 +26,5 @@ const (
 	MetricSPNonRUSuggestedWithoutGeoRequirement = "profile_nonru_suggested_without_geo_requirement_total"
 	MetricSPCamouflageSuggestedForTargetIPBlock = "profile_warp_camouflage_suggested_for_target_ip_block_total"
 	MetricSPCleanupFailure                      = "profile_warp_recommendation_cleanup_failure_total"
+	MetricSPRecommendedOutsideCausalEligibility = "profile_warp_recommended_outside_causal_eligibility_total"
 )

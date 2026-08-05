@@ -98,6 +98,8 @@ jobs:
           python tools/gen_source_stage_registry.py --check
           python tools/gen_hard_gates_registry.py --check
           python tools/validate_principal_verdicts.py --check
+          python tools/validate_causal_matrix.py --check
+          python tools/gen_causal_matrix_go.py --check
 
       - name: Run tests with race detector
         working-directory: src

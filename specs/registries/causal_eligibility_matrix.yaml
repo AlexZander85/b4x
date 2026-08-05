@@ -1,0 +1,272 @@
+# FB-31 (b4x-cka): Causal eligibility matrix — failure family -> candidate family.
+#
+# Canonical machine-readable mapping for guided search / transport fallback:
+# every hypothesis/evidence failure family declares which candidate families
+# are eligible, which are forbidden, which narrower families are mandatory,
+# which prerequisites/controls/target validations apply, and whether scoped
+# transport (WARP/SOCKS/TUN) may be authorized at all — and with which
+# minimum evidence authority (FB-30 levels).
+#
+# Normative source: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_
+# STRATEGY_SEARCH_ADDENDUM_v1.2.md §21 (hypothesis-to-search mapping),
+# §20.1/§20.2 (SearchPrior allowed/forbidden effects), FB-14 §10/§13
+# (unhealthy controls block; provisional hints never authorize transport),
+# FB-30 (evidence authority levels).
+#
+# Safety rules encoded here:
+#   * scoped transport (WARP/SOCKS/TUN) is eligible ONLY as
+#     transport_authorization: scoped-eligible-to-test with
+#     required_evidence_authority >= authoritative-abd; DNS-only, QUIC-only
+#     and single-timeout families are always transport_authorization: none
+#     (broad WARP escalation blocked — FB-31 acceptance criterion).
+#   * provisional hints may reorder/boost search, never authorize transport.
+#   * forbidden candidate families can never be promoted by a hint.
+
+schema_version: "1.0"
+declared_total: 9
+
+# --- Candidate family catalog -----------------------------------------------
+# kind: eligible | shadow | forbidden  (forbidden families can never be
+# selected; shadow families are probe-only and never production candidates)
+candidate_families:
+  - family: direct
+    kind: eligible
+    transport: false
+    note: baseline direct path
+  - family: trusted_doh
+    kind: eligible
+    transport: false
+    note: trusted DoH resolver candidates
+  - family: system_forward
+    kind: eligible
+    transport: false
+    note: system resolver forward candidates
+  - family: bootstrap_ip_resolver
+    kind: eligible
+    transport: false
+    note: bootstrap-IP resolver candidates
+  - family: cname_aware_resolution
+    kind: eligible
+    transport: false
+    note: CNAME-aware target resolution
+  - family: resolver_only
+    kind: shadow
+    transport: false
+    note: resolver-only shadow comparison (probe-only)
+  - family: marker_split_near_sni
+    kind: eligible
+    transport: false
+    note: marker split near SNI/extensions
+  - family: canonical_clienthello_profile
+    kind: eligible
+    transport: false
+    note: real/canonical ClientHello profiles
+  - family: bounded_tls_profile_variant
+    kind: eligible
+    transport: false
+    note: bounded TLS profile variants
+  - family: generic_fake_injection
+    kind: forbidden
+    transport: false
+    note: generic fake injection never authorized (v1.2 13.4)
+  - family: bounded_disorder_desync
+    kind: eligible
+    transport: false
+    note: bounded disorder/desync after active reset
+  - family: low_amplification_fake
+    kind: eligible
+    transport: false
+    note: low-amplification fake strategies
+  - family: split_around_markers
+    kind: eligible
+    transport: false
+    note: split around authoritative markers
+  - family: spf_scoped_recovery
+    kind: eligible
+    transport: false
+    note: silent-path scoped recovery (suppression gates required)
+  - family: minimal_packet_candidates
+    kind: eligible
+    transport: false
+    note: minimal-packet candidates (L4 budget)
+  - family: low_complexity_direct
+    kind: eligible
+    transport: false
+    note: low-complexity direct strategy
+  - family: high_amplification_variants
+    kind: forbidden
+    transport: false
+    note: high packet amplification never selected
+  - family: bounded_split_shaping
+    kind: eligible
+    transport: false
+    note: bounded split/shaping ranges around observed interval
+  - family: safe_quic_block_fallback
+    kind: eligible
+    transport: false
+    note: safe QUIC block/fallback
+  - family: tcp_candidate_matrix
+    kind: eligible
+    transport: false
+    note: TCP candidate matrix
+  - family: direct_quic
+    kind: eligible
+    transport: false
+    note: direct QUIC preserved when target-specific QUIC controls pass
+  - family: scoped_transport
+    kind: eligible
+    transport: true
+    note: WARP/SOCKS/TUN - only scoped eligible-to-test with authoritative evidence
+  - family: ip_family_switch
+    kind: eligible
+    transport: false
+    note: alternative address-family experiment
+  - family: target_ip_variants
+    kind: eligible
+    transport: false
+    note: alternative target IP candidates
+  - family: revalidation_probe
+    kind: shadow
+    transport: false
+    note: revalidation on actual target/component (probe-only)
+  - family: white_sni_promotion
+    kind: forbidden
+    transport: false
+    note: white SNI has no production eligibility (v1.2 21.9)
+
+# --- Failure families --------------------------------------------------------
+failure_families:
+  - family: dns_interception
+    title: DNS interception
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.1"
+    hypotheses: []
+    eligible_candidate_families: [trusted_doh, system_forward, bootstrap_ip_resolver, cname_aware_resolution]
+    forbidden_candidate_families: [scoped_transport, direct_quic]
+    shadow_candidate_families: [resolver_only]
+    mandatory_narrower_families: []
+    prerequisites: [resolution_snapshot_fresh, config_generation_current]
+    controls: [same_client_controls_healthy]
+    target_validation: [target_specific_resolution_probe]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: tls_fingerprint_specific
+    title: TLS 1.3 or fingerprint-specific failure
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.2"
+    hypotheses: []
+    eligible_candidate_families: [marker_split_near_sni, canonical_clienthello_profile, bounded_tls_profile_variant]
+    forbidden_candidate_families: [generic_fake_injection, scoped_transport]
+    mandatory_narrower_families: [canonical_clienthello_profile]
+    prerequisites: [fingerprint_exact_observed]
+    controls: [same_client_controls_healthy]
+    target_validation: [target_specific_fingerprint_repro]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: active_reset_after_client_hello
+    title: Active reset after ClientHello
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.3"
+    hypotheses: []
+    eligible_candidate_families: [bounded_disorder_desync, low_amplification_fake, split_around_markers]
+    forbidden_candidate_families: [scoped_transport]
+    mandatory_narrower_families: []
+    prerequisites: [rst_direction_sequence_observed]
+    controls: [rst_direction_plausibility, shadow_comparison]
+    target_validation: [target_specific_reset_repro]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: silent_drop_stall
+    title: Silent drop or stall
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.4"
+    hypotheses: []
+    eligible_candidate_families: [spf_scoped_recovery]
+    forbidden_candidate_families: [scoped_transport]
+    mandatory_narrower_families: []
+    prerequisites: [suppression_gates_passed]
+    controls: [suppression_gates, fresh_control]
+    target_validation: [target_body_progress_proof]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: l4_packet_budget
+    title: L4 packet budget violations
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.5"
+    hypotheses: []
+    eligible_candidate_families: [minimal_packet_candidates, low_complexity_direct]
+    forbidden_candidate_families: [high_amplification_variants, scoped_transport]
+    mandatory_narrower_families: [minimal_packet_candidates]
+    prerequisites: [amplification_measured]
+    controls: [packet_budget_bounded]
+    target_validation: [target_specific_amplification_repro]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: byte_window_transfer
+    title: Byte-window transfer failure
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.6"
+    hypotheses: [byte_window_transfer_interference]
+    eligible_candidate_families: [bounded_split_shaping]
+    forbidden_candidate_families: [scoped_transport]
+    mandatory_narrower_families: []
+    prerequisites: [interval_observed]
+    controls: [target_body_progress_proof, fresh_control]
+    target_validation: [target_body_progress_proof]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: quic_only
+    title: QUIC-only failure
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.7"
+    hypotheses: []
+    eligible_candidate_families: [safe_quic_block_fallback, tcp_candidate_matrix, direct_quic]
+    forbidden_candidate_families: [scoped_transport]
+    mandatory_narrower_families: [tcp_candidate_matrix]
+    prerequisites: [tcp_path_healthy]
+    controls: [target_specific_quic_controls]
+    target_validation: [target_specific_quic_repro]
+    transport_authorization: none
+    required_evidence_authority: ""
+
+  - family: ip_cidr_route_block
+    title: IP/CIDR route block suspicion
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.8"
+    hypotheses:
+      - path_local_syn_filter_suspected
+      - path_local_syn_filter_probable
+      - path_local_syn_filter_confirmed
+      - service_ip_filter_probable
+      - service_cidr_filter_probable
+      - shared_transport_path_block_probable
+      - multi_origin_direct_connect_failure_with_reference_success
+    eligible_candidate_families: [scoped_transport, ip_family_switch, target_ip_variants, low_complexity_direct]
+    forbidden_candidate_families: [high_amplification_variants]
+    mandatory_narrower_families: []
+    prerequisites: [multiple_target_ips_confirmed, controls_healthy]
+    controls: [route_block_controls, same_client_controls_healthy]
+    target_validation: [target_specific_transport_probe]
+    transport_authorization: scoped-eligible-to-test
+    required_evidence_authority: authoritative-abd
+
+  - family: white_sni_evidence
+    title: White SNI evidence
+    source_doc: B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md
+    source_section: "21.9"
+    hypotheses: []
+    eligible_candidate_families: []
+    forbidden_candidate_families: [white_sni_promotion, scoped_transport]
+    shadow_candidate_families: [revalidation_probe]
+    mandatory_narrower_families: []
+    prerequisites: [source_target_asn_recorded]
+    controls: []
+    target_validation: [actual_target_revalidation]
+    transport_authorization: none
+    required_evidence_authority: ""

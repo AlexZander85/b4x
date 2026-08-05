@@ -25,6 +25,7 @@ const (
 	MetricDiscoveryProfileCaptureGateBypass          = "discovery_profile_capture_gate_bypass_total"
 	MetricDiscoveryProfileCrossServiceAction         = "discovery_profile_cross_service_action_total"
 	MetricDiscoveryProfileFalsePass                  = "discovery_profile_false_pass_total"
+	MetricDiscoveryProfileOutsideCausalEligibility   = "discovery_profile_guided_plan_outside_causal_eligibility_total"
 
 	MetricMTProtoZeroByteHandledDrop       = "mtproto_bridge_zero_byte_handled_drop_total"
 	MetricMTProtoFixed5sDestructiveTimeout = "mtproto_bridge_fixed_5s_destructive_timeout_total"
