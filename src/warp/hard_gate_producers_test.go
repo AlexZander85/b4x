@@ -426,4 +426,20 @@ func TestHardGateProducer_WARPTraceStateMismatch(t *testing.T) {
 	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceStateMismatch); got == 0 {
 		t.Fatal("warp_trace_state_mismatch_total not incremented (zero-tolerance gate)")
 	}
+	// second mismatch direction: active/established trace before any route apply
+	// (runtime.go case "active","established" -> !st.hasApplied).
+	observability.Default().Metrics.Reset()
+	rt2 := newProducerRuntime()
+	if err := rt2.Register("sess-b", DefaultEnrollmentPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	rt2.ObserveHealth("sess-b", true, true)
+	event2 := traceEvent("sess-b", 1, "route-active")
+	event2.StateAfter = "active"
+	if rt2.PublishTrace("sess-b", event2) {
+		t.Fatal("state-mismatched active trace accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceStateMismatch); got == 0 {
+		t.Fatal("warp_trace_state_mismatch_total not incremented on active-before-apply (zero-tolerance gate)")
+	}
 }

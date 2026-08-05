@@ -12544,6 +12544,14 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceDroppedRequiredEvent (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {
@@ -12598,6 +12606,14 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceEventOrderViolation (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {
@@ -12652,6 +12668,14 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceGenerationMismatch (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {
@@ -12706,6 +12730,14 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceRequiredEventMissing (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {
@@ -12760,6 +12792,14 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceSecretLeak (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {
@@ -12814,6 +12854,20 @@
         "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
         "src/warp/hard_gate_producers_test.go",
         "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; active-before-apply site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; closed-after-apply site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
       ]
     },
     {

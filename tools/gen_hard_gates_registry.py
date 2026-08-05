@@ -4181,6 +4181,27 @@ MUTATION_TESTS: dict[str, list[dict]] = {
     "profile_warp_recommendation_cleanup_failure_total": [
         {"kind": "removed_inc", "name": "TestSPRecommendationCleanupFailure (producer removed)", "file": "src/serviceprofile/hard_gate_producers_test.go", "line": 197, "status": "executed"},
     ],
+    # --- FB-03 (b4x-q58) WARP causal-trace producer mutation runs (2026-08-06):
+    # every removed Inc call kills its pinning negative fixture (7/7 killed) ---
+    "warp_trace_secret_leak_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceSecretLeak (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 314, "status": "executed"},
+    ],
+    "warp_trace_required_event_missing_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceRequiredEventMissing (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 338, "status": "executed"},
+    ],
+    "warp_trace_dropped_required_event_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceDroppedRequiredEvent (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 358, "status": "executed"},
+    ],
+    "warp_trace_event_order_violation_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceEventOrderViolation (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 380, "status": "executed"},
+    ],
+    "warp_trace_generation_mismatch_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceGenerationMismatch (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 398, "status": "executed"},
+    ],
+    "warp_trace_state_mismatch_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; active-before-apply site)", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "status": "executed"},
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; closed-after-apply site)", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).

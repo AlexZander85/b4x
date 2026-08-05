@@ -1338,7 +1338,12 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 314
       assertion: never-emit payload key (not a stored secret) -> PublishTrace false && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceSecretLeak (producer removed)
+      file: src/warp/hard_gate_producers_test.go
+      line: 314
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
@@ -1388,7 +1393,12 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 338
       assertion: required event absent from snapshot -> VerifyTraceCompleteness missing && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceRequiredEventMissing (producer removed)
+      file: src/warp/hard_gate_producers_test.go
+      line: 338
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
@@ -1439,7 +1449,12 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 358
       assertion: P0 event with ring full of P0/P1 -> PublishTrace false && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceDroppedRequiredEvent (producer removed)
+      file: src/warp/hard_gate_producers_test.go
+      line: 358
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
@@ -1488,7 +1503,12 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 380
       assertion: per-session non-monotonic sequence -> PublishTrace false && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceEventOrderViolation (producer removed)
+      file: src/warp/hard_gate_producers_test.go
+      line: 380
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
@@ -1537,7 +1557,12 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 398
       assertion: trace RouteGeneration 2 vs applied generation 1 -> PublishTrace false && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceGenerationMismatch (producer removed)
+      file: src/warp/hard_gate_producers_test.go
+      line: 398
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
@@ -1586,7 +1611,17 @@ families:
       file: src/warp/hard_gate_producers_test.go
       line: 417
       assertion: StateAfter closed while runtime route active -> PublishTrace false && counter > 0
-    mutation_test: null
+    mutation_test:
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceStateMismatch (producer removed; active-before-apply site)
+      file: src/warp/hard_gate_producers_test.go
+      line: 417
+      status: executed
+    - kind: removed_inc
+      name: TestHardGateProducer_WARPTraceStateMismatch (producer removed; closed-after-apply site)
+      file: src/warp/hard_gate_producers_test.go
+      line: 417
+      status: executed
     evidence_artifact:
     - B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md
     - artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md
