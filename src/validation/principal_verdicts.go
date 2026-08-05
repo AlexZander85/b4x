@@ -216,5 +216,21 @@ func containsString(list []string, want string) bool {
 	return false
 }
 
+// VerifyPrincipalVerdictNames fails closed on unregistered runtime verdict
+// names (FB-34.1). Runtime, API, UI and report layers must emit verdict
+// names only through the registry: the guard returns every input name that
+// is neither a canonical name nor a registered alias, so consumers can
+// reject an unregistered state name instead of silently emitting it.
+// Returns nil when every name resolves.
+func VerifyPrincipalVerdictNames(names []string) []string {
+	var missing []string
+	for _, n := range names {
+		if _, ok := CanonicalVerdictName(n); !ok {
+			missing = append(missing, n)
+		}
+	}
+	return missing
+}
+
 // ErrUnknownPrincipalVerdict is returned by lookups that fail closed.
 var ErrUnknownPrincipalVerdict = errors.New("unknown principal verdict")

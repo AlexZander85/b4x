@@ -265,3 +265,28 @@ func TestPrincipalVerdictSourceCoverage(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyPrincipalVerdictNamesGuard(t *testing.T) {
+	// FB-34.1: the runtime guard accepts canonical names and aliases and
+	// fails closed on anything unregistered. Every canonical name in the
+	// registry must pass the guard (a guard that rejects its own registry
+	// is broken).
+	all := PrincipalVerdictNames()
+	if missing := VerifyPrincipalVerdictNames(all); len(missing) != 0 {
+		t.Fatalf("VerifyPrincipalVerdictNames rejected registered canonical names: %v", missing)
+	}
+	if missing := VerifyPrincipalVerdictNames([]string{"ABD_PRODUCTION_READY", "TELEGRAM_BRIDGE_PRODUCTION_READY"}); len(missing) != 0 {
+		t.Fatalf("guard rejected registered canonical/alias spellings: %v", missing)
+	}
+	// Unknown names must be reported, in input order, never silently accepted.
+	got := VerifyPrincipalVerdictNames([]string{"ABD_PRODUCTION_READY", "NO_SUCH_VERDICT_NAME", "", "ANOTHER_UNKNOWN"})
+	want := []string{"NO_SUCH_VERDICT_NAME", "", "ANOTHER_UNKNOWN"}
+	if len(got) != len(want) {
+		t.Fatalf("VerifyPrincipalVerdictNames returned %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("VerifyPrincipalVerdictNames returned %v, want %v", got, want)
+		}
+	}
+}
