@@ -2,8 +2,8 @@
   "generated_at": "06.08.2026",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 285,
-  "verified": 245,
-  "missing": 40,
+  "verified": 250,
+  "missing": 35,
   "families_verified_missing": {
     "abd": [
       85,
@@ -12122,15 +12122,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.NestedControl -> Metrics.Inc(MetricWarpNestedControlDirectLeak)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 84,
+        "mechanism": "increment-only counter via observability (inner control flow entering the base path without the inner-control mark)",
+        "production_root": "warp.Runtime.NestedControl (inner-control direct leak §62.4; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNestedControlDirectLeak",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 506,
+          "assertion": "inner control entering base path without inner-control mark -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedControlDirectLeak (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nested_missing_parent_link_total",
@@ -12138,15 +12184,67 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.NestedPromote / Runtime.NestedUseParentToken -> Metrics.Inc(MetricWarpNestedMissingParentLink)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 41,
+        "mechanism": "increment-only counter via observability (child promotion or parent-token use without a current parent link)",
+        "production_root": "warp.Runtime.NestedPromote/NestedUseParentToken (nested dependency graph §62.4; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNestedMissingParentLink",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 452,
+          "assertion": "promotion and parent-token use without a parent link -> error && counter > 0 (both sites)"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedMissingParentLink (producer removed; NestedPromote site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedMissingParentLink (producer removed; NestedUseParentToken site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nested_parent_generation_mismatch_total",
@@ -12154,15 +12252,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.NestedPromote -> Metrics.Inc(MetricWarpNestedParentGenerationMismatch)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 49,
+        "mechanism": "increment-only counter via observability (promotion claims a parent SessionGen other than the revalidated one)",
+        "production_root": "warp.Runtime.NestedPromote (parent reconnect invalidates link until revalidation §62.4; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNestedParentGenerationMismatch",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 487,
+          "assertion": "promotion claiming stale parent SessionGen (parent reconnect case) -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedParentGenerationMismatch (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nested_route_active_without_parent_health_total",
@@ -12170,15 +12314,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.NestedPromote -> Metrics.Inc(MetricWarpNestedRouteActiveWithoutParentHealth)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 45,
+        "mechanism": "increment-only counter via observability (child route promotion while the parent link is not healthy)",
+        "production_root": "warp.Runtime.NestedPromote (child promotion requires current healthy parent link §62.4; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 467,
+          "assertion": "child promotion with unhealthy parent link -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nested_stale_parent_token_total",
@@ -12186,15 +12376,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.NestedUseParentToken -> Metrics.Inc(MetricWarpNestedStaleParentToken)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 68,
+        "mechanism": "increment-only counter via observability (parent route token from a retired generation)",
+        "production_root": "warp.Runtime.NestedUseParentToken (child cannot use parent token from retired generation §62.4; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNestedStaleParentToken",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 520,
+          "assertion": "parent route token from a retired generation -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNestedStaleParentToken (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nonru_public_ip_change_without_refresh_total",

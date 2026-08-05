@@ -235,6 +235,23 @@ holds only P0/P1 — counted as `warp_trace_dropped_required_event_total`).
 `Runtime.Config.TraceCapacity` (default 256 = `warp_trace.memory_events`) added for the
 bounded-ring fixture.
 
-**Remaining missing (40):** masque_* (12) + nonru_* (8) + warp causal/route gates (20:
-nested x6, geo x3, path proof x5, non-RU x2, cleanup/ownership x3, post-cutoff/connect-IP x2
-— follows as the next FB-03 slice).
+**Remaining missing (35):** masque_* (12, §73A) + nonru_* (8, §73) + warp causal/route (15:
+geo x3, path proof x5, ownership/cleanup x4, connect-IP/non-RU x3 — follows as the next
+FB-03 slices).
+
+## Progress note 2 (2026-08-06, FB-03 b4x-q58 — WARP nested dependency graph, §73B/§62.4)
+
+Nested-WARP producers landed (registry now **285 gates / 250 verified / 35 missing**,
+`ApplicableHardGates() == 250`, code commit f54a7485-based → next pin):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `warp_nested_missing_parent_link_total` | `Runtime.NestedPromote` / `Runtime.NestedUseParentToken` — `src/warp/nested_runtime.go:41` | `TestHardGateProducer_WARPNestedMissingParentLink` (both sites) |
+| `warp_nested_route_active_without_parent_health_total` | `Runtime.NestedPromote` — nested_runtime.go:45 | `TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth` |
+| `warp_nested_parent_generation_mismatch_total` | `Runtime.NestedPromote` — nested_runtime.go:49 | `TestHardGateProducer_WARPNestedParentGenerationMismatch` |
+| `warp_nested_stale_parent_token_total` | `Runtime.NestedUseParentToken` — nested_runtime.go:68 | `TestHardGateProducer_WARPNestedStaleParentToken` |
+| `warp_nested_control_direct_leak_total` | `Runtime.NestedControl` — nested_runtime.go:84 | `TestHardGateProducer_WARPNestedControlDirectLeak` |
+
+Mutation runs: each of the 6 `Metrics.Inc` sites removed → pinning fixture FAILs (6/6
+killed), sites restored, no markers left. `mutation_test: [{kind: removed_inc, status:
+executed}]` recorded in the registry.

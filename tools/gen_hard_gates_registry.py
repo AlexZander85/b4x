@@ -470,6 +470,45 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (trace-derived StateAfter contradicts runtime route state)",
         "production_root": "warp.Runtime.PublishTrace (trace-derived state vs runtime state §63.2; controller-loop root from main)",
     },
+    # --- WARP nested dependency-graph producers (FB-03 §73B nested block,
+    # 2026-08-06): every counter increments ONLY on the violating branch of
+    # the production nested lifecycle (Runtime.NestedPromote /
+    # Runtime.NestedUseParentToken / Runtime.NestedControl), addendum §62.4. ---
+    "warp_nested_missing_parent_link_total": {
+        "symbol": "Runtime.NestedPromote / Runtime.NestedUseParentToken -> Metrics.Inc(MetricWarpNestedMissingParentLink)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 41,
+        "mechanism": "increment-only counter via observability (child promotion or parent-token use without a current parent link)",
+        "production_root": "warp.Runtime.NestedPromote/NestedUseParentToken (nested dependency graph §62.4; controller-loop root from main)",
+    },
+    "warp_nested_route_active_without_parent_health_total": {
+        "symbol": "Runtime.NestedPromote -> Metrics.Inc(MetricWarpNestedRouteActiveWithoutParentHealth)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 45,
+        "mechanism": "increment-only counter via observability (child route promotion while the parent link is not healthy)",
+        "production_root": "warp.Runtime.NestedPromote (child promotion requires current healthy parent link §62.4; controller-loop root from main)",
+    },
+    "warp_nested_parent_generation_mismatch_total": {
+        "symbol": "Runtime.NestedPromote -> Metrics.Inc(MetricWarpNestedParentGenerationMismatch)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 49,
+        "mechanism": "increment-only counter via observability (promotion claims a parent SessionGen other than the revalidated one)",
+        "production_root": "warp.Runtime.NestedPromote (parent reconnect invalidates link until revalidation §62.4; controller-loop root from main)",
+    },
+    "warp_nested_stale_parent_token_total": {
+        "symbol": "Runtime.NestedUseParentToken -> Metrics.Inc(MetricWarpNestedStaleParentToken)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 68,
+        "mechanism": "increment-only counter via observability (parent route token from a retired generation)",
+        "production_root": "warp.Runtime.NestedUseParentToken (child cannot use parent token from retired generation §62.4; controller-loop root from main)",
+    },
+    "warp_nested_control_direct_leak_total": {
+        "symbol": "Runtime.NestedControl -> Metrics.Inc(MetricWarpNestedControlDirectLeak)",
+        "file": "src/warp/nested_runtime.go",
+        "line": 84,
+        "mechanism": "increment-only counter via observability (inner control flow entering the base path without the inner-control mark)",
+        "production_root": "warp.Runtime.NestedControl (inner-control direct leak §62.4; controller-loop root from main)",
+    },
     # --- SPF lifecycle producers (FB-02 SPF section, 2026-08-04): every counter
     # increments ONLY on the violating branch of the production guards
     # (src/silentpath/hard_gate_producers.go), reachable from the validation
@@ -1941,7 +1980,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "f54a7485"  # FB-03 §73B WARP causal-trace producers (warp_trace_* x6, 2026-08-06); 245 applicable
+REGISTER_VERIFIED_COMMIT = "f9c7c236"  # FB-03 §73B WARP nested dependency-graph producers (warp_nested_* x5, 2026-08-06); 250 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3042,6 +3081,31 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "warp_nested_missing_parent_link_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_nested_route_active_without_parent_health_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_nested_parent_generation_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_nested_stale_parent_token_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_nested_control_direct_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -3946,6 +4010,21 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_trace_state_mismatch_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceStateMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "assertion": "StateAfter closed while runtime route active -> PublishTrace false && counter > 0"},
     ],
+    "warp_nested_missing_parent_link_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedMissingParentLink", "file": "src/warp/hard_gate_producers_test.go", "line": 452, "assertion": "promotion and parent-token use without a parent link -> error && counter > 0 (both sites)"},
+    ],
+    "warp_nested_route_active_without_parent_health_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth", "file": "src/warp/hard_gate_producers_test.go", "line": 467, "assertion": "child promotion with unhealthy parent link -> error && counter > 0"},
+    ],
+    "warp_nested_parent_generation_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedParentGenerationMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 487, "assertion": "promotion claiming stale parent SessionGen (parent reconnect case) -> error && counter > 0"},
+    ],
+    "warp_nested_stale_parent_token_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedStaleParentToken", "file": "src/warp/hard_gate_producers_test.go", "line": 520, "assertion": "parent route token from a retired generation -> error && counter > 0"},
+    ],
+    "warp_nested_control_direct_leak_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedControlDirectLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 506, "assertion": "inner control entering base path without inner-control mark -> error && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4202,6 +4281,25 @@ MUTATION_TESTS: dict[str, list[dict]] = {
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; active-before-apply site)", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "status": "executed"},
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPTraceStateMismatch (producer removed; closed-after-apply site)", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "status": "executed"},
     ],
+    # --- FB-03 (b4x-q58) WARP nested producers mutation runs (2026-08-06):
+    # every removed Inc call kills its pinning negative fixture (6/6 killed,
+    # missing_parent_link covered on both production sites) ---
+    "warp_nested_missing_parent_link_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedMissingParentLink (producer removed; NestedPromote site)", "file": "src/warp/hard_gate_producers_test.go", "line": 452, "status": "executed"},
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedMissingParentLink (producer removed; NestedUseParentToken site)", "file": "src/warp/hard_gate_producers_test.go", "line": 452, "status": "executed"},
+    ],
+    "warp_nested_route_active_without_parent_health_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 467, "status": "executed"},
+    ],
+    "warp_nested_parent_generation_mismatch_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedParentGenerationMismatch (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 487, "status": "executed"},
+    ],
+    "warp_nested_stale_parent_token_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedStaleParentToken (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 520, "status": "executed"},
+    ],
+    "warp_nested_control_direct_leak_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedControlDirectLeak (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 506, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4266,6 +4364,11 @@ for _name in [
     "warp_trace_event_order_violation_total",
     "warp_trace_generation_mismatch_total",
     "warp_trace_state_mismatch_total",
+    "warp_nested_missing_parent_link_total",
+    "warp_nested_route_active_without_parent_health_total",
+    "warp_nested_parent_generation_mismatch_total",
+    "warp_nested_stale_parent_token_total",
+    "warp_nested_control_direct_leak_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [
