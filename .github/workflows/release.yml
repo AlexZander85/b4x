@@ -97,6 +97,7 @@ jobs:
         run: |
           python tools/gen_source_stage_registry.py --check
           python tools/gen_hard_gates_registry.py --check
+          python tools/validate_principal_verdicts.py --check
 
       - name: Run tests with race detector
         working-directory: src

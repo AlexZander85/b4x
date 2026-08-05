@@ -14,6 +14,13 @@
 //	                                      registry totals (computed, by
 //	                                      category) and run registry-integrity
 //	                                      checks
+//	b4-validate verdict <name>            resolve a principal verdict name to
+//	                                      its canonical form (FB-34 alias
+//	                                      mapping) and print the full record:
+//	                                      kind, family, source, dependencies
+//	                                      (ARCH graph closure), required gates,
+//	                                      target evidence, blocked variants and
+//	                                      expiry/invalidation rules
 //	b4-validate matrix                    regenerate the gate producer/consumer
 //	                                      matrix artifact (FB-03 criterion 6)
 //
@@ -59,6 +66,7 @@ Usage:
   b4-validate meta [--json]
   b4-validate matrix [--out PATH]
   b4-validate registry [--json]
+  b4-validate verdict <name> [--json]
 
 Exit codes: 0 PASS / not applicable; 1 non-pass verdict (FAIL/BLOCKED/STALE);
 2 usage or lookup error. All commands log to artifacts/remediation/logs/.`)
@@ -86,6 +94,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdMatrix(rest, stdout)
 	case "registry":
 		return cmdRegistry(rest, stdout)
+	case "verdict":
+		return cmdVerdict(rest, stdout)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0
@@ -674,4 +684,117 @@ func cmdRegistry(args []string, stdout io.Writer) int {
 	}
 	closer(code)
 	return code
+}
+
+// cmdVerdict implements `b4-validate verdict <name> [--json]` (FB-34,
+// b4x-xgc): resolves a verdict spelling (canonical or alias) to its canonical
+// name and prints the full registry record — kind, owner family, normative
+// source, ARCH-graph dependency closure, required gates, required target
+// evidence, blocked variants and expiry/invalidation rules.
+// Exit codes: 0 = resolved, 2 = unknown verdict name or usage error.
+func cmdVerdict(args []string, stdout io.Writer) int {
+	fs := flag.NewFlagSet("verdict", flag.ContinueOnError)
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	rest := fs.Args()
+	if len(rest) != 1 {
+		fmt.Fprintln(stdout, "usage: b4-validate verdict <name> [--json]")
+		return 2
+	}
+	name := rest[0]
+	w, closer, _ := tee("verdict", stdout, args)
+
+	canonical, ok := validation.CanonicalVerdictName(name)
+	if !ok {
+		fmt.Fprintf(w, "verdict %q not found in the canonical principal verdict registry\n", name)
+		closer(2)
+		return 2
+	}
+	v, _ := validation.PrincipalVerdictByCanonical(canonical)
+	closure, err := validation.VerdictDependencyClosure(canonical)
+	if err != nil {
+		fmt.Fprintf(w, "error: %v\n", err)
+		closer(1)
+		return 1
+	}
+
+	type verdictOut struct {
+		Canonical              string   `json:"canonical"`
+		ResolvedFromAlias      string   `json:"resolved_from_alias,omitempty"`
+		Aliases                []string `json:"aliases,omitempty"`
+		Kind                   string   `json:"kind"`
+		OwnerFamily            string   `json:"owner_family"`
+		SourceStageCategory    string   `json:"source_stage_category,omitempty"`
+		SourceDoc              string   `json:"source_doc"`
+		SourceSection          string   `json:"source_section"`
+		Dependencies           []string `json:"dependencies,omitempty"`
+		DependencyClosure      []string `json:"dependency_closure"`
+		DependencyExpression   string   `json:"dependency_expression"`
+		RequiredGates          []string `json:"required_gates,omitempty"`
+		RequiredTargetEvidence []string `json:"required_target_evidence,omitempty"`
+		BlockedVariants        []string `json:"blocked_variants,omitempty"`
+		Expiry                 []string `json:"expiry"`
+	}
+	doc := verdictOut{
+		Canonical: canonical, Kind: v.Kind, OwnerFamily: v.OwnerFamily,
+		SourceDoc: v.SourceDoc, SourceSection: v.SourceSection,
+		Dependencies: v.Dependencies, DependencyClosure: closure,
+		DependencyExpression: v.DependencyExpression, RequiredGates: v.RequiredGates,
+		RequiredTargetEvidence: v.RequiredTargetEvidence, BlockedVariants: v.BlockedVariants,
+		Expiry: v.Expiry,
+	}
+	if name != canonical {
+		doc.ResolvedFromAlias = name
+	}
+	if len(v.Aliases) > 0 {
+		doc.Aliases = v.Aliases
+	}
+	if v.SourceStageCategory != "" {
+		doc.SourceStageCategory = v.SourceStageCategory
+	}
+
+	closer(0)
+	if *jsonOut {
+		out, err := json.MarshalIndent(doc, "", "  ")
+		if err != nil {
+			fmt.Fprintln(w, "error:", err)
+			return 1
+		}
+		fmt.Fprintln(w, string(out))
+		return 0
+	}
+	if doc.ResolvedFromAlias != "" {
+		fmt.Fprintf(w, "resolved: %s -> %s (alias mapping)\n", doc.ResolvedFromAlias, canonical)
+	}
+	fmt.Fprintf(w, "canonical:        %s\n", canonical)
+	fmt.Fprintf(w, "kind:             %s\n", v.Kind)
+	fmt.Fprintf(w, "owner_family:     %s\n", v.OwnerFamily)
+	if v.SourceStageCategory != "" {
+		fmt.Fprintf(w, "source_stage_cat: %s\n", v.SourceStageCategory)
+	}
+	fmt.Fprintf(w, "source:           %s §%s\n", v.SourceDoc, v.SourceSection)
+	if len(v.Aliases) > 0 {
+		fmt.Fprintf(w, "aliases:          %s\n", strings.Join(v.Aliases, ", "))
+	}
+	if len(v.Dependencies) > 0 {
+		fmt.Fprintf(w, "dependencies:     %s\n", strings.Join(v.Dependencies, ", "))
+	}
+	fmt.Fprintf(w, "dependency_closure (%d):\n", len(closure))
+	for _, d := range closure {
+		fmt.Fprintf(w, "  %s\n", d)
+	}
+	fmt.Fprintf(w, "dependency_expression: %s\n", v.DependencyExpression)
+	if len(v.RequiredGates) > 0 {
+		fmt.Fprintf(w, "required_gates:   %s\n", strings.Join(v.RequiredGates, ", "))
+	}
+	if len(v.RequiredTargetEvidence) > 0 {
+		fmt.Fprintf(w, "target_evidence:  %s\n", strings.Join(v.RequiredTargetEvidence, ", "))
+	}
+	if len(v.BlockedVariants) > 0 {
+		fmt.Fprintf(w, "blocked_variants: %s\n", strings.Join(v.BlockedVariants, ", "))
+	}
+	fmt.Fprintf(w, "expiry:           %s\n", strings.Join(v.Expiry, ", "))
+	return 0
 }

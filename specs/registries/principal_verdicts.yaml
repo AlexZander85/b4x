@@ -1,0 +1,1178 @@
+# Principal verdict registry (FB-34).
+# Canonical source of truth for all principal verdict names, alias mapping,
+# dependency graph (aggregation follows the ARCH dependency graph),
+# required gates, required target evidence and invalidation rules.
+#
+# Alias policy: aliases are compatibility metadata only; there is no separate
+# state store. Runtime/API/UI/reports must use the canonical name.
+# Name conflicts resolved per FB18-07 (B4X_FB14_CONFLICTS_RESOLVED.md) and
+# ARCH §142 precedence rule: detailed addenda / validation registry names win.
+#
+# ASSUMPTION markers below mark dependency edges that the source documents
+# imply by ordering (§52 chain, §88 chain) rather than state explicitly.
+schema_version: '1.0'
+generator: tools/validate_principal_verdicts.py
+generated_at: '2026-08-05'
+status: canonical (FB-34 owner decision 2026-08-05; supersedes FB18-07 name conflict entries)
+declared_total: 68
+verdicts:
+# ---- ARCH §142 principal verdicts (15 unique; GUIDED_DISCOVERY_READY and
+# ---- TELEGRAM_BRIDGE_PRODUCTION_READY are superseded aliases, see below) ----
+- canonical: CSI_PRODUCTION_READY
+  aliases: []
+  kind: ready
+  owner_family: csi
+  source_stage_category: csi
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'CSI companion suite passes; all family:csi hard gates zero'
+  required_gates:
+  - family:csi
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: GSO_RUNTIME_READY
+  aliases: []
+  kind: ready
+  owner_family: rst_gso
+  source_stage_category: rst-gso
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'RST/GSO companion suite passes; gso runtime gates green'
+  required_gates:
+  - family:rst_gso
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: PASSIVE_RST_OBSERVE_READY
+  aliases: []
+  kind: ready
+  owner_family: rst_gso
+  source_stage_category: rst-gso
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - GSO_RUNTIME_READY
+  dependency_expression: 'passive RST observation requires GSO runtime in place'
+  required_gates:
+  - family:rst_gso
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: PPE_BIDIRECTIONAL_VISIBILITY_READY
+  aliases: []
+  kind: ready
+  owner_family: ppe
+  source_stage_category: ppe
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'PPE companion suite passes; bidirectional visibility gates green'
+  required_gates:
+  - family:ppe
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: SILENT_PATH_OBSERVATION_READY
+  aliases: []
+  kind: ready
+  owner_family: spf
+  source_stage_category: silent-path
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'silent-path observation companion suite passes'
+  required_gates:
+  - family:spf
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: SILENT_PATH_RECOVERY_READY
+  aliases: []
+  kind: ready
+  owner_family: spf
+  source_stage_category: silent-path
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - SILENT_PATH_OBSERVATION_READY
+  dependency_expression: 'recovery readiness requires observation readiness first'
+  required_gates:
+  - family:spf
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: MON_PRODUCTION_READY
+  aliases: []
+  kind: ready
+  owner_family: mon
+  source_stage_category: mon
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'continuous blocking monitoring production-ready; family:mon gates green'
+  required_gates:
+  - family:mon
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: ABD_MONITOR_ADAPTER_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - MON_PRODUCTION_READY
+  dependency_expression: 'monitor adapter consumes the production monitoring pipeline'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: ABD_CLIENT_RESOLUTION_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - ABD_MONITOR_ADAPTER_READY
+  dependency_expression: 'client resolution observation requires the monitor adapter' # ASSUMPTION edge
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: ABD_MULTI_VANTAGE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - ABD_CLIENT_RESOLUTION_READY
+  dependency_expression: 'multi-vantage requires single-vantage client resolution' # ASSUMPTION edge
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: ABD_PRODUCTION_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - ABD_MULTI_VANTAGE_READY
+  - ABD_ANDROID_VALIDATED
+  dependency_expression: 'full ABD release chain per §52; runtime promotion verdict in fieldtest release_detector.go'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - dns
+  - tls_http
+  - quic
+  - l4
+  blocked_variants:
+  - BLOCKED_ANDROID_VALIDATION
+  - BLOCKED_CLEAN_BASELINE
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_DYNAMIC_CONTROLS
+  - BLOCKED_NETWORK_CONTEXT
+  - BLOCKED_PROFILE_REVALIDATION
+  - BLOCKED_TARGET_VALIDATION
+  - BLOCKED_TPROXY_CAPABILITY
+  - BLOCKED_RESOURCE_BUDGET
+  - BLOCKED_LONG_RUN
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: DDI_PRODUCTION_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - DDI_TARGET_VALIDATED
+  dependency_expression: 'full DDI release chain per §52; runtime promotion verdict in fieldtest release_detector.go'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TARGET_VALIDATION
+  - BLOCKED_TRACE_SCHEMA
+  - BLOCKED_TRACE_COMPLETENESS
+  - BLOCKED_TRACE_TARGET_VALIDATION
+  - BLOCKED_TRACE_RUNTIME_MISMATCH
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: DETECTOR_GUIDED_STRATEGY_SEARCH_READY
+  aliases:
+  - GUIDED_DISCOVERY_READY
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - DDI_PRODUCTION_READY
+  dependency_expression: 'guided strategy search requires the DDI release chain' # ASSUMPTION edge
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TARGET_VALIDATION
+  - BLOCKED_DYNAMIC_CONTROLS
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: WARP_BASE_READY
+  aliases: []
+  kind: ready
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies: []
+  dependency_expression: 'WARP base transport companion passes; family:warp hard gates zero'
+  required_gates:
+  - family:warp
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TPROXY_CAPABILITY
+  - BLOCKED_RESOURCE_BUDGET
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: WARP_CAUSAL_TRACE_READY
+  aliases: []
+  kind: ready
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - WARP_BASE_READY
+  dependency_expression: 'causal trace window evaluation requires base transport readiness'
+  required_gates:
+  - family:warp
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TRACE_SCHEMA
+  - BLOCKED_TRACE_COMPLETENESS
+  - BLOCKED_TRACE_TARGET_VALIDATION
+  - BLOCKED_TRACE_RUNTIME_MISMATCH
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: PROFILE_WARP_RECOMMENDATION_READY
+  aliases: []
+  kind: ready
+  owner_family: sp
+  source_stage_category: service-profiles
+  source_doc: B4_FORK_ARCHITECTURE_v2.4.md
+  source_section: '142'
+  dependencies:
+  - WARP_CAUSAL_TRACE_READY
+  dependency_expression: 'service-profile recommendation consumes the causal trace readiness'
+  required_gates:
+  - family:sp
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_PROFILE_REVALIDATION
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+# ---- IV §52.1 blocked verdicts (14; blocked != PASS_WITH_LIMITATIONS) ----
+- canonical: BLOCKED_CLEAN_BASELINE
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'clean baseline could not be established (host/network interference)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_CAPTURE_VISIBILITY
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'capture path has no visibility into target traffic'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_DYNAMIC_CONTROLS
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'dynamic controls (tproxy/router/backend) unavailable'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_NETWORK_CONTEXT
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'required network context (routing/monitoring topology) absent'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_PROFILE_REVALIDATION
+  aliases: []
+  kind: blocked
+  owner_family: sp
+  source_stage_category: service-profiles
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'service-profile revalidation blocked by missing profile evidence'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TARGET_VALIDATION
+  aliases: []
+  kind: blocked
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'target-side validation could not be completed'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_ANDROID_VALIDATION
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'Android canary validation blocked (device/setup unavailable)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TPROXY_CAPABILITY
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'tproxy capability missing on target environment'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_RESOURCE_BUDGET
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'resource budget exceeded (CPU/mem/bandwidth)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_LONG_RUN
+  aliases: []
+  kind: blocked
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'long-run phase could not complete within budget'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TRACE_SCHEMA
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'trace schema mismatch prevents evaluation'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TRACE_COMPLETENESS
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'trace incomplete (missing segments/events)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TRACE_TARGET_VALIDATION
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'trace target validation blocked'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: BLOCKED_TRACE_RUNTIME_MISMATCH
+  aliases: []
+  kind: blocked
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52.1'
+  dependencies: []
+  dependency_expression: 'trace runtime mismatch (config generation drift)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+# ---- IV §52 ABD chain (12 intermediate; §52 order is the ARCH graph) ----
+- canonical: ABD_TARGET_PLAN_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies: []
+  dependency_expression: 'target plan produced and reviewed' # ASSUMPTION: first element of §52 chain
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TARGET_VALIDATION
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_CLEAN_BASELINE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_TARGET_PLAN_READY
+  dependency_expression: 'clean baseline captured for the planned target'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_CLEAN_BASELINE
+  - BLOCKED_CAPTURE_VISIBILITY
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_DNS_EVIDENCE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_CLEAN_BASELINE_READY
+  dependency_expression: 'DNS evidence collected and validated'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - dns
+  blocked_variants:
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_TLS_HTTP_EVIDENCE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_CLEAN_BASELINE_READY
+  dependency_expression: 'TLS/HTTP evidence collected and validated'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - tls_http
+  blocked_variants:
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_QUIC_EVIDENCE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_CLEAN_BASELINE_READY
+  dependency_expression: 'QUIC evidence collected and validated'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - quic
+  blocked_variants:
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_L4_PROFILER_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_CLEAN_BASELINE_READY
+  dependency_expression: 'L4 profiler validated against captured flows'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - l4
+  blocked_variants:
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_DYNAMIC_CONTROLS_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_CLEAN_BASELINE_READY
+  dependency_expression: 'dynamic controls validated (apply/rollback)'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_DYNAMIC_CONTROLS
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_EVIDENCE_GRAPH_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_DNS_EVIDENCE_READY
+  - ABD_TLS_HTTP_EVIDENCE_READY
+  - ABD_QUIC_EVIDENCE_READY
+  - ABD_L4_PROFILER_READY
+  dependency_expression: 'evidence graph assembled from dns/tls_http/quic/l4 evidence'
+  required_gates:
+  - family:abd
+  required_target_evidence:
+  - dns
+  - tls_http
+  - quic
+  - l4
+  blocked_variants:
+  - BLOCKED_CAPTURE_VISIBILITY
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_BLOCKING_PROFILE_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_EVIDENCE_GRAPH_READY
+  dependency_expression: 'blocking profile synthesized from evidence graph'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_PROFILE_REVALIDATION
+  - BLOCKED_DYNAMIC_CONTROLS
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_DDI_ADAPTER_READY
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_BLOCKING_PROFILE_READY
+  - DDI_SCHEMA_READY
+  dependency_expression: 'ABD->DDI adapter validated against the DDI schema'
+  required_gates:
+  - family:abd
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TRACE_SCHEMA
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_ROUTER_VALIDATED
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_DDI_ADAPTER_READY
+  - ABD_DYNAMIC_CONTROLS_READY
+  dependency_expression: 'router control plane validated end-to-end over validated dynamic controls'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_DYNAMIC_CONTROLS
+  - BLOCKED_NETWORK_CONTEXT
+  expiry:
+  - evidence-generation-bound
+- canonical: ABD_ANDROID_VALIDATED
+  aliases: []
+  kind: ready
+  owner_family: abd
+  source_stage_category: abd
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - ABD_ROUTER_VALIDATED
+  dependency_expression: 'Android canary validation passed'
+  required_gates:
+  - family:abd
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_ANDROID_VALIDATION
+  - BLOCKED_RESOURCE_BUDGET
+  expiry:
+  - evidence-generation-bound
+# ---- IV §52 DDI chain ----
+- canonical: DDI_SCHEMA_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies: []
+  dependency_expression: 'DDI trace schema validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TRACE_SCHEMA
+  expiry:
+  - evidence-generation-bound
+- canonical: DDI_REVALIDATION_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - DDI_SCHEMA_READY
+  dependency_expression: 'revalidation loop validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TRACE_COMPLETENESS
+  expiry:
+  - evidence-generation-bound
+- canonical: DDI_HINT_PLANNER_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - DDI_REVALIDATION_READY
+  dependency_expression: 'hint planner validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TRACE_COMPLETENESS
+  expiry:
+  - evidence-generation-bound
+- canonical: DDI_TARGET_VALIDATED
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - DDI_HINT_PLANNER_READY
+  dependency_expression: 'target validated through DDI hints'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TARGET_VALIDATION
+  - BLOCKED_TRACE_TARGET_VALIDATION
+  expiry:
+  - evidence-generation-bound
+# ---- IV §52 TGB chain (TELEGRAM_BRIDGE_PRODUCTION_READY superseded per FB18-07) ----
+- canonical: TGB_STATE_MACHINE_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies: []
+  dependency_expression: 'TGB state machine validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: TGB_PENDING_BUDGET_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - TGB_STATE_MACHINE_READY
+  dependency_expression: 'pending-budget flow validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_RESOURCE_BUDGET
+  expiry:
+  - evidence-generation-bound
+- canonical: TGB_PREFIX_HANDOFF_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - TGB_PENDING_BUDGET_READY
+  dependency_expression: 'prefix-handoff flow validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: TGB_ANDROID_VALIDATED
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - TGB_PREFIX_HANDOFF_READY
+  dependency_expression: 'TGB Android canary validated'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_ANDROID_VALIDATION
+  expiry:
+  - evidence-generation-bound
+- canonical: TGB_PRODUCTION_READY
+  aliases:
+  - TELEGRAM_BRIDGE_PRODUCTION_READY
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - TGB_ANDROID_VALIDATED
+  dependency_expression: 'full TGB release chain per §52; runtime promotion verdict in fieldtest release_detector.go'
+  required_gates:
+  - family:ddi_tgb
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_ANDROID_VALIDATION
+  - BLOCKED_RESOURCE_BUDGET
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+# ---- IV §52 WARP extension ----
+- canonical: WARP_CAMOUFLAGE_READY
+  aliases: []
+  kind: ready
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - WARP_BASE_READY
+  dependency_expression: 'WARP camouflage validated on top of base transport'
+  required_gates:
+  - family:warp
+  required_target_evidence: []
+  blocked_variants:
+  - BLOCKED_TPROXY_CAPABILITY
+  expiry:
+  - evidence-generation-bound
+- canonical: WARP_NON_RU_SAFETY_READY
+  aliases: []
+  kind: ready
+  owner_family: warp
+  source_stage_category: warp
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies:
+  - WARP_BASE_READY
+  dependency_expression: 'non-RU safety validated on top of base transport'
+  required_gates:
+  - family:warp
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+# ---- IV §52 fieldtest promotion verdicts (runtime, fieldtest release_detector.go) ----
+- canonical: ISSUE_277_RESOLVED
+  aliases: []
+  kind: ready
+  owner_family: fieldtest
+  source_stage_category: field-test
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies: []
+  dependency_expression: 'issue 277 regression resolved (runtime promotion verdict)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ISSUE_278_RESOLVED
+  aliases: []
+  kind: ready
+  owner_family: fieldtest
+  source_stage_category: field-test
+  source_doc: B4_IMPLEMENTATION_VALIDATION_ADDENDUM_v1.5.md
+  source_section: '52'
+  dependencies: []
+  dependency_expression: 'issue 278 regression resolved (runtime promotion verdict)'
+  required_gates: []
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+# ---- §83 behavioral fingerprinting / constrained synthesis (4) ----
+- canonical: BEHAVIORAL_FINGERPRINT_BOUNDED_READY
+  aliases: []
+  kind: ready
+  owner_family: mon
+  source_stage_category: mon
+  source_doc: B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md
+  source_section: '83'
+  dependencies:
+  - MON_PRODUCTION_READY
+  dependency_expression: 'behavioral fingerprint bounded; requires continuous monitoring'
+  required_gates:
+  - family:mon
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: CONSTRAINED_SYNTHESIS_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi
+  source_doc: B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md
+  source_section: '83'
+  dependencies:
+  - BEHAVIORAL_FINGERPRINT_BOUNDED_READY
+  - DDI_PRODUCTION_READY
+  - WARP_BASE_READY
+  dependency_expression: 'constrained synthesis: opt-in + monitoring + DDI constraints + WARP base'
+  required_gates:
+  - family:ddi_tgb
+  - family:warp
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: SYNTHESIZED_DISCOVERY_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md
+  source_section: '83'
+  dependencies:
+  - CONSTRAINED_SYNTHESIS_READY
+  - DETECTOR_GUIDED_STRATEGY_SEARCH_READY
+  - ABD_PRODUCTION_READY
+  dependency_expression: 'synthesized discovery: synthesis + Discovery + ABD evidence'
+  required_gates:
+  - family:ddi_tgb
+  - family:abd
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+- canonical: AUTONOMOUS_DPI_ADAPTATION_READY
+  aliases: []
+  kind: ready
+  owner_family: ddi_tgb
+  source_stage_category: ddi-tgb
+  source_doc: B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md
+  source_section: '83'
+  dependencies:
+  - SYNTHESIZED_DISCOVERY_READY
+  - MON_PRODUCTION_READY
+  - ABD_PRODUCTION_READY
+  - DDI_PRODUCTION_READY
+  - WARP_BASE_READY
+  dependency_expression: 'autonomous DPI adaptation: monitoring + ABD evidence + DDI constraints + synthesis + Discovery + Action + Android canary + promote/rollback + hard gates'
+  required_gates:
+  - family:ddi_tgb
+  - family:abd
+  - family:warp
+  - family:mon
+  required_target_evidence: []
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
+# ---- §88 adaptive DNS (9) ----
+- canonical: ADNS_DETECTOR_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies: []
+  dependency_expression: 'ADNS detector path validated' # ASSUMPTION: first element of §88 chain
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_NATIVE_CLASSIC_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_DETECTOR_READY
+  dependency_expression: 'native classic DNS path validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_TCP_SEGMENT_EXPERIMENT_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_NATIVE_CLASSIC_READY
+  dependency_expression: 'TCP segment experiment validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_NATIVE_ENCRYPTED_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_TCP_SEGMENT_EXPERIMENT_READY
+  dependency_expression: 'native encrypted DNS path validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_MANAGED_BACKEND_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_NATIVE_ENCRYPTED_READY
+  dependency_expression: 'managed dnscrypt backend validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_PROFILE_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_MANAGED_BACKEND_READY
+  dependency_expression: 'ADNS profile validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_FAILOVER_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_PROFILE_READY
+  dependency_expression: 'failover path validated' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_ANDROID_CANARY_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_FAILOVER_READY
+  dependency_expression: 'Android canary validated for ADNS' # ASSUMPTION: §88 ordering
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - evidence-generation-bound
+- canonical: ADNS_PRODUCTION_READY
+  aliases: []
+  kind: ready
+  owner_family: adns
+  source_doc: B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md
+  source_section: '88'
+  dependencies:
+  - ADNS_ANDROID_CANARY_READY
+  dependency_expression: 'full ADNS release chain per §88'
+  required_gates: []
+  required_target_evidence:
+  - dns
+  blocked_variants: []
+  expiry:
+  - config-generation-bound
+  - evidence-generation-bound
