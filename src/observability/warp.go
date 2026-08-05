@@ -35,3 +35,17 @@ const (
 	MetricWarpTraceGenerationMismatch   = "warp_trace_generation_mismatch_total"
 	MetricWarpTraceStateMismatch        = "warp_trace_state_mismatch_total"
 )
+
+// WARP nested dependency-graph hard-gate counters (FB-03 §73B nested block,
+// addendum v1.2 §62.4). Each counter is incremented only on the violating
+// branch of the production nested lifecycle (Runtime.NestedPromote /
+// Runtime.NestedUseParentToken / Runtime.NestedControl). All five are
+// zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpNestedMissingParentLink              = "warp_nested_missing_parent_link_total"
+	MetricWarpNestedParentGenerationMismatch       = "warp_nested_parent_generation_mismatch_total"
+	MetricWarpNestedControlDirectLeak              = "warp_nested_control_direct_leak_total"
+	MetricWarpNestedRouteActiveWithoutParentHealth = "warp_nested_route_active_without_parent_health_total"
+	MetricWarpNestedStaleParentToken               = "warp_nested_stale_parent_token_total"
+)

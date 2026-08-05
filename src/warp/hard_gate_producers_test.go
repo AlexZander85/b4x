@@ -443,3 +443,101 @@ func TestHardGateProducer_WARPTraceStateMismatch(t *testing.T) {
 		t.Fatal("warp_trace_state_mismatch_total not incremented on active-before-apply (zero-tolerance gate)")
 	}
 }
+
+// --- §73B nested dependency-graph producers (addendum §62.4) ---
+
+// TestHardGateProducer_WARPNestedMissingParentLink is the negative fixture for
+// warp_nested_missing_parent_link_total: child promotion without a current
+// parent link.
+func TestHardGateProducer_WARPNestedMissingParentLink(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	nb := &NestedBackend{} // no parent link at all
+	if err := rt.NestedPromote(nb, 1); err == nil {
+		t.Fatal("nested promotion without parent link accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedMissingParentLink); got == 0 {
+		t.Fatal("warp_nested_missing_parent_link_total not incremented (zero-tolerance gate)")
+	}
+	// second site: parent token use on a backend without a link
+	// (nested_runtime.go NestedUseParentToken guard).
+	observability.Default().Metrics.Reset()
+	nb2 := &NestedBackend{}
+	if err := rt.NestedUseParentToken(nb2, "token-x", 1); err == nil {
+		t.Fatal("parent token use without parent link accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedMissingParentLink); got == 0 {
+		t.Fatal("warp_nested_missing_parent_link_total not incremented on token use (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth is the negative
+// fixture for warp_nested_route_active_without_parent_health_total: promotion
+// of a child route while the parent link is not healthy.
+func TestHardGateProducer_WARPNestedRouteActiveWithoutParentHealth(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	nb := &NestedBackend{Link: TunnelDependencyLink{
+		ParentSession: "parent", InnerSession: "child",
+		ParentSessionGen: 3, ParentRouteGen: 2, Revalidated: true, Valid: true,
+		ParentHealthy: false,
+	}}
+	nb.RevalidateParent(3, false)
+	if err := rt.NestedPromote(nb, 3); err == nil {
+		t.Fatal("nested promotion with unhealthy parent accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedRouteActiveWithoutParentHealth); got == 0 {
+		t.Fatal("warp_nested_route_active_without_parent_health_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNestedParentGenerationMismatch is the negative
+// fixture for warp_nested_parent_generation_mismatch_total: promotion claiming
+// a parent SessionGen other than the revalidated one (parent reconnect case).
+func TestHardGateProducer_WARPNestedParentGenerationMismatch(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	nb := &NestedBackend{Link: TunnelDependencyLink{
+		ParentSession: "parent", InnerSession: "child",
+		ParentSessionGen: 3, ParentRouteGen: 2, Revalidated: true, Valid: true,
+		ParentHealthy: true,
+	}}
+	if err := rt.NestedPromote(nb, 2); err == nil { // claims stale gen 2, link revalidated against 3
+		t.Fatal("nested promotion with mismatched parent generation accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedParentGenerationMismatch); got == 0 {
+		t.Fatal("warp_nested_parent_generation_mismatch_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNestedControlDirectLeak is the negative fixture for
+// warp_nested_control_direct_leak_total: inner control entering the base path
+// without the inner-control mark.
+func TestHardGateProducer_WARPNestedControlDirectLeak(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.NestedControl(false); err == nil {
+		t.Fatal("inner control direct leak accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedControlDirectLeak); got == 0 {
+		t.Fatal("warp_nested_control_direct_leak_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNestedStaleParentToken is the negative fixture for
+// warp_nested_stale_parent_token_total: binding to a parent route token from a
+// retired generation after link revalidation.
+func TestHardGateProducer_WARPNestedStaleParentToken(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	nb := &NestedBackend{Link: TunnelDependencyLink{
+		ParentSession: "parent", InnerSession: "child",
+		ParentRouteID: "token-2", ParentRouteGen: 2, Valid: true,
+	}}
+	if err := rt.NestedUseParentToken(nb, "token-1", 1); err == nil {
+		t.Fatal("stale parent route token accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNestedStaleParentToken); got == 0 {
+		t.Fatal("warp_nested_stale_parent_token_total not incremented (zero-tolerance gate)")
+	}
+}
