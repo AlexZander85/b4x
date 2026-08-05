@@ -424,6 +424,52 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (rollback with no previous applied state)",
         "production_root": "warp.Runtime.Rollback (lifecycle rollback; controller-loop root from main)",
     },
+    # --- WARP causal-trace producers (FB-03 §73B, 2026-08-06): every counter
+    # increments ONLY on the violating branch of the production trace pipeline
+    # (Runtime.PublishTrace / Runtime.VerifyTraceCompleteness), reachable from
+    # the controller-loop root from main. All six are §73B causal-trace gates. ---
+    "warp_trace_secret_leak_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpTraceSecretLeak)",
+        "file": "src/warp/runtime.go",
+        "line": 450,
+        "mechanism": "increment-only counter via observability (trace payload key of a §61.3 never-emit class)",
+        "production_root": "warp.Runtime.PublishTrace (trace payload redaction deny-list; controller-loop root from main)",
+    },
+    "warp_trace_required_event_missing_total": {
+        "symbol": "Runtime.VerifyTraceCompleteness -> Metrics.Inc(MetricWarpTraceRequiredEventMissing)",
+        "file": "src/warp/runtime.go",
+        "line": 511,
+        "mechanism": "increment-only counter via observability (required-event name absent from the pipeline snapshot)",
+        "production_root": "warp.Runtime.VerifyTraceCompleteness (status/export completeness cross-check, addendum §63.2; controller-loop root from main)",
+    },
+    "warp_trace_dropped_required_event_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpTraceDroppedRequiredEvent)",
+        "file": "src/warp/runtime.go",
+        "line": 482,
+        "mechanism": "increment-only counter via observability (P0/P1 required event that cannot be stored: ring full of required events)",
+        "production_root": "warp.Runtime.PublishTrace (required-event durability pre-check via TracePipeline.HasCapacityFor; controller-loop root from main)",
+    },
+    "warp_trace_event_order_violation_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpTraceEventOrderViolation)",
+        "file": "src/warp/runtime.go",
+        "line": 456,
+        "mechanism": "increment-only counter via observability (per-session non-monotonic event sequence)",
+        "production_root": "warp.Runtime.PublishTrace (per-session monotonic sequence; controller-loop root from main)",
+    },
+    "warp_trace_generation_mismatch_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpTraceGenerationMismatch)",
+        "file": "src/warp/runtime.go",
+        "line": 463,
+        "mechanism": "increment-only counter via observability (trace-claimed route generation mismatches the applied route generation)",
+        "production_root": "warp.Runtime.PublishTrace (current-generation rule §61.1; controller-loop root from main)",
+    },
+    "warp_trace_state_mismatch_total": {
+        "symbol": "Runtime.PublishTrace -> Metrics.Inc(MetricWarpTraceStateMismatch)",
+        "file": "src/warp/runtime.go",
+        "line": 471,
+        "mechanism": "increment-only counter via observability (trace-derived StateAfter contradicts runtime route state)",
+        "production_root": "warp.Runtime.PublishTrace (trace-derived state vs runtime state §63.2; controller-loop root from main)",
+    },
     # --- SPF lifecycle producers (FB-02 SPF section, 2026-08-04): every counter
     # increments ONLY on the violating branch of the production guards
     # (src/silentpath/hard_gate_producers.go), reachable from the validation
@@ -2963,6 +3009,39 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    # --- FB-03 §73B causal-trace consumers: the narrow WARP_CAUSAL_TRACE_READY
+    # verdict evaluates exactly these six gates (FB-14 decision 9) via
+    # EvaluateCausalTraceWindow, fail-closed on any non-zero delta. ---
+    "warp_trace_secret_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_trace_required_event_missing_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_trace_dropped_required_event_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_trace_event_order_violation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_trace_generation_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_trace_state_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -3846,6 +3925,27 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_rollback_failure_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPRollbackFailure", "file": "src/warp/hard_gate_producers_test.go", "line": 263, "assertion": "rollback without previous state -> err && counter > 0"},
     ],
+    # --- FB-03 §73B causal-trace fixtures: negative fixtures drive the
+    # violating branch of the production trace pipeline and assert the
+    # zero-tolerance counter moved. ---
+    "warp_trace_secret_leak_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceSecretLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 314, "assertion": "never-emit payload key (not a stored secret) -> PublishTrace false && counter > 0"},
+    ],
+    "warp_trace_required_event_missing_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceRequiredEventMissing", "file": "src/warp/hard_gate_producers_test.go", "line": 338, "assertion": "required event absent from snapshot -> VerifyTraceCompleteness missing && counter > 0"},
+    ],
+    "warp_trace_dropped_required_event_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceDroppedRequiredEvent", "file": "src/warp/hard_gate_producers_test.go", "line": 358, "assertion": "P0 event with ring full of P0/P1 -> PublishTrace false && counter > 0"},
+    ],
+    "warp_trace_event_order_violation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceEventOrderViolation", "file": "src/warp/hard_gate_producers_test.go", "line": 380, "assertion": "per-session non-monotonic sequence -> PublishTrace false && counter > 0"},
+    ],
+    "warp_trace_generation_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceGenerationMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 398, "assertion": "trace RouteGeneration 2 vs applied generation 1 -> PublishTrace false && counter > 0"},
+    ],
+    "warp_trace_state_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPTraceStateMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 417, "assertion": "StateAfter closed while runtime route active -> PublishTrace false && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4139,6 +4239,12 @@ for _name in [
     "warp_destination_set_partial_apply_total", "warp_unbounded_restart_total",
     "warp_unbounded_registration_total", "warp_unrelated_control_action_total",
     "warp_rollback_failure_total",
+    "warp_trace_secret_leak_total",
+    "warp_trace_required_event_missing_total",
+    "warp_trace_dropped_required_event_total",
+    "warp_trace_event_order_violation_total",
+    "warp_trace_generation_mismatch_total",
+    "warp_trace_state_mismatch_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [

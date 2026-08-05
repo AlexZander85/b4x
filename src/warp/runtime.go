@@ -21,6 +21,7 @@ package warp
 import (
 	"bytes"
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
@@ -35,15 +36,17 @@ import (
 const warpControlRouteMark uint32 = 0x6001
 
 // Config is the production tuning of the WARP lifecycle controller.
-// Defaults follow the addendum: bounded restart budget (3), bounded event bus.
+// Defaults follow the addendum: bounded restart budget (3), bounded event bus,
+// bounded trace ring (warp_trace.memory_events default 256).
 type Config struct {
-	MaxRestarts int
-	BusCapacity int
+	MaxRestarts   int
+	BusCapacity   int
+	TraceCapacity int
 }
 
 // DefaultConfig returns the production runtime defaults.
 func DefaultConfig() Config {
-	return Config{MaxRestarts: 3, BusCapacity: 64}
+	return Config{MaxRestarts: 3, BusCapacity: 64, TraceCapacity: 256}
 }
 
 // ControlEventKind is the kind of a lifecycle control event dispatched to the
@@ -88,6 +91,8 @@ type sessionState struct {
 	mark         uint32
 	hasApplied   bool
 	hasPrevious  bool
+	routeGen     uint64
+	lastSeq      uint64
 }
 
 // Runtime owns the production WARP lifecycle state and the ten §72
@@ -119,12 +124,15 @@ func NewRuntime(cfg Config) *Runtime {
 	if cfg.BusCapacity <= 0 {
 		cfg.BusCapacity = 64
 	}
+	if cfg.TraceCapacity <= 0 {
+		cfg.TraceCapacity = 256
+	}
 	return &Runtime{
 		cfg:        cfg,
 		marks:      NewMarkAllocator(),
 		tun:        NewTunRegistry(),
 		secrets:    NewSecretStore(),
-		trace:      NewTracePipeline(256),
+		trace:      NewTracePipeline(cfg.TraceCapacity),
 		sessions:   map[string]*sessionState{},
 		markOwners: map[uint32]string{},
 		events:     make(chan ControlEvent, cfg.BusCapacity),
@@ -324,6 +332,7 @@ func (rt *Runtime) ApplyRoute(session string, policy DialPolicy, lease TunLease,
 	st.mark = policy.Mark
 	st.destinations = applied
 	st.auth = auth
+	st.routeGen = policy.Generation
 	if st.hasApplied {
 		st.hasPrevious = true
 	}
@@ -390,17 +399,43 @@ func (rt *Runtime) Rollback(session string) error {
 	return nil
 }
 
-// PublishTrace exports a trace event for a session. The violation branch is a
-// payload carrying raw session key material (warp_secret_leak_total; secrets
-// must never reach trace payloads per the addendum).
+// traceDeniedPayloadKey reports whether a trace payload key belongs to a
+// never-emit class (addendum v1.2 §61.3): access tokens, WARP license, raw
+// registration/session config, full device identity, HTTP authorization
+// headers, unredacted query/body, private key material. Publishing an event
+// with such a key is a warp_trace_secret_leak_total violation.
+func traceDeniedPayloadKey(key string) bool {
+	switch key {
+	case "access_token", "authorization", "authorization_header", "body",
+		"client_key", "device_identity", "license", "private_key",
+		"query", "registration_config", "session_config", "tls_key":
+		return true
+	}
+	return false
+}
+
+// PublishTrace exports a trace event for a session. Violating branches (in
+// evaluation order) increment exactly one §72/§73B counter each:
+//
+//  1. payload value equal to stored session key material -> warp_secret_leak_total (§72);
+//  2. payload key of a never-emit class -> warp_trace_secret_leak_total (§61.3/73B);
+//  3. non-monotonic per-session sequence -> warp_trace_event_order_violation_total (§61.1);
+//  4. route event generation mismatch -> warp_trace_generation_mismatch_total (§61.1);
+//  5. trace-derived state contradicting runtime state -> warp_trace_state_mismatch_total (§63.2);
+//  6. P0/P1 required event that cannot be stored -> warp_trace_dropped_required_event_total (§61.2).
+//
+// Accepted events advance the per-session monotonic sequence.
 func (rt *Runtime) PublishTrace(session string, event TransportTraceEnvelope) bool {
 	if rt == nil {
 		return false
 	}
-	st := rt.session(session)
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	st := rt.sessions[session]
 	if st == nil {
 		return false
 	}
+	// 1. Raw session key material must never reach a trace payload (§72).
 	for _, v := range event.Payload {
 		for _, secret := range st.secrets {
 			if bytes.Equal(secret, []byte(v)) {
@@ -409,7 +444,75 @@ func (rt *Runtime) PublishTrace(session string, event TransportTraceEnvelope) bo
 			}
 		}
 	}
-	return rt.trace.Publish(event)
+	// 2. Never-emit payload key classes (§61.3): immediate FAIL.
+	for k := range event.Payload {
+		if traceDeniedPayloadKey(k) {
+			observability.Default().Metrics.Inc(observability.MetricWarpTraceSecretLeak, nil, 1)
+			return false
+		}
+	}
+	// 3. Strictly monotonic sequence per session (§61.1).
+	if event.Sequence <= st.lastSeq {
+		observability.Default().Metrics.Inc(observability.MetricWarpTraceEventOrderViolation, nil, 1)
+		return false
+	}
+	// 4. A trace event must match the current route generation (§61.1:
+	// "a masque_connected event MUST match current ConfigGen, RouteGen,
+	// SessionGen"). Events without a generation claim are not asserted.
+	if st.hasApplied && event.RouteGeneration != "" && event.RouteGeneration != strconv.FormatUint(st.routeGen, 10) {
+		observability.Default().Metrics.Inc(observability.MetricWarpTraceGenerationMismatch, nil, 1)
+		return false
+	}
+	// 5. Trace-derived state must equal runtime state (§63.2): any mismatch is
+	// explicit, never a hidden warning.
+	switch event.StateAfter {
+	case "active", "established":
+		if !st.hasApplied {
+			observability.Default().Metrics.Inc(observability.MetricWarpTraceStateMismatch, nil, 1)
+			return false
+		}
+	case "closed", "idle", "revoked":
+		if st.hasApplied {
+			observability.Default().Metrics.Inc(observability.MetricWarpTraceStateMismatch, nil, 1)
+			return false
+		}
+	}
+	// 6. Required events (P0/P1) must never be dropped (§61.2).
+	if event.Priority <= P1 && !rt.trace.HasCapacityFor(event) {
+		observability.Default().Metrics.Inc(observability.MetricWarpTraceDroppedRequiredEvent, nil, 1)
+		return false
+	}
+	if !rt.trace.Publish(event) {
+		return false
+	}
+	st.lastSeq = event.Sequence
+	return true
+}
+
+// VerifyTraceCompleteness cross-checks the live trace pipeline against the
+// session's required-event set (addendum §62 taxonomy; §63.2 status
+// cross-check: "runtime state vs trace-derived state"). Every required event
+// name absent from the pipeline snapshot increments
+// warp_trace_required_event_missing_total and is returned; the caller (status
+// / promotion path) treats a non-empty result as a completeness failure.
+func (rt *Runtime) VerifyTraceCompleteness(session string, required []string) []string {
+	if rt == nil {
+		return append([]string(nil), required...)
+	}
+	present := map[string]bool{}
+	for _, e := range rt.trace.Snapshot() {
+		if e.SessionID == session {
+			present[e.Event] = true
+		}
+	}
+	var missing []string
+	for _, name := range required {
+		if !present[name] {
+			observability.Default().Metrics.Inc(observability.MetricWarpTraceRequiredEventMissing, nil, 1)
+			missing = append(missing, name)
+		}
+	}
+	return missing
 }
 
 // Trace returns the live trace pipeline (read-only usage).

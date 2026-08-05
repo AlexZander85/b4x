@@ -20,3 +20,18 @@ const (
 	MetricWarpUnrelatedControlAction     = "warp_unrelated_control_action_total"
 	MetricWarpRollbackFailure            = "warp_rollback_failure_total"
 )
+
+// WARP causal-trace hard-gate counters (FB-03 §73B of the built-in WARP/MASQUE
+// transport addendum v1.2). Each counter is incremented only on the violating
+// branch of the production trace pipeline (Runtime.PublishTrace /
+// Runtime.VerifyTraceCompleteness, controller-loop root from main). All six
+// are zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpTraceSecretLeak           = "warp_trace_secret_leak_total"
+	MetricWarpTraceRequiredEventMissing = "warp_trace_required_event_missing_total"
+	MetricWarpTraceDroppedRequiredEvent = "warp_trace_dropped_required_event_total"
+	MetricWarpTraceEventOrderViolation  = "warp_trace_event_order_violation_total"
+	MetricWarpTraceGenerationMismatch   = "warp_trace_generation_mismatch_total"
+	MetricWarpTraceStateMismatch        = "warp_trace_state_mismatch_total"
+)

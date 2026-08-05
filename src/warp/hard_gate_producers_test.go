@@ -281,3 +281,149 @@ func TestHardGateProducer_WARPRollbackFailure(t *testing.T) {
 		t.Fatal("warp_rollback_failure_total not incremented (zero-tolerance gate)")
 	}
 }
+
+// traceEvent builds a sealed P0 trace event for a session. Callers override
+// RouteGeneration/StateAfter/Payload for the specific violation branch.
+func traceEvent(session string, seq uint64, eventName string) TransportTraceEnvelope {
+	return TransportTraceEnvelope{
+		SchemaVersion: 2, BootID: "b", ProcessID: "p", SessionID: session,
+		Sequence: seq, Priority: P0, Event: eventName, ObservedAt: time.Now(),
+	}.Seal()
+}
+
+// appliedRoute registers a session, proves liveness and applies one route with
+// generation 1 (the common §73B fixture preamble).
+func appliedRoute(t *testing.T, rt *Runtime, session string, mark uint32) {
+	t.Helper()
+	if err := rt.Register(session, DefaultEnrollmentPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	rt.ObserveHealth(session, true, true)
+	policy := DialPolicy{Mark: mark, BindDevice: "wg0", EndpointPin: "pin", DirectControl: true, ProxyEnvDisabled: true, Generation: 1}
+	lease := TunLease{SessionID: session, Interface: "b4tun0", Address: "10.0.0.2", MTU: 1500, State: TunOwned}
+	auth := &TransportAuthorization{FlowID: "flow-1", ServiceProfile: "default", ClientKey: "ck", DestinationHash: "hash-1", RouteGeneration: 1, ConfigGeneration: 1, AllowForwarded: true}
+	if err := rt.ApplyRoute(session, policy, lease, []string{"1.1.1.1"}, auth); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestHardGateProducer_WARPTraceSecretLeak is the negative fixture for
+// warp_trace_secret_leak_total: a trace payload carrying a never-emit key
+// class (§61.3) whose value is NOT a stored secret, so the §72 store-level
+// raw-secret gate stays clean and only the trace-level gate fires.
+func TestHardGateProducer_WARPTraceSecretLeak(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.Register("sess-a", DefaultEnrollmentPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.PutSecret("sess-a", "cert-key", []byte("cert-material")); err != nil {
+		t.Fatal(err)
+	}
+	appliedRoute(t, rt, "sess-a", 0xC001)
+
+	event := traceEvent("sess-a", 1, "dial")
+	event.Payload = map[string]string{"private_key": "attacker-material"}
+	if rt.PublishTrace("sess-a", event) {
+		t.Fatal("trace with never-emit payload key accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceSecretLeak); got == 0 {
+		t.Fatal("warp_trace_secret_leak_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPTraceRequiredEventMissing is the negative fixture
+// for warp_trace_required_event_missing_total: the trace-to-status cross-check
+// (§63.2) finds a required event absent from the pipeline snapshot.
+func TestHardGateProducer_WARPTraceRequiredEventMissing(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	appliedRoute(t, rt, "sess-a", 0xC101)
+	if !rt.PublishTrace("sess-a", traceEvent("sess-a", 1, "warp_engine_provisioned")) {
+		t.Fatal("required trace event rejected")
+	}
+	// "warp_route_applied" was never published: completeness check must fail.
+	missing := rt.VerifyTraceCompleteness("sess-a", []string{"warp_engine_provisioned", "warp_route_applied"})
+	if len(missing) != 1 || missing[0] != "warp_route_applied" {
+		t.Fatalf("unexpected missing set: %v", missing)
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceRequiredEventMissing); got == 0 {
+		t.Fatal("warp_trace_required_event_missing_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPTraceDroppedRequiredEvent is the negative fixture
+// for warp_trace_dropped_required_event_total: a P0 required event that cannot
+// be stored because the ring holds only P0/P1 events (§61.2).
+func TestHardGateProducer_WARPTraceDroppedRequiredEvent(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := NewRuntime(Config{TraceCapacity: 2})
+	appliedRoute(t, rt, "sess-a", 0xC201)
+	// Fill the whole ring with P0/P1 required events.
+	for i := uint64(1); i <= 2; i++ {
+		if !rt.PublishTrace("sess-a", traceEvent("sess-a", i, "phase")) {
+			t.Fatalf("required event %d rejected before ring saturation", i)
+		}
+	}
+	// Third required event cannot be stored: dropped required event.
+	if rt.PublishTrace("sess-a", traceEvent("sess-a", 3, "phase")) {
+		t.Fatal("dropped required event accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceDroppedRequiredEvent); got == 0 {
+		t.Fatal("warp_trace_dropped_required_event_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPTraceEventOrderViolation is the negative fixture
+// for warp_trace_event_order_violation_total: a non-monotonic per-session
+// sequence (§61.1).
+func TestHardGateProducer_WARPTraceEventOrderViolation(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	appliedRoute(t, rt, "sess-a", 0xC301)
+	if !rt.PublishTrace("sess-a", traceEvent("sess-a", 1, "phase")) {
+		t.Fatal("first trace event rejected")
+	}
+	if rt.PublishTrace("sess-a", traceEvent("sess-a", 1, "phase")) {
+		t.Fatal("non-monotonic event sequence accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceEventOrderViolation); got == 0 {
+		t.Fatal("warp_trace_event_order_violation_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPTraceGenerationMismatch is the negative fixture for
+// warp_trace_generation_mismatch_total: a trace event claiming a route
+// generation different from the applied route generation (§61.1).
+func TestHardGateProducer_WARPTraceGenerationMismatch(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	appliedRoute(t, rt, "sess-a", 0xC401)
+	// Applied route uses generation 1; announce generation 2.
+	event := traceEvent("sess-a", 1, "masque_connected")
+	event.RouteGeneration = "2"
+	if rt.PublishTrace("sess-a", event) {
+		t.Fatal("generation-mismatched trace accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceGenerationMismatch); got == 0 {
+		t.Fatal("warp_trace_generation_mismatch_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPTraceStateMismatch is the negative fixture for
+// warp_trace_state_mismatch_total: trace-derived state contradicting the
+// runtime state (§63.2) — the runtime reports the route active while the trace
+// event announces the route closed.
+func TestHardGateProducer_WARPTraceStateMismatch(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	appliedRoute(t, rt, "sess-a", 0xC501)
+	event := traceEvent("sess-a", 1, "route-gate")
+	event.StateAfter = "closed"
+	if rt.PublishTrace("sess-a", event) {
+		t.Fatal("state-mismatched trace accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpTraceStateMismatch); got == 0 {
+		t.Fatal("warp_trace_state_mismatch_total not incremented (zero-tolerance gate)")
+	}
+}
