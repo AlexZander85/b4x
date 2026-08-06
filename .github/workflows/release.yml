@@ -100,6 +100,8 @@ jobs:
           python tools/validate_principal_verdicts.py --check
           python tools/validate_causal_matrix.py --check
           python tools/gen_causal_matrix_go.py --check
+          python tools/validate_capability_deps.py --check
+          python tools/gen_capability_deps_go.py --check
 
       - name: Run tests with race detector
         working-directory: src

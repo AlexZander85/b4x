@@ -1,0 +1,93 @@
+schema_version: '1.0'
+generator: tools/gen_capability_deps_go.py
+validator: tools/validate_capability_deps.py
+generated_at: '2026-08-06'
+status: canonical (FB-36, P0-NORMATIVE; B4X_AUDIT_FIX_TASKS v2 §FB-36; ARCH v2.4 §53.3)
+declared_total: 10
+computed_total: 10
+
+# FB-36 capability dependency graph: execution scheduling (отдельно от verdict
+# aggregation). Нормативный порядок (B4X_AUDIT_FIX_TASKS v2 §FB-36):
+#   Classifier/Capture
+#   -> CSI + GSO/RST + PPE visibility
+#   -> Progress/SPF
+#   -> MON
+#   -> ABD
+#   -> DDI/Discovery
+#   -> scoped canary/runtimecontrol
+#   -> base WARP causal readiness where selected
+#   -> Service Profile recommendation readiness
+# TGB может выполняться параллельно после capture/routing prerequisites.
+# Early WARP test не удовлетворяет отсутствующий MON/ABD/DDI dependency.
+#
+# Semantics:
+#   - requires:   upstream capabilities; downstream PASS недопустим без PASS
+#     каждого upstream (missing upstream dependency blocks downstream PASS);
+#   - parallel:   этап не обязан идти в строгой последовательности общей
+#     цепочки и может исполняться параллельно (после своих requires);
+#   - optional:   этап активируется только when selected (base WARP causal
+#     readiness "where selected"); отсутствие optional upstream не блокирует
+#     downstream, но если optional активирован — его upstream обязательны;
+#   - layer:      монотонная глубина графа (requires имеют меньший layer);
+#     используется для группировки параллельных волн физического исполнения.
+capabilities:
+- id: classifier
+  name: Classifier/Capture
+  layer: 0
+  requires: []
+  parallel: true
+  optional: false
+- id: tgb
+  name: Telegram bridge (parallel after capture/routing prerequisites)
+  layer: 1
+  requires: [classifier]
+  parallel: true
+  optional: false
+- id: visibility
+  name: CSI + GSO/RST + PPE visibility
+  layer: 1
+  requires: [classifier]
+  parallel: false
+  optional: false
+- id: progress
+  name: Progress/SPF
+  layer: 2
+  requires: [visibility]
+  parallel: false
+  optional: false
+- id: mon
+  name: MON (continuous blocking monitoring)
+  layer: 3
+  requires: [progress]
+  parallel: false
+  optional: false
+- id: abd
+  name: ABD (authoritative blocking diagnosis)
+  layer: 4
+  requires: [mon]
+  parallel: false
+  optional: false
+- id: ddi
+  name: DDI/Discovery
+  layer: 5
+  requires: [abd]
+  parallel: false
+  optional: false
+- id: canary
+  name: Scoped canary / runtimecontrol
+  layer: 6
+  requires: [ddi]
+  parallel: false
+  optional: false
+- id: warp
+  name: Base WARP causal readiness
+  layer: 7
+  requires: [mon, abd, ddi, canary]
+  parallel: false
+  optional: true
+- id: service_profile
+  name: Service Profile recommendation readiness
+  layer: 8
+  requires: [warp, abd, ddi]
+  parallel: false
+  optional: false

@@ -81,7 +81,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-33 | ВЫПОЛНЕНА | Beads b4x-yzt, closed 05.08; commit f112c72e: canonical Exact Source-Stage Registry (specs/registries/source_stage_registry.yaml, 291 требований / 13 документов), генераторы tools/gen_source_stage_registry.py + gen_source_stage_go.py, Go-реестр source_stage_registry.gen.go + CriteriaTotal()/ValidateSourceStageRegistry(), b4-validate registry, FB-18B хэши из реестра, CI --check шаги |
 | FB-34 | ВЫПОЛНЕНА | Beads b4x-xgc, closed 05.08; commit 258fa84a: canonical Principal Verdict Registry (specs/registries/principal_verdicts.yaml, 68 verdicts: ARCH §142 + IV §52/52.1 + §83 + §88), alias mapping без state store (TGB_PRODUCTION_READY←TELEGRAM_BRIDGE_PRODUCTION_READY, DETECTOR_GUIDED_STRATEGY_SEARCH_READY←GUIDED_DISCOVERY_READY), валидатор tools/validate_principal_verdicts.py --check (CI), генератор gen_principal_verdicts_go.py, Go: CanonicalVerdictName()/VerdictDependencyClosure()/ValidatePrincipalVerdictRegistry(), CLI b4-validate verdict <name>, тесты duplicate/ARCH-graph/alias-migration/evidence-invalidation; FB-34.1 (b4x-ewc, closed 05.08; commit 68c6500f): VerifyPrincipalVerdictNames() fail-closed runtime guard + mutation-guard tests binding fieldtest/detector/serviceprofile runtime verdict names to the registry |
 | FB-35 | открыта | — |
-| FB-36 | открыта | — |
+| FB-36 | ВЫПОЛНЕНА | Beads b4x-0yf, closed 06.08; canonical Capability Dependency Graph (specs/registries/capability_dependencies.yaml, 10 capabilities / layers 0-8), валидатор tools/validate_capability_deps.py --check + генератор gen_capability_deps_go.py --check (CI), Go: Capabilities()/CapabilityByID()/CapabilityExecutionOrder()/CapabilityExecutionWaves()/CapabilityExecutionSchedule()/CapabilityDependencyClosure()/CapabilityUpstreamBlocked()/AggregateCapabilityVerdicts()/ValidateCapabilityDependencyRegistry(), FullRunOrder выводится из графа (warp после mon/abd/ddi/canary, MON больше не пропускается), тесты ordering/WARP-blocking/upstream-block/PASS, shuffled-suite-same-verdict/TGB-parallel/mutation-guard; FB-18B ARCH-141 → PASS |
 | FB-37 | ВЫПОЛНЕНА | Beads b4x-4vt, closed 03.08; вариант (а) — intentional no-op задокументирован |
 | FB-38 | ВЫПОЛНЕНА | Beads b4x-izm, closed 03.08; guard learnedIPAuthorizationAllowed в nfq/handler.go (TCP/UDP legacy-пути), learnedIPCache legacy-only + счётчик в sni/match.go, 2 теста |
 
@@ -1174,7 +1174,7 @@ removal
 - **Критерий:** migration matrix + reverse-call artifacts; seeded reactivation of legacy path detected by meta-suite.
 - **Зависит:** subsystem implementations; FB-03/FB-34.
 
-### FB-36. Capability dependency graph: execution scheduling отдельно от verdict aggregation [M, P0-NORMATIVE]
+### FB-36. Capability dependency graph: execution scheduling отдельно от verdict aggregation [M, P0-NORMATIVE] **— ВЫПОЛНЕНО** (Beads b4x-0yf, 06.08; commit _FB36_COMMIT_)
 
 - **Проблема:** IV run order ставит WARP до ABD и пропускает MON.
 - **Что сделать:** разрешить безопасный parallel physical execution, но dependency aggregation строго:

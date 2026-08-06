@@ -1,7 +1,7 @@
 {
   "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
   "commit": "a20ce4d8",
-  "generated_at": "2026-08-06T11:50:26.17318711Z",
+  "generated_at": "2026-08-06T12:09:57.31971079Z",
   "documents_sha256": {
     "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md": "5d2b03b02aed8e4ede89b9b60a853db119ac1e334d1650d9ee9ce0895df1fce7",
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md": "f0693e9c48ad359c38086defa022011ce9b3625eb565001a1a863bb731cf4cce",
@@ -19,11 +19,10 @@
   },
   "summary": {
     "total": 61,
-    "pass": 55,
-    "blocked": 5,
+    "pass": 56,
+    "blocked": 4,
     "not_applicable": 1,
     "blocked_by_task": {
-      "b4x-0yf": 1,
       "b4x-6kt": 1,
       "b4x-cst": 1,
       "b4x-n6r": 1,
@@ -492,12 +491,15 @@
       "kind": "clause",
       "title": "Capability dependency graph",
       "iv_coverage": "53.3",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-0yf",
-        "task": "FB-36: Capability dependency graph: execution scheduling",
-        "why": "execution scheduling отдельно от verdict dependencies; aggregation по ARCH graph не реализована"
-      }
+      "status": "PASS",
+      "evidence": [
+        "validation/TestValidateCapabilityDependencyRegistry",
+        "validation/TestCapabilityExecutionOrderBlocksEarlyWARP",
+        "validation/TestCapabilityMissingUpstreamBlocksDownstreamPASS",
+        "validation/TestCapabilityShuffledSuiteSameVerdict",
+        "validation/TestCapabilityTGBParallelAfterCapture"
+      ],
+      "note": "FB-36 (b4x-0yf): canonical capability dependency graph (capability_dependencies.yaml -\u003e capability_deps.gen.go), execution scheduling отдельно от verdict aggregation; FullRunOrder выводится из графа (WARP after MON/ABD/DDI/canary, TGB параллелен после capture); missing upstream dependency blocks downstream PASS."
     },
     {
       "id": "ARCH-142",
