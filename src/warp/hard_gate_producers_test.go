@@ -541,3 +541,74 @@ func TestHardGateProducer_WARPNestedStaleParentToken(t *testing.T) {
 		t.Fatal("warp_nested_stale_parent_token_total not incremented (zero-tolerance gate)")
 	}
 }
+
+// --- §73B WARP geo producers (addendum §62.5) ---
+
+// TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta is the
+// negative fixture for warp_geo_attestation_without_route_counter_delta_total:
+// an attestation commit whose fresh provider result carries no route counter
+// delta (§62.5: each provider result is an independent event with a route
+// counter delta).
+func TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Now()
+	obs := []GeoObservation{
+		{Provider: "geo-a", PublicIP: "1.2.3.4", PathID: "path-1", Class: GeoNonRU, DNSProof: true, CounterDelta: 7, ObservedAt: now, ExpiresAt: now.Add(time.Hour)},
+		{Provider: "geo-b", PublicIP: "1.2.3.4", PathID: "path-1", Class: GeoNonRU, DNSProof: true, CounterDelta: 0, ObservedAt: now, ExpiresAt: now.Add(time.Hour)},
+	}
+	if _, err := rt.GeoAttestationCommit(obs, now); err == nil {
+		t.Fatal("geo attestation without route counter delta accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpGeoAttestationWithoutRouteCounterDelta); got == 0 {
+		t.Fatal("warp_geo_attestation_without_route_counter_delta_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents is the negative
+// fixture for warp_geo_quorum_without_provider_events_total: a quorum decision
+// event with zero successful provider events (every result lacks DNS path
+// proof; §62.5 "a single summary event without provider events and path proof
+// is invalid").
+func TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Now()
+	obs := []GeoObservation{
+		{Provider: "geo-a", PublicIP: "1.2.3.4", PathID: "path-1", Class: GeoNonRU, DNSProof: false, CounterDelta: 1, ObservedAt: now, ExpiresAt: now.Add(time.Hour)},
+		{Provider: "geo-b", PublicIP: "1.2.3.4", PathID: "path-1", Class: GeoNonRU, DNSProof: false, CounterDelta: 1, ObservedAt: now, ExpiresAt: now.Add(time.Hour)},
+	}
+	if _, err := rt.GeoQuorumDecision(obs, now); err == nil {
+		t.Fatal("geo quorum decision without provider events accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpGeoQuorumWithoutProviderEvents); got == 0 {
+		t.Fatal("warp_geo_quorum_without_provider_events_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPGeoRouteGateStateMismatch is the negative fixture
+// for warp_geo_route_gate_state_mismatch_total (§62.5 GeoQuorumTrace
+// RouteGateBefore/RouteGateAfter). Both Inc sites are covered: the gate
+// closing under a valid attestation and the gate staying open after an
+// invalid (revoked) attestation.
+func TestHardGateProducer_WARPGeoRouteGateStateMismatch(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Now()
+	valid := GeoAttestation{Class: GeoNonRU, Providers: 2, Quorum: 2, PublicIP: "1.2.3.4", PathID: "path-1", FreshUntil: now.Add(time.Hour)}
+	if err := rt.GeoRouteGateApply(valid, "open", "closed", now); err == nil {
+		t.Fatal("geo route-gate state mismatch accepted (gate closed while attestation valid)")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpGeoRouteGateStateMismatch); got == 0 {
+		t.Fatal("warp_geo_route_gate_state_mismatch_total not incremented (zero-tolerance gate)")
+	}
+	// second mismatch direction: revoked attestation, gate stayed open.
+	observability.Default().Metrics.Reset()
+	revoked := GeoAttestation{Class: GeoDisagreement, Providers: 2, Quorum: 2, Revoked: true}
+	if err := rt.GeoRouteGateApply(revoked, "open", "open", now); err == nil {
+		t.Fatal("geo route-gate state mismatch accepted (gate stayed open after invalid attestation)")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpGeoRouteGateStateMismatch); got == 0 {
+		t.Fatal("warp_geo_route_gate_state_mismatch_total not incremented on open-gate-after-invalid (zero-tolerance gate)")
+	}
+}

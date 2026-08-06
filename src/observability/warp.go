@@ -49,3 +49,18 @@ const (
 	MetricWarpNestedRouteActiveWithoutParentHealth = "warp_nested_route_active_without_parent_health_total"
 	MetricWarpNestedStaleParentToken               = "warp_nested_stale_parent_token_total"
 )
+
+// WARP geo-attestation hard-gate counters (FB-03 §73B geo block, addendum
+// v1.2 §62.5 "Geo attestation and non-RU gate"). Each counter is incremented
+// only on the violating branch of the production geo lifecycle
+// (Runtime.GeoAttestationCommit / Runtime.GeoQuorumDecision /
+// Runtime.GeoRouteGateApply): a provider result without a route counter
+// delta, a quorum decision without provider events (and path proof), and a
+// route-gate state that contradicts the decision. All three are
+// zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpGeoAttestationWithoutRouteCounterDelta = "warp_geo_attestation_without_route_counter_delta_total"
+	MetricWarpGeoQuorumWithoutProviderEvents         = "warp_geo_quorum_without_provider_events_total"
+	MetricWarpGeoRouteGateStateMismatch              = "warp_geo_route_gate_state_mismatch_total"
+)
