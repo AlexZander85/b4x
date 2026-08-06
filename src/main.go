@@ -28,6 +28,7 @@ import (
 	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/monitoring"
 	"github.com/daniellavrushin/b4/nfq"
+	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/socks5"
 	"github.com/daniellavrushin/b4/serviceprofile"
@@ -435,6 +436,17 @@ func runB4(cmd *cobra.Command, args []string) error {
 	wd := watchdog.New(&cfgPtr, discoveryRT)
 	wd.Start()
 	handler.SetWatchdog(wd)
+
+	// MON addendum v1.0 §59: legacy_watchdog_direct_apply=true re-enables the
+	// removed legacy direct-apply semantics and MAY exist only in migration
+	// test builds or explicit unsafe development mode. It emits a startup
+	// warning and increments the zero-tolerance hard-gate counter
+	// monitor_legacy_watchdog_direct_apply_total, which blocks production
+	// readiness (FT-MON-A); the option is never exposed in the beginner UI.
+	if cfgPtr.Load().System.Checker.Watchdog.LegacyWatchdogDirectApply {
+		log.Warnf("[WATCHDOG] legacy_watchdog_direct_apply=true: legacy direct apply is UNSAFE (MON §59); allowed only in migration test builds / explicit unsafe development mode; production readiness is blocked (monitor_legacy_watchdog_direct_apply_total > 0)")
+		observability.Default().Metrics.Inc(observability.MetricMONLegacyWatchdogDirectApply, nil, 1)
+	}
 
 	// MON -> ABD -> DDI production runtime (IV-18-MON-09 wiring): consumes
 	// observations from the PPE capture-visibility gate and drives the

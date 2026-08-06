@@ -414,6 +414,14 @@ type WatchdogConfig struct {
 	Cooldown        int      `json:"cooldown_sec"`
 	TimeoutSec      int      `json:"timeout_sec"`
 	MaxRetries      int      `json:"max_retries"`
+	// LegacyWatchdogDirectApply (MON addendum v1.0 §59): default false. true
+	// re-enables the removed legacy watchdog direct-apply semantics and MAY
+	// exist only in migration test builds or explicit unsafe development
+	// mode: b4 MUST emit a startup warning, MUST increment the zero-tolerance
+	// hard-gate counter monitor_legacy_watchdog_direct_apply_total (blocking
+	// production readiness), and the option MUST NOT be exposed in the
+	// beginner UI.
+	LegacyWatchdogDirectApply bool `json:"legacy_watchdog_direct_apply"`
 }
 
 type Logging struct {

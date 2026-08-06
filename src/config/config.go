@@ -268,13 +268,14 @@ var DefaultConfig = Config{
 			ReferenceDNS:        []string{"9.9.9.9", "1.1.1.1", "8.8.8.8", "9.9.1.1", "8.8.4.4"},
 			ValidationTries:     1,
 			Watchdog: WatchdogConfig{
-				Enabled:         false,
-				Domains:         []string{},
-				IntervalSec:     300,
-				FailureInterval: 60,
-				Cooldown:        900,
-				TimeoutSec:      15,
-				MaxRetries:      3,
+				Enabled:                   false,
+				Domains:                   []string{},
+				IntervalSec:               300,
+				FailureInterval:           60,
+				Cooldown:                  900,
+				TimeoutSec:                15,
+				MaxRetries:                3,
+				LegacyWatchdogDirectApply: false, // MON addendum v1.0 §59: unsafe mode off by default
 			},
 		},
 		API: ApiConfig{

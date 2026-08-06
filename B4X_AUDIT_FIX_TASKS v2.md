@@ -52,7 +52,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-04 | открыта | — |
 | FB-05 | открыта | — |
 | FB-06 | ВЫПОЛНЕНА | Beads b4x-4xq, closed 03.08; release.yml: vet + -race + fuzz smoke (27 целей), найден и исправлен int-overflow в readCountryCode |
-| FB-07 | открыта | — |
+| FB-07 | в работе | Beads b4x-070 (06.08): фаза A остаток — конфиг-поле `legacy_watchdog_direct_apply` (default false, MON §59) + startup warning + счётчик `monitor_legacy_watchdog_direct_apply_total`; отчёты mon-11/mon-12 приведены к фактическому статусу (applyBatchResults удалён, не «disabled»). Уже готово из FB-28: src/monitor/* canonical model, monitoring.Runtime в main.go, /api/monitor/v1, 52 hard-gate producer'а. Осталось: фаза C (410 на /api/watchdog/*, read-only alias, restart/reboot), фаза D (IV-18/FT-MON-A..J validation), MON_PRODUCTION_READY |
 | FB-08 | выполнена | — |
 | FB-09 | ВЫПОЛНЕНА | Beads b4x-0to, closed 03.08; tcp_hold_worker.go releaseTCPHoldOnFlowTermination + 3 теста |
 | FB-10 | ВЫПОЛНЕНА | Beads b4x-bed, closed 02.08; commit e23ba6ab |
@@ -537,6 +537,8 @@ TPROXY/listener accept
 ### FB-07. MON v1.0: реализовать strangler-замену Watchdog и authoritative Monitoring [XL]
 
 - **Проблема:** MON v1.0 не подключён; legacy `applyBatchResults` и direct apply остаются active source of truth; `/api/monitor/v1` отсутствует; Monitoring gates/suites отсутствуют; конфиг-поле `legacy_watchdog_direct_apply` (MON addendum §77, default `false`, при `true` — startup warning) не реализовано; отчёты `docs/reports/mon-11-compatibility-cutover.md` и `docs/reports/mon-12-field-validation.md` содержат ложное утверждение «Direct legacy Watchdog apply remains disabled on the production-safe compatibility path» (независимый аудит B4X-AUDIT-0009): `applyBatchResults` активен (`watchdog/applier.go:18`, `watchdog_heal.go:111`).
+
+  **Прогресс (06.08, Beads b4x-070):** ФБ-28 уже закрыл часть: `applyBatchResults` удалён, canonical model (`src/monitor/*`), `monitoring.Runtime` стартует в `main.go`, `/api/monitor/v1` (read-only), 52 §84-92 producer'а, `LegacyWatchdogAdapter`. В этой сессии: конфиг-поле `legacy_watchdog_direct_apply` (default `false`) в `WatchdogConfig` + startup warning + инкремент `monitor_legacy_watchdog_direct_apply_total` при `true` (блокирует production readiness, §59); тест дефолта; отчёты mon-11/mon-12 исправлены на фактический статус.
 
 #### Фаза A — canonical model и shadow wiring
 
