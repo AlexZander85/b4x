@@ -2,8 +2,8 @@
   "generated_at": "06.08.2026",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 285,
-  "verified": 250,
-  "missing": 35,
+  "verified": 253,
+  "missing": 32,
   "families_verified_missing": {
     "abd": [
       85,
@@ -12004,15 +12004,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.GeoAttestationCommit -> Metrics.Inc(MetricWarpGeoAttestationWithoutRouteCounterDelta)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 43,
+        "mechanism": "increment-only counter via observability (attestation issued while a fresh provider result carries no route counter delta; §62.5 each provider result is an independent event)",
+        "production_root": "warp.Runtime.GeoAttestationCommit (geo attestation §62.5; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 552,
+          "assertion": "attestation commit with a fresh provider result carrying CounterDelta 0 -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_geo_quorum_without_provider_events_total",
@@ -12020,15 +12066,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.GeoQuorumDecision -> Metrics.Inc(MetricWarpGeoQuorumWithoutProviderEvents)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 71,
+        "mechanism": "increment-only counter via observability (quorum decision event with zero successful provider events - no route counter delta or DNS path proof; §62.5 summary event without provider events and path proof is invalid)",
+        "production_root": "warp.Runtime.GeoQuorumDecision (quorum is a separate decision event §62.5; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 573,
+          "assertion": "quorum decision with zero successful provider events (no DNS path proof) -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_geo_route_gate_state_mismatch_total",
@@ -12036,15 +12128,67 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "Runtime.GeoRouteGateApply -> Metrics.Inc(MetricWarpGeoRouteGateStateMismatch)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 93,
+        "mechanism": "increment-only counter via observability (route-gate after-state contradicts the quorum decision; §62.5 RouteGateBefore/RouteGateAfter)",
+        "production_root": "warp.Runtime.GeoRouteGateApply (route-gate state before/after §62.5; controller-loop root from main)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 594,
+          "assertion": "gate closed under valid attestation or stayed open after invalid attestation -> error && counter > 0 (both sites)"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; valid-attestation site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        },
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; invalid-attestation site)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_ipv6_path_unproven_total",

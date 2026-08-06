@@ -509,6 +509,31 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (inner control flow entering the base path without the inner-control mark)",
         "production_root": "warp.Runtime.NestedControl (inner-control direct leak §62.4; controller-loop root from main)",
     },
+    # --- WARP geo-attestation producers (FB-03 §73B geo block, 2026-08-06):
+    # every counter increments ONLY on the violating branch of the production
+    # geo lifecycle (Runtime.GeoAttestationCommit / Runtime.GeoQuorumDecision /
+    # Runtime.GeoRouteGateApply), addendum §62.5. ---
+    "warp_geo_attestation_without_route_counter_delta_total": {
+        "symbol": "Runtime.GeoAttestationCommit -> Metrics.Inc(MetricWarpGeoAttestationWithoutRouteCounterDelta)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 43,
+        "mechanism": "increment-only counter via observability (attestation issued while a fresh provider result carries no route counter delta; §62.5 each provider result is an independent event)",
+        "production_root": "warp.Runtime.GeoAttestationCommit (geo attestation §62.5; controller-loop root from main)",
+    },
+    "warp_geo_quorum_without_provider_events_total": {
+        "symbol": "Runtime.GeoQuorumDecision -> Metrics.Inc(MetricWarpGeoQuorumWithoutProviderEvents)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 71,
+        "mechanism": "increment-only counter via observability (quorum decision event with zero successful provider events - no route counter delta or DNS path proof; §62.5 summary event without provider events and path proof is invalid)",
+        "production_root": "warp.Runtime.GeoQuorumDecision (quorum is a separate decision event §62.5; controller-loop root from main)",
+    },
+    "warp_geo_route_gate_state_mismatch_total": {
+        "symbol": "Runtime.GeoRouteGateApply -> Metrics.Inc(MetricWarpGeoRouteGateStateMismatch)",
+        "file": "src/warp/geo_runtime.go",
+        "line": 93,
+        "mechanism": "increment-only counter via observability (route-gate after-state contradicts the quorum decision; §62.5 RouteGateBefore/RouteGateAfter)",
+        "production_root": "warp.Runtime.GeoRouteGateApply (route-gate state before/after §62.5; controller-loop root from main)",
+    },
     # --- SPF lifecycle producers (FB-02 SPF section, 2026-08-04): every counter
     # increments ONLY on the violating branch of the production guards
     # (src/silentpath/hard_gate_producers.go), reachable from the validation
@@ -1980,7 +2005,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "f9c7c236"  # FB-03 §73B WARP nested dependency-graph producers (warp_nested_* x5, 2026-08-06); 250 applicable
+REGISTER_VERIFIED_COMMIT = "e8a8c8e8"  # FB-03 §73B WARP geo-recognition producers (warp_geo_* x3, 2026-08-06); 253 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3106,6 +3131,21 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "warp_geo_attestation_without_route_counter_delta_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_geo_quorum_without_provider_events_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_geo_route_gate_state_mismatch_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4025,6 +4065,15 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_nested_control_direct_leak_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNestedControlDirectLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 506, "assertion": "inner control entering base path without inner-control mark -> error && counter > 0"},
     ],
+    "warp_geo_attestation_without_route_counter_delta_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta", "file": "src/warp/hard_gate_producers_test.go", "line": 552, "assertion": "attestation commit with a fresh provider result carrying CounterDelta 0 -> error && counter > 0"},
+    ],
+    "warp_geo_quorum_without_provider_events_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents", "file": "src/warp/hard_gate_producers_test.go", "line": 573, "assertion": "quorum decision with zero successful provider events (no DNS path proof) -> error && counter > 0"},
+    ],
+    "warp_geo_route_gate_state_mismatch_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "assertion": "gate closed under valid attestation or stayed open after invalid attestation -> error && counter > 0 (both sites)"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4300,6 +4349,19 @@ MUTATION_TESTS: dict[str, list[dict]] = {
     "warp_nested_control_direct_leak_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNestedControlDirectLeak (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 506, "status": "executed"},
     ],
+    # --- FB-03 (b4x-q58.1) WARP geo producers mutation runs (2026-08-06):
+    # every removed Inc call kills its pinning negative fixture (4/4 killed;
+    # route_gate_state_mismatch covered on both production sites) ---
+    "warp_geo_attestation_without_route_counter_delta_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 552, "status": "executed"},
+    ],
+    "warp_geo_quorum_without_provider_events_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 573, "status": "executed"},
+    ],
+    "warp_geo_route_gate_state_mismatch_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; valid-attestation site)", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "status": "executed"},
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; invalid-attestation site)", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4369,6 +4431,9 @@ for _name in [
     "warp_nested_parent_generation_mismatch_total",
     "warp_nested_stale_parent_token_total",
     "warp_nested_control_direct_leak_total",
+    "warp_geo_attestation_without_route_counter_delta_total",
+    "warp_geo_quorum_without_provider_events_total",
+    "warp_geo_route_gate_state_mismatch_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [

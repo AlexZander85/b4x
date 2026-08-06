@@ -44,7 +44,7 @@ func (m MetaResult) Ready() bool {
 //     yield BLOCKED, not PASS; a non-zero produced gate must yield FAIL.
 //   - EvidenceIntegrity:     caller-supplied artifacts pass ArtifactValid.
 //   - Reproducible:          gate/applicable counts match the generator
-//     constants (285 / 250 verified producers); deterministically sortable.
+//     constants (285 / 253 verified producers); deterministically sortable.
 //   - InfrastructureSafe:    the evaluator does not mutate counters.
 //   - FalseNegativeDetected: violation fixture never yields PASS.
 //
@@ -93,8 +93,12 @@ func RunMetaSuite(artifacts []Artifact) MetaResult {
 	// reachability + production dependency wiring, src/validation/iv18_reachability.go)
 	// + 6 WARP causal-trace producers (FB-03 §73B: warp_trace_secret_leak /
 	// required_event_missing / dropped_required_event / event_order_violation /
-	// generation_mismatch / state_mismatch in src/warp/runtime.go)).
-	r.Reproducible = HardGateCount() == 285 && len(ApplicableHardGates()) == 250 && len(hardGates) == 285
+	// generation_mismatch / state_mismatch in src/warp/runtime.go)
+	// + 5 WARP nested dependency-graph producers (FB-03 §73B/§62.4:
+	// warp_nested_* in src/warp/nested_runtime.go)
+	// + 3 WARP geo-recognition producers (FB-03 §73B/§62.5:
+	// warp_geo_* in src/warp/geo_runtime.go)).
+	r.Reproducible = HardGateCount() == 285 && len(ApplicableHardGates()) == 253 && len(hardGates) == 285
 
 	// FalseNegativeDetected
 	violated := EvaluateHardGates(ReleaseScope{CSI: true}, nil, "", GenerationSet{},

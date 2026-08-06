@@ -40,8 +40,8 @@ func TestApplicableHardGates(t *testing.T) {
 	// Each has a real Metrics.Inc call site (or, for the FB-28 readiness
 	// gate, a static reverse-reachability scan), an executed fixture and (for
 	// zero-tolerance gates) an executed mutation run.
-	if len(gates) != 250 {
-		t.Fatalf("ApplicableHardGates() = %d gates, want 250", len(gates))
+	if len(gates) != 253 {
+		t.Fatalf("ApplicableHardGates() = %d gates, want 253", len(gates))
 	}
 	for _, g := range gates {
 		if g.ProducerStatus != "verified" || g.RuntimeProducer.Symbol == "" {

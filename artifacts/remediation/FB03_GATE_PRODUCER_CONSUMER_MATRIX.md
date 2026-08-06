@@ -255,3 +255,29 @@ Nested-WARP producers landed (registry now **285 gates / 250 verified / 35 missi
 Mutation runs: each of the 6 `Metrics.Inc` sites removed → pinning fixture FAILs (6/6
 killed), sites restored, no markers left. `mutation_test: [{kind: removed_inc, status:
 executed}]` recorded in the registry.
+
+## Progress note 3 (2026-08-06, FB-03 b4x-q58.1 — WARP geo-recognition, §73B/§62.5)
+
+Geo-recognition producers landed (registry now **285 gates / 253 verified / 32 missing**,
+`ApplicableHardGates() == 253`, code commit `e8a8c8e8`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `warp_geo_attestation_without_route_counter_delta_total` | `Runtime.GeoAttestationCommit` (fresh provider result with `CounterDelta == 0`) — `src/warp/geo_runtime.go:43` | `TestHardGateProducer_WARPGeoAttestationWithoutRouteCounterDelta` |
+| `warp_geo_quorum_without_provider_events_total` | `Runtime.GeoQuorumDecision` (quorum decision event with zero successful provider events — no route counter delta / no DNS path proof) — geo_runtime.go:71 | `TestHardGateProducer_WARPGeoQuorumWithoutProviderEvents` |
+| `warp_geo_route_gate_state_mismatch_total` | `Runtime.GeoRouteGateApply` (§62.5 `RouteGateBefore`/`RouteGateAfter`) — geo_runtime.go:93+99 | `TestHardGateProducer_WARPGeoRouteGateStateMismatch` (both sites) |
+
+§62.5 semantics wired into the production layer (`src/warp/geo_runtime.go`): each provider
+result is an independent event that must carry a route counter delta (and DNS path proof);
+quorum is a separate decision event; a summary/quorum event without provider events and
+path proof is invalid; the route-gate after-state must match the decision (open under a
+valid non-RU attestation, closed after a revoked/expired/disagreement attestation).
+
+Mutation runs: each of the 4 `Metrics.Inc` sites removed → pinning fixture FAILs (4/4
+killed, `warp_geo_route_gate_state_mismatch_total` covered on both production sites),
+sites restored, no `MUTATION-RUN` markers left. `mutation_test: [{kind: removed_inc,
+status: executed}]` recorded in the registry.
+
+**Remaining missing (32):** masque_* (12, §73A) + nonru_* (8, §73) + warp causal/route
+(12: path proof x5, ownership/cleanup x4, connect-IP/non-RU x3 — follow as the next
+FB-03 slices b4x-q58.2/3/4/5).
