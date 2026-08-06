@@ -937,3 +937,190 @@ func TestHardGateProducer_WARPIdentityCreationBudgetExceeded(t *testing.T) {
 		t.Fatal("nonru_identity_creation_budget_exceeded not incremented (zero-tolerance gate)")
 	}
 }
+
+// --- 73A WARP MASQUE transport-camouflage producers (addendum C.2-C.10/62.7) ---
+
+// TestHardGateProducer_WARPMasqueCamouflageWithoutControlAuthorization is
+// the negative fixture for masque_camouflage_without_control_authorization_
+// total: a camouflage-classified flow with no valid control authorization
+// (C.2).
+func TestHardGateProducer_WARPMasqueCamouflageWithoutControlAuthorization(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.CamouflageWithoutControlAuthorization(TransportControlAuthorization{}, 1, 1); err == nil {
+		t.Fatal("camouflage flow without valid control authorization accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueCamouflageWithoutControlAuthorization); got == 0 {
+		t.Fatal("masque_camouflage_without_control_authorization_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueCamouflageDestinationOnlyAuthorization is
+// the negative fixture for masque_camouflage_destination_only_authorization_
+// total: authorization by destination only with no socket identity (C.2).
+func TestHardGateProducer_WARPMasqueCamouflageDestinationOnlyAuthorization(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	a := TransportControlAuthorization{EndpointHash: "e-1", InstanceID: "i-1", Purpose: PurposeCamouflage, ProcessGeneration: 1, ConfigGeneration: 1} // SocketID/FlowKey missing
+	if err := rt.CamouflageDestinationOnlyAuthorization(a); err == nil {
+		t.Fatal("destination-only camouflage authorization accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueCamouflageDestinationOnlyAuthorization); got == 0 {
+		t.Fatal("masque_camouflage_destination_only_authorization_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueEstablishedPayloadMutation is the negative
+// fixture for masque_established_payload_mutation_total: payload mutation
+// after MASQUE_ESTABLISHED via a confirmed CONNECT-IP (C.5/62.7).
+func TestHardGateProducer_WARPMasqueEstablishedPayloadMutation(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	trace := CamouflageTrace{PolicyID: "pol-1", CandidateID: "cand-1", ConnectIPConfirmed: true, CutoffSource: "structured", PostCutoffMutations: 1}
+	if err := rt.EstablishedPayloadMutation(trace); err == nil {
+		t.Fatal("payload mutation after MASQUE_ESTABLISHED accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueEstablishedPayloadMutation); got == 0 {
+		t.Fatal("masque_established_payload_mutation_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueCamouflageCutoffFailure is the negative
+// fixture for masque_camouflage_cutoff_failure_total: an authorized
+// non-established adapter still mutating past the hard cutoff ceilings
+// (C.4).
+func TestHardGateProducer_WARPMasqueCamouflageCutoff(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := MasqueCutoffTrace{
+		Adapter: TransportCamouflageAdapter{Authorized: true, Budget: AdapterBudget{MaxPackets: 24, MaxBytes: 16384, MaxDurationMS: 10000}},
+		PacketCount: 30, PayloadBytes: 200, Deadline: now.Add(10 * time.Second), Now: now,
+	}
+	if err := rt.CamouflageCutoffFailure(trace); err == nil {
+		t.Fatal("camouflage mutation past hard cutoff ceilings accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueCamouflageCutoffFailure); got == 0 {
+		t.Fatal("masque_camouflage_cutoff_failure_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueControlRouteRecursion is the negative
+// fixture for masque_control_route_recursion_total: a control route routed
+// through its own mark (recursive route).
+func TestHardGateProducer_WARPMasqueControlRouteRecursion(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	policy := DialPolicy{Mark: 0x5001, BindDevice: "eth0", EndpointPin: "pin-1", DirectControl: true, ProxyEnvDisabled: true, Generation: 1}
+	if err := rt.ControlRouteRecursion(policy, policy.Mark); err == nil {
+		t.Fatal("recursive masque control route accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueControlRouteRecursion); got == 0 {
+		t.Fatal("masque_control_route_recursion_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueCamouflageCrossInstance is the negative
+// fixture for masque_camouflage_cross_instance_total: an authorization of
+// one instance reused to authorize another (C.8).
+func TestHardGateProducer_WARPMasqueCamouflageCrossInstance(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	a := TransportControlAuthorization{SocketID: "s", FlowKey: "f", EndpointHash: "e", InstanceID: "outer-1", Purpose: PurposeCamouflage, ProcessGeneration: 1, ConfigGeneration: 1}
+	if err := rt.CamouflageCrossInstance(a, "inner-1"); err == nil {
+		t.Fatal("cross-instance camouflage authorization accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueCamouflageCrossInstance); got == 0 {
+		t.Fatal("masque_camouflage_cross_instance_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueStrategyPromotedWithoutForwardedProbe is
+// the negative fixture for masque_strategy_promoted_without_forwarded_probe_
+// total: a winner without a passed forwarded LAN probe (C.7).
+func TestHardGateProducer_WARPMasqueStrategyPromotedWithoutForwardedProbe(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	res := CandidateResult{CandidateID: "cand-1", Winner: true, Reason: "least invasive stable candidate"}
+	cand := Candidate{ID: "cand-1", Invasive: 1, Protocol: true, Router: true, Forwarded: false, Stable: true}
+	if err := rt.StrategyPromotedWithoutForwardedProbe(res, cand); err == nil {
+		t.Fatal("strategy promoted without forwarded probe accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueStrategyPromotedWithoutForwardedProbe); got == 0 {
+		t.Fatal("masque_strategy_promoted_without_forwarded_probe_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueStrategyPromotedWithoutStabilityWindow is
+// the negative fixture for masque_strategy_promoted_without_stability_window_
+// total: a winner without a passed stability window (C.7).
+func TestHardGateProducer_WARPMasqueStrategyPromotedWithoutStabilityWindow(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	res := CandidateResult{CandidateID: "cand-1", Winner: true, Reason: "least invasive stable candidate"}
+	cand := Candidate{ID: "cand-1", Invasive: 1, Protocol: true, Router: true, Forwarded: true, Stable: false}
+	if err := rt.StrategyPromotedWithoutStabilityWindow(res, cand); err == nil {
+		t.Fatal("strategy promoted without stability window accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueStrategyPromotedWithoutStabilityWindow); got == 0 {
+		t.Fatal("masque_strategy_promoted_without_stability_window_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueInsecureTLS is the negative fixture for
+// masque_insecure_tls_total: cover TLS with a missing endpoint pin (C.6).
+func TestHardGateProducer_WARPMasqueInsecureTLS(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	cfg := CoverSNIConfig{Mode: CoverBuiltin, Name: "cover.example", DataVersion: "v1"} // EndpointPin missing
+	if err := rt.InsecureTLSCover(cfg); err == nil {
+		t.Fatal("insecure cover TLS accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueInsecureTLS); got == 0 {
+		t.Fatal("masque_insecure_tls_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueEndpointPinFailureAccepted is the negative
+// fixture for masque_endpoint_pin_failure_accepted_total: a winner promoted
+// with a failed endpoint public-key pin verification.
+func TestHardGateProducer_WARPMasqueEndpointPinFailureAccepted(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	res := CandidateResult{CandidateID: "cand-1", Winner: true, Reason: "least invasive stable candidate"}
+	if err := rt.EndpointPinFailureAccepted(res, false); err == nil {
+		t.Fatal("candidate with failed endpoint pin accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueEndpointPinFailureAccepted); got == 0 {
+		t.Fatal("masque_endpoint_pin_failure_accepted_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueUnboundedCandidateRetry is the negative
+// fixture for masque_unbounded_candidate_retry_total: candidate attempts
+// beyond the bounded budget (C.5/C.11).
+func TestHardGateProducer_WARPMasqueUnboundedCandidateRetry(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.UnboundedCandidateRetry(11, 10); err == nil {
+		t.Fatal("unbounded candidate retry accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueUnboundedCandidateRetry); got == 0 {
+		t.Fatal("masque_unbounded_candidate_retry_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPMasqueRSTSuppressionWithoutExactAuthorization is
+// the negative fixture for masque_rst_suppression_without_exact_authorization_
+// total: RST suppression without exact flow authorization (C.10).
+func TestHardGateProducer_WARPMasqueRSTSuppressionWithoutExactAuthorization(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	obs := RSTObservation{InstanceID: "i-1"} // FlowID missing -> no exact flow visibility
+	if err := rt.RSTSuppressionWithoutExactAuthorization(obs, true, false); err == nil {
+		t.Fatal("rst suppression without exact flow authorization accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpMasqueRSTSuppressionWithoutExactAuthorization); got == 0 {
+		t.Fatal("masque_rst_suppression_without_exact_authorization_total not incremented (zero-tolerance gate)")
+	}
+}

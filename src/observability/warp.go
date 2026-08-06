@@ -128,3 +128,31 @@ const (
 	MetricWarpStrictDirectFallback               = "nonru_strict_direct_fallback_total"
 	MetricWarpIdentityCreationBudgetExceeded     = "nonru_identity_creation_budget_exceeded"
 )
+
+// WARP MASQUE transport-camouflage hard-gate counters (FB-03 SECT 73A
+// transport camouflage hard gates, addendum v1.2 SECT C.2/C.4/C.5/C.7/C.8/
+// C.10/62.7). Each counter is incremented only on the violating branch of
+// the production camouflage lifecycle (Runtime.CamouflageWithoutControl
+// Authorization / CamouflageDestinationOnlyAuthorization /
+// EstablishedPayloadMutation / CamouflageCutoffFailure /
+// ControlRouteRecursion / CamouflageCrossInstance /
+// StrategyPromotedWithoutForwardedProbe /
+// StrategyPromotedWithoutStabilityWindow / InsecureTLSCover /
+// EndpointPinFailureAccepted / UnboundedCandidateRetry /
+// RSTSuppressionWithoutExactAuthorization). All twelve are
+// zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpMasqueCamouflageWithoutControlAuthorization  = "masque_camouflage_without_control_authorization_total"
+	MetricWarpMasqueCamouflageDestinationOnlyAuthorization = "masque_camouflage_destination_only_authorization_total"
+	MetricWarpMasqueEstablishedPayloadMutation             = "masque_established_payload_mutation_total"
+	MetricWarpMasqueCamouflageCutoffFailure                = "masque_camouflage_cutoff_failure_total"
+	MetricWarpMasqueControlRouteRecursion                  = "masque_control_route_recursion_total"
+	MetricWarpMasqueCamouflageCrossInstance                = "masque_camouflage_cross_instance_total"
+	MetricWarpMasqueStrategyPromotedWithoutForwardedProbe  = "masque_strategy_promoted_without_forwarded_probe_total"
+	MetricWarpMasqueStrategyPromotedWithoutStabilityWindow = "masque_strategy_promoted_without_stability_window_total"
+	MetricWarpMasqueInsecureTLS                            = "masque_insecure_tls_total"
+	MetricWarpMasqueEndpointPinFailureAccepted             = "masque_endpoint_pin_failure_accepted_total"
+	MetricWarpMasqueUnboundedCandidateRetry                = "masque_unbounded_candidate_retry_total"
+	MetricWarpMasqueRSTSuppressionWithoutExactAuthorization = "masque_rst_suppression_without_exact_authorization_total"
+)
