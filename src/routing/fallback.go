@@ -236,6 +236,12 @@ func NewFallbackManager(config RouteConfig) (*FallbackManager, error) {
 	if err != nil {
 		return nil, err
 	}
+	// FB-18B-5.17 (b4x-zq3): fail-closed acyclicity of the transport
+	// fallback graph. A cyclic fallback wiring (e.g. proxy -> same proxy)
+	// is rejected at construction, never looped on in production.
+	if err := ValidateTransportFallbackAcyclic(TransportFallbackEdges()); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRouteInvalid, err)
+	}
 	return &FallbackManager{config: normalized, clock: normalized.Clock, health: make(map[string]healthState), lastGood: make(map[string]routeState), cooldowns: make(map[string]cooldownState), pool: NewConnectionPool(normalized.MaxScopes, normalized.MaxIdlePerScope, normalized.Clock), udp: NewUDPSessionStore(normalized.MaxUDPSessions, normalized.UDPIdleTimeout, normalized.Clock)}, nil
 }
 
@@ -309,7 +315,11 @@ func (m *FallbackManager) chooseFallbackLocked(decision RouteDecision, scope str
 		if cooldown, ok := m.cooldowns[scope]; ok && now.Before(cooldown.Until) {
 			decision.Cooldown = true
 			decision.Reason = "proxy route is in scoped cooldown"
-			if last, ok := m.lastGood[scope]; ok && now.Before(last.ExpiresAt) && m.config.Capabilities.Supports(RouteKind(last.RouteID), request.Protocol, request.Family) {
+			// FB-18B-5.17 (b4x-zq3): a fallback candidate must differ from the
+			// current path (silentpath.TransportFallbackGate contract). The
+			// last-good path may not be the proxy that just failed — that
+			// would be a recursive fallback onto the same transport path.
+			if last, ok := m.lastGood[scope]; ok && now.Before(last.ExpiresAt) && last.RouteID != routeID && m.config.Capabilities.Supports(RouteKind(last.RouteID), request.Protocol, request.Family) {
 				decision.Route, decision.RouteID, decision.LastGood = routeKindForID(last.RouteID), last.RouteID, true
 				decision.Reason = "scoped cooldown uses last-good route"
 				return decision

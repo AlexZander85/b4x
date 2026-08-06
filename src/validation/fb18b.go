@@ -252,9 +252,9 @@ func FB18BEntries() []FB18BEntry {
 			Evidence: ev("routing/TestBindingStoreRequiresExactFlowCapability", "fieldtest/TestPromoteBlockedOnMissingProducers", "fieldtest/TestMissingProducerBlocksPromotionEndToEnd", "warp/TestGeoQuorumRequiresFreshPathProof", "silentpath/TestMilestones")},
 		{ID: "INV-5.16", Kind: "invariant", Title: "Capability projection, not ownership", Status: FB18BPass,
 			Evidence: ev("validation/TestRequiredHardGatesServiceProfilesRequireCapability", "validation/TestEvaluateHardGatesScopeIsolation", "serviceprofile/TestCompileDeterministic")},
-		{ID: "INV-5.17", Kind: "invariant", Title: "No recursive fallback; transport/recovery graph acyclic", Status: FB18BBlocked,
-			BlockedBy: blocked("b4x-zq3", "FB-18B-5.17: доказать ацикличность transport/recovery graph",
-				"полное доказательство ацикличности отсутствует; частично: routing fallback (no double processing, bounded pool), silentpath lease/rollback; связана с FB-23 (routing.FallbackManager)")},
+		{ID: "INV-5.17", Kind: "invariant", Title: "No recursive fallback; transport/recovery graph acyclic", Status: FB18BPass,
+			Evidence: ev("routing/TestTransportFallbackGraphAcyclic", "routing/TestTransportFallbackGraphFailsClosedOnCycle", "routing/TestFallbackCooldownLastGoodNeverSelectsSamePath", "silentpath/TestRecoveryLifecycleGraphAcyclic", "silentpath/TestRecoveryLifecycleGraphFailsClosedOnCycle"),
+			Note:     "FB-18B-5.17 (b4x-zq3): canonical transport fallback graph (routing/graph.go: native->direct/generic/proxy, generic->direct, proxy->direct/generic, no proxy->proxy) + recovery lifecycle graph (silentpath/lifecycle_graph.go: authorize->visibility->correlate->recover->rollback->observe-only); fail-closed 3-colour DFS в NewFallbackManager и init() silentpath; фикс recursive same-path fallback (cooldown last-good != текущий путь)."},
 
 		// --- Hold/replay ARCH §42..45 (4) ---
 		{ID: "HR-42", Kind: "hold_replay", Title: "HeldPacket structure; holding only in bounded reassembly mode", Status: FB18BPass,

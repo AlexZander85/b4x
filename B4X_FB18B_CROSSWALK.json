@@ -1,7 +1,7 @@
 {
   "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
   "commit": "a20ce4d8",
-  "generated_at": "2026-08-06T12:09:57.31971079Z",
+  "generated_at": "2026-08-06T13:21:11.822171015Z",
   "documents_sha256": {
     "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md": "5d2b03b02aed8e4ede89b9b60a853db119ac1e334d1650d9ee9ce0895df1fce7",
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md": "f0693e9c48ad359c38086defa022011ce9b3625eb565001a1a863bb731cf4cce",
@@ -19,14 +19,13 @@
   },
   "summary": {
     "total": 61,
-    "pass": 56,
-    "blocked": 4,
+    "pass": 57,
+    "blocked": 3,
     "not_applicable": 1,
     "blocked_by_task": {
       "b4x-6kt": 1,
       "b4x-cst": 1,
-      "b4x-n6r": 1,
-      "b4x-zq3": 1
+      "b4x-n6r": 1
     }
   },
   "requirements": [
@@ -695,12 +694,15 @@
       "id": "INV-5.17",
       "kind": "invariant",
       "title": "No recursive fallback; transport/recovery graph acyclic",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-zq3",
-        "task": "FB-18B-5.17: доказать ацикличность transport/recovery graph",
-        "why": "полное доказательство ацикличности отсутствует; частично: routing fallback (no double processing, bounded pool), silentpath lease/rollback; связана с FB-23 (routing.FallbackManager)"
-      }
+      "status": "PASS",
+      "evidence": [
+        "routing/TestTransportFallbackGraphAcyclic",
+        "routing/TestTransportFallbackGraphFailsClosedOnCycle",
+        "routing/TestFallbackCooldownLastGoodNeverSelectsSamePath",
+        "silentpath/TestRecoveryLifecycleGraphAcyclic",
+        "silentpath/TestRecoveryLifecycleGraphFailsClosedOnCycle"
+      ],
+      "note": "FB-18B-5.17 (b4x-zq3): canonical transport fallback graph (routing/graph.go: native-\u003edirect/generic/proxy, generic-\u003edirect, proxy-\u003edirect/generic, no proxy-\u003eproxy) + recovery lifecycle graph (silentpath/lifecycle_graph.go: authorize-\u003evisibility-\u003ecorrelate-\u003erecover-\u003erollback-\u003eobserve-only); fail-closed 3-colour DFS в NewFallbackManager и init() silentpath; фикс recursive same-path fallback (cooldown last-good != текущий путь)."
     },
     {
       "id": "INV-5.2",

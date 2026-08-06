@@ -63,7 +63,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-15 | ВЫПОЛНЕНА | Beads b4x-1yk, closed 03.08; build: swagger gen-defaults build-ui, pnpm 10.29.2 везде |
 | FB-16 | ОТМЕНЕНА | перепроверка 31.07: все 104 документа валидный UTF-8, перекодировка не требуется |
 | FB-17 | открыта | — |
-| FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); закрытие после FB-03/31/33-36/04/32/02/21/23 | — |
+| FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); 06.08 — 57 PASS / 3 BLOCKED / 1 NA (INV-5.17 закрыт, b4x-zq3); закрытие после FB-03/31/33-36/04/32/02/21/23 | — |
 | FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
 | FB-21 | открыта | — |
