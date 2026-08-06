@@ -82,3 +82,27 @@ const (
 	MetricWarpDNSPathUnproven                     = "warp_dns_path_unproven_total"
 	MetricWarpIPv6PathUnproven                    = "warp_ipv6_path_unproven_total"
 )
+
+// WARP resource-ownership / cleanup / cutoff / non-RU hard-gate counters
+// (FB-03 §73B ownership+cleanup block, addendum v1.2 §62.5/§62.7/§62.8).
+// Each counter is incremented only on the violating branch of the production
+// ownership/cutoff/non-RU lifecycle (Runtime.NonRURevocationDeadline /
+// Runtime.NonRUPublicIPChange / Runtime.ConnectIPEvent /
+// Runtime.PostCutoffMutation / Runtime.CleanupComplete /
+// Runtime.OwnedResourceLeak / Runtime.ForeignResourceRemoved): revocation
+// started after its deadline, a public-IP change without attestation refresh,
+// a CONNECT-IP event with a wrong claimed generation, a post-cutoff payload
+// mutation after an established bypass, a cleanup-completion claim over
+// resources without terminal removal records, a leaked generation-owned
+// resource, and a successful removed-by-b4 over a foreign resource. All
+// seven are zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpNonRURevocationExceededDeadline   = "warp_nonru_revocation_exceeded_deadline_total"
+	MetricWarpNonRUPublicIPChangeWithoutRefresh = "warp_nonru_public_ip_change_without_refresh_total"
+	MetricWarpConnectIPEventWrongGeneration     = "warp_connect_ip_event_wrong_generation_total"
+	MetricWarpPostCutoffMutation                = "warp_post_cutoff_mutation_total"
+	MetricWarpCleanupIncomplete                 = "warp_cleanup_incomplete_total"
+	MetricWarpOwnedResourceLeak                 = "warp_owned_resource_leak_total"
+	MetricWarpForeignResourceRemoved            = "warp_foreign_resource_removed_total"
+)

@@ -693,3 +693,115 @@ func TestHardGateProducer_WARPIPv6PathUnproven(t *testing.T) {
 		t.Fatal("warp_ipv6_path_unproven_total not incremented (zero-tolerance gate)")
 	}
 }
+
+// --- §73B WARP resource-ownership / cleanup / cutoff / non-RU producers
+// (addendum §62.5/§62.7/§62.8) ---
+
+// TestHardGateProducer_WARPNonRURevocationExceededDeadline is the negative
+// fixture for warp_nonru_revocation_exceeded_deadline_total: a strict non-RU
+// revocation that starts after its revocation deadline.
+func TestHardGateProducer_WARPNonRURevocationExceededDeadline(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	deadline := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURevocationTrace{AttestationID: "att-1", RevocationStartedAt: deadline.Add(time.Hour), RevocationDeadline: deadline}
+	if err := rt.NonRURevocationDeadline(trace); err == nil {
+		t.Fatal("non-ru revocation after deadline accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRURevocationExceededDeadline); got == 0 {
+		t.Fatal("warp_nonru_revocation_exceeded_deadline_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh is the negative
+// fixture for warp_nonru_public_ip_change_without_refresh_total: a public-IP
+// change with no fresh attestation refresh issued.
+func TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	ev := PublicIPChangeEvent{AttestationID: "att-1", PreviousIPHash: "ip-1", ObservedIPHash: "ip-2"} // RefreshIssued missing
+	if err := rt.NonRUPublicIPChange(ev); err == nil {
+		t.Fatal("public ip change without attestation refresh accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUPublicIPChangeWithoutRefresh); got == 0 {
+		t.Fatal("warp_nonru_public_ip_change_without_refresh_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPConnectIPEventWrongGeneration is the negative
+// fixture for warp_connect_ip_event_wrong_generation_total: a CONNECT-IP
+// event claiming a generation different from the expected one.
+func TestHardGateProducer_WARPConnectIPEventWrongGeneration(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	ev := ConnectIPEventTrace{InstanceID: "inst-1", SessionID: "sess-a", EventProcessGeneration: 2, EventConfigGeneration: 3, ExpectedProcessGeneration: 1, ExpectedConfigGeneration: 3}
+	if err := rt.ConnectIPEvent(ev); err == nil {
+		t.Fatal("connect-ip event with wrong generation accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpConnectIPEventWrongGeneration); got == 0 {
+		t.Fatal("warp_connect_ip_event_wrong_generation_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPPostCutoffMutation is the negative fixture for
+// warp_post_cutoff_mutation_total: a payload mutation after the established
+// bypass of a CONNECT-IP-confirmed camouflage cutoff (§62.7 hard invariant).
+func TestHardGateProducer_WARPPostCutoffMutation(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	trace := CamouflageTrace{PolicyID: "pol-1", CandidateID: "cand-1", ConnectIPConfirmed: true, CutoffSource: "established", CutoffAtSequence: 10, BypassEstablished: true, PostCutoffMutations: 1}
+	if err := rt.PostCutoffMutation(trace); err == nil {
+		t.Fatal("post-cutoff payload mutation after established bypass accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpPostCutoffMutation); got == 0 {
+		t.Fatal("warp_post_cutoff_mutation_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPCleanupIncomplete is the negative fixture for
+// warp_cleanup_incomplete_total: a cleanup-completion claim over a
+// generation-owned resource without a terminal removal record (§62.8).
+func TestHardGateProducer_WARPCleanupIncomplete(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	report := CleanupReport{SessionGen: 1, Completed: true, Resources: []OwnedResourceTrace{
+		{ResourceType: "route rule", ResourceHash: "r-1", OwnerSessionGen: 1, Foreign: false, RemoveResult: "remove-pending"},
+	}}
+	if err := rt.CleanupComplete(report); err == nil {
+		t.Fatal("cleanup completion claim over resource without terminal record accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpCleanupIncomplete); got == 0 {
+		t.Fatal("warp_cleanup_incomplete_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPOwnedResourceLeak is the negative fixture for
+// warp_owned_resource_leak_total: a generation-owned resource with no
+// terminal removal record at finalize (§62.8).
+func TestHardGateProducer_WARPOwnedResourceLeak(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	res := OwnedResourceTrace{ResourceType: "TUN", ResourceHash: "t-1", OwnerSessionGen: 1, Foreign: false} // no RemoveResult
+	if err := rt.OwnedResourceLeak(res); err == nil {
+		t.Fatal("generation-owned resource leak accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpOwnedResourceLeak); got == 0 {
+		t.Fatal("warp_owned_resource_leak_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPForeignResourceRemoved is the negative fixture for
+// warp_foreign_resource_removed_total: a foreign resource that received a
+// successful removed-by-b4 event (§62.8: foreign resource MUST never receive
+// one).
+func TestHardGateProducer_WARPForeignResourceRemoved(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	res := OwnedResourceTrace{ResourceType: "NAT rule", ResourceHash: "n-1", Foreign: true, RemoveResult: "removed-by-b4"}
+	if err := rt.ForeignResourceRemoved(res); err == nil {
+		t.Fatal("foreign resource removed-by-b4 accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpForeignResourceRemoved); got == 0 {
+		t.Fatal("warp_foreign_resource_removed_total not incremented (zero-tolerance gate)")
+	}
+}
