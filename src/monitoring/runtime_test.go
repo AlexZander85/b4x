@@ -80,3 +80,54 @@ func TestRuntimeStopSafe(t *testing.T) {
 	rt.Start()
 	rt.Stop()
 }
+
+func TestRuntimeShadowParityEvidenceOnWatchdogSignal(t *testing.T) {
+	rt := NewRuntime(DefaultConfig())
+	scope := validScope()
+	now := time.Now().UTC()
+
+	// A watchdog control-failure observation goes through the escalation
+	// chain; the resulting projection must also be recorded as shadow parity
+	// evidence (phase A: both pipelines count, evidence is collected).
+	rt.Ingest(monitor.MonitorObservation{
+		SchemaVersion:        monitor.SchemaVersion,
+		ObservationID:        "watchdog/parity-1",
+		Scope:                scope,
+		Source:               monitor.SourceControlFailure,
+		OutcomeCode:          "transport-timeout",
+		FailureAttribution:   monitor.AttributionTransport,
+		Authority:            monitor.AuthorityProvisionalFast,
+		ObservedAt:           now,
+		ExpiresAt:            now.Add(time.Minute),
+		ResolutionSnapshotID: "watchdog",
+	})
+	rt.ExecuteObservation(monitor.MonitorObservation{
+		SchemaVersion:      monitor.SchemaVersion,
+		ObservationID:      "watchdog/parity-1",
+		Scope:              scope,
+		Source:             monitor.SourceControlFailure,
+		OutcomeCode:        "transport-timeout",
+		FailureAttribution: monitor.AttributionTransport,
+		Authority:          monitor.AuthorityProvisionalFast,
+		ObservedAt:         now,
+		ExpiresAt:          now.Add(time.Minute),
+	})
+
+	ev, ok, total, contradictions := rt.ShadowParity(scope)
+	if !ok {
+		t.Fatal("shadow parity evidence must exist after a watchdog control-failure observation")
+	}
+	if ev.WatchdogState != "failing" {
+		t.Fatalf("watchdog state must be failing for a control-failure signal, got %q", ev.WatchdogState)
+	}
+	if ev.AssessmentID == "" {
+		t.Fatal("evidence must reference the canonical monitor assessment")
+	}
+	if total < 1 {
+		t.Fatalf("tracker totals must include the observation, got %d", total)
+	}
+	if contradictions < 0 || contradictions > total {
+		t.Fatalf("contradiction count %d outside [0,%d]", contradictions, total)
+	}
+}
+

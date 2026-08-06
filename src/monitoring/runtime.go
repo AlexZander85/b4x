@@ -49,6 +49,7 @@ type Runtime struct {
 	bus       *monitor.ObservationBus
 	scheduler *monitor.DiagnosticScheduler
 	projector *monitor.MonitorAPIProjection
+	parity    *monitor.ShadowParityTracker
 	cfg       RuntimeConfig
 
 	stop chan struct{}
@@ -86,6 +87,7 @@ func NewRuntime(cfg RuntimeConfig) *Runtime {
 		bus:       bus,
 		scheduler: scheduler,
 		projector: monitor.NewMonitorAPIProjection(),
+		parity:    monitor.NewShadowParityTracker(),
 		cfg:       cfg,
 	}
 }
@@ -306,12 +308,17 @@ func (rt *Runtime) runEscalation(lease monitor.DiagnosticLease, now time.Time) {
 		ConfigGeneration: req.Scope.ConfigGeneration,
 	}
 	profile, result, err := detector.CompileBlockingProfile(graph, assessmentRef, "transport-degraded", authoritative, authoritative, evidenceRefs, now)
-	rt.project(req.Scope, profile, result, err, now)
+	rt.project(req, profile, result, err, now)
 }
 
 // project updates the monitor status projection with the outcome; a
-// signed-ready blocking profile becomes a DDI guided-discovery input.
-func (rt *Runtime) project(scope monitor.MonitorScopeKey, profile detector.BlockingProfile, result detector.MonitorDiagnosticResult, err error, now time.Time) {
+// signed-ready blocking profile becomes a DDI guided-discovery input. When
+// the request came from the legacy Watchdog (control-failure observation),
+// the outcome is additionally recorded as shadow parity evidence against
+// the watchdog state: both pipelines count, only the legacy path mutates,
+// and parity/contradiction evidence is collected for the phase C cutover.
+func (rt *Runtime) project(req monitor.DiagnosticRequest, profile detector.BlockingProfile, result detector.MonitorDiagnosticResult, err error, now time.Time) {
+	scope := req.Scope
 	health := monitor.HealthUnknown
 	if err != nil || result.Status == detector.ResultRejected {
 		health = monitor.HealthFailing
@@ -326,6 +333,33 @@ func (rt *Runtime) project(scope monitor.MonitorScopeKey, profile detector.Block
 		Visibility:    monitor.VisibilityPartial,
 		UpdatedAt:     now,
 	})
+	assessment := monitor.MonitorAssessment{
+		SchemaVersion:          monitor.SchemaVersion,
+		AssessmentID:           "assessment/" + req.RequestID,
+		SubjectID:              "subject/" + req.IdempotencyKey,
+		Scope:                  scope,
+		Health:                 monitor.AxisFromHealth(health),
+		Diagnostic:             map[string]monitor.AxisState{},
+		IndependentSourceCount: 1,
+		TemporalBucket:         now.UTC().Format("2006-01-02T15:04"),
+		EvidenceRefs:           []string{"watch/" + req.RequestID},
+		AssessedAt:             now,
+		ExpiresAt:              now.Add(rt.cfg.ProfileTTL),
+	}
+	if req.Reason == string(monitor.SourceControlFailure) {
+		rt.parity.Observe(scope, "failing", assessment, now)
+	}
+}
+
+// ShadowParity returns the last shadow parity evidence for the scope and
+// the totals recorded so far (read-only input for the cutover decision).
+func (rt *Runtime) ShadowParity(scope monitor.MonitorScopeKey) (monitor.ShadowParityEvidence, bool, int, int) {
+	if rt == nil || rt.parity == nil {
+		return monitor.ShadowParityEvidence{}, false, 0, 0
+	}
+	ev, ok := rt.parity.Latest(scope)
+	total, contradictions := rt.parity.Counts()
+	return ev, ok, total, contradictions
 }
 
 // guideDiscovery builds the DDI guided-discovery input from a signed-ready
