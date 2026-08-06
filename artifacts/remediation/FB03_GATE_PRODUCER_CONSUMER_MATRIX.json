@@ -2,8 +2,8 @@
   "generated_at": "06.08.2026",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 285,
-  "verified": 253,
-  "missing": 32,
+  "verified": 258,
+  "missing": 27,
   "families_verified_missing": {
     "abd": [
       85,
@@ -11886,15 +11886,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DirectFallback -> Metrics.Inc(MetricWarpDirectFallbackWithoutTrace)",
+        "file": "src/warp/path_runtime.go",
+        "line": 83,
+        "mechanism": "increment-only counter via observability (direct fallback with no path-probe event in the session trace pipeline)",
+        "production_root": "warp.Runtime.DirectFallback (fallback decision with session trace pipeline snapshot)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPDirectFallbackWithoutTrace",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 653,
+          "assertion": "direct fallback with no path-probe event in the session trace pipeline -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPDirectFallbackWithoutTrace (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_dns_path_unproven_total",
@@ -11902,15 +11948,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "DNSPathProof -> Metrics.Inc(MetricWarpDNSPathUnproven)",
+        "file": "src/warp/path_runtime.go",
+        "line": 96,
+        "mechanism": "increment-only counter via observability (DNS path claim whose observed resolver path != expected path, or direct WAN observed; strict non-RU requires current DNS path proof; addendum v1.2 sect. 62.6)",
+        "production_root": "warp.Runtime.DNSPathProof (DNS path proof validation; addendum v1.2 sect. 62.6)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPDNSPathUnproven",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 671,
+          "assertion": "DNS path claim whose observed resolver path differs from expected path -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPDNSPathUnproven (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_foreign_interface_modified_total",
@@ -11988,15 +12080,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ForwardedSuccess -> Metrics.Inc(MetricWarpForwardedSuccessWithoutBindingTrace)",
+        "file": "src/warp/path_runtime.go",
+        "line": 60,
+        "mechanism": "increment-only counter via observability (forwarded success without binding trace causal chain BindingID->RouteTokenID->PathProofID; router-origin cannot satisfy forwarded proof; addendum v1.2 sect. 62.3)",
+        "production_root": "warp.Runtime.ForwardedSuccess (forwarded-flow correlation; addendum v1.2 sect. 62.3)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 638,
+          "assertion": "forwarded success whose correlation lacks the binding trace causal chain (BindingID missing) -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_geo_attestation_without_route_counter_delta_total",
@@ -12196,15 +12334,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "IPv6PathProof -> Metrics.Inc(MetricWarpIPv6PathUnproven)",
+        "file": "src/warp/path_runtime.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (IPv6 path claim without current independent IPv6 path proof and not IPv6-disabled-for-scope; addendum v1.2 sect. 62.6)",
+        "production_root": "warp.Runtime.IPv6PathProof (IPv6 path proof validation; addendum v1.2 sect. 62.6)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPIPv6PathUnproven",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 686,
+          "assertion": "stale IPv6 path claim (probe did not pass) -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPIPv6PathUnproven (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_mark_collision_total",
@@ -12754,15 +12938,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PathProofPromote -> Metrics.Inc(MetricWarpRoutePromotedWithoutPathProofEvent)",
+        "file": "src/warp/path_runtime.go",
+        "line": 44,
+        "mechanism": "increment-only counter via observability (route promotion without path-proof event; route/rule existence is not path proof; addendum v1.2 sect. 62.2)",
+        "production_root": "warp.Runtime.PathProofPromote (route/rule lifecycle promotion; addendum v1.2 sect. 62.2)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 622,
+          "assertion": "route promotion whose path proof carries no counter delta (route/rule existence is not path proof) -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_route_without_liveness_total",

@@ -1991,6 +1991,41 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (WARP recommendation whose hypothesis is outside the FB-31 causal eligibility for scoped transport, or evidence below authoritative-abd; SP addendum v1.6 sect. 28A.11)",
         "production_root": "serviceprofile.Runtime lifecycle controller (compile/validate/begin-test/enable/validate-policy/promote; controller-loop root from main)",
     },
+    "warp_route_promoted_without_path_proof_event_total": {
+        "symbol": "PathProofPromote -> Metrics.Inc(MetricWarpRoutePromotedWithoutPathProofEvent)",
+        "file": "src/warp/path_runtime.go",
+        "line": 44,
+        "mechanism": "increment-only counter via observability (route promotion without path-proof event; route/rule existence is not path proof; addendum v1.2 sect. 62.2)",
+        "production_root": "warp.Runtime.PathProofPromote (route/rule lifecycle promotion; addendum v1.2 sect. 62.2)",
+    },
+    "warp_forwarded_success_without_binding_trace_total": {
+        "symbol": "ForwardedSuccess -> Metrics.Inc(MetricWarpForwardedSuccessWithoutBindingTrace)",
+        "file": "src/warp/path_runtime.go",
+        "line": 60,
+        "mechanism": "increment-only counter via observability (forwarded success without binding trace causal chain BindingID->RouteTokenID->PathProofID; router-origin cannot satisfy forwarded proof; addendum v1.2 sect. 62.3)",
+        "production_root": "warp.Runtime.ForwardedSuccess (forwarded-flow correlation; addendum v1.2 sect. 62.3)",
+    },
+    "warp_direct_fallback_without_trace_total": {
+        "symbol": "DirectFallback -> Metrics.Inc(MetricWarpDirectFallbackWithoutTrace)",
+        "file": "src/warp/path_runtime.go",
+        "line": 83,
+        "mechanism": "increment-only counter via observability (direct fallback with no path-probe event in the session trace pipeline)",
+        "production_root": "warp.Runtime.DirectFallback (fallback decision with session trace pipeline snapshot)",
+    },
+    "warp_dns_path_unproven_total": {
+        "symbol": "DNSPathProof -> Metrics.Inc(MetricWarpDNSPathUnproven)",
+        "file": "src/warp/path_runtime.go",
+        "line": 96,
+        "mechanism": "increment-only counter via observability (DNS path claim whose observed resolver path != expected path, or direct WAN observed; strict non-RU requires current DNS path proof; addendum v1.2 sect. 62.6)",
+        "production_root": "warp.Runtime.DNSPathProof (DNS path proof validation; addendum v1.2 sect. 62.6)",
+    },
+    "warp_ipv6_path_unproven_total": {
+        "symbol": "IPv6PathProof -> Metrics.Inc(MetricWarpIPv6PathUnproven)",
+        "file": "src/warp/path_runtime.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (IPv6 path claim without current independent IPv6 path proof and not IPv6-disabled-for-scope; addendum v1.2 sect. 62.6)",
+        "production_root": "warp.Runtime.IPv6PathProof (IPv6 path proof validation; addendum v1.2 sect. 62.6)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -2005,7 +2040,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "e8a8c8e8"  # FB-03 §73B WARP geo-recognition producers (warp_geo_* x3, 2026-08-06); 253 applicable
+REGISTER_VERIFIED_COMMIT = "c380b24e"  # FB-03 §73B WARP path-proof producers (warp_*_path_proof x5, addendum v1.2 sect. 62.2/62.3/62.6, 2026-08-06); 258 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3146,6 +3181,31 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "warp_route_promoted_without_path_proof_event_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_forwarded_success_without_binding_trace_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_direct_fallback_without_trace_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_dns_path_unproven_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_ipv6_path_unproven_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4074,6 +4134,21 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_geo_route_gate_state_mismatch_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "assertion": "gate closed under valid attestation or stayed open after invalid attestation -> error && counter > 0 (both sites)"},
     ],
+    "warp_route_promoted_without_path_proof_event_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent", "file": "src/warp/hard_gate_producers_test.go", "line": 622, "assertion": "route promotion whose path proof carries no counter delta (route/rule existence is not path proof) -> error && counter > 0"},
+    ],
+    "warp_forwarded_success_without_binding_trace_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace", "file": "src/warp/hard_gate_producers_test.go", "line": 638, "assertion": "forwarded success whose correlation lacks the binding trace causal chain (BindingID missing) -> error && counter > 0"},
+    ],
+    "warp_direct_fallback_without_trace_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPDirectFallbackWithoutTrace", "file": "src/warp/hard_gate_producers_test.go", "line": 653, "assertion": "direct fallback with no path-probe event in the session trace pipeline -> error && counter > 0"},
+    ],
+    "warp_dns_path_unproven_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPDNSPathUnproven", "file": "src/warp/hard_gate_producers_test.go", "line": 671, "assertion": "DNS path claim whose observed resolver path differs from expected path -> error && counter > 0"},
+    ],
+    "warp_ipv6_path_unproven_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPIPv6PathUnproven", "file": "src/warp/hard_gate_producers_test.go", "line": 686, "assertion": "stale IPv6 path claim (probe did not pass) -> error && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4362,6 +4437,23 @@ MUTATION_TESTS: dict[str, list[dict]] = {
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; valid-attestation site)", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "status": "executed"},
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPGeoRouteGateStateMismatch (producer removed; invalid-attestation site)", "file": "src/warp/hard_gate_producers_test.go", "line": 594, "status": "executed"},
     ],
+    # --- FB-03 (b4x-q58.2) WARP path-proof producers mutation runs (2026-08-06):
+    # every removed Inc call kills its pinning negative fixture (5/5 killed) ---
+    "warp_route_promoted_without_path_proof_event_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 622, "status": "executed"},
+    ],
+    "warp_forwarded_success_without_binding_trace_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 638, "status": "executed"},
+    ],
+    "warp_direct_fallback_without_trace_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPDirectFallbackWithoutTrace (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 653, "status": "executed"},
+    ],
+    "warp_dns_path_unproven_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPDNSPathUnproven (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 671, "status": "executed"},
+    ],
+    "warp_ipv6_path_unproven_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPIPv6PathUnproven (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 686, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4434,6 +4526,11 @@ for _name in [
     "warp_geo_attestation_without_route_counter_delta_total",
     "warp_geo_quorum_without_provider_events_total",
     "warp_geo_route_gate_state_mismatch_total",
+    "warp_route_promoted_without_path_proof_event_total",
+    "warp_forwarded_success_without_binding_trace_total",
+    "warp_direct_fallback_without_trace_total",
+    "warp_dns_path_unproven_total",
+    "warp_ipv6_path_unproven_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [

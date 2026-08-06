@@ -281,3 +281,31 @@ status: executed}]` recorded in the registry.
 **Remaining missing (32):** masque_* (12, §73A) + nonru_* (8, §73) + warp causal/route
 (12: path proof x5, ownership/cleanup x4, connect-IP/non-RU x3 — follow as the next
 FB-03 slices b4x-q58.2/3/4/5).
+
+## Progress note 4 (2026-08-06, FB-03 b4x-q58.2 — WARP path-proof, §73B/§62.2/§62.3/§62.6)
+
+Path-proof producers landed (registry now **285 gates / 258 verified / 27 missing**,
+`ApplicableHardGates() == 258`, code commit `c380b24e`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `warp_route_promoted_without_path_proof_event_total` | `Runtime.PathProofPromote` (promotion without a path-proof event — route/rule existence is not path proof, §62.2) — `src/warp/path_runtime.go:44` | `TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent` |
+| `warp_forwarded_success_without_binding_trace_total` | `Runtime.ForwardedSuccess` (success without the binding trace causal chain BindingID→RouteTokenID→PathProofID; router-origin cannot satisfy forwarded proof, §62.3) — path_runtime.go:60 | `TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace` |
+| `warp_direct_fallback_without_trace_total` | `Runtime.DirectFallback` (fallback with no path-probe event in the session trace pipeline) — path_runtime.go:83 | `TestHardGateProducer_WARPDirectFallbackWithoutTrace` |
+| `warp_dns_path_unproven_total` | `Runtime.DNSPathProof` (observed resolver path ≠ expected path, probe not passed or direct WAN; strict non-RU requires current DNS path proof, §62.6) — path_runtime.go:96 | `TestHardGateProducer_WARPDNSPathUnproven` |
+| `warp_ipv6_path_unproven_total` | `Runtime.IPv6PathProof` (stale/absent independent IPv6 path claim, §62.6) — path_runtime.go:113 | `TestHardGateProducer_WARPIPv6PathUnproven` |
+
+§62.2/§62.3/§62.6 semantics wired into the production layer (`src/warp/path.go` +
+`src/warp/path_runtime.go`): promotion proof must carry a positive counter delta,
+matching expected session/route generation and no direct WAN / recursion; forwarded
+success must form the exact binding correlation chain; a direct fallback must be
+traceable via the session trace pipeline; strict non-RU requires current DNS path
+proof and (unless IPv6 is disabled for the exact scope) a current independent IPv6
+path proof.
+
+Mutation runs: each of the 5 `Metrics.Inc` sites removed → pinning fixture FAILs (5/5
+killed), sites restored, no `MUTATION-RUN` markers left. `mutation_test: [{kind:
+removed_inc, status: executed}]` recorded in the registry.
+
+**Remaining missing (27):** masque_* (12, §73A) + nonru_* (8, §73) + ownership/cleanup
+(4) + connect-IP/non-RU (3) — follow as the next FB-03 slices b4x-q58.3/4/5.

@@ -50,7 +50,7 @@ func TestRunMetaSuiteDetectsMutationAndViolation(t *testing.T) {
 		t.Error("forced-zero counter without producer must yield BLOCKED, not PASS")
 	}
 	if !m.Reproducible {
-		t.Errorf("Reproducible must hold (285 gates / 253 applicable), got %d/%d", HardGateCount(), len(ApplicableHardGates()))
+		t.Errorf("Reproducible must hold (285 gates / 258 applicable), got %d/%d", HardGateCount(), len(ApplicableHardGates()))
 	}
 	if !m.InfrastructureSafe {
 		t.Error("evaluator must not mutate counters")
