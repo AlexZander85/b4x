@@ -342,3 +342,36 @@ executed}]` recorded in the registry.
 
 **Remaining missing (20):** masque_* (12, §73A) + nonru_* (8, §73) — follow as the
 next FB-03 slices b4x-q58.4 (nonru) / b4x-q58.5 (masque).
+
+## Progress note 6 (2026-08-06, FB-03 b4x-q58.4 - WARP strict non-RU route-gate, SECT 73)
+
+Strict non-RU route-gate producers landed (registry now **285 gates / 273 verified /
+12 missing**, `ApplicableHardGates() == 273`, code commit `68865d8c`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `nonru_route_active_without_fresh_attestation` | `Runtime.NonRUActiveWithoutFreshAttestation` (active route without a current eligible non-RU attestation; SECT 62.5) - `src/warp/nonru_runtime.go:37` | `TestHardGateProducer_WARPNonRUActiveWithoutFreshAttestation` |
+| `nonru_route_active_while_any_provider_ru` | `Runtime.NonRUActiveWhileAnyProviderRU` (active while any provider classifies the public IP as RU; SECT 62.5 provider-ru) - nonru_runtime.go:51 | `TestHardGateProducer_WARPNonRUActiveWhileAnyProviderRU` |
+| `nonru_route_active_with_provider_disagreement` | `Runtime.NonRUActiveWithProviderDisagreement` (active under provider disagreement; SECT 62.5 provider-disagreement) - nonru_runtime.go:65 | `TestHardGateProducer_WARPNonRUActiveWithProviderDisagreement` |
+| `nonru_route_active_with_direct_dns` | `Runtime.NonRUActiveWithDirectDNS` (active while DNS goes directly through the WAN path; SECT 62.6 dns-path) - nonru_runtime.go:79 | `TestHardGateProducer_WARPNonRUActiveWithDirectDNS` |
+| `nonru_route_active_with_unvalidated_ipv6` | `Runtime.NonRUActiveWithUnvalidatedIPv6` (active with unvalidated IPv6 path while IPv6 enabled; SECT 62.6 ipv6-path) - nonru_runtime.go:94 | `TestHardGateProducer_WARPNonRUActiveWithUnvalidatedIPv6` |
+| `nonru_route_active_after_attestation_expiry` | `Runtime.NonRUActiveAfterAttestationExpiry` (still active after attestation window passed; SECT 62.5 attestation-stale) - nonru_runtime.go:109 | `TestHardGateProducer_WARPNonRUActiveAfterAttestationExpiry` |
+| `nonru_strict_direct_fallback_total` | `Runtime.StrictDirectFallback` (strict non-RU silent fallback to the direct base path; manifest no-silent-fallback) - nonru_runtime.go:123 | `TestHardGateProducer_WARPStrictDirectFallback` |
+| `nonru_identity_creation_budget_exceeded` | `Runtime.IdentityCreationBudget` (identity creation above the per-generation budget) - nonru_runtime.go:137 | `TestHardGateProducer_WARPIdentityCreationBudgetExceeded` |
+
+SECT 73 + SECT 62.5/62.6 semantics wired into the production layer
+(`src/warp/nonru.go` + `src/warp/nonru_runtime.go`, reusing `GeoObservation` /
+`GeoAttestation` from `geo.go`): a strict non-RU route must never be active
+without a fresh non-RU attestation, with any RU-classified provider, under
+provider disagreement, with direct WAN DNS, with an unvalidated IPv6 path while
+IPv6 is enabled, or after attestation expiry; a strict non-RU route must never
+silently fall back to the direct base path, and identity creation stays within
+its budget. Gate-close reasons provider-ru / attestation-stale /
+public-ip-changed / dns-path-failed / ipv6-path-failed (SECT 62.5) are covered.
+
+Mutation runs: each of the 8 `Metrics.Inc` sites removed -> pinning fixture FAILs
+(8/8 killed), sites restored, no `MUTATION-RUN` markers left. `mutation_test:
+[{kind: removed_inc, status: executed}]` recorded in the registry.
+
+**Remaining missing (12):** masque_* (12, SECT 73A) - follow as the next FB-03
+slice b4x-q58.5 (masque, 273 -> 285, then missing 0).

@@ -2075,6 +2075,62 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (foreign resource received a successful removed-by-b4 event; addendum v1.2 sect. 62.8)",
         "production_root": "warp.Runtime.ForeignResourceRemoved (foreign-resource removal proof; addendum v1.2 sect. 62.8)",
     },
+    "nonru_route_active_without_fresh_attestation": {
+        "symbol": "NonRUActiveWithoutFreshAttestation -> Metrics.Inc(MetricWarpNonRUActiveWithoutFreshAttestation)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 37,
+        "mechanism": "increment-only counter via observability (strict non-RU route active without a current eligible non-RU attestation; addendum v1.2 sect. 62.5)",
+        "production_root": "warp.Runtime.NonRUActiveWithoutFreshAttestation (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_route_active_while_any_provider_ru": {
+        "symbol": "NonRUActiveWhileAnyProviderRU -> Metrics.Inc(MetricWarpNonRUActiveWhileAnyProviderRU)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 51,
+        "mechanism": "increment-only counter via observability (strict non-RU route active while any provider classifies the public IP as RU; addendum v1.2 sect. 62.5 provider-ru)",
+        "production_root": "warp.Runtime.NonRUActiveWhileAnyProviderRU (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_route_active_with_provider_disagreement": {
+        "symbol": "NonRUActiveWithProviderDisagreement -> Metrics.Inc(MetricWarpNonRUActiveWithProviderDisagreement)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 65,
+        "mechanism": "increment-only counter via observability (strict non-RU route active under provider disagreement; addendum v1.2 sect. 62.5 provider-disagreement)",
+        "production_root": "warp.Runtime.NonRUActiveWithProviderDisagreement (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_route_active_with_direct_dns": {
+        "symbol": "NonRUActiveWithDirectDNS -> Metrics.Inc(MetricWarpNonRUActiveWithDirectDNS)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 79,
+        "mechanism": "increment-only counter via observability (strict non-RU route active while DNS goes directly through the WAN path; addendum v1.2 sect. 62.6 dns-path)",
+        "production_root": "warp.Runtime.NonRUActiveWithDirectDNS (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_route_active_with_unvalidated_ipv6": {
+        "symbol": "NonRUActiveWithUnvalidatedIPv6 -> Metrics.Inc(MetricWarpNonRUActiveWithUnvalidatedIPv6)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 94,
+        "mechanism": "increment-only counter via observability (strict non-RU route active with an unvalidated IPv6 path while IPv6 is enabled; addendum v1.2 sect. 62.6 ipv6-path)",
+        "production_root": "warp.Runtime.NonRUActiveWithUnvalidatedIPv6 (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_route_active_after_attestation_expiry": {
+        "symbol": "NonRUActiveAfterAttestationExpiry -> Metrics.Inc(MetricWarpNonRUActiveAfterAttestationExpiry)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 109,
+        "mechanism": "increment-only counter via observability (strict non-RU route still active after its attestation window passed; addendum v1.2 sect. 62.5 attestation-stale)",
+        "production_root": "warp.Runtime.NonRUActiveAfterAttestationExpiry (non-RU route-gate; addendum v1.2 sect. 73)",
+    },
+    "nonru_strict_direct_fallback_total": {
+        "symbol": "StrictDirectFallback -> Metrics.Inc(MetricWarpStrictDirectFallback)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 123,
+        "mechanism": "increment-only counter via observability (strict non-RU route silently fell back to the direct base path; manifest no-silent-fallback)",
+        "production_root": "warp.Runtime.StrictDirectFallback (strict non-RU fallback decision; addendum v1.2 sect. 73)",
+    },
+    "nonru_identity_creation_budget_exceeded": {
+        "symbol": "IdentityCreationBudget -> Metrics.Inc(MetricWarpIdentityCreationBudgetExceeded)",
+        "file": "src/warp/nonru_runtime.go",
+        "line": 137,
+        "mechanism": "increment-only counter via observability (identity creation above the per-generation budget)",
+        "production_root": "warp.Runtime.IdentityCreationBudget (non-RU identity accounting; addendum v1.2 sect. 73)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -2089,7 +2145,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "8fef3a5c"  # FB-03 §73B WARP ownership/cleanup + connect-IP/non-RU producers (warp_* x7, addendum v1.2 sect. 62.5/62.7/62.8, 2026-08-06); 265 applicable
+REGISTER_VERIFIED_COMMIT = "68865d8c"  # FB-03 SECT 73 non-RU route-gate producers (nonru_* x8, addendum v1.2 sect. 62.5/62.6, 2026-08-06); 273 applicable  # FB-03 §73B WARP ownership/cleanup + connect-IP/non-RU producers (warp_* x7, addendum v1.2 sect. 62.5/62.7/62.8, 2026-08-06); 265 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3290,6 +3346,46 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "nonru_route_active_without_fresh_attestation": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_route_active_while_any_provider_ru": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_route_active_with_provider_disagreement": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_route_active_with_direct_dns": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_route_active_with_unvalidated_ipv6": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_route_active_after_attestation_expiry": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_strict_direct_fallback_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "nonru_identity_creation_budget_exceeded": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4254,6 +4350,30 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_foreign_resource_removed_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPForeignResourceRemoved", "file": "src/warp/hard_gate_producers_test.go", "line": 797, "assertion": "foreign resource received successful removed-by-b4 -> error && counter > 0"},
     ],
+    "nonru_route_active_without_fresh_attestation": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveWithoutFreshAttestation", "file": "src/warp/hard_gate_producers_test.go", "line": 814, "assertion": "strict non-RU route active without a current eligible non-RU attestation -> error && counter > 0"},
+    ],
+    "nonru_route_active_while_any_provider_ru": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveWhileAnyProviderRU", "file": "src/warp/hard_gate_producers_test.go", "line": 830, "assertion": "strict non-RU route active while a provider classifies the public IP as RU -> error && counter > 0"},
+    ],
+    "nonru_route_active_with_provider_disagreement": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveWithProviderDisagreement", "file": "src/warp/hard_gate_producers_test.go", "line": 848, "assertion": "strict non-RU route active under provider disagreement -> error && counter > 0"},
+    ],
+    "nonru_route_active_with_direct_dns": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveWithDirectDNS", "file": "src/warp/hard_gate_producers_test.go", "line": 865, "assertion": "strict non-RU route active with direct WAN DNS -> error && counter > 0"},
+    ],
+    "nonru_route_active_with_unvalidated_ipv6": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveWithUnvalidatedIPv6", "file": "src/warp/hard_gate_producers_test.go", "line": 881, "assertion": "strict non-RU route active with unvalidated IPv6 path while IPv6 enabled -> error && counter > 0"},
+    ],
+    "nonru_route_active_after_attestation_expiry": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUActiveAfterAttestationExpiry", "file": "src/warp/hard_gate_producers_test.go", "line": 897, "assertion": "strict non-RU route still active after attestation window passed -> error && counter > 0"},
+    ],
+    "nonru_strict_direct_fallback_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPStrictDirectFallback", "file": "src/warp/hard_gate_producers_test.go", "line": 914, "assertion": "strict non-RU silent fallback to the direct base path -> error && counter > 0"},
+    ],
+    "nonru_identity_creation_budget_exceeded": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPIdentityCreationBudgetExceeded", "file": "src/warp/hard_gate_producers_test.go", "line": 930, "assertion": "identity creation above the per-generation budget -> error && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4583,6 +4703,30 @@ MUTATION_TESTS: dict[str, list[dict]] = {
     "warp_foreign_resource_removed_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPForeignResourceRemoved (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 797, "status": "executed"},
     ],
+    "nonru_route_active_without_fresh_attestation": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveWithoutFreshAttestation (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 814, "status": "executed"},
+    ],
+    "nonru_route_active_while_any_provider_ru": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveWhileAnyProviderRU (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 830, "status": "executed"},
+    ],
+    "nonru_route_active_with_provider_disagreement": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveWithProviderDisagreement (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 848, "status": "executed"},
+    ],
+    "nonru_route_active_with_direct_dns": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveWithDirectDNS (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 865, "status": "executed"},
+    ],
+    "nonru_route_active_with_unvalidated_ipv6": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveWithUnvalidatedIPv6 (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 881, "status": "executed"},
+    ],
+    "nonru_route_active_after_attestation_expiry": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUActiveAfterAttestationExpiry (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 897, "status": "executed"},
+    ],
+    "nonru_strict_direct_fallback_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPStrictDirectFallback (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 914, "status": "executed"},
+    ],
+    "nonru_identity_creation_budget_exceeded": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPIdentityCreationBudgetExceeded (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 930, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4667,6 +4811,14 @@ for _name in [
     "warp_cleanup_incomplete_total",
     "warp_owned_resource_leak_total",
     "warp_foreign_resource_removed_total",
+    "nonru_route_active_without_fresh_attestation",
+    "nonru_route_active_while_any_provider_ru",
+    "nonru_route_active_with_provider_disagreement",
+    "nonru_route_active_with_direct_dns",
+    "nonru_route_active_with_unvalidated_ipv6",
+    "nonru_route_active_after_attestation_expiry",
+    "nonru_strict_direct_fallback_total",
+    "nonru_identity_creation_budget_exceeded",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [
