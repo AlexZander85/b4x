@@ -612,3 +612,84 @@ func TestHardGateProducer_WARPGeoRouteGateStateMismatch(t *testing.T) {
 		t.Fatal("warp_geo_route_gate_state_mismatch_total not incremented on open-gate-after-invalid (zero-tolerance gate)")
 	}
 }
+
+// --- §73B WARP path-proof producers (addendum §62.2/§62.3/§62.6) ---
+
+// TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent is the negative
+// fixture for warp_route_promoted_without_path_proof_event_total: a route
+// promotion whose path proof carries no counter delta ("route/rule existence
+// is not path proof", §62.2).
+func TestHardGateProducer_WARPRoutePromotedWithoutPathProofEvent(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	proof := TransportPathProof{ProofID: "proof-1", ProofKind: "router", ExpectedSessionGen: 1, ExpectedRouteGen: 1, Passed: true}
+	if err := rt.PathProofPromote("sess-a", proof); err == nil {
+		t.Fatal("route promotion without path-proof counter delta accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpRoutePromotedWithoutPathProofEvent); got == 0 {
+		t.Fatal("warp_route_promoted_without_path_proof_event_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace is the negative
+// fixture for warp_forwarded_success_without_binding_trace_total: a forwarded
+// success whose correlation lacks the binding trace causal chain
+// (BindingID -> RouteTokenID -> PathProofID, §62.3).
+func TestHardGateProducer_WARPForwardedSuccessWithoutBindingTrace(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	corr := ForwardedFlowCorrelation{RouteTokenID: "token-1", PathProofID: "proof-1"} // BindingID missing
+	if err := rt.ForwardedSuccess("sess-a", corr); err == nil {
+		t.Fatal("forwarded success without binding trace accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpForwardedSuccessWithoutBindingTrace); got == 0 {
+		t.Fatal("warp_forwarded_success_without_binding_trace_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPDirectFallbackWithoutTrace is the negative fixture
+// for warp_direct_fallback_without_trace_total: a direct fallback with no
+// path-probe event in the session trace pipeline.
+func TestHardGateProducer_WARPDirectFallbackWithoutTrace(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.Register("sess-a", DefaultEnrollmentPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	// No path-probe trace is published before the fallback decision.
+	if err := rt.DirectFallback("sess-a"); err == nil {
+		t.Fatal("direct fallback without path-probe trace accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpDirectFallbackWithoutTrace); got == 0 {
+		t.Fatal("warp_direct_fallback_without_trace_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPDNSPathUnproven is the negative fixture for
+// warp_dns_path_unproven_total: a DNS path claim whose observed resolver path
+// differs from the expected path (§62.6).
+func TestHardGateProducer_WARPDNSPathUnproven(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	dns := DNSPathTrace{PathID: "dns-1", ExpectedPath: "resolver-a", ObservedPath: "resolver-b", Passed: true}
+	if err := rt.DNSPathProof(dns); err == nil {
+		t.Fatal("unproven dns path accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpDNSPathUnproven); got == 0 {
+		t.Fatal("warp_dns_path_unproven_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPIPv6PathUnproven is the negative fixture for
+// warp_ipv6_path_unproven_total: a stale IPv6 path claim (probe did not pass,
+// §62.6).
+func TestHardGateProducer_WARPIPv6PathUnproven(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.IPv6PathProof(IPFamilyPathTrace{PathID: "v6-1", Family: "ipv6", Passed: false}); err == nil {
+		t.Fatal("unproven ipv6 path accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpIPv6PathUnproven); got == 0 {
+		t.Fatal("warp_ipv6_path_unproven_total not incremented (zero-tolerance gate)")
+	}
+}

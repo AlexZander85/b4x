@@ -64,3 +64,21 @@ const (
 	MetricWarpGeoQuorumWithoutProviderEvents         = "warp_geo_quorum_without_provider_events_total"
 	MetricWarpGeoRouteGateStateMismatch              = "warp_geo_route_gate_state_mismatch_total"
 )
+
+// WARP path-proof hard-gate counters (FB-03 §73B path-proof block, addendum
+// v1.2 §62.2/§62.3/§62.6). Each counter is incremented only on the violating
+// branch of the production route/path lifecycle (Runtime.PathProofPromote /
+// Runtime.ForwardedSuccess / Runtime.DirectFallback / Runtime.DNSPathProof /
+// Runtime.IPv6PathProof): promotion without a path-proof event (route/rule
+// existence is not path proof), forwarded success without the binding trace,
+// a direct fallback without a path-probe trace, and unproven DNS/IPv6 paths
+// under strict non-RU. All five are zero_tolerance_violation_counter gates
+// evaluated by the narrow WARP_CAUSAL_TRACE_READY verdict
+// (FB-03/FB-14 decision 9).
+const (
+	MetricWarpRoutePromotedWithoutPathProofEvent  = "warp_route_promoted_without_path_proof_event_total"
+	MetricWarpForwardedSuccessWithoutBindingTrace = "warp_forwarded_success_without_binding_trace_total"
+	MetricWarpDirectFallbackWithoutTrace          = "warp_direct_fallback_without_trace_total"
+	MetricWarpDNSPathUnproven                     = "warp_dns_path_unproven_total"
+	MetricWarpIPv6PathUnproven                    = "warp_ipv6_path_unproven_total"
+)
