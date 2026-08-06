@@ -448,6 +448,15 @@ func runB4(cmd *cobra.Command, args []string) error {
 		observability.Default().Metrics.Inc(observability.MetricMONLegacyWatchdogDirectApply, nil, 1)
 	}
 
+	// MON addendum v1.0 §57.1: legacy_watchdog_api=false means the event-driven
+	// cutover is active: every legacy mutating /api/watchdog/* endpoint answers
+	// 410 Gone and GET /api/watchdog/status serves the Monitoring projection
+	// (read-only alias). Warn on startup so operators relying on the legacy
+	// surface notice the behaviour change immediately.
+	if !cfgPtr.Load().System.Checker.Watchdog.LegacyWatchdogAPI {
+		log.Warnf("[WATCHDOG] legacy_watchdog_api=false: cutover active (MON §57.1) — legacy mutating /api/watchdog/* endpoints return 410 Gone; GET /api/watchdog/status serves the Monitoring projection")
+	}
+
 	// MON -> ABD -> DDI production runtime (IV-18-MON-09 wiring): consumes
 	// observations from the PPE capture-visibility gate and drives the
 	// bounded diagnostic scheduler. Read-only by design — it never mutates
