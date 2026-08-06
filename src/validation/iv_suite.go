@@ -92,6 +92,9 @@ func IV18Coverage() []Coverage {
 		{RequirementID: "IV-18-MON-09", TestID: "TestLegacyForceCheckOnlyQueuesBoundedDiagnostic", Verdict: "unit"},
 		{RequirementID: "IV-18-MON-10", TestID: "TestCheckpointRoundTripAndProjection", Verdict: "unit"},
 		{RequirementID: "IV-18-MON-11", TestID: "TestCanaryRollbackIsObservationOnly", Verdict: "unit"},
+		{RequirementID: "IV-18-MON-11", TestID: "TestRuntimeShadowParityEvidenceOnWatchdogSignal", Verdict: "unit"},
+		{RequirementID: "IV-18-MON-11", TestID: "TestWatchdogCutoverMutatingEndpointsGone", Verdict: "unit"},
+		{RequirementID: "IV-18-MON-11", TestID: "TestWatchdogCutoverStatusServesMonitoringProjection", Verdict: "unit"},
 		{RequirementID: "IV-18-MON-12", TestID: "TestIV18GateConformanceZeroToleranceAtZeroCounters", Verdict: "unit"},
 		{RequirementID: "IV-18-FT-MON-A", TestID: "TestSchedulerOverloadIsBounded", Verdict: "unit"},
 		{RequirementID: "IV-18-FT-MON-B", TestID: "TestDemandInboxBoundedAndResolutionFreshness", Verdict: "unit"},
@@ -105,6 +108,8 @@ func IV18Coverage() []Coverage {
 		{RequirementID: "IV-18-FT-MON-H", TestID: "TestABDEscalationPartialCannotBecomeAuthoritative", Verdict: "unit"},
 		{RequirementID: "IV-18-FT-MON-I", TestID: "TestIV18ReverseReachabilityBlocksProductionReadyWhileLegacyReachable", Verdict: "unit"},
 		{RequirementID: "IV-18-FT-MON-J", TestID: "TestCanaryRollbackIsObservationOnly", Verdict: "unit"},
+		{RequirementID: "IV-18-FT-MON-J", TestID: "TestWatchdogCutoverMutatingEndpointsGone", Verdict: "unit"},
+		{RequirementID: "IV-18-FT-MON-J", TestID: "TestWatchdogCutoverStatusServesMonitoringProjection", Verdict: "unit"},
 	}
 }
 
