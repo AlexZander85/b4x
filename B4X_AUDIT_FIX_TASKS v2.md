@@ -1174,7 +1174,7 @@ removal
 - **Критерий:** migration matrix + reverse-call artifacts; seeded reactivation of legacy path detected by meta-suite.
 - **Зависит:** subsystem implementations; FB-03/FB-34.
 
-### FB-36. Capability dependency graph: execution scheduling отдельно от verdict aggregation [M, P0-NORMATIVE] **— ВЫПОЛНЕНО** (Beads b4x-0yf, 06.08; commit _FB36_COMMIT_)
+### FB-36. Capability dependency graph: execution scheduling отдельно от verdict aggregation [M, P0-NORMATIVE] **— ВЫПОЛНЕНО** (Beads b4x-0yf, 06.08; commit a875e7ce)
 
 - **Проблема:** IV run order ставит WARP до ABD и пропускает MON.
 - **Что сделать:** разрешить безопасный parallel physical execution, но dependency aggregation строго:
