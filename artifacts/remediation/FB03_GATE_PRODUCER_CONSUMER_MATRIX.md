@@ -309,3 +309,36 @@ removed_inc, status: executed}]` recorded in the registry.
 
 **Remaining missing (27):** masque_* (12, §73A) + nonru_* (8, §73) + ownership/cleanup
 (4) + connect-IP/non-RU (3) — follow as the next FB-03 slices b4x-q58.3/4/5.
+
+## Progress note 5 (2026-08-06, FB-03 b4x-q58.3 — WARP ownership/cleanup + connect-IP/non-RU, §73B/§62.5/§62.7/§62.8)
+
+Ownership/cleanup + connect-IP/non-RU producers landed (registry now **285 gates /
+265 verified / 20 missing**, `ApplicableHardGates() == 265`, code commit `8fef3a5c`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `warp_nonru_revocation_exceeded_deadline_total` | `Runtime.NonRURevocationDeadline` (revocation started after its deadline; prompt revocation §62.5) — `src/warp/ownership_runtime.go:47` | `TestHardGateProducer_WARPNonRURevocationExceededDeadline` |
+| `warp_nonru_public_ip_change_without_refresh_total` | `Runtime.NonRUPublicIPChange` (public-IP change with no fresh attestation refresh; §62.5 `warp_geo_public_ip_changed`) — ownership_runtime.go:63 | `TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh` |
+| `warp_connect_ip_event_wrong_generation_total` | `Runtime.ConnectIPEvent` (CONNECT-IP event claiming a wrong process/config generation) — ownership_runtime.go:79 | `TestHardGateProducer_WARPConnectIPEventWrongGeneration` |
+| `warp_post_cutoff_mutation_total` | `Runtime.PostCutoffMutation` (payload mutation after established bypass; §62.7 invariant CONNECT-IP → cutoff → bypass → post_cutoff_mutations == 0) — ownership_runtime.go:95 | `TestHardGateProducer_WARPPostCutoffMutation` |
+| `warp_cleanup_incomplete_total` | `Runtime.CleanupComplete` (completion claim over owned resource without terminal removal/already-absent record; §62.8) — ownership_runtime.go:113 | `TestHardGateProducer_WARPCleanupIncomplete` |
+| `warp_owned_resource_leak_total` | `Runtime.OwnedResourceLeak` (generation-owned resource without terminal record at finalize; §62.8) — ownership_runtime.go:130 | `TestHardGateProducer_WARPOwnedResourceLeak` |
+| `warp_foreign_resource_removed_total` | `Runtime.ForeignResourceRemoved` (foreign resource received successful `removed-by-b4`; §62.8) — ownership_runtime.go:145 | `TestHardGateProducer_WARPForeignResourceRemoved` |
+
+§62.5/§62.7/§62.8 semantics wired into the production layer (`src/warp/ownership.go` +
+`src/warp/ownership_runtime.go`): strict non-RU revocation must start by its deadline;
+a public-IP change requires a fresh attestation refresh; CONNECT-IP events must claim
+the expected process/config generation; the §62.7 hard invariant holds
+(post_cutoff_mutations == 0 after an established bypass); cleanup is complete only
+when every generation-owned resource has a terminal removal record or a verified
+already-absent record; a foreign resource must never receive a successful
+removed-by-b4 event. `terminalRemoveResult` covers `removed-by-b4` / `remove-failed` /
+`already-absent`.
+
+Mutation runs: each of the 7 `Metrics.Inc` sites removed → pinning fixture FAILs (7/7
+killed; CleanupComplete restored after a mid-mutation structural edit), sites
+restored, no `MUTATION-RUN` markers left. `mutation_test: [{kind: removed_inc, status:
+executed}]` recorded in the registry.
+
+**Remaining missing (20):** masque_* (12, §73A) + nonru_* (8, §73) — follow as the
+next FB-03 slices b4x-q58.4 (nonru) / b4x-q58.5 (masque).

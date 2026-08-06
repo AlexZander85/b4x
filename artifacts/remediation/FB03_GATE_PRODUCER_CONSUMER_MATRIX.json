@@ -2,8 +2,8 @@
   "generated_at": "06.08.2026",
   "source": "specs/registries/hard_gates.yaml (generated hard_gates_registry.gen.go)",
   "total": 285,
-  "verified": 258,
-  "missing": 27,
+  "verified": 265,
+  "missing": 20,
   "families_verified_missing": {
     "abd": [
       85,
@@ -11800,15 +11800,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "CleanupComplete -> Metrics.Inc(MetricWarpCleanupIncomplete)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (cleanup-completion claim over a generation-owned resource without terminal removal/already-absent record; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.CleanupComplete (cleanup proof; addendum v1.2 sect. 62.8)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPCleanupIncomplete",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 764,
+          "assertion": "cleanup-completion claim over owned resource without terminal removal record -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPCleanupIncomplete (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_connect_ip_event_wrong_generation_total",
@@ -11816,15 +11862,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ConnectIPEvent -> Metrics.Inc(MetricWarpConnectIPEventWrongGeneration)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 79,
+        "mechanism": "increment-only counter via observability (CONNECT-IP event claiming a generation different from the expected process/config generation)",
+        "production_root": "warp.Runtime.ConnectIPEvent (CONNECT-IP request/result event generation)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPConnectIPEventWrongGeneration",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 734,
+          "assertion": "CONNECT-IP event claiming a generation different from the expected one -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPConnectIPEventWrongGeneration (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_destination_set_partial_apply_total",
@@ -12064,15 +12156,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "ForeignResourceRemoved -> Metrics.Inc(MetricWarpForeignResourceRemoved)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability (foreign resource received a successful removed-by-b4 event; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.ForeignResourceRemoved (foreign-resource removal proof; addendum v1.2 sect. 62.8)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPForeignResourceRemoved",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 797,
+          "assertion": "foreign resource received successful removed-by-b4 -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPForeignResourceRemoved (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_forwarded_success_without_binding_trace_total",
@@ -12766,15 +12904,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "NonRUPublicIPChange -> Metrics.Inc(MetricWarpNonRUPublicIPChangeWithoutRefresh)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 63,
+        "mechanism": "increment-only counter via observability (public-IP change without fresh attestation refresh; warp_geo_public_ip_changed; addendum v1.2 sect. 62.5)",
+        "production_root": "warp.Runtime.NonRUPublicIPChange (public-IP continuity; addendum v1.2 sect. 62.5)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 719,
+          "assertion": "public-IP change with no attestation refresh issued -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_nonru_revocation_exceeded_deadline_total",
@@ -12782,15 +12966,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "NonRURevocationDeadline -> Metrics.Inc(MetricWarpNonRURevocationExceededDeadline)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 47,
+        "mechanism": "increment-only counter via observability (strict non-RU revocation started after its deadline; prompt revocation; addendum v1.2 sect. 62.5)",
+        "production_root": "warp.Runtime.NonRURevocationDeadline (non-RU gate-close revocation; addendum v1.2 sect. 62.5)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPNonRURevocationExceededDeadline",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 703,
+          "assertion": "revocation started after its deadline -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPNonRURevocationExceededDeadline (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_owned_resource_leak_total",
@@ -12798,15 +13028,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "OwnedResourceLeak -> Metrics.Inc(MetricWarpOwnedResourceLeak)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 130,
+        "mechanism": "increment-only counter via observability (generation-owned resource without terminal removal record at finalize; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.OwnedResourceLeak (resource ownership proof; addendum v1.2 sect. 62.8)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPOwnedResourceLeak",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 781,
+          "assertion": "generation-owned resource without terminal removal record at finalize -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPOwnedResourceLeak (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_post_cutoff_mutation_total",
@@ -12814,15 +13090,61 @@
       "class": "causal_trace",
       "stage": "apply",
       "kind": "zero_tolerance_violation_counter",
-      "status": "missing",
+      "status": "verified",
       "promotion_blocker": true,
       "producer": {
-        "symbol": "",
-        "file": "",
-        "line": 0,
-        "mechanism": "",
-        "production_root": ""
-      }
+        "symbol": "PostCutoffMutation -> Metrics.Inc(MetricWarpPostCutoffMutation)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 95,
+        "mechanism": "increment-only counter via observability (payload mutation after established bypass; invariant CONNECT-IP -> cutoff -> bypass -> post_cutoff_mutations == 0; addendum v1.2 sect. 62.7)",
+        "production_root": "warp.Runtime.PostCutoffMutation (camouflage cutoff proof; addendum v1.2 sect. 62.7)"
+      },
+      "consumers": [
+        {
+          "kind": "promotion_blocker",
+          "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)",
+          "file": "src/validation/gates.go",
+          "line": 233,
+          "binding": "count != 0 -> GateFail"
+        },
+        {
+          "kind": "aggregation_blocker",
+          "symbol": "EvaluateCausalTraceWindow verdict aggregation",
+          "file": "src/validation/gates.go",
+          "line": 239,
+          "binding": "scope.warp; fail-closed"
+        },
+        {
+          "kind": "http_report",
+          "symbol": "GET /api/v2/validation/gates",
+          "file": "src/http/handler/validation_gates.go",
+          "line": 0,
+          "binding": "live snapshot"
+        }
+      ],
+      "tests": [
+        {
+          "kind": "negative_fixture",
+          "name": "TestHardGateProducer_WARPPostCutoffMutation",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "line": 749,
+          "assertion": "payload mutation after established bypass of CONNECT-IP-confirmed cutoff -> error && counter > 0"
+        }
+      ],
+      "evidence": [
+        "B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md",
+        "artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.md",
+        "src/warp/hard_gate_producers_test.go",
+        "src/warp/runtime.go"
+      ],
+      "mutations": [
+        {
+          "kind": "removed_inc",
+          "name": "TestHardGateProducer_WARPPostCutoffMutation (producer removed)",
+          "file": "src/warp/hard_gate_producers_test.go",
+          "status": "executed"
+        }
+      ]
     },
     {
       "gate_id": "warp_recursive_control_route_total",

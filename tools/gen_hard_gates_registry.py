@@ -2026,6 +2026,55 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (IPv6 path claim without current independent IPv6 path proof and not IPv6-disabled-for-scope; addendum v1.2 sect. 62.6)",
         "production_root": "warp.Runtime.IPv6PathProof (IPv6 path proof validation; addendum v1.2 sect. 62.6)",
     },
+    "warp_nonru_revocation_exceeded_deadline_total": {
+        "symbol": "NonRURevocationDeadline -> Metrics.Inc(MetricWarpNonRURevocationExceededDeadline)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 47,
+        "mechanism": "increment-only counter via observability (strict non-RU revocation started after its deadline; prompt revocation; addendum v1.2 sect. 62.5)",
+        "production_root": "warp.Runtime.NonRURevocationDeadline (non-RU gate-close revocation; addendum v1.2 sect. 62.5)",
+    },
+    "warp_nonru_public_ip_change_without_refresh_total": {
+        "symbol": "NonRUPublicIPChange -> Metrics.Inc(MetricWarpNonRUPublicIPChangeWithoutRefresh)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 63,
+        "mechanism": "increment-only counter via observability (public-IP change without fresh attestation refresh; warp_geo_public_ip_changed; addendum v1.2 sect. 62.5)",
+        "production_root": "warp.Runtime.NonRUPublicIPChange (public-IP continuity; addendum v1.2 sect. 62.5)",
+    },
+    "warp_connect_ip_event_wrong_generation_total": {
+        "symbol": "ConnectIPEvent -> Metrics.Inc(MetricWarpConnectIPEventWrongGeneration)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 79,
+        "mechanism": "increment-only counter via observability (CONNECT-IP event claiming a generation different from the expected process/config generation)",
+        "production_root": "warp.Runtime.ConnectIPEvent (CONNECT-IP request/result event generation)",
+    },
+    "warp_post_cutoff_mutation_total": {
+        "symbol": "PostCutoffMutation -> Metrics.Inc(MetricWarpPostCutoffMutation)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 95,
+        "mechanism": "increment-only counter via observability (payload mutation after established bypass; invariant CONNECT-IP -> cutoff -> bypass -> post_cutoff_mutations == 0; addendum v1.2 sect. 62.7)",
+        "production_root": "warp.Runtime.PostCutoffMutation (camouflage cutoff proof; addendum v1.2 sect. 62.7)",
+    },
+    "warp_cleanup_incomplete_total": {
+        "symbol": "CleanupComplete -> Metrics.Inc(MetricWarpCleanupIncomplete)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 113,
+        "mechanism": "increment-only counter via observability (cleanup-completion claim over a generation-owned resource without terminal removal/already-absent record; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.CleanupComplete (cleanup proof; addendum v1.2 sect. 62.8)",
+    },
+    "warp_owned_resource_leak_total": {
+        "symbol": "OwnedResourceLeak -> Metrics.Inc(MetricWarpOwnedResourceLeak)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 130,
+        "mechanism": "increment-only counter via observability (generation-owned resource without terminal removal record at finalize; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.OwnedResourceLeak (resource ownership proof; addendum v1.2 sect. 62.8)",
+    },
+    "warp_foreign_resource_removed_total": {
+        "symbol": "ForeignResourceRemoved -> Metrics.Inc(MetricWarpForeignResourceRemoved)",
+        "file": "src/warp/ownership_runtime.go",
+        "line": 145,
+        "mechanism": "increment-only counter via observability (foreign resource received a successful removed-by-b4 event; addendum v1.2 sect. 62.8)",
+        "production_root": "warp.Runtime.ForeignResourceRemoved (foreign-resource removal proof; addendum v1.2 sect. 62.8)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -2040,7 +2089,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "c380b24e"  # FB-03 §73B WARP path-proof producers (warp_*_path_proof x5, addendum v1.2 sect. 62.2/62.3/62.6, 2026-08-06); 258 applicable
+REGISTER_VERIFIED_COMMIT = "8fef3a5c"  # FB-03 §73B WARP ownership/cleanup + connect-IP/non-RU producers (warp_* x7, addendum v1.2 sect. 62.5/62.7/62.8, 2026-08-06); 265 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3206,6 +3255,41 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "warp_nonru_revocation_exceeded_deadline_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_nonru_public_ip_change_without_refresh_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_connect_ip_event_wrong_generation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_post_cutoff_mutation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_cleanup_incomplete_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_owned_resource_leak_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "warp_foreign_resource_removed_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4149,6 +4233,27 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "warp_ipv6_path_unproven_total": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPIPv6PathUnproven", "file": "src/warp/hard_gate_producers_test.go", "line": 686, "assertion": "stale IPv6 path claim (probe did not pass) -> error && counter > 0"},
     ],
+    "warp_nonru_revocation_exceeded_deadline_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRURevocationExceededDeadline", "file": "src/warp/hard_gate_producers_test.go", "line": 703, "assertion": "revocation started after its deadline -> error && counter > 0"},
+    ],
+    "warp_nonru_public_ip_change_without_refresh_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh", "file": "src/warp/hard_gate_producers_test.go", "line": 719, "assertion": "public-IP change with no attestation refresh issued -> error && counter > 0"},
+    ],
+    "warp_connect_ip_event_wrong_generation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPConnectIPEventWrongGeneration", "file": "src/warp/hard_gate_producers_test.go", "line": 734, "assertion": "CONNECT-IP event claiming a generation different from the expected one -> error && counter > 0"},
+    ],
+    "warp_post_cutoff_mutation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPPostCutoffMutation", "file": "src/warp/hard_gate_producers_test.go", "line": 749, "assertion": "payload mutation after established bypass of CONNECT-IP-confirmed cutoff -> error && counter > 0"},
+    ],
+    "warp_cleanup_incomplete_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPCleanupIncomplete", "file": "src/warp/hard_gate_producers_test.go", "line": 764, "assertion": "cleanup-completion claim over owned resource without terminal removal record -> error && counter > 0"},
+    ],
+    "warp_owned_resource_leak_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPOwnedResourceLeak", "file": "src/warp/hard_gate_producers_test.go", "line": 781, "assertion": "generation-owned resource without terminal removal record at finalize -> error && counter > 0"},
+    ],
+    "warp_foreign_resource_removed_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPForeignResourceRemoved", "file": "src/warp/hard_gate_producers_test.go", "line": 797, "assertion": "foreign resource received successful removed-by-b4 -> error && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4454,6 +4559,30 @@ MUTATION_TESTS: dict[str, list[dict]] = {
     "warp_ipv6_path_unproven_total": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPIPv6PathUnproven (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 686, "status": "executed"},
     ],
+    # --- FB-03 (b4x-q58.3) WARP ownership/cleanup + connect-IP/non-RU
+    # producers mutation runs (2026-08-06): every removed Inc call kills its
+    # pinning negative fixture (7/7 killed) ---
+    "warp_nonru_revocation_exceeded_deadline_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRURevocationExceededDeadline (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 703, "status": "executed"},
+    ],
+    "warp_nonru_public_ip_change_without_refresh_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPNonRUPublicIPChangeWithoutRefresh (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 719, "status": "executed"},
+    ],
+    "warp_connect_ip_event_wrong_generation_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPConnectIPEventWrongGeneration (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 734, "status": "executed"},
+    ],
+    "warp_post_cutoff_mutation_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPPostCutoffMutation (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 749, "status": "executed"},
+    ],
+    "warp_cleanup_incomplete_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPCleanupIncomplete (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 764, "status": "executed"},
+    ],
+    "warp_owned_resource_leak_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPOwnedResourceLeak (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 781, "status": "executed"},
+    ],
+    "warp_foreign_resource_removed_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPForeignResourceRemoved (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 797, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4531,6 +4660,13 @@ for _name in [
     "warp_direct_fallback_without_trace_total",
     "warp_dns_path_unproven_total",
     "warp_ipv6_path_unproven_total",
+    "warp_nonru_revocation_exceeded_deadline_total",
+    "warp_nonru_public_ip_change_without_refresh_total",
+    "warp_connect_ip_event_wrong_generation_total",
+    "warp_post_cutoff_mutation_total",
+    "warp_cleanup_incomplete_total",
+    "warp_owned_resource_leak_total",
+    "warp_foreign_resource_removed_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [
