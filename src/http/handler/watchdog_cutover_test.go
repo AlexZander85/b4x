@@ -59,6 +59,45 @@ func TestWatchdogCutoverMutatingEndpointsGone(t *testing.T) {
 	}
 }
 
+// TestMonitorHealthToLegacyStatusMapping is the unit evidence for the §58
+// projection vocabulary: escalating <- running_quick/running_deep,
+// queued <- queued_quick/queued_deep, degraded <- degraded/failing/suppressed
+// without in-flight diagnostics, healthy <- healthy/recovered, unknown ->
+// no legacy entry.
+func TestMonitorHealthToLegacyStatusMapping(t *testing.T) {
+	cases := []struct {
+		name                      string
+		health                    monitor.HealthState
+		queuedQuick, queuedDeep   int
+		runningQuick, runningDeep int
+		want                      string
+		wantOK                    bool
+	}{
+		{name: "healthy", health: monitor.HealthHealthy, want: watchdog.StatusHealthy, wantOK: true},
+		{name: "recovered", health: monitor.HealthRecovered, want: watchdog.StatusHealthy, wantOK: true},
+		{name: "healthy ignores in-flight", health: monitor.HealthHealthy, runningQuick: 3, want: watchdog.StatusHealthy, wantOK: true},
+		{name: "escalating quick", health: monitor.HealthFailing, runningQuick: 1, want: watchdog.StatusEscalating, wantOK: true},
+		{name: "escalating deep", health: monitor.HealthDegraded, runningDeep: 2, want: watchdog.StatusEscalating, wantOK: true},
+		{name: "queued quick", health: monitor.HealthFailing, queuedQuick: 1, want: watchdog.StatusQueued, wantOK: true},
+		{name: "queued deep", health: monitor.HealthDegraded, queuedDeep: 1, want: watchdog.StatusQueued, wantOK: true},
+		{name: "escalation wins over queued", health: monitor.HealthFailing, queuedQuick: 2, runningQuick: 1, want: watchdog.StatusEscalating, wantOK: true},
+		{name: "degraded idle", health: monitor.HealthFailing, want: watchdog.StatusDegraded, wantOK: true},
+		{name: "suppressed degrades", health: monitor.HealthDegraded, want: watchdog.StatusDegraded, wantOK: true},
+		{name: "unknown no entry", health: monitor.HealthUnknown, wantOK: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := monitorHealthToLegacyStatus(tc.health, tc.queuedQuick, tc.queuedDeep, tc.runningQuick, tc.runningDeep)
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if got != tc.want {
+				t.Fatalf("status = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 // TestWatchdogCutoverStatusServesMonitoringProjection is the read-only alias
 // evidence (§57.1, §58): after cutover GET /api/watchdog/status serves the
 // Monitoring projection (scope id + legacy status vocabulary), not the legacy
@@ -120,8 +159,11 @@ func TestWatchdogCutoverStatusServesMonitoringProjection(t *testing.T) {
 	for _, d := range state.Domains {
 		if d.Domain == "watchdog-cutover-test" {
 			found = true
-			if d.Status != watchdog.StatusDegraded {
-				t.Fatalf("projected status = %q, want %q for a failing scope", d.Status, watchdog.StatusDegraded)
+			// The failed run completes with a scheduled retry, so the scope
+			// shows queued_quick=1 in the projection: legacy vocabulary is
+			// "queued" (§58) until a lease is acquired (then "escalating").
+			if d.Status != watchdog.StatusQueued {
+				t.Fatalf("projected status = %q, want %q for a failing scope waiting for diagnostic retry", d.Status, watchdog.StatusQueued)
 			}
 			if d.MatchedSet != "monitoring-projection" {
 				t.Fatalf("matched_set = %q, want monitoring-projection marker", d.MatchedSet)

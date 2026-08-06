@@ -62,6 +62,9 @@ func TestMonitorV1EndpointServesLiveRuntime(t *testing.T) {
 	if resp.GeneratedAt.IsZero() {
 		t.Fatal("generated_at must be set")
 	}
+	if !resp.CompatibilityProjection {
+		t.Fatal("compatibility_projection must be true: v2 API exposes the projection surface (MON addendum §58)")
+	}
 	if len(resp.Statuses) == 0 {
 		t.Fatal("statuses must contain the processed observation projection")
 	}

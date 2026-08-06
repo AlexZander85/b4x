@@ -16,6 +16,8 @@ type MonitorStatus struct {
 	Suppressors   []SuppressorReason
 	QueuedQuick   int
 	QueuedDeep    int
+	RunningQuick  int
+	RunningDeep   int
 	UpdatedAt     time.Time
 }
 

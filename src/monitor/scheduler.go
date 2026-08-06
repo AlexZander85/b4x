@@ -220,3 +220,44 @@ func (s *DiagnosticScheduler) Depth(kind DiagnosticKind) int {
 	}
 	return len(s.deep)
 }
+
+// Running returns the number of entries of the kind that currently hold an
+// active lease (diagnostics in flight). These map to the legacy
+// running_quick/running_deep projection fields (MON addendum v1.0 §58).
+func (s *DiagnosticScheduler) Running(kind DiagnosticKind) int {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var q []*schedulerEntry
+	if kind == DiagnosticQuick {
+		q = s.quick
+	} else if kind == DiagnosticDeep {
+		q = s.deep
+	} else {
+		return 0
+	}
+	n := 0
+	for _, e := range q {
+		if e.running != nil {
+			n++
+		}
+	}
+	return n
+}
+
+// Queued returns the number of entries of the kind waiting for a lease (not
+// running, including cooldown/backoff waits). These map to the legacy
+// queued_quick/queued_deep projection fields (MON addendum v1.0 §58).
+func (s *DiagnosticScheduler) Queued(kind DiagnosticKind) int {
+	if s == nil {
+		return 0
+	}
+	d := s.Depth(kind)
+	r := s.Running(kind)
+	if r > d {
+		return 0
+	}
+	return d - r
+}

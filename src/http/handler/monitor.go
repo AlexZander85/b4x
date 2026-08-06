@@ -10,9 +10,14 @@ import (
 // current monitor status projections (scope health, visibility, suppression)
 // and the timestamp of the snapshot. Perfect monitoring is read-only by
 // design — this endpoint never mutates configuration.
+//
+// CompatibilityProjection is always true: per MON addendum v1.0 §58 the v2
+// API must expose compatibility_projection=true so clients can distinguish
+// the projection surface from legacy sources of truth.
 type MonitorV1Response struct {
-	Statuses   []json.RawMessage `json:"statuses,omitempty"`
-	GeneratedAt time.Time         `json:"generated_at"`
+	Statuses                []json.RawMessage `json:"statuses,omitempty"`
+	GeneratedAt             time.Time         `json:"generated_at"`
+	CompatibilityProjection bool              `json:"compatibility_projection"`
 }
 
 func (api *API) RegisterMonitorAPI() {
@@ -48,7 +53,8 @@ func (api *API) handleMonitorV1(w http.ResponseWriter, r *http.Request) {
 	}
 	setJsonHeader(w)
 	json.NewEncoder(w).Encode(MonitorV1Response{
-		Statuses:    raw,
-		GeneratedAt: time.Now().UTC(),
+		Statuses:                raw,
+		GeneratedAt:             time.Now().UTC(),
+		CompatibilityProjection: true, // MON addendum v1.0 §58: projection surface marker
 	})
 }

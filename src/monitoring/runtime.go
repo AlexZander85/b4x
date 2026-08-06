@@ -308,6 +308,13 @@ func (rt *Runtime) runEscalation(lease monitor.DiagnosticLease, now time.Time) {
 		ConfigGeneration: req.Scope.ConfigGeneration,
 	}
 	profile, result, err := detector.CompileBlockingProfile(graph, assessmentRef, "transport-degraded", authoritative, authoritative, evidenceRefs, now)
+	// The run is finished: complete the acquired lease so the scheduler does
+	// not hold a phantom in-flight entry. A rejected/failed run is retried on
+	// backoff (entry stays queued), a successful run releases the slot. This
+	// keeps the §58 projection (queued_quick/deep, running_quick/deep)
+	// truthful after the projection write below.
+	success := err == nil && result.Status != detector.ResultRejected
+	rt.scheduler.Complete(lease.LeaseID, success, now)
 	rt.project(req, profile, result, err, now)
 }
 
@@ -331,6 +338,10 @@ func (rt *Runtime) project(req monitor.DiagnosticRequest, profile detector.Block
 		Scope:         scope,
 		Health:        health,
 		Visibility:    monitor.VisibilityPartial,
+		QueuedQuick:   rt.scheduler.Queued(monitor.DiagnosticQuick),
+		QueuedDeep:    rt.scheduler.Queued(monitor.DiagnosticDeep),
+		RunningQuick:  rt.scheduler.Running(monitor.DiagnosticQuick),
+		RunningDeep:   rt.scheduler.Running(monitor.DiagnosticDeep),
 		UpdatedAt:     now,
 	})
 	assessment := monitor.MonitorAssessment{

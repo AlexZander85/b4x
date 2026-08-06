@@ -36,14 +36,21 @@ func writeLegacyWatchdogGone(w http.ResponseWriter) {
 }
 
 // monitorHealthToLegacyStatus projects a monitor health state onto the
-// legacy watchdog status vocabulary (§58: StatusHealthy <- healthy/recovered;
-// StatusDegraded <- degraded/failing/suppressed; StatusQueued <- queued
-// quick/deep). Unknown health produces no entry (no decision yet).
-func monitorHealthToLegacyStatus(h monitor.HealthState, queuedQuick, queuedDeep int, suppressed bool) (string, bool) {
+// legacy watchdog status vocabulary (MON addendum v1.0 §58: StatusHealthy <-
+// healthy/recovered; StatusDegraded <- degraded/failing/suppressed;
+// StatusQueued <- queued_quick/queued_deep; StatusEscalating <-
+// running_quick/running_deep/canary_running). Escalation and queued states
+// only apply to scopes under a diagnosed problem, mirroring the legacy
+// watchdog where escalating is entered when healing starts for a degraded
+// domain. Unknown health produces no entry (no decision yet).
+func monitorHealthToLegacyStatus(h monitor.HealthState, queuedQuick, queuedDeep, runningQuick, runningDeep int) (string, bool) {
 	switch h {
 	case monitor.HealthHealthy, monitor.HealthRecovered:
 		return watchdog.StatusHealthy, true
 	case monitor.HealthDegraded, monitor.HealthFailing, monitor.HealthRecovering:
+		if runningQuick > 0 || runningDeep > 0 {
+			return watchdog.StatusEscalating, true
+		}
 		if queuedQuick > 0 || queuedDeep > 0 {
 			return watchdog.StatusQueued, true
 		}
@@ -112,7 +119,7 @@ func (api *API) handleWatchdogStatusRead(w http.ResponseWriter) {
 		return
 	}
 	for _, st := range globalMonitoring.StatusList() {
-		legacy, ok := monitorHealthToLegacyStatus(st.Health, st.QueuedQuick, st.QueuedDeep, st.Suppressed)
+		legacy, ok := monitorHealthToLegacyStatus(st.Health, st.QueuedQuick, st.QueuedDeep, st.RunningQuick, st.RunningDeep)
 		if !ok {
 			continue // unknown health: no decision yet, no legacy entry
 		}
