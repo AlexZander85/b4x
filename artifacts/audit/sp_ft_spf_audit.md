@@ -22,7 +22,7 @@ Read-only аудит (2026-07-31). Исходники: 3 пакета, 110 тр�
 | §18 required-before (YouTube pack promotion: CSI release gate + GSO parity + RST mode gate + same-client controls + rollback proof) | PARTIAL | `controls.go:ControlScenarios()` (same-provider Gmail controls); `detector_plan.go:PackReleaseVerdict` (ABD/DDI/TGB карта) | CSI release gate и rollback proof — вне пакета. |
 | Telegram pack (transport-required, не обещает обход IP-block через fake/split, structured maturity, не включает global tunnel) | IMPLEMENTED | `telegram.go:TelegramPack` | Classification `transport-required`, Delivery `client-configured`, Execution `observe`, Maturity `experimental`, Controls direct-dc-connectivity/transport-health/failover. fake/split/global tunnel не упоминаются — корректно. |
 | SP-11 (Telegram DC probe, MTProxy/SOCKS5 handoff, no fake/split primary default, QR только из локальной конфигурации) | ABSENT | — | DC probe, MTProxy/SOCKS5 handoff, QR-логика отсутствуют (telegram_field.go в fieldtest покрывает только delayed-first-data FSM bridge, не DC probe). |
-| Custom templates (custom-domain-group, custom-streaming-service, custom-api-plus-media, custom-transport-required-service) | ABSENT | — | Grep `custom-` — 0 совпадений в пакете. |
+| Custom templates (custom-domain-group, custom-streaming-service, custom-api-plus-media, custom-transport-required-service) | IMPLEMENTED | `packs.go:CustomDomainGroupPack/CustomStreamingServicePack/CustomAPIPlusMediaPack/CustomTransportRequiredServicePack` (classification `custom`, user-supplied domain, client-configured forced для transport-required) | 4/4 шаблона реализованы (SP v1.6 §17, 1552–1561); тесты: `custom_templates_test.go` (список шаблонов, compile каждого, client-configured не обрабатывается packet executor). |
 | SP-20 (Silent recovery capability projection: manifest schema, upper bound без runtime, reject destination-global/recursive/rollback-less) | IMPLEMENTED | `recovery.go:ValidateRecovery` (rejects `destination-global`/`recursive`; auto-canary требует RollbackTarget+TTL+MaxAttempts) | Верхняя граница (TTL/MaxAttempts) задаётся без runtime-состояния. |
 | SP-21 (False-positive-safe UX: observe default, effective/configured separation, lease и rollback controls) | IMPLEMENTED | `recovery.go:RecoveryUX` (Wording, LeaseID, RollbackAvailable, EffectiveMode, Truthful()); `RecoveryHealth` (ConfiguredMode/EffectiveMode/DegradedReason) | Разделение configured/effective есть; UX без лизы не заявляет rollback. |
 | SP-22 (Recovery binding compiler: ordered bindings, exact client/service/component/config-gen, last-good/cooldown/TTL/max-attempts) | IMPLEMENTED | `recovery.go:RecoveryBinding` (Ordered, ClientScope, ComponentID, ConfigGeneration, TTLSeconds, MaxAttempts, RollbackTarget, CooldownSeconds); `ValidateRecovery` (auto-canary требует CooldownSeconds > 0); `RecoveryLease` (TTL+MaxAttempts+CooldownSeconds, Valid()) | Cooldown добавлен (SP-22, п.27 из addendum: `cooldown: 120s` консервативный дефолт); тесты: `recovery_test.go` (cooldown обязателен для auto-canary, lease bounds). |
@@ -34,7 +34,7 @@ Read-only аудит (2026-07-31). Исходники: 3 пакета, 110 тр�
 | SP-31 (Scoped WARP UX + validation transaction: тест без изменения постоянных правил, раздельные test/production авторизации) | IMPLEMENTED | `recommendation.go:RecommendationUX.PermanentRulesChanged`; `RecommendationTransaction.TestToken` + `ProductionAuthorized`; `EnableAfterValidation` (production только после validated); **control plane**: `serviceprofile/runtime.go:ValidateTransaction/Snapshot/SetProjection` + `http/handler/service_profiles_api.go` | Разделение test/production явное; E2E: `TestServiceProfileLifecycleEndToEnd`, `TestServiceProfileApplyBeforeValidationIsDenied`. |
 | SP-32 (WARP recommendation release: FT-M/FT-W…Z/FT-AC…AD, IV-14/15/17, downgrade при expiry, PROFILE_WARP_RECOMMENDATION_READY) | IMPLEMENTED | `recommendation.go:RecommendationReleaseVerdict` (FieldTests, Umbrella, HardGateViolations, Ready()); `ProfileWARPRecommendationReady`; `Fresh()` (expiry downgrade) | Вердикт и expiry-логика на месте; карты suite — списки. |
 
-**Итог SP: 12 IMPLEMENTED / 6 PARTIAL / 4 ABSENT.**
+**Итог SP: 13 IMPLEMENTED / 5 PARTIAL / 4 ABSENT.** Отдельно (не в счёте 22 табл.): **SP-12 Import/export authoring** теперь IMPLEMENTED — `import_export.go` (Export валидирует манифест + provenance и маркирует `secrets_redacted=true`; Import fail-closed: reject не-redacted пакета / отсутствия provenance / schema-невалидного манифеста; `ForkManagedProfile` — локальное форкание managed profile с новой provenance); тесты: `import_export_test.go` (round-trip hash, provenance required, unredacted/missing-provenance/invalid-manifest reject, fork compile), `authoring_test.go` (canonical hash order-independent, WizardView.CanClaimHealthy per DoD 37, custom packs compile).
 
 ---
 
@@ -141,10 +141,11 @@ Read-only аудит (2026-07-31). Исходники: 3 пакета, 110 тр�
 Целостная модель: schema (canonical hash, безопасные поля), валидатор (rejects aggressive RST, роли, домены), compiler (детерминированный stableID), ownership (manual/managed/pinned/excluded), transaction (preview/diff), WARP-рекомендации (SP-30/31/32, §28A.4), recovery binding (SP-20/21), Telegram pack (без fake/split).
 **Что мешает:**
 1. §28A.5: `path_proof_supported` реализован (9/9 полей + YAML `MarshalWARPRecommendation`); прикладной вызов YAML-блока в драйвере/UI wire (SCHEDULE/ENABLE path) ещё не подключён.
-2. ABSENT: custom templates (4 шт.), SP-11 DC probe/MTProxy/SOCKS5/QR, авто-валидация (sandbox/ProbeOutcome/бюджеты).
-3. `import_export.go:Import` — принимает любой JSON; `SecretsRedacted` декларативен, не проверяется при импорте (манифест импортируется как есть — секреты не извлекаются, но и не контролируются).
+2. ABSENT: SP-11 DC probe/MTProxy/SOCKS5/QR, авто-валидация (sandbox/ProbeOutcome/бюджеты).
 
 **Выполнено в Phase D (FB-32):** `transaction.go:Apply/Rollback` теперь реально двигают состояние транзакции (SP-32): Apply фиксирует candidate, Rollback восстанавливает previous и запечатывает транзакцию (повторный Apply/Rollback запрещён); `State()` отдаёт активный профиль. Cooldown (SP-22) и invalidation (SP-23) добавлены в `recovery.go` + тесты. ARCH-139 снят с блокировки (evidence: `runtime_control_plane_test.go`, `transaction_test.go`, `recovery_test.go`).
+
+**Выполнено в FB-32 tail (b4x-vga):** custom templates 4/4 (SP v1.6 §17) — `packs.go:Custom*Pack` (classification `custom`, user-supplied domain); SP-12 import/export authoring — `import_export.go` (Export/Import fail-closed + `ForkManagedProfile`); тесты authoring/import-export/custom templates. Ранее пробел «Import принимает любой JSON» закрыт: теперь reject не-redacted/без provenance/невалидного манифеста.
 
 ### fieldtest — **частично готов (наиболее полный)**
 Verdict-модель закрывает все 14 требований: FT-Q (раздельные verdict'ы), FT-R…V (silent observation/доп. proof), FT-AC…AE (trace/path/correlate/cleanup), WARP_CAUSAL_TRACE_READY, StageReport DoD.
@@ -230,10 +231,10 @@ Grep `TODO|FIXME|panic(|not implemented` по трём пакетам: **0 со�
 
 | Пакет | IMPLEMENTED | PARTIAL | ABSENT | Готовность к интеграции |
 |---|---|---|---|---|
-| serviceprofile (22) | 12 | 6 | 4 | **Частично** — модель целостная; блокеры: ABSENT custom templates/SP-11/авто-валидация |
+| serviceprofile (22) | 13 | 5 | 4 | **Частично** — модель целостная; блокеры: ABSENT SP-11/авто-валидация; custom templates и SP-12 импорт/экспорт реализованы |
 | fieldtest (14) | 8 | 6 | 0 | **Частично (ближе к да)** — verdict-модель полная; блокеры: controller не вызывает HardGatesPass, нет мутант-фикстур FT-AC/AD/AE, cooldown, COHORT_PROMOTED |
 | silentpath (74) | 26 | 25 | 23 | **Частично** — observe-ядро готово; блокеры: нет baseline/retry-correlator/probe-controller (SPF-19/20/21), FSM (SPF-24), config schema + 21 гейт (SPF-52/57) |
-| **Всего (110)** | **46** | **37** | **27** | |
+| **Всего (110)** | **47** | **36** | **27** | |
 
 **Топ-3 пробела:**
 1. **Детекционная цепочка silentpath отсутствует** (SPF-19 BaselineModel, SPF-20 RetryCorrelator, SPF-21 DifferentialProbeController, SPF-40/41 quarantine/thresholds): без неё confidence ladder не имеет корреляции и единственный рабочий режим — observe. Это крупнейший функциональный пробел.
