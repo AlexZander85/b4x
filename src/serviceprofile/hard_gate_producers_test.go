@@ -72,6 +72,7 @@ func spWARPProjection() WARPProjection {
 		BundledEngineAvailable:      true,
 		BaseTransportCapable:        true,
 		CausalTraceReady:            true,
+		PathProofSupported:          true,
 		ForwardedBindingCorrelation: true,
 		TargetCanarySupported:       true,
 		RuntimeState:                "ready",

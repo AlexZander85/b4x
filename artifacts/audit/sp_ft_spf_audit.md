@@ -28,13 +28,13 @@ Read-only аудит (2026-07-31). Исходники: 3 пакета, 110 тр�
 | SP-22 (Recovery binding compiler: ordered bindings, exact client/service/component/config-gen, last-good/cooldown/TTL/max-attempts) | PARTIAL | `recovery.go:RecoveryBinding` (Ordered, ClientScope, ComponentID, ConfigGeneration, TTLSeconds, MaxAttempts, RollbackTarget) | **Нет cooldown** в структуре/валидации. Остальное есть. |
 | SP-23 (Silent recovery validation/promotion: карта FT-R…FT-V, SPF-1…SPF-10, раздельные verdict'ы, invalidation) | PARTIAL | `recovery.go:RecoveryPromotion` (EvidenceRefs, FieldTests, FalsePositiveBudget, Ready()) | Карта — списки строк-ссылок, инвалидации нет; раздельные verdict'ы — в fieldtest/silentpath. |
 | §28A.4 (WARP не primary при DNS/QUIC/SNI/TLS/HTTP/L4 evidence; primary только при IP/SYN/CIDR; nested-nonru при geo-constraint; camouflage отдельно) | IMPLEMENTED | `recommendation.go:supportedIPHypotheses` (только IP/SYN/CIDR/путевые гипотезы; прочие → NotApplicable); `warp_profile.go:CompileStrictNonRU` (strict требует GeoRequirement+ForwardedBindingCorrelation); `CamouflagePolicy` отдельно | Хорошая реализация «IP-only recommendation». |
-| §28A.5 (warp_recommendation YAML, 9 полей) | PARTIAL | `warp_profile.go:WARPProjection` (Provider, BundledEngineAvailable, EnrollmentSupported, BaseTransportCapable, CausalTraceReady, ForwardedBindingCorrelation, TargetCanarySupported, RuntimeState) | **8/9 полей**: нет `path_proof_supported`; `transport_kind` представлен как `Provider`; YAML-сериализации нет. `causal_trace_ready` есть — обязательное условие выполнено. |
+| §28A.5 (warp_recommendation YAML, 9 полей) | IMPLEMENTED | `warp_profile.go:WARPProjection` (Provider, BundledEngineAvailable, EnrollmentSupported, BaseTransportCapable, CausalTraceReady, PathProofSupported, ForwardedBindingCorrelation, TargetCanarySupported, RuntimeState); метод `MarshalWARPRecommendation` (9 snake_case полей, fail-closed на unknown runtime state); `Valid()` требует CausalTraceReady+PathProofSupported | 9/9 полей, YAML-сериализация есть; тесты: `warp_projection_test.go` (Valid требует path proof, 9 полей YAML, все 5 runtime states, fail-closed). `transport_kind` — канонический `cloudflare-warp-masque`. |
 | §28A.6 (Scoped validation plan: 10 шагов bounded transaction, freeze scope, direct-vs-WARP, rollback token'ов, TransportRecommendationValidated) | PARTIAL | `recommendation.go:RecommendationTransaction` (BeginTest/Finish/EnableAfterValidation, TestToken); `ValidateRecommendation` → validated/rejected/blocked-by-safety | Транзакция с test/production авторизациями есть; «10 шагов» как процедура не формализованы. |
 | SP-30 (BlockingProfile transport-recommendation compiler: typed TransportRecommendation, base-WARP-only, без ActionAuthorization, expiry) | IMPLEMENTED | `recommendation.go:CompileRecommendation` (только `cloudflare-warp-masque`/`base`; fresh scoped independent evidence ≥2 refs; ExpiresAt = now+10min) | Типизированный объект, без ActionAuthorization, expiry есть. |
 | SP-31 (Scoped WARP UX + validation transaction: тест без изменения постоянных правил, раздельные test/production авторизации) | IMPLEMENTED | `recommendation.go:RecommendationUX.PermanentRulesChanged`; `RecommendationTransaction.TestToken` + `ProductionAuthorized`; `EnableAfterValidation` (production только после validated) | Разделение test/production явное. |
 | SP-32 (WARP recommendation release: FT-M/FT-W…Z/FT-AC…AD, IV-14/15/17, downgrade при expiry, PROFILE_WARP_RECOMMENDATION_READY) | IMPLEMENTED | `recommendation.go:RecommendationReleaseVerdict` (FieldTests, Umbrella, HardGateViolations, Ready()); `ProfileWARPRecommendationReady`; `Fresh()` (expiry downgrade) | Вердикт и expiry-логика на месте; карты suite — списки. |
 
-**Итог SP: 9 IMPLEMENTED / 9 PARTIAL / 4 ABSENT.**
+**Итог SP: 10 IMPLEMENTED / 8 PARTIAL / 4 ABSENT.**
 
 ---
 
@@ -141,7 +141,7 @@ Read-only аудит (2026-07-31). Исходники: 3 пакета, 110 тр�
 Целостная модель: schema (canonical hash, безопасные поля), валидатор (rejects aggressive RST, роли, домены), compiler (детерминированный stableID), ownership (manual/managed/pinned/excluded), transaction (preview/diff), WARP-рекомендации (SP-30/31/32, §28A.4), recovery binding (SP-20/21), Telegram pack (без fake/split).
 **Что мешает:**
 1. `transaction.go:Apply/Rollback` — флаговые заглушки (нет применения к реальному состоянию, нет last-good применения).
-2. §28A.5: нет `path_proof_supported` (8/9 полей) — обязательное поле для production recommendation.
+2. §28A.5: `path_proof_supported` реализован (9/9 полей + YAML `MarshalWARPRecommendation`); прикладной вызов YAML-блока в драйвере/UI wire (SCHEDULE/ENABLE path) ещё не подключён.
 3. ABSENT: custom templates (4 шт.), SP-11 DC probe/MTProxy/SOCKS5/QR, авто-валидация (sandbox/ProbeOutcome/бюджеты), cooldown в SP-22.
 4. `import_export.go:Import` — принимает любой JSON; `SecretsRedacted` декларативен, не проверяется при импорте (манифест импортируется как есть — секреты не извлекаются, но и не контролируются).
 
@@ -229,14 +229,14 @@ Grep `TODO|FIXME|panic(|not implemented` по трём пакетам: **0 со�
 
 | Пакет | IMPLEMENTED | PARTIAL | ABSENT | Готовность к интеграции |
 |---|---|---|---|---|
-| serviceprofile (22) | 9 | 9 | 4 | **Частично** — модель целостная; блокеры: transaction-заглушки, 8/9 полей §28A.5, ABSENT custom templates/SP-11/авто-валидация |
+| serviceprofile (22) | 10 | 8 | 4 | **Частично** — модель целостная; блокеры: transaction-заглушки, cooldown SP-22/invalidation SP-23, ABSENT custom templates/SP-11/авто-валидация |
 | fieldtest (14) | 8 | 6 | 0 | **Частично (ближе к да)** — verdict-модель полная; блокеры: controller не вызывает HardGatesPass, нет мутант-фикстур FT-AC/AD/AE, cooldown, COHORT_PROMOTED |
 | silentpath (74) | 26 | 25 | 23 | **Частично** — observe-ядро готово; блокеры: нет baseline/retry-correlator/probe-controller (SPF-19/20/21), FSM (SPF-24), config schema + 21 гейт (SPF-52/57) |
-| **Всего (110)** | **43** | **40** | **27** | |
+| **Всего (110)** | **44** | **39** | **27** | |
 
 **Топ-3 пробела:**
 1. **Детекционная цепочка silentpath отсутствует** (SPF-19 BaselineModel, SPF-20 RetryCorrelator, SPF-21 DifferentialProbeController, SPF-40/41 quarantine/thresholds): без неё confidence ladder не имеет корреляции и единственный рабочий режим — observe. Это крупнейший функциональный пробел.
-2. **§28A.5 warp_recommendation неполон (8/9)**: нет `path_proof_supported` — обязательного поля для production recommendation; YAML-представление не реализовано.
+2. **warp_recommendation YAML не исполняется в production**: `warp_profile.go` даёт 9/9 полей + `MarshalWARPRecommendation`, но ни один HTTP/UI-вызов не эксплуатирует его (endpoints WARP-recommendation отсутствуют).
 3. **Вердикт-код fieldtest не исполняется**: Controller не интегрирует HardGatesPass (§26), 1 тест на 26 файлов; мутант-фикстуры FT-AC (9), FT-AD (7), FT-AE (12) не существуют — WARP_CAUSAL_TRACE_READY декларируется моделью, но не имеет исполняемых проверок.
 
 *Ограничения аудита: сборка не запускалась (go отсутствует в PATH); оценка — статическая по исходникам; требования процессного типа (SPF-03/04/60…69/72, §18A последовательности) помечены ABSENT как неприменимые к коду.*
