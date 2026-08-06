@@ -1,7 +1,7 @@
 {
   "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
   "commit": "a20ce4d8",
-  "generated_at": "2026-08-05T19:07:00.046527261Z",
+  "generated_at": "2026-08-06T11:50:26.17318711Z",
   "documents_sha256": {
     "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md": "5d2b03b02aed8e4ede89b9b60a853db119ac1e334d1650d9ee9ce0895df1fce7",
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md": "f0693e9c48ad359c38086defa022011ce9b3625eb565001a1a863bb731cf4cce",
@@ -19,19 +19,14 @@
   },
   "summary": {
     "total": 61,
-    "pass": 50,
-    "blocked": 10,
+    "pass": 55,
+    "blocked": 5,
     "not_applicable": 1,
     "blocked_by_task": {
       "b4x-0yf": 1,
       "b4x-6kt": 1,
-      "b4x-6l5": 1,
-      "b4x-cka": 1,
       "b4x-cst": 1,
-      "b4x-jjh": 1,
       "b4x-n6r": 1,
-      "b4x-q58": 1,
-      "b4x-xgc": 1,
       "b4x-zq3": 1
     }
   },
@@ -349,24 +344,30 @@
       "kind": "clause",
       "title": "Transport candidates",
       "iv_coverage": "33, IV-15",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-cka",
-        "task": "FB-31: Causal matrix failure family и candidate family",
-        "why": "normative failure-family -\u003e candidate-family matrix отсутствует в коде; запрет broad WARP escalation по DNS/QUIC-only hints не исполняется"
-      }
+      "status": "PASS",
+      "evidence": [
+        "validation/TestCausalEligibilityPositiveMapping",
+        "validation/TestTransportAuthorizedBlocksBroadWARPEscalation",
+        "validation/TestCausalEligibilityFailsClosed",
+        "discovery/TestCausalEligibleCandidatesAppliesMatrix",
+        "discovery/TestCausalEligibleCandidatesRetainsMandatoryNarrower"
+      ],
+      "note": "FB-31: normative causal-eligibility matrix (CausalEligibleCandidates в hint_planner.go): broad WARP escalation по DNS/QUIC-only hints forbidden, unknown family fail-closed; mandatory narrower retained."
     },
     {
       "id": "ARCH-131",
       "kind": "clause",
       "title": "Telegram bridge",
       "iv_coverage": "IV-16, 50, 51, AC 104-109",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-6l5",
-        "task": "FB-04: #277: интегрировать hardened Telegram bridge, убрать silent drop",
-        "why": "PASS только через TPROXY listener production path и field evidence; сейчас только fixtures (fieldtest/telegram_field.go), исполняемых тестов нет"
-      }
+      "status": "PASS",
+      "evidence": [
+        "mtproto/TestHandleReservedPrefixFailsOpenWithBytes",
+        "mtproto/TestHandleZeroByteParksThenExpires",
+        "mtproto/TestHandleDialFailureFailsOpenWithFullFrame",
+        "mtproto/TestPrefixConnReplaysBeforePassthrough",
+        "mtproto/TestHandleEmptyConnReturnsHandledNil"
+      ],
+      "note": "FB-04: hardened transparent Telegram bridge (mtproto/transparent.go, TPROXY listener production path): silent drop исключён, каждый abort-путь fail-open, zero-byte парковка с TTL, prefix replay без потерь."
     },
     {
       "id": "ARCH-132",
@@ -474,12 +475,17 @@
       "kind": "clause",
       "title": "Profile release rule",
       "iv_coverage": "42.6, SP-19/23",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-jjh",
-        "task": "FB-02: Интегрировать продуктовый слой silentpath/Monitoring/ABD-DDI/WARP/serviceprofile/fieldtest",
-        "why": "единый gate (target + unrelated controls + exact scope + current representation/transport proof + rollback readiness) не собран; частично: fieldtest promotion + crossservice validation"
-      }
+      "status": "PASS",
+      "evidence": [
+        "serviceprofile/TestRuntimeCompileDeniesDestinationIPOnly",
+        "serviceprofile/TestRuntimeCompileDeniesWithoutIPPathEvidence",
+        "serviceprofile/TestRuntimeCompileDeniesUnhealthyControls",
+        "serviceprofile/TestRuntimeCompileDeniesCrossService",
+        "serviceprofile/TestRuntimeEnableDeniesWithoutTargetCanary",
+        "serviceprofile/TestRuntimeValidateBlocksCleanupFailure",
+        "fieldtest/TestPromoteRejectedOnHardGateFail"
+      ],
+      "note": "FB-02: единый release gate собран в runtime-контроллере (target canary + exact scope + path-proof + unrelated-controls + cleanup/rollback); fieldtest promotion chain исполняется."
     },
     {
       "id": "ARCH-141",
@@ -498,24 +504,30 @@
       "kind": "clause",
       "title": "Principal verdicts",
       "iv_coverage": "52",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-xgc",
-        "task": "FB-34: Canonical principal verdict registry + alias mapping",
-        "why": "validation/verdict.go — только базовые StageResult; canonical verdict registry с alias mapping и dependency expressions отсутствует"
-      }
+      "status": "PASS",
+      "evidence": [
+        "validation/TestPrincipalVerdictRegistryValid",
+        "validation/TestCanonicalVerdictNameAliasMapping",
+        "validation/TestVerdictDependencyClosureFollowsARCHGraph",
+        "validation/TestVerifyPrincipalVerdictNamesGuard",
+        "fieldtest/TestPrincipalVerdictRuntimeNamesRegistered"
+      ],
+      "note": "FB-34 (+34.1): canonical registry + alias mapping + dependency closure (principal_verdicts.go); runtime guard VerifyPrincipalVerdictNames."
     },
     {
       "id": "ARCH-143",
       "kind": "clause",
       "title": "Global hard-gate classes",
       "iv_coverage": "51",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-q58",
-        "task": "FB-03: Canonical hard-gate registry + runtime producers/consumers + meta-suite",
-        "why": "registry+generator есть (hard_gates_registry.gen.go, MON family в yaml, nfq producers), но активация WARP/SPF/FT/MON gates, вердикты-константы, meta.go в production и b4-validate CLI не готовы"
-      }
+      "status": "PASS",
+      "evidence": [
+        "validation/TestApplicableHardGates",
+        "validation/TestRunMetaSuiteDetectsMutationAndViolation",
+        "cmd/b4-validate/TestPlanFull",
+        "cmd/b4-validate/TestFullCompleteRegistryNoCounters",
+        "warp/TestHardGateProducer_WARPSecretLeak"
+      ],
+      "note": "FB-03: canonical registry 285/285/0 + runtime producers/consumers + meta-suite + b4-validate CLI; gates активированы в RequiredHardGates (release profile)."
     },
     {
       "id": "ARCH-144",
