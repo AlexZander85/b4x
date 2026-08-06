@@ -482,6 +482,13 @@ func TestValidate_DefaultsApplied(t *testing.T) {
 			t.Errorf("expected legacy_watchdog_direct_apply default false, got true (MON addendum §59)")
 		}
 	})
+
+	t.Run("legacy watchdog API defaults to true", func(t *testing.T) {
+		cfg := NewConfig()
+		if !cfg.System.Checker.Watchdog.LegacyWatchdogAPI {
+			t.Errorf("expected legacy_watchdog_api default true (compatibility surface before cutover, MON addendum §57.1)")
+		}
+	})
 }
 
 func TestValidate_Idempotent(t *testing.T) {

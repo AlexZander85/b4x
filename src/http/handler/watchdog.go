@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/monitor"
 	"github.com/daniellavrushin/b4/watchdog"
 )
 
@@ -16,6 +17,40 @@ type WatchdogDomainRequest struct {
 type WatchdogActionResponse struct {
 	Success bool   `json:"success" example:"true"`
 	Message string `json:"message" example:"added example.com to watchdog"`
+}
+
+// legacyWatchdogCutover reports whether the event-driven cutover (MON
+// addendum v1.0 §57.1) is active: legacy_watchdog_api=false. After cutover
+// every legacy mutating /api/watchdog/* endpoint returns 410 Gone and the
+// read-only GET /api/watchdog/status alias serves the Monitoring state
+// projection instead of the legacy watchdog's own state.
+func (api *API) legacyWatchdogCutover() bool {
+	return api.getCfg().System.Checker.Watchdog.LegacyWatchdogAPI == false
+}
+
+// writeLegacyWatchdogGone writes the stable 410 Gone migration error for the
+// legacy mutating endpoints after cutover (§57.1). The message is fixed so
+// clients can match on it.
+func writeLegacyWatchdogGone(w http.ResponseWriter) {
+	http.Error(w, "legacy watchdog API is cut over: mutating legacy endpoints are disabled (MON addendum §57.1); use the monitoring API", http.StatusGone)
+}
+
+// monitorHealthToLegacyStatus projects a monitor health state onto the
+// legacy watchdog status vocabulary (§58: StatusHealthy <- healthy/recovered;
+// StatusDegraded <- degraded/failing/suppressed; StatusQueued <- queued
+// quick/deep). Unknown health produces no entry (no decision yet).
+func monitorHealthToLegacyStatus(h monitor.HealthState, queuedQuick, queuedDeep int, suppressed bool) (string, bool) {
+	switch h {
+	case monitor.HealthHealthy, monitor.HealthRecovered:
+		return watchdog.StatusHealthy, true
+	case monitor.HealthDegraded, monitor.HealthFailing, monitor.HealthRecovering:
+		if queuedQuick > 0 || queuedDeep > 0 {
+			return watchdog.StatusQueued, true
+		}
+		return watchdog.StatusDegraded, true
+	default:
+		return "", false
+	}
 }
 
 func (api *API) RegisterWatchdogApi() {
@@ -41,6 +76,13 @@ func (api *API) handleWatchdogStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// After cutover the read-only alias serves the Monitoring projection and
+	// keeps no state of its own (§57.1; §58 status projection).
+	if api.legacyWatchdogCutover() {
+		api.handleWatchdogStatusRead(w)
+		return
+	}
+
 	if globalWatchdog == nil {
 		setJsonHeader(w)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -52,6 +94,43 @@ func (api *API) handleWatchdogStatus(w http.ResponseWriter, r *http.Request) {
 
 	state := globalWatchdog.GetState()
 	setJsonHeader(w)
+	json.NewEncoder(w).Encode(state)
+}
+
+// handleWatchdogStatusRead serves GET /api/watchdog/status after cutover:
+// the response is projected from the Monitoring runtime state (read-only
+// alias, max one compatible minor release) and never contains legacy
+// watchdog state.
+func (api *API) handleWatchdogStatusRead(w http.ResponseWriter) {
+	setJsonHeader(w)
+	state := watchdog.WatchdogState{
+		Enabled: api.getCfg().System.Checker.Watchdog.Enabled,
+		Domains: []*watchdog.DomainStatus{},
+	}
+	if globalMonitoring == nil {
+		json.NewEncoder(w).Encode(state)
+		return
+	}
+	for _, st := range globalMonitoring.StatusList() {
+		legacy, ok := monitorHealthToLegacyStatus(st.Health, st.QueuedQuick, st.QueuedDeep, st.Suppressed)
+		if !ok {
+			continue // unknown health: no decision yet, no legacy entry
+		}
+		domainID := st.Scope.ClientScope.ID
+		if domainID == "" {
+			domainID = st.Scope.DomainIdentityID
+		}
+		state.Domains = append(state.Domains, &watchdog.DomainStatus{
+			Domain:              domainID,
+			Status:              legacy,
+			LastCheck:           st.UpdatedAt,
+			LastHeal:            st.UpdatedAt,
+			ConsecutiveFailures: 0,
+			Interval:            api.getCfg().System.Checker.Watchdog.IntervalSec,
+			MatchedSet:          "monitoring-projection",
+			DisplayDomain:       domainID,
+		})
+	}
 	json.NewEncoder(w).Encode(state)
 }
 
@@ -71,6 +150,11 @@ func (api *API) handleWatchdogStatus(w http.ResponseWriter, r *http.Request) {
 func (api *API) handleWatchdogForceCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if api.legacyWatchdogCutover() {
+		writeLegacyWatchdogGone(w)
 		return
 	}
 
@@ -133,6 +217,11 @@ func (api *API) handleWatchdogDomains(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.legacyWatchdogCutover() {
+		writeLegacyWatchdogGone(w)
+		return
+	}
+
 	var req struct {
 		Domain string `json:"domain"`
 	}
@@ -182,6 +271,11 @@ func (api *API) handleWatchdogDomains(w http.ResponseWriter, r *http.Request) {
 func (api *API) handleWatchdogDeleteDomain(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if api.legacyWatchdogCutover() {
+		writeLegacyWatchdogGone(w)
 		return
 	}
 
@@ -237,6 +331,11 @@ func (api *API) handleWatchdogEnable(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if api.legacyWatchdogCutover() {
+		writeLegacyWatchdogGone(w)
+		return
+	}
+
 	cfg := api.getCfg().Clone()
 	cfg.System.Checker.Watchdog.Enabled = true
 	if err := api.saveAndPushConfig(cfg); err != nil {
@@ -265,6 +364,11 @@ func (api *API) handleWatchdogEnable(w http.ResponseWriter, r *http.Request) {
 func (api *API) handleWatchdogDisable(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if api.legacyWatchdogCutover() {
+		writeLegacyWatchdogGone(w)
 		return
 	}
 

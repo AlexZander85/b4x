@@ -422,6 +422,14 @@ type WatchdogConfig struct {
 	// production readiness), and the option MUST NOT be exposed in the
 	// beginner UI.
 	LegacyWatchdogDirectApply bool `json:"legacy_watchdog_direct_apply"`
+	// LegacyWatchdogAPI (MON addendum v1.0 §57.1): default true (shadow /
+	// read-only compatibility surface before the event-driven cutover). Once
+	// cut over (set to false), every legacy mutating /api/watchdog/*
+	// endpoint returns 410 Gone, and the read-only GET /api/watchdog/status
+	// alias serves the Monitoring state projection instead of the legacy
+	// watchdog's own state. Two mutating sources of truth are never allowed
+	// simultaneously.
+	LegacyWatchdogAPI bool `json:"legacy_watchdog_api"`
 }
 
 type Logging struct {

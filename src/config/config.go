@@ -276,6 +276,7 @@ var DefaultConfig = Config{
 				TimeoutSec:                15,
 				MaxRetries:                3,
 				LegacyWatchdogDirectApply: false, // MON addendum v1.0 §59: unsafe mode off by default
+				LegacyWatchdogAPI:         true,  // MON addendum v1.0 §57.1: compatibility surface until cutover
 			},
 		},
 		API: ApiConfig{
