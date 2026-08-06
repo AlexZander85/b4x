@@ -61,7 +61,7 @@ func TestPlanFull(t *testing.T) {
 	if !strings.Contains(out, "applicable=") {
 		t.Errorf("plan full: missing applicable= summary:\n%s", out)
 	}
-	// The release profile applies exactly the registry-verified set (273)
+	// The release profile applies exactly the registry-verified set (285)
 	// as proven producers; the plan must carry producer/consumer refs.
 	if !strings.Contains(out, "verified=") {
 		t.Errorf("plan full: missing verified= summary:\n%s", out)
@@ -113,17 +113,23 @@ func TestRequirementUnknown(t *testing.T) {
 	}
 }
 
-func TestFullMissingCountersFailClosed(t *testing.T) {
-	// Without observed counters the CLI is fail-closed: applicable gates
-	// without producer evidence must block (criterion 5 — no PASS without
-	// evidence). This is the honest state until subsystem producers are
-	// verified in production code (FB-02/FB-07/FB-27/FB-28).
+func TestFullCompleteRegistryNoCounters(t *testing.T) {
+	// With the FB-03 registry complete (285/285 verified producers) every
+	// applicable gate carries registry evidence (verified producer +
+	// executed negative fixture + mutation run). A run without observed
+	// counters is then honestly PASS: all counters at 0 means no violations.
+	// The fail-closed "applicable gate without producer" BLOCKED can no
+	// longer trigger - that is the terminal state of FB-03 (criterion 5:
+	// PASS with registry evidence, not grep evidence).
 	code, out := runCLI(t, "full", "--profile", "release")
-	if code != 1 {
-		t.Fatalf("full (no counters) exit=%d want 1 (fail-closed), out=%s", code, out)
+	if code != 0 {
+		t.Fatalf("full (no counters, complete registry) exit=%d want 0 (PASS), out=%s", code, out)
 	}
-	if !strings.Contains(out, "verdict=BLOCKED") {
-		t.Errorf("full (no counters): expected BLOCKED:\n%s", out)
+	if !strings.Contains(out, "verdict=PASS") {
+		t.Errorf("full (complete registry): expected PASS:\n%s", out)
+	}
+	if strings.Contains(out, "missing:") {
+		t.Errorf("full (complete registry): unexpected missing producers:\n%s", out)
 	}
 }
 

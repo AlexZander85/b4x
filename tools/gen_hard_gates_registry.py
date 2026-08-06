@@ -2131,6 +2131,90 @@ RUNTIME_PRODUCERS_VERIFIED: dict[str, dict] = {
         "mechanism": "increment-only counter via observability (identity creation above the per-generation budget)",
         "production_root": "warp.Runtime.IdentityCreationBudget (non-RU identity accounting; addendum v1.2 sect. 73)",
     },
+    "masque_camouflage_without_control_authorization_total": {
+        "symbol": "CamouflageWithoutControlAuthorization -> Metrics.Inc(MetricWarpMasqueCamouflageWithoutControlAuthorization)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 48,
+        "mechanism": "increment-only counter via observability (camouflage-classified flow without a valid control authorization; addendum v1.2 sect. C.2)",
+        "production_root": "warp.Runtime.CamouflageWithoutControlAuthorization (camouflage lifecycle; addendum v1.2 sect. C.2)",
+    },
+    "masque_camouflage_destination_only_authorization_total": {
+        "symbol": "CamouflageDestinationOnlyAuthorization -> Metrics.Inc(MetricWarpMasqueCamouflageDestinationOnlyAuthorization)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 63,
+        "mechanism": "increment-only counter via observability (destination-only authorization without a kernel-verifiable socket identity; addendum v1.2 sect. C.2)",
+        "production_root": "warp.Runtime.CamouflageDestinationOnlyAuthorization (camouflage lifecycle; addendum v1.2 sect. C.2)",
+    },
+    "masque_established_payload_mutation_total": {
+        "symbol": "EstablishedPayloadMutation -> Metrics.Inc(MetricWarpMasqueEstablishedPayloadMutation)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 77,
+        "mechanism": "increment-only counter via observability (payload mutation after MASQUE_ESTABLISHED; addendum v1.2 sect. C.5 forbidden / 62.7)",
+        "production_root": "warp.Runtime.EstablishedPayloadMutation (camouflage lifecycle; addendum v1.2 sect. C.5/62.7)",
+    },
+    "masque_camouflage_cutoff_failure_total": {
+        "symbol": "CamouflageCutoffFailure -> Metrics.Inc(MetricWarpMasqueCamouflageCutoffFailure)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 92,
+        "mechanism": "increment-only counter via observability (authorized non-established adapter still mutating past hard cutoff ceilings; addendum v1.2 sect. C.4)",
+        "production_root": "warp.Runtime.CamouflageCutoffFailure (camouflage lifecycle; addendum v1.2 sect. C.4)",
+    },
+    "masque_control_route_recursion_total": {
+        "symbol": "ControlRouteRecursion -> Metrics.Inc(MetricWarpMasqueControlRouteRecursion)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 106,
+        "mechanism": "increment-only counter via observability (control route routed through its own mark; ValidateNoRecursion)",
+        "production_root": "warp.Runtime.ControlRouteRecursion (control route lifecycle)",
+    },
+    "masque_camouflage_cross_instance_total": {
+        "symbol": "CamouflageCrossInstance -> Metrics.Inc(MetricWarpMasqueCamouflageCrossInstance)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 120,
+        "mechanism": "increment-only counter via observability (candidate/authorization of one instance authorizing another; addendum v1.2 sect. C.8)",
+        "production_root": "warp.Runtime.CamouflageCrossInstance (outer/inner isolation; addendum v1.2 sect. C.8)",
+    },
+    "masque_strategy_promoted_without_forwarded_probe_total": {
+        "symbol": "StrategyPromotedWithoutForwardedProbe -> Metrics.Inc(MetricWarpMasqueStrategyPromotedWithoutForwardedProbe)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 134,
+        "mechanism": "increment-only counter via observability (strategy promoted without a passed forwarded LAN probe; addendum v1.2 sect. C.7)",
+        "production_root": "warp.Runtime.StrategyPromotedWithoutForwardedProbe (auto-selection; addendum v1.2 sect. C.7)",
+    },
+    "masque_strategy_promoted_without_stability_window_total": {
+        "symbol": "StrategyPromotedWithoutStabilityWindow -> Metrics.Inc(MetricWarpMasqueStrategyPromotedWithoutStabilityWindow)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 147,
+        "mechanism": "increment-only counter via observability (strategy promoted without a passed stability window; addendum v1.2 sect. C.7)",
+        "production_root": "warp.Runtime.StrategyPromotedWithoutStabilityWindow (auto-selection; addendum v1.2 sect. C.7)",
+    },
+    "masque_insecure_tls_total": {
+        "symbol": "InsecureTLSCover -> Metrics.Inc(MetricWarpMasqueInsecureTLS)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 161,
+        "mechanism": "increment-only counter via observability (insecure cover TLS with missing endpoint pin; addendum v1.2 sect. C.6)",
+        "production_root": "warp.Runtime.InsecureTLSCover (cover SNI policy; addendum v1.2 sect. C.6)",
+    },
+    "masque_endpoint_pin_failure_accepted_total": {
+        "symbol": "EndpointPinFailureAccepted -> Metrics.Inc(MetricWarpMasqueEndpointPinFailureAccepted)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 176,
+        "mechanism": "increment-only counter via observability (candidate promoted despite failed endpoint public-key pin; addendum v1.2 sect. C.5/C.6)",
+        "production_root": "warp.Runtime.EndpointPinFailureAccepted (promotion gate; addendum v1.2 sect. C.5/C.6)",
+    },
+    "masque_unbounded_candidate_retry_total": {
+        "symbol": "UnboundedCandidateRetry -> Metrics.Inc(MetricWarpMasqueUnboundedCandidateRetry)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 190,
+        "mechanism": "increment-only counter via observability (candidate attempts beyond the bounded budget; addendum v1.2 sect. C.5/C.11)",
+        "production_root": "warp.Runtime.UnboundedCandidateRetry (bounded retry budget; addendum v1.2 sect. C.5/C.11)",
+    },
+    "masque_rst_suppression_without_exact_authorization_total": {
+        "symbol": "RSTSuppressionWithoutExactAuthorization -> Metrics.Inc(MetricWarpMasqueRSTSuppressionWithoutExactAuthorization)",
+        "file": "src/warp/masque_runtime.go",
+        "line": 205,
+        "mechanism": "increment-only counter via observability (RST suppression without exact flow authorization; addendum v1.2 sect. C.10)",
+        "production_root": "warp.Runtime.RSTSuppressionWithoutExactAuthorization (passive RST defense; addendum v1.2 sect. C.10)",
+    },
 }
 
 # Expected (normative) producer locations for gates whose producer is not yet
@@ -2145,7 +2229,7 @@ EXPECTED_PRODUCER_LOCATION: dict[str, str] = {}
 # Verified-commit SHA recorded in the registry when a producer_status
 # flips to verified (producer audited + negative fixture + mutation run in
 # this commit). Filled by REGISTER_VERIFIED_COMMIT below.
-REGISTER_VERIFIED_COMMIT = "68865d8c"  # FB-03 SECT 73 non-RU route-gate producers (nonru_* x8, addendum v1.2 sect. 62.5/62.6, 2026-08-06); 273 applicable  # FB-03 §73B WARP ownership/cleanup + connect-IP/non-RU producers (warp_* x7, addendum v1.2 sect. 62.5/62.7/62.8, 2026-08-06); 265 applicable
+REGISTER_VERIFIED_COMMIT = "e67ecb69"  # FB-03 SECT 73A MASQUE transport-camouflage producers (masque_* x12, addendum v1.2 sect. C.2-C.10/62.7, 2026-08-06); 285 applicable  # FB-03 SECT 73 non-RU route-gate producers (nonru_* x8, addendum v1.2 sect. 62.5/62.6, 2026-08-06); 273 applicable  # FB-03 §73B WARP ownership/cleanup + connect-IP/non-RU producers (warp_* x7, addendum v1.2 sect. 62.5/62.7/62.8, 2026-08-06); 265 applicable
 
 # Gate kinds (owner decision 2026-08-01, APPROVED —
 # artifacts/audit/B4X_FB03_OWNER_DECISION.md, фаза E):
@@ -3386,6 +3470,66 @@ VERDICT_CONSUMERS: dict[str, list[dict]] = {
         {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
         {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
     ],
+    "masque_camouflage_without_control_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_camouflage_destination_only_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_established_payload_mutation_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_camouflage_cutoff_failure_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_control_route_recursion_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_camouflage_cross_instance_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_strategy_promoted_without_forwarded_probe_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_strategy_promoted_without_stability_window_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_insecure_tls_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_endpoint_pin_failure_accepted_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_unbounded_candidate_retry_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
+    "masque_rst_suppression_without_exact_authorization_total": [
+        {"kind": "promotion_blocker", "symbol": "EvaluateCausalTraceWindow zero-tolerance branch (evaluateGateSet)", "file": "src/validation/gates.go", "line": 233, "binding": "count != 0 -> GateFail"},
+        {"kind": "aggregation_blocker", "symbol": "EvaluateCausalTraceWindow verdict aggregation", "file": "src/validation/gates.go", "line": 239, "binding": "scope.warp; fail-closed"},
+        {"kind": "http_report", "symbol": "GET /api/v2/validation/gates", "file": "src/http/handler/validation_gates.go", "line": 0, "binding": "live snapshot"},
+    ],
     # --- FB-29 / FB-30 consumers (mon + abd): promotion path via
     # EvaluateHardGates, fail-closed on the owning scope. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4374,6 +4518,42 @@ TEST_PRODUCERS: dict[str, list[dict]] = {
     "nonru_identity_creation_budget_exceeded": [
         {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPIdentityCreationBudgetExceeded", "file": "src/warp/hard_gate_producers_test.go", "line": 930, "assertion": "identity creation above the per-generation budget -> error && counter > 0"},
     ],
+    "masque_camouflage_without_control_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueCamouflageWithoutControlAuthorization", "file": "src/warp/hard_gate_producers_test.go", "line": 947, "assertion": "camouflage flow without a valid control authorization -> error && counter > 0"},
+    ],
+    "masque_camouflage_destination_only_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueCamouflageDestinationOnlyAuthorization", "file": "src/warp/hard_gate_producers_test.go", "line": 961, "assertion": "destination-only authorization without socket identity -> error && counter > 0"},
+    ],
+    "masque_established_payload_mutation_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueEstablishedPayloadMutation", "file": "src/warp/hard_gate_producers_test.go", "line": 976, "assertion": "payload mutation after MASQUE_ESTABLISHED -> error && counter > 0"},
+    ],
+    "masque_camouflage_cutoff_failure_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueCamouflageCutoff", "file": "src/warp/hard_gate_producers_test.go", "line": 992, "assertion": "authorized adapter mutating past hard cutoff ceilings -> error && counter > 0"},
+    ],
+    "masque_control_route_recursion_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueControlRouteRecursion", "file": "src/warp/hard_gate_producers_test.go", "line": 1011, "assertion": "control route routed through its own mark -> error && counter > 0"},
+    ],
+    "masque_camouflage_cross_instance_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueCamouflageCrossInstance", "file": "src/warp/hard_gate_producers_test.go", "line": 1026, "assertion": "authorization of one instance reused for another -> error && counter > 0"},
+    ],
+    "masque_strategy_promoted_without_forwarded_probe_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueStrategyPromotedWithoutForwardedProbe", "file": "src/warp/hard_gate_producers_test.go", "line": 1041, "assertion": "winner without a passed forwarded LAN probe -> error && counter > 0"},
+    ],
+    "masque_strategy_promoted_without_stability_window_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueStrategyPromotedWithoutStabilityWindow", "file": "src/warp/hard_gate_producers_test.go", "line": 1057, "assertion": "winner without a passed stability window -> error && counter > 0"},
+    ],
+    "masque_insecure_tls_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueInsecureTLS", "file": "src/warp/hard_gate_producers_test.go", "line": 1072, "assertion": "cover TLS with a missing endpoint pin -> error && counter > 0"},
+    ],
+    "masque_endpoint_pin_failure_accepted_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueEndpointPinFailureAccepted", "file": "src/warp/hard_gate_producers_test.go", "line": 1087, "assertion": "winner promoted with a failed endpoint public-key pin -> error && counter > 0"},
+    ],
+    "masque_unbounded_candidate_retry_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueUnboundedCandidateRetry", "file": "src/warp/hard_gate_producers_test.go", "line": 1102, "assertion": "candidate attempts beyond the bounded budget -> error && counter > 0"},
+    ],
+    "masque_rst_suppression_without_exact_authorization_total": [
+        {"kind": "negative_fixture", "name": "TestHardGateProducer_WARPMasqueRSTSuppressionWithoutExactAuthorization", "file": "src/warp/hard_gate_producers_test.go", "line": 1116, "assertion": "rst suppression without exact flow authorization -> error && counter > 0"},
+    ],
     # --- FB-29 / FB-30 fixtures (mon + abd): resolution-erasure and
     # multi-vantage NO_OPINION fixtures in src/detector. ---
     "monitor_first_success_erased_address_failures_total": [
@@ -4727,6 +4907,42 @@ MUTATION_TESTS: dict[str, list[dict]] = {
     "nonru_identity_creation_budget_exceeded": [
         {"kind": "removed_inc", "name": "TestHardGateProducer_WARPIdentityCreationBudgetExceeded (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 930, "status": "executed"},
     ],
+    "masque_camouflage_without_control_authorization_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueCamouflageWithoutControlAuthorization (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 947, "status": "executed"},
+    ],
+    "masque_camouflage_destination_only_authorization_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueCamouflageDestinationOnlyAuthorization (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 961, "status": "executed"},
+    ],
+    "masque_established_payload_mutation_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueEstablishedPayloadMutation (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 976, "status": "executed"},
+    ],
+    "masque_camouflage_cutoff_failure_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueCamouflageCutoff (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 992, "status": "executed"},
+    ],
+    "masque_control_route_recursion_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueControlRouteRecursion (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1011, "status": "executed"},
+    ],
+    "masque_camouflage_cross_instance_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueCamouflageCrossInstance (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1026, "status": "executed"},
+    ],
+    "masque_strategy_promoted_without_forwarded_probe_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueStrategyPromotedWithoutForwardedProbe (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1041, "status": "executed"},
+    ],
+    "masque_strategy_promoted_without_stability_window_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueStrategyPromotedWithoutStabilityWindow (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1057, "status": "executed"},
+    ],
+    "masque_insecure_tls_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueInsecureTLS (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1072, "status": "executed"},
+    ],
+    "masque_endpoint_pin_failure_accepted_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueEndpointPinFailureAccepted (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1087, "status": "executed"},
+    ],
+    "masque_unbounded_candidate_retry_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueUnboundedCandidateRetry (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1102, "status": "executed"},
+    ],
+    "masque_rst_suppression_without_exact_authorization_total": [
+        {"kind": "removed_inc", "name": "TestHardGateProducer_WARPMasqueRSTSuppressionWithoutExactAuthorization (producer removed)", "file": "src/warp/hard_gate_producers_test.go", "line": 1116, "status": "executed"},
+    ],
 }
 
 # Evidence artifacts backing each verified gate (audit + remediation trail).
@@ -4819,6 +5035,18 @@ for _name in [
     "nonru_route_active_after_attestation_expiry",
     "nonru_strict_direct_fallback_total",
     "nonru_identity_creation_budget_exceeded",
+    "masque_camouflage_without_control_authorization_total",
+    "masque_camouflage_destination_only_authorization_total",
+    "masque_established_payload_mutation_total",
+    "masque_camouflage_cutoff_failure_total",
+    "masque_control_route_recursion_total",
+    "masque_camouflage_cross_instance_total",
+    "masque_strategy_promoted_without_forwarded_probe_total",
+    "masque_strategy_promoted_without_stability_window_total",
+    "masque_insecure_tls_total",
+    "masque_endpoint_pin_failure_accepted_total",
+    "masque_unbounded_candidate_retry_total",
+    "masque_rst_suppression_without_exact_authorization_total",
 ]:
     EVIDENCE_ARTIFACTS[_name] = list(_EVIDENCE_WARP)
 _EVIDENCE_SPF = [

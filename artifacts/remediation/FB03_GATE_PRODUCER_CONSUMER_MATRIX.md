@@ -375,3 +375,43 @@ Mutation runs: each of the 8 `Metrics.Inc` sites removed -> pinning fixture FAIL
 
 **Remaining missing (12):** masque_* (12, SECT 73A) - follow as the next FB-03
 slice b4x-q58.5 (masque, 273 -> 285, then missing 0).
+
+## Progress note 7 (2026-08-06, FB-03 b4x-q58.5 - WARP MASQUE transport-camouflage gates, SECT 73A + C.2-C.10/62.7)
+
+MASQUE transport-camouflage producers landed (registry now **285 gates / 285
+verified / 0 missing**, `ApplicableHardGates() == 285`, code commit `e67ecb69`):
+
+| Gate | Producer call site | Fixture |
+|---|---|---|
+| `masque_camouflage_without_control_authorization_total` | `CamouflageWithoutControlAuthorization` (camouflage applied with no control-plane authorization; SECT 73A/C.2) - `src/warp/masque_runtime.go:48` | `TestHardGateProducer_WARPMasqueCamouflageWithoutControlAuthorization` |
+| `masque_camouflage_destination_only_authorization_total` | `CamouflageDestinationOnlyAuthorization` (destination-only authorization leaking camouflage intent; C.3) - masque_runtime.go:63 | `TestHardGateProducer_WARPMasqueCamouflageDestinationOnlyAuthorization` |
+| `masque_established_payload_mutation_total` | `EstablishedPayloadMutation` (payload mutation after an established MASQUE session; C.4) - masque_runtime.go:77 | `TestHardGateProducer_WARPMasqueEstablishedPayloadMutation` |
+| `masque_camouflage_cutoff_failure_total` | `CamouflageCutoffFailure` (cutoff state not honored after camouflage detection; C.5) - masque_runtime.go:92 | `TestHardGateProducer_WARPMasqueCamouflageCutoff` |
+| `masque_control_route_recursion_total` | `ControlRouteRecursion` (control route recursion violating the no-recursion invariant; C.6) - masque_runtime.go:106 | `TestHardGateProducer_WARPMasqueControlRouteRecursion` |
+| `masque_camouflage_cross_instance_total` | `CamouflageCrossInstance` (camouflage carried across session instances; C.7) - masque_runtime.go:120 | `TestHardGateProducer_WARPMasqueCamouflageCrossInstance` |
+| `masque_strategy_promoted_without_forwarded_probe_total` | `StrategyPromotedWithoutForwardedProbe` (strategy promoted with no forwarded probe evidence; C.8) - masque_runtime.go:134 | `TestHardGateProducer_WARPMasqueStrategyPromotedWithoutForwardedProbe` |
+| `masque_strategy_promoted_without_stability_window_total` | `StrategyPromotedWithoutStabilityWindow` (strategy promoted outside the stability window; C.9) - masque_runtime.go:147 | `TestHardGateProducer_WARPMasqueStrategyPromotedWithoutStabilityWindow` |
+| `masque_insecure_tls_total` | `InsecureTLSCover` (insecure TLS cover accepted for camouflage; C.10) - masque_runtime.go:161 | `TestHardGateProducer_WARPMasqueInsecureTLS` |
+| `masque_endpoint_pin_failure_accepted_total` | `EndpointPinFailureAccepted` (endpoint pin failure accepted without fail-closed action; C.11) - masque_runtime.go:176 | `TestHardGateProducer_WARPMasqueEndpointPinFailureAccepted` |
+| `masque_unbounded_candidate_retry_total` | `UnboundedCandidateRetry` (unbounded camouflage candidate retry loop; C.11) - masque_runtime.go:190 | `TestHardGateProducer_WARPMasqueUnboundedCandidateRetry` |
+| `masque_rst_suppression_without_exact_authorization_total` | `RSTSuppressionWithoutExactAuthorization` (RST suppression without exact authorization covering the SAME packet/flow; C.12) - masque_runtime.go:205 | `TestHardGateProducer_WARPMasqueRSTSuppressionWithoutExactAuthorization` |
+
+SECT 73A + C.2-C.10 semantics wired into the production layer
+(`src/warp/masque.go` + `src/warp/masque_runtime.go`, reusing
+`TransportControlPurpose` / `TransportControlAuthorization` (camouflage_auth.go),
+`CutoffState` (cutoff.go), `CoverSNIConfig` (cover_sni.go), `Candidate` /
+`CandidateResult` / `SelectLeastInvasive` (selection.go), `DialPolicy` /
+`ValidateNoRecursion` (routing.go), `InstanceState` (isolation.go)): transport
+camouflage must never be applied without control-plane authorization evidence,
+must never be distinguishable by destination-only authorization, must never
+mutate established payloads or bypass the cutoff state, must never recurse
+control-plane routing, must never leak camouflage intent across instances,
+and strategy promotion requires a forwarded probe plus a stability window.
+
+Mutation runs: each of the 12 `Metrics.Inc` sites removed -> pinning fixture FAILs
+(12/12 killed), sites restored, no `MUTATION-RUN` markers left. `mutation_test:
+[{kind: removed_inc, status: executed}]` recorded in the registry.
+
+**Remaining missing (0):** FB-03 complete - registry 285/285. `full` (no counters)
+is now PASS (criterion 5 satisfied by registry evidence: verified producer +
+executed negative fixture + mutation run for every applicable gate).
