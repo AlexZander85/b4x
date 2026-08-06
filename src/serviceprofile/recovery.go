@@ -15,7 +15,7 @@ type RecoveryBinding struct {
 	ID, ComponentID, ClientScope, ConfigGeneration, RollbackTarget string
 	Mode                                                           RecoveryMode
 	Ordered                                                        []string
-	TTLSeconds, MaxAttempts                                        int
+	TTLSeconds, MaxAttempts, CooldownSeconds                       int
 	StrictNonRU                                                    bool
 }
 
@@ -31,6 +31,9 @@ func ValidateRecovery(b RecoveryBinding) error {
 	}
 	if b.Mode == RecoveryAutoCanary && (b.RollbackTarget == "" || b.TTLSeconds <= 0 || b.MaxAttempts <= 0) {
 		return errors.New("active recovery requires rollback and lease bounds")
+	}
+	if b.Mode == RecoveryAutoCanary && b.CooldownSeconds <= 0 {
+		return errors.New("active recovery requires cooldown window")
 	}
 	return nil
 }
@@ -54,10 +57,10 @@ func (u RecoveryUX) Truthful() bool {
 }
 
 type RecoveryLease struct {
-	ID, BindingID, ClientScope, ComponentID string
-	ConfigGeneration                        uint64
-	TTLSeconds, MaxAttempts                 int
-	Active, RolledBack                      bool
+	ID, BindingID, ClientScope, ComponentID  string
+	ConfigGeneration                         uint64
+	TTLSeconds, MaxAttempts, CooldownSeconds int
+	Active, RolledBack                       bool
 }
 type RecoveryPromotion struct {
 	Mode                RecoveryMode
@@ -66,12 +69,28 @@ type RecoveryPromotion struct {
 	FalsePositiveBudget int
 	Validated           bool
 	InvalidReason       string
+	Invalidated         bool
+}
+
+// Invalidate cancels the promotion because of a material profile, capability
+// or network change (SP-23): the promotion must not be usable anymore until
+// it is rebuilt against the new configuration generation.
+func (p *RecoveryPromotion) Invalidate(reason string) {
+	if p == nil || reason == "" {
+		return
+	}
+	p.Invalidated = true
+	p.InvalidReason = reason
+	p.Validated = false
 }
 
 func (p RecoveryPromotion) Ready() bool {
+	if p.Invalidated {
+		return false
+	}
 	return p.Validated && len(p.EvidenceRefs) >= 2 && len(p.FieldTests) > 0 && p.FalsePositiveBudget > 0
 }
 
 func (l RecoveryLease) Valid() bool {
-	return l.ID != "" && l.BindingID != "" && l.ClientScope != "" && l.ComponentID != "" && l.ConfigGeneration > 0 && l.TTLSeconds > 0 && l.MaxAttempts > 0
+	return l.ID != "" && l.BindingID != "" && l.ClientScope != "" && l.ComponentID != "" && l.ConfigGeneration > 0 && l.TTLSeconds > 0 && l.MaxAttempts > 0 && l.CooldownSeconds > 0
 }

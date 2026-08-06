@@ -1,7 +1,7 @@
 {
   "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
   "commit": "a20ce4d8",
-  "generated_at": "2026-08-06T13:21:11.822171015Z",
+  "generated_at": "2026-08-06T19:47:26.555803413Z",
   "documents_sha256": {
     "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md": "5d2b03b02aed8e4ede89b9b60a853db119ac1e334d1650d9ee9ce0895df1fce7",
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md": "f0693e9c48ad359c38086defa022011ce9b3625eb565001a1a863bb731cf4cce",
@@ -19,12 +19,11 @@
   },
   "summary": {
     "total": 61,
-    "pass": 57,
-    "blocked": 3,
+    "pass": 58,
+    "blocked": 2,
     "not_applicable": 1,
     "blocked_by_task": {
       "b4x-6kt": 1,
-      "b4x-cst": 1,
       "b4x-n6r": 1
     }
   },
@@ -461,12 +460,17 @@
       "kind": "clause",
       "title": "Beginner recommendations",
       "iv_coverage": "36.5/41, SP-30..SP-32",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-cst",
-        "task": "FB-32: Service Profiles v1.6: SP-30..SP-32 и recommendation state machine",
-        "why": "eligible-to-test -\u003e validated state machine и SP-30..SP-32 не зарегистрированы"
-      }
+      "status": "PASS",
+      "evidence": [
+        "serviceprofile/TestRuntimeSnapshotRedacted",
+        "serviceprofile/TestRuntimeValidateTransactionCommitsVerdict",
+        "serviceprofile/TestRuntimeValidateTransactionRejectedLeavesBlocked",
+        "serviceprofile/TestTransactionApplyMovesStateAndLocks",
+        "serviceprofile/TestTransactionRollback",
+        "serviceprofile/TestValidateRecoveryRequiresCooldownForActiveMode",
+        "serviceprofile/TestRecoveryPromotionInvalidationForbidsUse"
+      ],
+      "note": "FB-32: eligible-to-test -\u003e validated state machine зарегистрирован (begin-test/validate/apply control plane, /api/v1/service-profiles/warp-recommendation/*); transactional Apply/Rollback реально двигает состояние (SP-32), recovery-лизу — cooldown (SP-22), promotion инвалидируется на material change (SP-23)."
     },
     {
       "id": "ARCH-140",
