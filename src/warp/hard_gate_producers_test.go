@@ -805,3 +805,135 @@ func TestHardGateProducer_WARPForeignResourceRemoved(t *testing.T) {
 		t.Fatal("warp_foreign_resource_removed_total not incremented (zero-tolerance gate)")
 	}
 }
+
+// --- 73 WARP strict non-RU route-gate producers (addendum 62.5/62.6) ---
+
+// TestHardGateProducer_WARPNonRUActiveWithoutFreshAttestation is the negative
+// fixture for nonru_route_active_without_fresh_attestation: a strict non-RU
+// route active without a current eligible non-RU attestation (62.5).
+func TestHardGateProducer_WARPNonRUActiveWithoutFreshAttestation(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now} // no attestation at all
+	if err := rt.NonRUActiveWithoutFreshAttestation(trace); err == nil {
+		t.Fatal("non-ru route active without fresh attestation accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveWithoutFreshAttestation); got == 0 {
+		t.Fatal("nonru_route_active_without_fresh_attestation not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUActiveWhileAnyProviderRU is the negative
+// fixture for nonru_route_active_while_any_provider_ru: a strict non-RU route
+// active while a provider classified the public IP as RU (62.5 provider-ru).
+func TestHardGateProducer_WARPNonRUActiveWhileAnyProviderRU(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now, Observations: []GeoObservation{
+		{Provider: "p1", Class: GeoRU, DNSProof: true, CounterDelta: 1, ExpiresAt: now.Add(time.Hour)},
+	}}
+	if err := rt.NonRUActiveWhileAnyProviderRU(trace); err == nil {
+		t.Fatal("non-ru route active with an RU-classified provider accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveWhileAnyProviderRU); got == 0 {
+		t.Fatal("nonru_route_active_while_any_provider_ru not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUActiveWithProviderDisagreement is the
+// negative fixture for nonru_route_active_with_provider_disagreement: a
+// strict non-RU route active under provider disagreement (62.5).
+func TestHardGateProducer_WARPNonRUActiveWithProviderDisagreement(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now,
+		Attestation: GeoAttestation{Class: GeoDisagreement, PublicIP: "203.0.113.7", PathID: "p-1", Revoked: true}}
+	if err := rt.NonRUActiveWithProviderDisagreement(trace); err == nil {
+		t.Fatal("non-ru route active under provider disagreement accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveWithProviderDisagreement); got == 0 {
+		t.Fatal("nonru_route_active_with_provider_disagreement not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUActiveWithDirectDNS is the negative fixture
+// for nonru_route_active_with_direct_dns: a strict non-RU route active with
+// direct WAN DNS instead of the inner resolver (62.6 dns-path).
+func TestHardGateProducer_WARPNonRUActiveWithDirectDNS(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now, DirectDNS: true}
+	if err := rt.NonRUActiveWithDirectDNS(trace); err == nil {
+		t.Fatal("non-ru route active with direct dns accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveWithDirectDNS); got == 0 {
+		t.Fatal("nonru_route_active_with_direct_dns not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUActiveWithUnvalidatedIPv6 is the negative
+// fixture for nonru_route_active_with_unvalidated_ipv6: a strict non-RU route
+// active with an unvalidated IPv6 path while IPv6 is enabled (62.6 ipv6-path).
+func TestHardGateProducer_WARPNonRUActiveWithUnvalidatedIPv6(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now, IPv6Enabled: true, IPv6Proof: false}
+	if err := rt.NonRUActiveWithUnvalidatedIPv6(trace); err == nil {
+		t.Fatal("non-ru route active with unvalidated ipv6 path accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveWithUnvalidatedIPv6); got == 0 {
+		t.Fatal("nonru_route_active_with_unvalidated_ipv6 not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPNonRUActiveAfterAttestationExpiry is the negative
+// fixture for nonru_route_active_after_attestation_expiry: a strict non-RU
+// route still active after its attestation window passed (62.5 attestation-stale).
+func TestHardGateProducer_WARPNonRUActiveAfterAttestationExpiry(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{RouteActive: true, Strict: true, EvaluatedAt: now,
+		Attestation: GeoAttestation{Class: GeoNonRU, PublicIP: "203.0.113.7", PathID: "p-1", FreshUntil: now.Add(-time.Minute)}}
+	if err := rt.NonRUActiveAfterAttestationExpiry(trace); err == nil {
+		t.Fatal("non-ru route active after attestation expiry accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpNonRUActiveAfterAttestationExpiry); got == 0 {
+		t.Fatal("nonru_route_active_after_attestation_expiry not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPStrictDirectFallback is the negative fixture for
+// nonru_strict_direct_fallback_total: a strict non-RU route silently falling
+// back to the direct base path (manifest no-silent-fallback).
+func TestHardGateProducer_WARPStrictDirectFallback(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	now := time.Date(2026, 8, 6, 12, 0, 0, 0, time.UTC)
+	trace := NonRURouteTrace{Strict: true, FallbackToBase: true, EvaluatedAt: now}
+	if err := rt.StrictDirectFallback(trace); err == nil {
+		t.Fatal("strict non-ru silent direct fallback accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpStrictDirectFallback); got == 0 {
+		t.Fatal("nonru_strict_direct_fallback_total not incremented (zero-tolerance gate)")
+	}
+}
+
+// TestHardGateProducer_WARPIdentityCreationBudgetExceeded is the negative
+// fixture for nonru_identity_creation_budget_exceeded: identity creation
+// beyond the per-generation budget.
+func TestHardGateProducer_WARPIdentityCreationBudgetExceeded(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	rt := newProducerRuntime()
+	if err := rt.IdentityCreationBudget(11, 10); err == nil {
+		t.Fatal("identity creation over budget accepted")
+	}
+	if got := warpHardGateCounterValue(t, observability.MetricWarpIdentityCreationBudgetExceeded); got == 0 {
+		t.Fatal("nonru_identity_creation_budget_exceeded not incremented (zero-tolerance gate)")
+	}
+}

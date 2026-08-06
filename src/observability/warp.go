@@ -106,3 +106,25 @@ const (
 	MetricWarpOwnedResourceLeak                 = "warp_owned_resource_leak_total"
 	MetricWarpForeignResourceRemoved            = "warp_foreign_resource_removed_total"
 )
+
+// WARP strict non-RU route-gate counters (FB-03 §73 non-RU hard gates,
+// addendum v1.2 §62.5 НЕ РФ gate / §62.6 DNS/IPv6 path proof / manifest
+// no-silent-fallback). Each counter is incremented only on the violating
+// branch of the production non-RU route lifecycle (Runtime.ApplyRoute with
+// GeoAttestation/GeoObservation from geo.go): a route active without a fresh
+// attestation, with any RU-classified provider, under provider disagreement,
+// with direct DNS, with an unvalidated IPv6 path while IPv6 is enabled, or
+// after attestation expiry; a strict non-RU silent fallback to the direct
+// base path; and identity creation over its budget. All eight are
+// zero_tolerance_violation_counter gates evaluated by the narrow
+// WARP_CAUSAL_TRACE_READY verdict (FB-03/FB-14 decision 9).
+const (
+	MetricWarpNonRUActiveWithoutFreshAttestation = "nonru_route_active_without_fresh_attestation"
+	MetricWarpNonRUActiveWhileAnyProviderRU      = "nonru_route_active_while_any_provider_ru"
+	MetricWarpNonRUActiveWithProviderDisagreement = "nonru_route_active_with_provider_disagreement"
+	MetricWarpNonRUActiveWithDirectDNS           = "nonru_route_active_with_direct_dns"
+	MetricWarpNonRUActiveWithUnvalidatedIPv6     = "nonru_route_active_with_unvalidated_ipv6"
+	MetricWarpNonRUActiveAfterAttestationExpiry  = "nonru_route_active_after_attestation_expiry"
+	MetricWarpStrictDirectFallback               = "nonru_strict_direct_fallback_total"
+	MetricWarpIdentityCreationBudgetExceeded     = "nonru_identity_creation_budget_exceeded"
+)
