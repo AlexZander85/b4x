@@ -22,6 +22,24 @@ import (
 
 const levelCTCPPhase = "clienthello"
 
+// levelCFakeMinConfidence is the minimum self-reported classifier confidence
+// for fake-profile writes. The planner also refuses ECH and incomplete
+// streams, so this is the last confidence gate before a write is planned.
+const levelCFakeMinConfidence = 85
+
+// levelCFakeStrategyID returns the deterministic fake strategy label bound to
+// a fake technique. The label becomes the catalog strategy ID and the executor
+// provenance identity; it is the only production reference to a fake plan by
+// name.
+func levelCFakeStrategyID(mode action.FakeMixMode) string {
+	if mode == action.FakeMixDisorder {
+		return "fake-profile-disorder"
+	}
+	return "fake-profile-split"
+}
+
+func u64Ptr(value uint64) *uint64 { return &value }
+
 // levelCMarkerStrategyID returns the deterministic catalog strategy bound to
 // a Runtime flag. The exact positions are owned by the action catalog; this
 // mapping is the only production reference to a catalog entry by name.
@@ -51,14 +69,14 @@ func (w *Worker) levelCConfig() *config.Config {
 
 // levelCActive reports whether the runtime catalog flags request Level C
 // execution. Nothing is reachable unless the config explicitly enables one
-// of the marker or TLS-record techniques.
+// of the marker, fake or TLS-record techniques.
 func (w *Worker) levelCActive() bool {
 	cfg := w.levelCConfig()
 	if cfg == nil {
 		return false
 	}
 	s := cfg.System.Classifier.Runtime.Strategies
-	return s.MarkerMultiSplit || s.MarkerMultiDisorder || s.TLSRecordSplit
+	return s.MarkerMultiSplit || s.MarkerMultiDisorder || s.TLSRecordSplit || s.FakeDSplit || s.FakeDDisorder
 }
 
 // planLevelCStrategy resolves the strategy and compiles the immutable
@@ -109,6 +127,58 @@ func (w *Worker) planLevelCStrategy(payload []byte, seq uint32, stream action.Ma
 			return action.ActionPlan{}, false
 		}
 		return planned.ActionPlan, true
+	// Level C fake techniques use the compiled fake profile catalog. The
+	// source is bound at bootstrap (Pool.SetFakeProfileSource); without a
+	// source the strategy fails open to the legacy path, exactly like a
+	// missing token or marker.
+	case s.FakeDSplit || s.FakeDDisorder:
+		if !stream.Complete || stream.ECH || !stream.HostMarkersAvailable() {
+			log.Tracef("level C fake: incomplete or ECH ClientHello, failing open")
+			return action.ActionPlan{}, false
+		}
+		source := w.getFakeProfileSource()
+		if source == nil {
+			log.Tracef("level C fake: no fake profile source bound, failing open")
+			return action.ActionPlan{}, false
+		}
+		profile, ok := source.SelectFakeProfile(stream.Host)
+		if !ok {
+			log.Tracef("level C fake: no verified profile for %q, failing open", stream.Host)
+			return action.ActionPlan{}, false
+		}
+		mode := action.FakeMixSplit
+		fakePositions := []action.SplitPositionSpec{{Absolute: u64Ptr(1)}}
+		fakeOrder := action.OrderForward
+		if s.FakeDDisorder && !s.FakeDSplit {
+			mode = action.FakeMixDisorder
+			fakePositions = []action.SplitPositionSpec{{Absolute: u64Ptr(1)}, {Absolute: u64Ptr(2)}}
+			fakeOrder = action.OrderReverse
+		}
+		planned, err := action.PlanFakeMix(action.FakeMixRequest{
+			Enabled:          true,
+			StrategyID:       levelCFakeStrategyID(mode),
+			Mode:             mode,
+			Real:             input,
+			RealPositions:    []action.SplitPositionSpec{{Marker: action.MarkerHostStart}, {Marker: action.MarkerHostEnd}},
+			FakePositions:    fakePositions,
+			Profile:          profile,
+			Confidence:       confidence,
+			MinConfidence:    levelCFakeMinConfidence,
+			TCPPhase:         levelCTCPPhase,
+			AllowedTCPPhases: []string{levelCTCPPhase},
+			Order:            action.FakeThenReal,
+			FakeSegmentOrder: fakeOrder,
+			Budgets:          action.DefaultActionBudgets(),
+			FlowHash:         flowHashOf(flow),
+			ClientHelloID:    helloID,
+			ConfigGen:        generation,
+			Tokens:           w.actionTokens,
+		})
+		if err != nil {
+			log.Tracef("level C fake plan rejected for %s: %v", stream.Host, err)
+			return action.ActionPlan{}, false
+		}
+		return action.PlanFromFakeMix(planned)
 	case s.TLSRecordSplit:
 		planned, err := action.PlanTLSRecordSplit(action.TLSRecordSplitRequest{
 			Enabled:    true,

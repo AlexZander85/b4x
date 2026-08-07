@@ -45,8 +45,14 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 	ensureProcessPPE(cfgPtr, pool)
 	wireClientHelloLabSession(pool)
 	// Wire the explicit fake profile catalog used by the lab compile
-	// workflow. Compilation is opt-in and never auto-promotes.
-	handler.SetFakeProfileCatalog(discovery.NewFakeProfileCatalog(discovery.MaxFakeCatalogEntries))
+	// workflow. Compilation is opt-in and never auto-promotes. The compiled
+	// catalog is also the Level C fake-profile source: compiled profiles
+	// with accumulated evidence become runtime-loadable fake profiles.
+	catalog := discovery.NewFakeProfileCatalog(discovery.MaxFakeCatalogEntries)
+	handler.SetFakeProfileCatalog(catalog)
+	if pool != nil {
+		pool.SetFakeProfileSource(discovery.NewFakeProfileSource(catalog))
+	}
 	if cfg.System.WebServer.Port == 0 {
 		log.Infof("Web server disabled (port 0)")
 		return nil, nil, nil

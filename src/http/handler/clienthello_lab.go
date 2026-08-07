@@ -83,6 +83,7 @@ func (api *API) RegisterClientHelloLabAPI() {
 	api.mux.HandleFunc("/api/lab/clienthello/status", api.handleClientHelloStatus)
 	api.mux.HandleFunc("/api/lab/clienthello/compile", api.handleClientHelloCompile)
 	api.mux.HandleFunc("/api/lab/clienthello/compiled", api.handleCompiledProfiles)
+	api.mux.HandleFunc("/api/lab/clienthello/evidence", api.handleClientHelloEvidence)
 }
 
 type clientHelloProfilesResponse struct {
@@ -393,6 +394,64 @@ func limitString(value string, max int) string {
 		return value
 	}
 	return value[:max]
+}
+
+// clientHelloEvidenceRequest records a fake-profile runtime outcome against a
+// compiled catalog profile. Evidence is the promotion input: profiles are
+// never auto-promoted, but stable, canary-passed observations accumulate here
+// and make a profile eligible for later promotion decisions.
+type clientHelloEvidenceRequest struct {
+	ProfileID       string    `json:"profile_id"`
+	TargetProfile   string    `json:"target_profile"`
+	Samples         uint64    `json:"samples"`
+	Successful      uint64    `json:"successful"`
+	StableSuccesses uint64    `json:"stable_successes"`
+	CanaryPassed    bool      `json:"canary_passed"`
+	Amplification   float64   `json:"amplification,omitempty"`
+	ObservedAt      time.Time `json:"observed_at,omitempty"`
+}
+
+type clientHelloEvidenceResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
+func (api *API) handleClientHelloEvidence(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	catalog := fakeProfileCatalog.Load()
+	if catalog == nil {
+		writeJsonError(w, http.StatusServiceUnavailable, "fake profile catalog is not available")
+		return
+	}
+	var req clientHelloEvidenceRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJsonError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	observation := discovery.ProfileObservation{
+		TargetProfile:   strings.ToLower(strings.TrimSpace(req.TargetProfile)),
+		Samples:         req.Samples,
+		Successful:      req.Successful,
+		StableSuccesses: req.StableSuccesses,
+		CanaryPassed:    req.CanaryPassed,
+		Amplification:   req.Amplification,
+		ObservedAt:      req.ObservedAt,
+	}
+	if observation.ObservedAt.IsZero() {
+		observation.ObservedAt = time.Now()
+	}
+	if err := catalog.RecordOutcome(strings.TrimSpace(req.ProfileID), observation); err != nil {
+		if errors.Is(err, discovery.ErrProfileNotFound) {
+			writeJsonError(w, http.StatusNotFound, "compiled profile not found")
+			return
+		}
+		writeJsonError(w, http.StatusBadRequest, "invalid evidence: "+err.Error())
+		return
+	}
+	sendResponse(w, clientHelloEvidenceResponse{Success: true, Message: "evidence recorded"})
 }
 
 func (api *API) handleCompiledProfiles(w http.ResponseWriter, r *http.Request) {

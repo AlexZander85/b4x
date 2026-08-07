@@ -233,3 +233,31 @@ func resolveFakeOffsets(positions []SplitPositionSpec) []uint64 {
 	}
 	return offsets
 }
+
+// PlanFromFakeMix converts a validated fake-mix plan into the centralized
+// ActionPlan representation so the shared executor can send every write.
+// It is the only production bridge from the fake-mix planner to the executor;
+// strategy planning stays inside PlanFakeMix and packet I/O stays inside the
+// executor. Returning ok=false fails the caller open to its legacy path.
+func PlanFromFakeMix(plan FakeMixPlan) (ActionPlan, bool) {
+	if !plan.Valid || len(plan.Writes) == 0 {
+		return ActionPlan{}, false
+	}
+	processedMark := uint32(0)
+	if len(plan.Writes) > 0 {
+		processedMark = plan.Writes[0].ProcessedMark
+	}
+	writes := make([]PlannedWrite, 0, len(plan.Writes))
+	for _, fakeWrite := range plan.Writes {
+		writes = append(writes, fakeWrite.PlannedWrite)
+	}
+	return ActionPlan{
+		Valid:         true,
+		DryRun:        plan.DryRun,
+		StrategyID:    plan.StrategyID,
+		ProcessedMark: processedMark,
+		Writes:        writes,
+		TotalBytes:    plan.TotalBytes,
+		Reason:        plan.Reason,
+	}, true
+}

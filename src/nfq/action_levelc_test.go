@@ -2,7 +2,9 @@ package nfq
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 	"testing"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/fixtures"
+	"github.com/daniellavrushin/b4/lab"
 )
 
 // levelCActionTestConfig returns a set config on the centralized executor path
@@ -192,5 +195,104 @@ func TestLevelCActionSuppressesRetransmission(t *testing.T) {
 	w.dropAndInjectTCP(set, raw, dst)
 	if fake.sent4 != first+1 {
 		t.Fatalf("retransmission must be suppressed to one legacy send: %d -> %d", first, fake.sent4)
+	}
+}
+
+// fakeLevelTestSource implements nfq.FakeProfileSource over a standalone
+// compiled artifact produced by the same lab.CompileFakeProfile pipeline the
+// production bootstrap wires through discovery.NewFakeProfileSource (the
+// catalog-backed Select path is exercised via the HTTP surface tests).
+type fakeLevelTestSource struct {
+	artifact lab.CompiledArtifact
+	ok       bool
+}
+
+func (s *fakeLevelTestSource) SelectFakeProfile(target string) (lab.CompiledArtifact, bool) {
+	if s == nil || !s.ok {
+		return lab.CompiledArtifact{}, false
+	}
+	return s.artifact, true
+}
+
+// buildLevelCFakeProfile compiles one fake profile via the production
+// lab.CompileFakeProfile pipeline.
+func buildLevelCFakeProfile(t *testing.T, raw []byte, replacementSNI string) lab.CompiledArtifact {
+	t.Helper()
+	sum := sha256.Sum256(raw)
+	hash := hex.EncodeToString(sum[:])
+	source, err := lab.NewRawClientHelloArtifact("levelc-fake-source", lab.CapturedHelloProfile{ID: "source", HelloHash: hash, SHA256: hash, RawSize: len(raw), IPFamily: "ipv4", PrivacySafe: true}, raw, "level-c-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compiled, err := lab.CompileFakeProfile(lab.CompileRequest{
+		Source:         source,
+		Mode:           lab.CompileFingerprintPreserving,
+		ReplacementSNI: replacementSNI,
+		MTU:            lab.MTUEstimator{Family: "ipv4", MTU: 1500},
+		Seed:           9,
+		Provenance:     "level-c-test",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return compiled
+}
+
+func TestLevelCFakeSplitAppliedThroughExecutor(t *testing.T) {
+	cfg, set := levelCActionTestConfig(t, config.StrategyCatalogConfig{FakeDSplit: true})
+	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 512)
+	raw := buildTestIPv4TCPPacket(t, hello, 1000, 51000, 443)
+	dst := net.IPv4(203, 0, 113, 10)
+
+	profile := buildLevelCFakeProfile(t, hello, "fake.example")
+	fake := &fakePacketInjector{}
+	w := NewWorkerWithQueue(cfg, 0)
+	w.actionSender = fake
+	w.actionMark = capture.ProcessedMarkFor(1)
+	w.SetFakeProfileSource(&fakeLevelTestSource{artifact: profile, ok: true})
+
+	w.dropAndInjectTCP(set, raw, dst)
+
+	// The executor must apply the whole fake mix: at least one fake write
+	// (replacement profile, SNI fake.example) and at least one real write
+	// (original stream, SNI api.youtube.com) must hit the wire.
+	if fake.sent4 < 2 {
+		t.Fatalf("level C fake-split must send fake+real writes, got %d", fake.sent4)
+	}
+	fakeSNI := false
+	realSNI := false
+	for _, pkt := range fake.packets4 {
+		payload := pkt[40:]
+		// Segments carry partial TLS records, so SNI presence is detected
+		// byte-wise: the replacement name only occurs in fake writes and the
+		// original host only in real writes.
+		if bytes.Contains(payload, []byte("fake.example")) {
+			fakeSNI = true
+		}
+		if bytes.Contains(payload, []byte("api.youtube.com")) {
+			realSNI = true
+		}
+	}
+	if !fakeSNI || !realSNI {
+		t.Fatalf("fake mix must carry both replacement (fake=%v) and original (real=%v) SNI on the wire", fakeSNI, realSNI)
+	}
+}
+
+func TestLevelCFakeFailsOpenWithoutSource(t *testing.T) {
+	cfg, set := levelCActionTestConfig(t, config.StrategyCatalogConfig{FakeDSplit: true})
+	hello := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 512)
+	raw := buildTestIPv4TCPPacket(t, hello, 1000, 51000, 443)
+	dst := net.IPv4(203, 0, 113, 10)
+
+	fake := &fakePacketInjector{}
+	w := NewWorkerWithQueue(cfg, 0)
+	w.actionSender = fake
+	w.actionMark = capture.ProcessedMarkFor(1)
+	// No fake profile source bound: the technique must fail open to the
+	// legacy single-send path.
+
+	w.dropAndInjectTCP(set, raw, dst)
+	if fake.sent4 != 1 {
+		t.Fatalf("fake without source must fail open to one legacy send, got %d", fake.sent4)
 	}
 }

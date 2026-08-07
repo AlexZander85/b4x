@@ -1,6 +1,7 @@
 package action
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -90,7 +91,47 @@ func TestPlanFakeMixRejectsLowConfidenceECHAndOversizedProfile(t *testing.T) {
 	if _, err := PlanFakeMix(request); !errors.Is(err, ErrFakeMixPrecondition) {
 		t.Fatalf("ECH error=%v", err)
 	}
-	request = fakeMixRequest(t, true)
+}
+
+// TestPlanFromFakeMixBridge verifies the fake-mix plan can be handed to the
+// centralized executor: the ActionPlan keeps the ordered writes, provenance
+// mark, budget totals and reason, and the executor accepts the bridged plan.
+func TestPlanFromFakeMixBridge(t *testing.T) {
+	request := fakeMixRequest(t, false)
+	request.Tokens = NewActionTokenStore(ActionTokenStoreConfig{Clock: clock.NewFixed(testNow()), Budgets: DefaultActionBudgets()})
+	plan, err := PlanFakeMix(request)
+	if err != nil {
+		t.Fatalf("plan fake mix: %v", err)
+	}
+	bridged, ok := PlanFromFakeMix(plan)
+	if !ok {
+		t.Fatal("bridge rejected a valid fake-mix plan")
+	}
+	if !bridged.Valid || bridged.StrategyID != plan.StrategyID || bridged.ProcessedMark != request.Real.ProcessedMark {
+		t.Fatalf("bridge lost plan metadata: %+v", bridged)
+	}
+	if len(bridged.Writes) != len(plan.Writes) || bridged.TotalBytes != plan.TotalBytes {
+		t.Fatalf("bridge write mismatch: plan=%d bridged=%d total=%d/%d", len(plan.Writes), len(bridged.Writes), plan.TotalBytes, bridged.TotalBytes)
+	}
+	// The executor must accept the bridged plan without a sender (dry-run
+	// path validates budgets and provenance only).
+	exec := NewExecutor(ExecutorConfig{
+		MTU: 1500, MaxWrites: 16, MaxBytes: 64 * 1024, ProcessedMark: request.Real.ProcessedMark,
+	}, nil)
+	bridged.DryRun = true
+	result := exec.ExecuteContext(context.Background(), request.Real.Payload, bridged)
+	if result.FailOpen {
+		t.Fatalf("executor rejected bridged plan: %s", result.Reason)
+	}
+
+	// Invalid and empty plans never bridge.
+	if _, ok := PlanFromFakeMix(FakeMixPlan{}); ok {
+		t.Fatal("empty fake-mix plan must not bridge")
+	}
+}
+
+func TestPlanFakeMixRejectsOversizedProfile(t *testing.T) {
+	request := fakeMixRequest(t, true)
 	request.Profile.Profile.MTUFits = false
 	if _, err := PlanFakeMix(request); !errors.Is(err, ErrFakeMixProfile) {
 		t.Fatalf("oversized profile error=%v", err)

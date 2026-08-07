@@ -69,6 +69,7 @@ type Worker struct {
 	canary             *CanaryMonitor
 	candidateSet       atomic.Value // string; target set for candidate accounting
 	clientHelloSink    atomic.Pointer[clientHelloSinkHolder]
+	fakeProfileSource  atomic.Pointer[fakeProfileSourceHolder]
 	ppePassiveObserver atomic.Pointer[ppePassiveObserverHolder]
 	gsoCapability      atomic.Value // GSOCapabilityStatus
 	gsoPassTokens      *GSOPassTokenStore
@@ -86,6 +87,42 @@ type Worker struct {
 
 type clientHelloSinkHolder struct {
 	sink lab.SegmentSink
+}
+
+// FakeProfileSource is the lab-profile loader interface consumed by the Level C
+// fake techniques. The interface lives in nfq (not discovery) so the compiled
+// profile catalog can implement it without creating an import cycle.
+type FakeProfileSource interface {
+	// SelectFakeProfile returns the best verified fake profile for a real
+	// target. The second return value reports availability; a miss must fail
+	// the caller open to its legacy path.
+	SelectFakeProfile(target string) (lab.CompiledArtifact, bool)
+}
+
+type fakeProfileSourceHolder struct {
+	source FakeProfileSource
+}
+
+// SetFakeProfileSource binds the compiled fake profile loader used by Level C
+// fake techniques. A nil source keeps the fake strategies fail-open while the
+// interface stays reachable in the packet path.
+func (w *Worker) SetFakeProfileSource(source FakeProfileSource) {
+	if w == nil {
+		return
+	}
+	if source == nil {
+		w.fakeProfileSource.Store(nil)
+		return
+	}
+	w.fakeProfileSource.Store(&fakeProfileSourceHolder{source: source})
+}
+
+func (w *Worker) getFakeProfileSource() FakeProfileSource {
+	holder := w.fakeProfileSource.Load()
+	if holder == nil {
+		return nil
+	}
+	return holder.source
 }
 
 // SetClientHelloSink attaches an observe-only laboratory bridge. A full sink
@@ -119,5 +156,16 @@ func (p *Pool) SetClientHelloSink(sink lab.SegmentSink) {
 	}
 	for _, worker := range p.Workers {
 		worker.SetClientHelloSink(sink)
+	}
+}
+
+// SetFakeProfileSource binds the compiled fake profile source to every worker
+// so Level C fake techniques can load verified profiles at plan time.
+func (p *Pool) SetFakeProfileSource(source FakeProfileSource) {
+	if p == nil {
+		return
+	}
+	for _, worker := range p.Workers {
+		worker.SetFakeProfileSource(source)
 	}
 }
