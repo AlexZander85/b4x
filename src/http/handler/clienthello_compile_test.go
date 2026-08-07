@@ -293,3 +293,139 @@ func getJSONBody(t *testing.T, mux *http.ServeMux, path string) string {
 	}
 	return rr.Body.String()
 }
+
+// commitTestProfile commits one compiled fake profile into the bound catalog
+// and returns its catalog profile ID.
+func commitTestProfile(t *testing.T, mux *http.ServeMux) string {
+	t.Helper()
+	rr := postLab(t, mux, "/api/lab/clienthello/compile", map[string]interface{}{
+		"raw_hello":         rawHelloBase64(t),
+		"mode":              "fingerprint-preserving",
+		"replacement_sni":   "y.t",
+		"ip_family":         "ipv4",
+		"mtu":               1500,
+		"seed":              42,
+		"commit_to_catalog": true,
+		"kind":              "generated-neutral-tls",
+		"source":            "operator-lab",
+		"provenance":        "stage-26-handler-test",
+		"license":           "MIT",
+		"license_reviewed":  true,
+	})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("compile+commit status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var resp clientHelloCompileResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Committed || resp.Profile.ID == "" {
+		t.Fatalf("commit incomplete: %+v", resp)
+	}
+	return resp.Profile.ID
+}
+
+// TestClientHelloEvidenceRecordsOutcome verifies the evidence endpoint records
+// runtime outcomes against committed compiled profiles and that the recorded
+// evidence feeds the production runtime selector (discovery.NewFakeProfileSource).
+func TestClientHelloEvidenceRecordsOutcome(t *testing.T) {
+	_, mux := compileTestAPI(t)
+	profileID := commitTestProfile(t, mux)
+
+	rr := postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
+		"profile_id":       profileID,
+		"target_profile":   "API.YouTube.COM", // lowercased by the endpoint
+		"samples":          500,
+		"successful":       480,
+		"stable_successes": 320,
+		"canary_passed":    true,
+		"amplification":    1.25,
+	})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("evidence status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	var resp clientHelloEvidenceResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.Success {
+		t.Fatalf("evidence rejected: %+v", resp)
+	}
+
+	// Recorded evidence must make the profile selectable by the runtime
+	// source with MinSamples=1, exactly as the bootstrap wires it.
+	source := discovery.NewFakeProfileSource(FakeProfileCatalog())
+	artifact, ok := source.SelectFakeProfile("api.youtube.com")
+	if !ok {
+		t.Fatal("evidence did not make the profile selectable at runtime")
+	}
+	if artifact.Profile.ID != profileID {
+		t.Fatalf("runtime selected %q, want %q", artifact.Profile.ID, profileID)
+	}
+
+	// Evidence accumulates across observations.
+	rr = postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
+		"profile_id":       profileID,
+		"target_profile":   "api.youtube.com",
+		"samples":          100,
+		"successful":       100,
+		"stable_successes": 100,
+	})
+	if rr.Code != http.StatusOK {
+		t.Fatalf("second evidence status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	profiles := FakeProfileCatalog().Profiles()
+	if len(profiles) != 1 {
+		t.Fatalf("catalog profiles=%d, want 1", len(profiles))
+	}
+}
+
+func TestClientHelloEvidenceUnknownProfile(t *testing.T) {
+	_, mux := compileTestAPI(t)
+	// No profile committed yet: evidence against a missing profile is 404.
+	rr := postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
+		"profile_id":     "no-such-profile",
+		"target_profile": "api.youtube.com",
+		"samples":        10,
+		"successful":     10,
+	})
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("unknown profile status=%d body=%s, want 404", rr.Code, rr.Body.String())
+	}
+}
+
+func TestClientHelloEvidenceInvalidObservation(t *testing.T) {
+	_, mux := compileTestAPI(t)
+	profileID := commitTestProfile(t, mux)
+
+	// samples=0 violates the catalog evidence bounds.
+	rr := postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
+		"profile_id":     profileID,
+		"target_profile": "api.youtube.com",
+		"samples":        0,
+		"successful":     0,
+	})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("invalid evidence status=%d body=%s, want 400", rr.Code, rr.Body.String())
+	}
+
+	// successful > samples is rejected too.
+	rr = postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
+		"profile_id":     profileID,
+		"target_profile": "api.youtube.com",
+		"samples":        10,
+		"successful":     11,
+	})
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("successful>samples status=%d body=%s, want 400", rr.Code, rr.Body.String())
+	}
+}
+
+func TestClientHelloEvidenceMethodGuard(t *testing.T) {
+	_, mux := compileTestAPI(t)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/api/lab/clienthello/evidence", nil))
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("GET evidence status=%d, want 405", rr.Code)
+	}
+}
