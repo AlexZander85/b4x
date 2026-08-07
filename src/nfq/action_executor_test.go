@@ -20,7 +20,11 @@ type fakePacketInjector struct {
 	sent6 int
 	last4 []byte
 	last6 []byte
-	err   error
+	// packets4/packets6 accumulate every injected packet in order so tests can
+	// reassemble multi-write executor outputs.
+	packets4 [][]byte
+	packets6 [][]byte
+	err      error
 }
 
 func (f *fakePacketInjector) SendIPv4(packet []byte, dst net.IP) error {
@@ -29,6 +33,7 @@ func (f *fakePacketInjector) SendIPv4(packet []byte, dst net.IP) error {
 	}
 	f.sent4++
 	f.last4 = append([]byte(nil), packet...)
+	f.packets4 = append(f.packets4, append([]byte(nil), packet...))
 	return nil
 }
 
@@ -38,6 +43,7 @@ func (f *fakePacketInjector) SendIPv6(packet []byte, dst net.IP) error {
 	}
 	f.sent6++
 	f.last6 = append([]byte(nil), packet...)
+	f.packets6 = append(f.packets6, append([]byte(nil), packet...))
 	return nil
 }
 

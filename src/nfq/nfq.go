@@ -229,6 +229,9 @@ func (w *Worker) dropAndInjectTCP(cfg *config.SetConfig, raw []byte, dst net.IP)
 	case "hybrid":
 		w.sendHybridFragments(cfg, raw, dst)
 	case config.ConfigNone:
+		if w.levelCActive() && w.executeLevelActionPlan(raw, dst, false) {
+			break
+		}
 		if !w.executeActionPlan(w.ctx, raw, dst, false) {
 			_ = w.sock.SendIPv4(raw, dst)
 		}
