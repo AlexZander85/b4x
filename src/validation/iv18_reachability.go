@@ -173,13 +173,29 @@ func srcRoot() string {
 }
 
 // IV18ReverseReachability scans all non-test Go files under root ("" uses
-// the repository src/ tree) for production call sites of the legacy mutating
-// path. The AST-based scan matches real call expressions
+// the repository src/ tree) for production call sites of the legacy Watchdog
+// mutating path. The AST-based scan matches real call expressions
 // (CallExpr/Ident == legacyMutatingCall) and deliberately ignores the
 // function declaration and string literals (e.g. this package's own probe
 // constant). ProductionReady is true only when zero call sites remain.
+// It is a thin specialization of ReverseReachabilityFor over the canonical
+// legacy mutating symbol, so every no-flag-day subject can reuse the same
+// scan (FB-35).
 func IV18ReverseReachability(root string) ReverseReachabilityResult {
-	res := ReverseReachabilityResult{LegacyMutatingPath: "src/watchdog/applier.go " + legacyMutatingCall + "()"}
+	return ReverseReachabilityFor(root, legacyMutatingCall)
+}
+
+// ReverseReachabilityFor scans all non-test Go files under root ("" uses the
+// repository src/ tree) for production call sites of the named legacy
+// mutating symbol. The AST-based scan matches real call expressions — both
+// bare calls (symbol(...)) and qualified calls (pkg.Symbol(...)) — and
+// deliberately ignores the function declaration and string literals (e.g.
+// probe constants in this package). ProductionReady is true only when zero
+// call sites remain. Root can be the production tree ("" => src/) or a
+// seeded fixture directory, which makes it the read-only evidence used by the
+// no-flag-day migration matrix (§145, FB-35) and by IV18ReverseReachability.
+func ReverseReachabilityFor(root, symbol string) ReverseReachabilityResult {
+	res := ReverseReachabilityResult{LegacyMutatingPath: symbol}
 	if root == "" {
 		root = srcRoot()
 	}
@@ -206,8 +222,16 @@ func IV18ReverseReachability(root string) ReverseReachabilityResult {
 			if !ok {
 				return true
 			}
-			fun, ok := call.Fun.(*ast.Ident)
-			if !ok || fun.Name != legacyMutatingCall {
+			var callee string
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				callee = fun.Name
+			case *ast.SelectorExpr:
+				callee = fun.Sel.Name
+			default:
+				return true
+			}
+			if callee != symbol {
 				return true
 			}
 			res.Hits = append(res.Hits, ReachabilityHit{File: rel, Line: fset.Position(call.Pos()).Line})

@@ -1156,7 +1156,7 @@ expiry/invalidation
 - **Критерий:** duplicate state/name tests; dependency aggregation follows ARCH graph; stale/missing evidence invalidates; compatibility migration tests.
 - **Зависит:** FB-14, FB-33; consumers in FB-03.
 
-### FB-35. No-flag-day migration matrix для крупных subsystem [L, P1]
+### FB-35. No-flag-day migration matrix для крупных subsystem [L, P1] **— ВЫПОЛНЕНО** (Beads b4x-n6r, 07.08)
 
 - **Проблема:** общая L8 validation не доказывает shadow/cutover/removal по subsystem.
 - **Что сделать:** для Monitoring, GSO, PPE, WARP, profiles, action executor/fallback и других applicable systems:
@@ -1175,6 +1175,7 @@ removal
 Доказать production reachability нового path, отсутствие callers старого mutating path, restart/reboot invariants, adapter без own state, atomic rollback и audit event.
 - **Критерий:** migration matrix + reverse-call artifacts; seeded reactivation of legacy path detected by meta-suite.
 - **Зависит:** subsystem implementations; FB-03/FB-34.
+- **Результат (07.08):** каноническая матрица `src/validation/no_flag_day.go` — 4 subject (monitoring cutover_complete; nfq-quic-handoff, nfq-tcp-reassembly, hard-gate-alias-migration shadow_active) с executable evidence; cutover subject: `ReverseReachabilityFor` production-clean по `applyBatchResults` + forward probes (NewObservationBus/NewDiagnosticScheduler); seeded-реактивация legacy пути детектируется тестом; ARCH-145 → PASS (61 total: 59 PASS / 1 BLOCKED / 1 N/A; остаток b4x-6kt PPE).
 
 ### FB-36. Capability dependency graph: execution scheduling отдельно от verdict aggregation [M, P0-NORMATIVE] **— ВЫПОЛНЕНО** (Beads b4x-0yf, 06.08; commit a875e7ce)
 

@@ -1,7 +1,7 @@
 {
   "name": "B4X FB-18B executable production crosswalk (ARCH v2.4 \u003c-\u003e IV v1.5)",
   "commit": "a20ce4d8",
-  "generated_at": "2026-08-06T19:47:26.555803413Z",
+  "generated_at": "2026-08-07T05:48:31.007821459Z",
   "documents_sha256": {
     "B4X_POST_V23_ADAPTIVE_BLOCKING_DETECTOR_AND_GUIDED_STRATEGY_SEARCH_ADDENDUM_v1.2.md": "5d2b03b02aed8e4ede89b9b60a853db119ac1e334d1650d9ee9ce0895df1fce7",
     "B4X_POST_V23_CONTINUOUS_BLOCKING_MONITORING_AND_DETECTOR_ESCALATION_ADDENDUM_v1.0.md": "f0693e9c48ad359c38086defa022011ce9b3625eb565001a1a863bb731cf4cce",
@@ -19,12 +19,11 @@
   },
   "summary": {
     "total": 61,
-    "pass": 58,
-    "blocked": 2,
+    "pass": 59,
+    "blocked": 1,
     "not_applicable": 1,
     "blocked_by_task": {
-      "b4x-6kt": 1,
-      "b4x-n6r": 1
+      "b4x-6kt": 1
     }
   },
   "requirements": [
@@ -548,12 +547,21 @@
       "kind": "clause",
       "title": "No flag-day migration",
       "iv_coverage": "L8, IV-18 MON-11",
-      "status": "BLOCKED",
-      "blocked_by": {
-        "beads_id": "b4x-n6r",
-        "task": "FB-35: No-flag-day migration matrix для каждого subsystem",
-        "why": "per-subsystem shadow/canary/cutover/rollback + reverse-reachability legacy paths после cutover не собраны; частично: nfq/TestQUICHandoffFeatureGatePreservesLegacyGlobalPath, validation/TestLegacyAliasMigration"
-      }
+      "status": "PASS",
+      "evidence": [
+        "validation/TestNoFlagDayMigrationMatrixValid",
+        "validation/TestNoFlagDayMatrixEvidenceExists",
+        "validation/TestNoFlagDayCutoverReverseReachabilityClean",
+        "validation/TestNoFlagDaySeededLegacyReactivationDetected",
+        "validation/TestIV18ReverseReachabilityCleanAfterCutover",
+        "validation/TestIV18ReverseReachabilitySeededReactivationCaught",
+        "http/handler/TestWatchdogCutoverMutatingEndpointsGone",
+        "http/handler/TestWatchdogPreCutoverMutatingNotGone",
+        "http/handler/TestWatchdogCutoverStatusServesMonitoringProjection",
+        "nfq/TestQUICHandoffFeatureGatePreservesLegacyGlobalPath",
+        "validation/TestLegacyAliasMigration"
+      ],
+      "note": "FB-35 (b4x-n6r): canonical no-flag-day migration matrix (src/validation/no_flag_day.go, §145) — per-subsystem shadow/cutover registry с executable evidence; cutover subject (monitoring) доказывает reverse-reachability clean удалённого legacy мутирующего пути (applyBatchResults) + forward-reachability нового production path (ObservationBus/DiagnosticScheduler) и детектор seeded-реактивации legacy пути; shadow subjects — feature-gated compat surfaces (QUIC-\u003eTCP handoff, TCP reassembly, hard-gate alias migration). Meta-suite: MON gate mon_production_ready остаётся fail-closed при любой реактивации legacy мутации."
     },
     {
       "id": "HR-42",

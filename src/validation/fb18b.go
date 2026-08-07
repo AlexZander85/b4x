@@ -215,9 +215,9 @@ func FB18BEntries() []FB18BEntry {
 		{ID: "ARCH-144", Kind: "clause", Title: "Recommended file order", IVCoverage: "25/41/54/58 частично", Status: FB18BNotApplicable,
 			NotApplicableReason: "Решением владельца (RESOLVED §5.2, FB18-09): §144 — порядок чтения файлов, не implementation-order требование; consolidation registry решается FB-33 (b4x-yzt).",
 			Note:                "Gap: FB-33 (b4x-yzt) — canonical Exact Source-Stage Registry + generated totals."},
-		{ID: "ARCH-145", Kind: "clause", Title: "No flag-day migration", IVCoverage: "L8, IV-18 MON-11", Status: FB18BBlocked,
-			BlockedBy: blocked("b4x-n6r", "FB-35: No-flag-day migration matrix для каждого subsystem",
-				"per-subsystem shadow/canary/cutover/rollback + reverse-reachability legacy paths после cutover не собраны; частично: nfq/TestQUICHandoffFeatureGatePreservesLegacyGlobalPath, validation/TestLegacyAliasMigration")},
+		{ID: "ARCH-145", Kind: "clause", Title: "No flag-day migration", IVCoverage: "L8, IV-18 MON-11", Status: FB18BPass,
+			Evidence: ev("validation/TestNoFlagDayMigrationMatrixValid", "validation/TestNoFlagDayMatrixEvidenceExists", "validation/TestNoFlagDayCutoverReverseReachabilityClean", "validation/TestNoFlagDaySeededLegacyReactivationDetected", "validation/TestIV18ReverseReachabilityCleanAfterCutover", "validation/TestIV18ReverseReachabilitySeededReactivationCaught", "http/handler/TestWatchdogCutoverMutatingEndpointsGone", "http/handler/TestWatchdogPreCutoverMutatingNotGone", "http/handler/TestWatchdogCutoverStatusServesMonitoringProjection", "nfq/TestQUICHandoffFeatureGatePreservesLegacyGlobalPath", "validation/TestLegacyAliasMigration"),
+			Note:     "FB-35 (b4x-n6r): canonical no-flag-day migration matrix (src/validation/no_flag_day.go, §145) — per-subsystem shadow/cutover registry с executable evidence; cutover subject (monitoring) доказывает reverse-reachability clean удалённого legacy мутирующего пути (applyBatchResults) + forward-reachability нового production path (ObservationBus/DiagnosticScheduler) и детектор seeded-реактивации legacy пути; shadow subjects — feature-gated compat surfaces (QUIC->TCP handoff, TCP reassembly, hard-gate alias migration). Meta-suite: MON gate mon_production_ready остаётся fail-closed при любой реактивации legacy мутации."},
 
 		// --- Main invariants ARCH §5.1..5.17 (17) ---
 		{ID: "INV-5.1", Kind: "invariant", Title: "Classification before action", Status: FB18BPass,
