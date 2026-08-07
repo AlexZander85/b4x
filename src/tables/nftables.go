@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
@@ -194,7 +193,15 @@ func (n *NFTablesManager) Apply() error {
 		markValue = 0x8000
 	}
 	markAccept := fmt.Sprintf("0x%x", markValue)
-	processedMark := fmt.Sprintf("0x%x", capture.ProcessedMarkBit)
+
+	params, err := captureRuleParamsFor(cfg)
+	if err != nil {
+		return fmt.Errorf("nftables: capture contour: %w", err)
+	}
+	// nft guard rules use a self-masking match ("mark & P == P"); normalising
+	// the mark with its mask keeps the legacy behavior when the envelope falls
+	// back to ProcessedMarkFor(legacy queue mark).
+	processedMark := fmt.Sprintf("0x%x", params.processedMark&params.processedMask)
 
 	selectedMACs := cfg.Queue.Devices.SelectedMACs()
 	if cfg.Queue.Devices.Enabled && len(selectedMACs) > 0 {
@@ -304,8 +311,8 @@ func (n *NFTablesManager) Apply() error {
 		}
 	}
 
-	tcpLimit := fmt.Sprintf("%d", cfg.Queue.TCPConnBytesLimit+1)
-	udpLimit := fmt.Sprintf("%d", cfg.Queue.UDPConnBytesLimit+1)
+	tcpLimit := fmt.Sprintf("%d", params.outgoingLimit)
+	udpLimit := fmt.Sprintf("%d", params.udpLimit)
 
 	if err := n.addQueueRule(nftChainName, "tcp", "dport", tcpPortExpr, "ct", "original", "packets", "<", tcpLimit, "counter"); err != nil {
 		return err
@@ -330,16 +337,22 @@ func (n *NFTablesManager) Apply() error {
 		return err
 	}
 
-	if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "(syn|ack)", "==", "(syn|ack)", "counter"); err != nil {
-		return err
+	if params.alwaysSynAck {
+		if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "(syn|ack)", "==", "(syn|ack)", "counter"); err != nil {
+			return err
+		}
 	}
 
-	if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "rst", "==", "rst", "counter"); err != nil {
-		return err
+	if params.alwaysRst {
+		if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "rst", "==", "rst", "counter"); err != nil {
+			return err
+		}
 	}
 
-	if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
-		return err
+	if params.alwaysFin {
+		if err := n.addQueueRule("prerouting", "tcp", "sport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
+			return err
+		}
 	}
 
 	udpPorts := cfg.CollectUDPPorts()
@@ -349,12 +362,16 @@ func (n *NFTablesManager) Apply() error {
 	} else {
 		udpPortExpr = "{ " + strings.Join(udpPorts, ", ") + " }"
 	}
-	if err := n.addQueueRule(nftChainName, "udp", "dport", udpPortExpr, "ct", "original", "packets", "<", udpLimit, "counter"); err != nil {
-		return err
+	if params.alwaysQuic {
+		if err := n.addQueueRule(nftChainName, "udp", "dport", udpPortExpr, "ct", "original", "packets", "<", udpLimit, "counter"); err != nil {
+			return err
+		}
 	}
 
-	if err := n.addQueueRule(nftChainName, "tcp", "dport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
-		return err
+	if params.alwaysFin {
+		if err := n.addQueueRule(nftChainName, "tcp", "dport", tcpPortExpr, "tcp", "flags", "&", "fin", "==", "fin", "counter"); err != nil {
+			return err
+		}
 	}
 
 	for _, s := range b4SysctlSettings() {

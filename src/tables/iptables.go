@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 )
@@ -362,7 +361,12 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 	if cfg.Queue.Mark == 0 {
 		markAccept = "0x8000/0x8000"
 	}
-	processedMarkAccept := fmt.Sprintf("0x%x/0x%x", capture.ProcessedMarkBit, capture.ProcessedMarkMask)
+
+	params, err := captureRuleParamsFor(cfg)
+	if err != nil {
+		return Manifest{}, fmt.Errorf("iptables: capture contour: %w", err)
+	}
+	processedMarkAccept := fmt.Sprintf("0x%x/0x%x", params.processedMark, params.processedMask)
 
 	var ipsets []IPSet
 	var chains []Chain
@@ -374,8 +378,9 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 		preCh := Chain{manager: manager, IPT: ipt, Table: "mangle", Name: preChainName}
 		chains = append(chains, preCh)
 
-		tcpConnbytesRange := fmt.Sprintf("0:%d", cfg.Queue.TCPConnBytesLimit)
-		udpConnbytesRange := fmt.Sprintf("0:%d", cfg.Queue.UDPConnBytesLimit)
+		tcpOriginalRange := fmt.Sprintf("0:%d", params.outgoingLimit-1)
+		tcpReplyRange := fmt.Sprintf("0:%d", params.incomingLimit-1)
+		udpConnbytesRange := fmt.Sprintf("0:%d", params.udpLimit-1)
 
 		dnsSpec := append(
 			[]string{"-p", "udp", "--dport", "53"},
@@ -405,7 +410,7 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 				tcpResponseSpec := append(
 					[]string{"-p", "tcp", "-m", "multiport", "--sports", portList,
 						"-m", "connbytes", "--connbytes-dir", "reply",
-						"--connbytes-mode", "packets", "--connbytes", tcpConnbytesRange},
+						"--connbytes-mode", "packets", "--connbytes", tcpReplyRange},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				synackSpec := append(
@@ -423,19 +428,29 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 						"--tcp-flags", "FIN", "FIN"},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
-				rules = append(rules,
+				preroutingRules := []Rule{
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: tcpResponseSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec},
-				)
+				}
+				if params.alwaysSynAck {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec})
+				}
+				if params.alwaysRst {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec})
+				}
+				if params.alwaysFin {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec})
+				}
+				rules = append(rules, preroutingRules...)
 			}
 		} else {
 			for _, port := range tcpPorts {
 				tcpResponseSpec := append(
 					[]string{"-p", "tcp", "--sport", port,
 						"-m", "connbytes", "--connbytes-dir", "reply",
-						"--connbytes-mode", "packets", "--connbytes", tcpConnbytesRange},
+						"--connbytes-mode", "packets", "--connbytes", tcpReplyRange},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				synackSpec := append(
@@ -450,12 +465,22 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 					[]string{"-p", "tcp", "--sport", port, "--tcp-flags", "FIN", "FIN"},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
-				rules = append(rules,
+				preroutingRules := []Rule{
 					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: tcpResponseSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec},
-					Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec},
-				)
+				}
+				if params.alwaysSynAck {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: synackSpec})
+				}
+				if params.alwaysRst {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: rstSpec})
+				}
+				if params.alwaysFin {
+					preroutingRules = append(preroutingRules,
+						Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: preChainName, Action: "I", Spec: finSpec})
+				}
+				rules = append(rules, preroutingRules...)
 			}
 		}
 
@@ -512,31 +537,35 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 				tcpSpec := append(
 					[]string{"-p", "tcp", "-m", "multiport", "--dports", strings.Join(chunk, ","),
 						"-m", "connbytes", "--connbytes-dir", "original",
-						"--connbytes-mode", "packets", "--connbytes", tcpConnbytesRange},
+						"--connbytes-mode", "packets", "--connbytes", tcpOriginalRange},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: tcpSpec})
-				finSpec := append(
-					[]string{"-p", "tcp", "-m", "multiport", "--dports", strings.Join(chunk, ","),
-						"--tcp-flags", "FIN", "FIN"},
-					manager.buildNFQSpec(queueNum, threads)...,
-				)
-				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
+				if params.alwaysFin {
+					finSpec := append(
+						[]string{"-p", "tcp", "-m", "multiport", "--dports", strings.Join(chunk, ","),
+							"--tcp-flags", "FIN", "FIN"},
+						manager.buildNFQSpec(queueNum, threads)...,
+					)
+					rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
+				}
 			}
 		} else {
 			for _, port := range tcpPorts {
 				tcpSpec := append(
 					[]string{"-p", "tcp", "--dport", port,
 						"-m", "connbytes", "--connbytes-dir", "original",
-						"--connbytes-mode", "packets", "--connbytes", tcpConnbytesRange},
+						"--connbytes-mode", "packets", "--connbytes", tcpOriginalRange},
 					manager.buildNFQSpec(queueNum, threads)...,
 				)
 				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: tcpSpec})
-				finSpec := append(
-					[]string{"-p", "tcp", "--dport", port, "--tcp-flags", "FIN", "FIN"},
-					manager.buildNFQSpec(queueNum, threads)...,
-				)
-				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
+				if params.alwaysFin {
+					finSpec := append(
+						[]string{"-p", "tcp", "--dport", port, "--tcp-flags", "FIN", "FIN"},
+						manager.buildNFQSpec(queueNum, threads)...,
+					)
+					rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: finSpec})
+				}
 			}
 		}
 
@@ -549,30 +578,32 @@ func (manager *IPTablesManager) buildManifest() (Manifest, error) {
 			udpPorts[i] = strings.ReplaceAll(p, "-", ":")
 		}
 
-		if manager.hasMultiportSupport(ipt) {
-			// Use multiport for efficiency (batches up to 15 ports per rule)
-			udpPortChunks := chunkPorts(udpPorts, 15)
-			for _, chunk := range udpPortChunks {
-				udpPortSpec := []string{"-p", "udp", "-m", "multiport", "--dports", strings.Join(chunk, ",")}
-				udpSpec := append(
-					append(udpPortSpec,
-						"-m", "connbytes", "--connbytes-dir", "original",
-						"--connbytes-mode", "packets", "--connbytes", udpConnbytesRange),
-					manager.buildNFQSpec(queueNum, threads)...,
-				)
-				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: udpSpec})
-			}
-		} else {
-			// Fallback: create individual rules for each port/range
-			for _, port := range udpPorts {
-				udpPortSpec := []string{"-p", "udp", "--dport", port}
-				udpSpec := append(
-					append(udpPortSpec,
-						"-m", "connbytes", "--connbytes-dir", "original",
-						"--connbytes-mode", "packets", "--connbytes", udpConnbytesRange),
-					manager.buildNFQSpec(queueNum, threads)...,
-				)
-				rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: udpSpec})
+		if params.alwaysQuic {
+			if manager.hasMultiportSupport(ipt) {
+				// Use multiport for efficiency (batches up to 15 ports per rule)
+				udpPortChunks := chunkPorts(udpPorts, 15)
+				for _, chunk := range udpPortChunks {
+					udpPortSpec := []string{"-p", "udp", "-m", "multiport", "--dports", strings.Join(chunk, ",")}
+					udpSpec := append(
+						append(udpPortSpec,
+							"-m", "connbytes", "--connbytes-dir", "original",
+							"--connbytes-mode", "packets", "--connbytes", udpConnbytesRange),
+						manager.buildNFQSpec(queueNum, threads)...,
+					)
+					rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: udpSpec})
+				}
+			} else {
+				// Fallback: create individual rules for each port/range
+				for _, port := range udpPorts {
+					udpPortSpec := []string{"-p", "udp", "--dport", port}
+					udpSpec := append(
+						append(udpPortSpec,
+							"-m", "connbytes", "--connbytes-dir", "original",
+							"--connbytes-mode", "packets", "--connbytes", udpConnbytesRange),
+						manager.buildNFQSpec(queueNum, threads)...,
+					)
+					rules = append(rules, Rule{manager: manager, IPT: ipt, Table: "mangle", Chain: chainName, Action: "A", Spec: udpSpec})
+				}
 			}
 		}
 

@@ -107,15 +107,17 @@ type EnvelopeDecision struct {
 // NewCaptureEnvelope derives the bounded defaults from the existing queue
 // configuration. It does not enable a new classifier feature; it describes
 // the contract that the backend must install or diagnose.
+//
+// When Classifier.Flags.CaptureEnvelopeEnabled is set, the contract is driven
+// by System.Classifier.Runtime.Capture (bounded packet limits, always-queue
+// lifecycle flags, processed mark and queue bypass); otherwise the legacy
+// cfg.Queue-derived defaults are returned so existing deployments keep their
+// observed topology unchanged (FB-11).
 func NewCaptureEnvelope(cfg *config.Config, role QueueRole) (CaptureEnvelope, error) {
 	if cfg == nil {
 		return CaptureEnvelope{}, fmt.Errorf("capture envelope: nil config")
 	}
 
-	tcpLimit, err := boundedPacketLimit(cfg.Queue.TCPConnBytesLimit)
-	if err != nil {
-		return CaptureEnvelope{}, fmt.Errorf("tcp capture limit: %w", err)
-	}
 	if _, err := boundedPacketLimit(cfg.Queue.UDPConnBytesLimit); err != nil {
 		return CaptureEnvelope{}, fmt.Errorf("udp capture limit: %w", err)
 	}
@@ -127,23 +129,45 @@ func NewCaptureEnvelope(cfg *config.Config, role QueueRole) (CaptureEnvelope, er
 	}
 
 	e := CaptureEnvelope{
-		OutgoingPacketLimit: tcpLimit,
-		IncomingPacketLimit: tcpLimit,
-		AlwaysQueueSynAck:   true,
-		AlwaysQueueFin:      true,
-		AlwaysQueueRst:      true,
-		AlwaysQueueQuicInit: true,
-		ProcessedMark:       ProcessedMarkFor(cfg.Queue.Mark),
-		ProcessedMarkMask:   ProcessedMarkMask,
-		QueueStart:          uint16(cfg.Queue.StartNum),
-		QueueThreads:        uint16(cfg.Queue.Threads),
-		QueueBypass:         true,
-		IPv4Enabled:         cfg.Queue.IPv4Enabled,
-		IPv6Enabled:         cfg.Queue.IPv6Enabled,
-		Role:                role,
+		ProcessedMark:     ProcessedMarkFor(cfg.Queue.Mark),
+		ProcessedMarkMask: ProcessedMarkMask,
+		QueueStart:        uint16(cfg.Queue.StartNum),
+		QueueThreads:      uint16(cfg.Queue.Threads),
+		QueueBypass:       true,
+		IPv4Enabled:       cfg.Queue.IPv4Enabled,
+		IPv6Enabled:       cfg.Queue.IPv6Enabled,
+		Role:              role,
 	}
 	if role == "" {
 		e.Role = QueueRoleProduction
+	}
+
+	if cfg.System.Classifier.Flags.CaptureEnvelopeEnabled {
+		rc := cfg.System.Classifier.Runtime.Capture
+		e.OutgoingPacketLimit = rc.OutgoingPacketLimit
+		e.IncomingPacketLimit = rc.IncomingPacketLimit
+		e.AlwaysQueueSynAck = rc.AlwaysQueueSynAck
+		e.AlwaysQueueFin = rc.AlwaysQueueFIN
+		e.AlwaysQueueRst = rc.AlwaysQueueRST
+		e.AlwaysQueueQuicInit = rc.AlwaysQueueQUIC
+		e.QueueBypass = rc.QueueBypass
+		if rc.ProcessedMark != 0 {
+			e.ProcessedMark = rc.ProcessedMark
+		}
+		if rc.ProcessedMarkMask != 0 {
+			e.ProcessedMarkMask = rc.ProcessedMarkMask
+		}
+	} else {
+		tcpLimit, err := boundedPacketLimit(cfg.Queue.TCPConnBytesLimit)
+		if err != nil {
+			return CaptureEnvelope{}, fmt.Errorf("tcp capture limit: %w", err)
+		}
+		e.OutgoingPacketLimit = tcpLimit
+		e.IncomingPacketLimit = tcpLimit
+		e.AlwaysQueueSynAck = true
+		e.AlwaysQueueFin = true
+		e.AlwaysQueueRst = true
+		e.AlwaysQueueQuicInit = true
 	}
 	return e, e.Validate()
 }

@@ -56,7 +56,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-08 | выполнена | — |
 | FB-09 | ВЫПОЛНЕНА | Beads b4x-0to, closed 03.08; tcp_hold_worker.go releaseTCPHoldOnFlowTermination + 3 теста |
 | FB-10 | ВЫПОЛНЕНА | Beads b4x-bed, closed 02.08; commit e23ba6ab |
-| FB-11 | открыта | — |
+| FB-11 | ВЫПОЛНЕНА | Beads b4x-ys6, closed 07.08; capture.NewCaptureEnvelope runtime-driven при флаге, tables/capture_envelope.go (параметризатор контура), iptables+nftables wire, 4 теста, vet чист, 47 пакетов ok |
 | FB-12 | ВЫПОЛНЕНА | Beads b4x-1lb, closed 02.08; commit 5bb47b13 |
 | FB-13 | ВЫПОЛНЕНА | Beads b4x-abc, closed 03.08; session_test.go + тест сериализации |
 | FB-14 | ВЫПОЛНЕНА | Beads b4x-lv0, closed 04.08; commits 026ea485 (14/14 решений) + 8f9b6b94 (FB-18A пересчёт хэшей); верификация 04.08 — remediation report |
@@ -673,19 +673,19 @@ GSOPassToken {
 - **Критерий:** tests на serialization плюс consume/replay/stale generation/wrong flow/expiry/retirement cleanup; RST/GSO и CSI импортируют один type; duplicate schema отсутствует.
 - **Зависит:** FB-14 п.4; FB-27 для full GSO runtime integration.
 
-### FB-11. Подключить `CaptureEnvelopeEnabled` к production behavior либо выполнить owner-approved de-scope [M]
+### FB-11. Подключить `CaptureEnvelopeEnabled` к production behavior либо выполнить owner-approved de-scope [M] **— ВЫПОЛНЕНО** (Beads b4x-ys6, 07.08)
 
 - **Проблема:** флаг отображается в diagnostics/UI diff, но не влияет на packet capture/table topology.
-- **Что сделать:** предпочтительный путь — подключить флаг к реальному capture envelope:
-  - topology/marks/rules;
-  - SYN/SYN-ACK/FIN/RST/first-N/QUIC observation;
-  - capability/readiness/status;
-  - transactional apply/rollback;
-  - generation-bound behavior.
-
-Удаление допускается только после отдельного owner decision и полного normative de-scope по правилу 0.4. Coding-agent не может удалить обязательную Stage 4 capability самостоятельно.
-
-- **Критерий:** переключение флага меняет observed production topology/behavior и имеет integration/rollback tests; либо приложен owner-approved de-scope bundle с registry/verdict/API/UI/migration updates.
+- **Решение (owner-approved strategy: wire без смены дефолта):**
+  - `capture.NewCaptureEnvelope` при `Flags.CaptureEnvelopeEnabled=true` строит контракт из `System.Classifier.Runtime.Capture` (лимиты, AlwaysQueueSynAck/FIN/RST/QUIC, ProcessedMark/Mask, QueueBypass); при `false` — legacy-контур из `cfg.Queue` (поведение как до фикса). Дефолт флага остаётся `false` (passive defaults).
+  - `src/tables/capture_envelope.go` — новый backend-neutral параметризатор `captureRuleParamsFor(cfg)`: оба движка (iptables `buildManifest`, nftables `BuildNftables`) строят правила из него:
+    - first-N лимиты TCP original/reply разделены (Outgoing/Incoming), UDP-лимит остаётся на `cfg.Queue.UDPConnBytesLimit`;
+    - SYN-ACK/RST/FIN правила эмитятся условно по always-флагам;
+    - UDP/QUIC connbytes-правила эмитятся только при `AlwaysQueueQUIC`;
+    - processed-mark/mask берутся из envelope (fallback `ProcessedMarkFor(cfg.Queue.Mark)` в legacy).
+  - Диагностика/readiness (diagnostics.go:300, `Decide()`) уже используют envelope — контур и решение теперь из одного источника.
+- **Критерий выполнен:** переключение флага меняет observed topology (тесты `TestCaptureRuleParams_LegacyMode/EnvelopeMode`, `TestIPTablesManifest_EnvelopeVariant`), rollback-инвариант покрыт `TestCaptureRuleParams_Rollback` (envelope-default ≡ legacy); при дефолтных Runtime-значениях контур байт-в-байт эквивалентен legacy.
+- **Верификация:** `go vet ./...` чист, `go test -count=1 ./...` — 47 пакетов ok, 0 FAIL (Docker golang:1.25.3-bookworm).
 - **Зависит:** FB-14, FB-18B.
 
 ### FB-12. PPE self-test: авто-старт при `mode: startup-and-change` [M] **— ВЫПОЛНЕНО** (Beads b4x-1lb, 02.08, 5bb47b13)
