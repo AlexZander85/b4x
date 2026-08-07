@@ -2,6 +2,7 @@ package tun
 
 import (
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/nfq"
+	"github.com/daniellavrushin/b4/routing"
 	"github.com/daniellavrushin/b4/sock"
 )
 
@@ -39,15 +41,29 @@ type Engine struct {
 	fwdErrCount   uint64
 	v6DropCount   uint64
 	lastFwdErrLog int64
+
+	decisions     *routing.DecisionStore
+	markSenders   map[uint32]*sock.Sender
+	markSendersMu sync.Mutex
 }
+
+const maxMarkSenders = 16
 
 func NewEngine(cfg *config.Config, pool *nfq.Pool) *Engine {
 	e := &Engine{
-		pool: pool,
-		quit: make(chan struct{}),
+		pool:        pool,
+		quit:        make(chan struct{}),
+		markSenders: make(map[uint32]*sock.Sender),
 	}
 	e.cfg.Store(cfg)
 	return e
+}
+
+// SetRouteDecisions wires the shared route decision store produced by the
+// NFQUEUE authorized route path. The engine only reads decisions to pick a
+// per-mark sender; it never consults the fallback manager itself (FB-23).
+func (e *Engine) SetRouteDecisions(store *routing.DecisionStore) {
+	e.decisions = store
 }
 
 func (e *Engine) config() *config.Config {
@@ -291,7 +307,57 @@ func (e *Engine) senderFor(raw []byte) *sock.Sender {
 	if portMatches(sport, e.routes.tcpPorts) {
 		return e.clientSender
 	}
+	// FB-23: when the authorized route path decided a non-zero SO_MARK for
+	// this client flow (e.g. generic or proxy escape), forward the packet
+	// through a sender that carries that mark so the kernel policy routing
+	// applies the same rule table the decision described. Missing decisions
+	// or sender creation failures keep the default sender (fail-open).
+	if e.decisions != nil && len(raw) >= ihl+4 {
+		dport := uint16(raw[ihl+2])<<8 | uint16(raw[ihl+3])
+		dst := net.IP(raw[16:20])
+		dstIP, ok := netip.AddrFromSlice(dst)
+		if ok {
+			clientIP, ok := netip.AddrFromSlice(net.IP(raw[12:16]))
+			if ok {
+				decision, found := e.decisions.LookupFlow(clientIP.Unmap(), dstIP.Unmap(), dport, 6)
+				if found && decision.SOMark != 0 && decision.Route != routing.RouteNative && decision.Route != routing.RouteDirect {
+					if marked := e.senderForMark(decision.SOMark); marked != nil {
+						return marked
+					}
+				}
+			}
+		}
+	}
 	return e.sender
+}
+
+// senderForMark returns (creating on first use) a bounded set of raw senders
+// that carry the given SO_MARK. Sender creation fails are fail-open: a nil
+// return keeps the default sender.
+func (e *Engine) senderForMark(mark uint32) *sock.Sender {
+	e.markSendersMu.Lock()
+	defer e.markSendersMu.Unlock()
+	if s, ok := e.markSenders[mark]; ok {
+		return s
+	}
+	if len(e.markSenders) >= maxMarkSenders {
+		// Bounded state: never grow the raw-socket set without limit. The
+		// oldest entry is closed and replaced (FIFO eviction).
+		for oldMark, old := range e.markSenders {
+			if old != nil {
+				old.Close()
+			}
+			delete(e.markSenders, oldMark)
+			break
+		}
+	}
+	s, err := sock.NewSenderWithMark(int(mark))
+	if err != nil {
+		log.Warnf("TUN: failed to create marked sender for mark %d (%v); using default sender", mark, err)
+		return nil
+	}
+	e.markSenders[mark] = s
+	return s
 }
 
 func replyCaptureNeeded(cfg *config.Config) bool {
@@ -345,6 +411,14 @@ func (e *Engine) Stop() {
 		if e.clientSender != nil {
 			e.clientSender.Close()
 		}
+		e.markSendersMu.Lock()
+		for mark, s := range e.markSenders {
+			if s != nil {
+				s.Close()
+			}
+			delete(e.markSenders, mark)
+		}
+		e.markSendersMu.Unlock()
 
 		log.Infof("TUN: engine stopped (%d packets forwarded, %d forward errors, %d ipv6 dropped)",
 			atomic.LoadUint64(&e.fwdCount), atomic.LoadUint64(&e.fwdErrCount), atomic.LoadUint64(&e.v6DropCount))

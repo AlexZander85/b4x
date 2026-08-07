@@ -1704,11 +1704,16 @@ CANONICAL_REGISTRY_INCOMPLETE
 > - **Критерий:** executor достижим из nfq-пути (не только тесты); интеграционный тест PASS.
 > - **Зависит:** —
 > 
-> ### FB-23. Stage 33: подключить routing.FallbackManager [M]
+> ### FB-23. Stage 33: подключить routing.FallbackManager [M] — РЕАЛИЗОВАНО (b4x-qar, 07.08)
 > - **Проблема:** `routing.FallbackManager` не подключён к nfq/tun (PATCH_PLAN Stage 33 PARTIAL).
 > - **Что сделать:** подключить FallbackManager к реальным путям принятия решений (nfq/tun); покрыть тестом. Детали: `patch_plan_audit.md` (Stage 33).
 > - **Критерий:** FallbackManager вызывается из production-пути; тест переключения fallback PASS.
 > - **Зависит:** —
+> - **Статус:** РЕАЛИЗОВАНО (b4x-qar). Решение из authorized transactional path (`nfq/route_binding.go` bindAuthorizedRoute) теперь не выбрасывается, а сохраняется в bounded `routing.DecisionStore` (TTL 2 мин, max 4096, GC в pool cleanup loop). Адаптеры транспорта применяют SO_MARK на устройстве, не перерешая сами (FB-23: manager остаётся внутри authorized path):
+>   - **SOCKS5** (`src/socks5/server.go`): `SetRouteDecisions`, `dialWithRouteDecision`/`markForClient` — dial с SO_MARK через `ApplyBypassMark`, fail-open на обычный dial; метрика `fallback_route_applied_total{adapter="socks5"}`.
+>   - **TUN** (`src/tun/tun.go`): `SetRouteDecisions`, `senderFor` выбирает per-mark sender (`senderForMark`, bounded кэш max 16) для решений с SO_MARK ≠ 0 и route ≠ native/direct; fail-open на default sender.
+>   - **main.go**: `pool.GetRouteDecisions()` → `socks5Server`/`tunEngine`.
+> - **Критерий:** `go test ./routing/... ./nfq/... ./socks5/... ./tun/...` PASS; весь репозиторий 0 FAIL; `go vet ./...` чистый. Файлы: `src/routing/decisions.go` (+тест), `src/nfq/route_binding.go`, `src/nfq/connstate.go`, `src/nfq/pool.go`, `src/socks5/server.go` (+тест), `src/tun/tun.go` (+тест), `src/main.go`.
 > 
 > ### FB-24. Stage 23: подключить адаптивную матрицу + shadow-пробы [M] — НОВОЕ (reachability-верификация 31.07)
 > - **Проблема:** `src/discovery/adaptive.go:232` RunAdaptiveMatrix вызывается ТОЛЬКО из `adaptive_test.go`; config `MaxShadowProbes` нигде не потребляется; guided strategy search (ABD) и shadow-пробы в production не исполняются.

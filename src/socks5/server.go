@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,8 @@ import (
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
+	"github.com/daniellavrushin/b4/observability"
+	"github.com/daniellavrushin/b4/routing"
 	"github.com/daniellavrushin/b4/sni"
 )
 
@@ -68,13 +71,21 @@ type Server struct {
 	activeConns atomic.Int64
 	connSem     chan struct{} // semaphore for connection limiting
 
-	bufferPool   sync.Pool
-	matcher      atomic.Value // stores *sni.SuffixSet
-	ipBlockCache IPBlockCache
+	bufferPool     sync.Pool
+	matcher        atomic.Value // stores *sni.SuffixSet
+	ipBlockCache   IPBlockCache
+	routeDecisions *routing.DecisionStore
 }
 
 func (s *Server) SetIPBlockCache(cache IPBlockCache) {
 	s.ipBlockCache = cache
+}
+
+// SetRouteDecisions wires the shared route decision store produced by the
+// NFQUEUE authorized route path. The server only reads decisions; it never
+// consults the fallback manager itself (FB-23).
+func (s *Server) SetRouteDecisions(store *routing.DecisionStore) {
+	s.routeDecisions = store
 }
 
 // NewServer creates a new SOCKS5 server.
@@ -317,6 +328,82 @@ func (s *Server) handleRequest(conn net.Conn) error {
 
 // --- TCP CONNECT ---
 
+// dialWithRouteDecision dials the destination applying the SO_MARK from the
+// shared route decision store when one exists for the client flow (FB-23).
+// It is fail-open: any dial error falls back to a plain dial so a route
+// decision can never break an otherwise working connection.
+func (s *Server) dialWithRouteDecision(conn net.Conn, dest string) (net.Conn, error) {
+	if s.routeDecisions != nil {
+		if mark := s.routeMarkForClient(conn, dest); mark != 0 {
+			d := net.Dialer{Timeout: dialTimeout}
+			ApplyBypassMark(&d, mark)
+			remote, err := d.Dial("tcp", dest)
+			if err == nil {
+				observability.Default().Metrics.Inc(observability.MetricFallbackRouteApplied, map[string]string{"adapter": "socks5", "result": "applied"}, 1)
+				observability.Default().Trace.Record(observability.TraceEvent{Timestamp: time.Now(), Kind: "fallback_route_applied", Fields: map[string]string{"adapter": "socks5", "mark": strconv.FormatUint(uint64(mark), 10)}})
+				return remote, nil
+			}
+			log.Tracef("SOCKS5 marked dial to %s failed (%v); failing open", dest, err)
+			observability.Default().Metrics.Inc(observability.MetricFallbackRouteApplied, map[string]string{"adapter": "socks5", "result": "fallback"}, 1)
+		}
+	}
+	return net.DialTimeout("tcp", dest, dialTimeout)
+}
+
+// routeMarkForClient resolves the SO_MARK (if any) the NFQUEUE authorized
+// route path decided for this client's destination: by IP flow when the
+// destination is a literal address, by SNI domain otherwise.
+func (s *Server) routeMarkForClient(conn net.Conn, dest string) uint32 {
+	host, portStr, err := net.SplitHostPort(dest)
+	if err != nil {
+		return 0
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil || port < 1 || port > 65535 {
+		return 0
+	}
+	clientIP := netip.Addr{}
+	if ta, ok := conn.RemoteAddr().(*net.TCPAddr); ok {
+		clientIP = netipFromIP(ta.IP)
+	}
+	if !clientIP.IsValid() {
+		return 0
+	}
+	return s.markForClient(clientIP, host, uint16(port))
+}
+
+// markForClient is the store lookup core, split out for unit tests: the
+// client IP is the capture-boundary identity, host is the destination as
+// received (IP literal or SNI domain).
+func (s *Server) markForClient(clientIP netip.Addr, host string, port uint16) uint32 {
+	if s == nil || s.routeDecisions == nil || !clientIP.IsValid() {
+		return 0
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		dstIP := netipFromIP(ip)
+		if !dstIP.IsValid() {
+			return 0
+		}
+		decision, ok := s.routeDecisions.LookupFlow(clientIP, dstIP, port, 6)
+		if ok {
+			return decision.SOMark
+		}
+		return 0
+	}
+	decision, ok := s.routeDecisions.LookupDomain(clientIP, host, port)
+	if ok {
+		return decision.SOMark
+	}
+	return 0
+}
+
+func netipFromIP(ip net.IP) netip.Addr {
+	if addr, ok := netip.AddrFromSlice(ip); ok {
+		return addr.Unmap()
+	}
+	return netip.Addr{}
+}
+
 func (s *Server) handleConnect(conn net.Conn, dest string) error {
 	if s.ipBlockCache != nil && s.ipBlockCache.IsBlocked(dest) {
 		log.Tracef("SOCKS5 blocked cached IP: %s", dest)
@@ -324,7 +411,7 @@ func (s *Server) handleConnect(conn net.Conn, dest string) error {
 		return fmt.Errorf("destination %s is cached as blocked", dest)
 	}
 
-	remote, err := net.DialTimeout("tcp", dest, dialTimeout)
+	remote, err := s.dialWithRouteDecision(conn, dest)
 	if err != nil {
 		log.Tracef("SOCKS5 connect to %s failed: %v", dest, err)
 		sendReply(conn, repHostUnreachable, nil)

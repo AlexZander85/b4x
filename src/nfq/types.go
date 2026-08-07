@@ -62,6 +62,7 @@ type Worker struct {
 	scopedFailures     *scopedFailureState
 	routeBindings      *routing.BindingStore
 	fallback           *routing.FallbackManager
+	decisions          *routing.DecisionStore
 	srcResolver        *tunSrcResolver
 	dnsHints           *classifier.HostHintStore
 	tcpReassembly      *classifier.TCPReassemblyStore

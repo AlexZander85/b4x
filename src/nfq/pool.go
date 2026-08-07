@@ -13,6 +13,7 @@ import (
 	"github.com/daniellavrushin/b4/dhcp"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/metrics"
+	"github.com/daniellavrushin/b4/routing"
 	"github.com/daniellavrushin/b4/sni"
 )
 
@@ -130,6 +131,7 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.scopedFailures = state.scopedFailures
 		w.routeBindings = state.routeBindings
 		w.fallback = state.fallback
+		w.decisions = state.decisions
 		w.gsoPassTokens = state.gsoPassTokens
 		w.actionTokens = state.actionTokens
 		w.passiveRST = state.passiveRST
@@ -176,6 +178,9 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 					pool.state.routeBindings.GC(time.Now())
 					if pool.state.fallback != nil {
 						pool.state.fallback.GC(time.Now())
+					}
+					if pool.state.decisions != nil {
+						pool.state.decisions.GC(time.Now())
 					}
 					if pool.state.passiveRST != nil {
 						pool.state.passiveRST.GC(time.Now())
@@ -411,6 +416,16 @@ func (p *Pool) UpdateConfig(newCfg *config.Config) error {
 
 func (p *Pool) GetIPBlockCache() IPBlockCache {
 	return p.state.destState
+}
+
+// GetRouteDecisions exposes the bounded route decision store to transport
+// adapters (SOCKS5 dial marking, TUN sender selection). Adapters only read;
+// the store is written by the authorized route path.
+func (p *Pool) GetRouteDecisions() *routing.DecisionStore {
+	if p == nil || p.state == nil {
+		return nil
+	}
+	return p.state.decisions
 }
 
 func (p *Pool) GetEscalations() []metrics.EscalationEntry {

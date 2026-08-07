@@ -47,6 +47,7 @@ const (
 	MetricFallbackDecision              = "fallback_route_decisions_total"
 	MetricFallbackHealth                = "fallback_route_health_total"
 	MetricFallbackCooldown              = "fallback_route_cooldown_total"
+	MetricFallbackRouteApplied          = "fallback_route_applied_total"
 	MetricCrossServiceCandidate         = "cross_service_candidate_total"
 	MetricCrossServiceRevoked           = "cross_service_candidate_revoked_total"
 	MetricCrossServiceAmbiguous         = "cross_service_ambiguous_total"

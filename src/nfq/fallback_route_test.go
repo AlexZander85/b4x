@@ -129,6 +129,7 @@ func TestBindAuthorizedRouteConsultsFallbackOnlyAfterAuthorization(t *testing.T)
 	// Authorized flow commits the transactional binding first, then consults
 	// the fallback manager inside the same authorized scope.
 	observability.Default().Metrics.Reset()
+	worker.decisions = routing.NewDecisionStore(0, 0, nil)
 	ok = worker.bindAuthorizedRoute(cfg, fallbackTestPkt(), 12345, 443, capture.ProtocolTCP, set, "youtube.com", classifier.EvidencePacketSNI, 50, true)
 	if !ok {
 		t.Fatal("authorized route must bind")
@@ -138,6 +139,12 @@ func TestBindAuthorizedRouteConsultsFallbackOnlyAfterAuthorization(t *testing.T)
 	}
 	if got := hardGateCounterValue(t, observability.MetricRouteBinding); got == 0 {
 		t.Fatal("authorized route binding was not recorded")
+	}
+	// FB-23: the decision produced by the authorized path must be retained
+	// for the transport adapters (SOCKS5/TUN) — written to the shared store,
+	// never re-decided by an adapter.
+	if n := worker.decisions.Len(); n == 0 {
+		t.Fatal("authorized fallback decision was not stored for transport adapters")
 	}
 }
 

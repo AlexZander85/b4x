@@ -25,13 +25,13 @@ import (
 	b4http "github.com/daniellavrushin/b4/http"
 	"github.com/daniellavrushin/b4/http/handler"
 	"github.com/daniellavrushin/b4/log"
-	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/monitoring"
+	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/nfq"
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/quic"
-	"github.com/daniellavrushin/b4/socks5"
 	"github.com/daniellavrushin/b4/serviceprofile"
+	"github.com/daniellavrushin/b4/socks5"
 	"github.com/daniellavrushin/b4/tables"
 	"github.com/daniellavrushin/b4/tproxy"
 	b4tun "github.com/daniellavrushin/b4/tun"
@@ -409,6 +409,10 @@ func runB4(cmd *cobra.Command, args []string) error {
 
 	handler.SetTUNEngine(tunEngine)
 
+	if tunEngine != nil {
+		tunEngine.SetRouteDecisions(pool.GetRouteDecisions())
+	}
+
 	// Start internal web server if configured
 	httpServer, apiHandler, err := b4http.StartServer(&cfgPtr, pool)
 	if err != nil {
@@ -419,6 +423,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// Start SOCKS5 server if configured.
 	socks5Server := socks5.NewServer(&cfg)
 	socks5Server.SetIPBlockCache(pool.GetIPBlockCache())
+	socks5Server.SetRouteDecisions(pool.GetRouteDecisions())
 	if err := socks5Server.Start(); err != nil {
 		metrics.RecordEvent("error", fmt.Sprintf("Failed to start SOCKS5 server: %v", err))
 		log.Errorf("SOCKS5 server did not start: %v (b4 continues without it; fix in Settings or config)", err)

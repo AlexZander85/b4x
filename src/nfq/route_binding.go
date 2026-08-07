@@ -60,10 +60,19 @@ func (w *Worker) bindAuthorizedRoute(cfg *config.Config, pkt *pktInfo, sport, dp
 		if pkt.ver == 6 {
 			family = capture.AddressFamilyIPv6
 		}
-		_, _ = w.fallback.Decide(routing.FlowRouteRequest{
+		decision, err := w.fallback.Decide(routing.FlowRouteRequest{
 			SetID: classifierSetID(set), Client: client, Protocol: proto,
 			Family: family, Phase: classifier.PhaseResolved, Confidence: confidence,
 		})
+		if err != nil {
+			recordRouteBindingResult(set, "fallback-error", err.Error())
+		} else if w.decisions != nil {
+			// The decision is retained for the transport adapters (SOCKS5
+			// dial, TUN sender selection). Only non-zero SO_MARK decisions
+			// are stored: a zero mark is the adapters' default fail-open
+			// behavior and adds no information (FB-23).
+			w.decisions.Store(client.SourceIP, netIPToAddr(pkt.dst), dport, proto, domain, decision, now)
+		}
 	}
 	return true
 }

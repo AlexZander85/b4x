@@ -379,6 +379,7 @@ type runtimeState struct {
 	scopedFailures *scopedFailureState
 	routeBindings  *routing.BindingStore
 	fallback       *routing.FallbackManager
+	decisions      *routing.DecisionStore
 	gsoPassTokens  *GSOPassTokenStore
 	actionTokens   *action.ActionTokenStore
 	passiveRST     *PassiveRSTStore
@@ -404,6 +405,7 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 		scopedFailures: newScopedFailureState(),
 		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
 		fallback:       fallback,
+		decisions:      routing.NewDecisionStore(0, 0, nil),
 		gsoPassTokens:  NewGSOPassTokenStore(DefaultGSOPassTokenStoreConfig()),
 		actionTokens:   action.NewActionTokenStore(action.DefaultActionTokenStoreConfig()),
 		passiveRST:     NewPassiveRSTStore(passiveCfg, nil),
