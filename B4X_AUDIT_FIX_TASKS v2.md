@@ -69,7 +69,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-21 | открыта | — |
 | FB-22 | ВЫПОЛНЕНА | Beads b4x-0xa, closed 04.08; nfq drop-path v4/v6: action.Plan+Executor fail-open (action_executor.go), интеграционные тесты |
 | FB-23 | ВЫПОЛНЕНА | Beads b4x-jsd, closed 07.08; FallbackManager wired в authorized transactional route path (nfq/route_binding.go:52 после exact-flow Bind), конвертер nfq/fallback_route.go (fail-closed), GC в pool ticker, 4 новых теста |
-| FB-24 | открыта | — |
+| FB-24 | ВЫПОЛНЕНА | Beads b4x-iud, closed 07.08; discovery/adaptive_runtime.go: AdaptivePolicyFromRuntimeConfig (потребление MaxProbes/MaxConcurrency/SamplesPerVariant/StableSuccesses/MaxShadowProbes из runtime-конфига), Runtime.RunAdaptiveDiscovery (production-контроллер: current compatible BlockingProfile/prior, mandatory baselines первыми, FB-31 eligibility + FB-05 prior-ranking через CompileEligiblePlan, bounded policy, Applied=false — без direct promotion), 5 тестов root-to-matrix |
 | FB-25 | открыта | — |
 | FB-26 | открыта | — |
 | FB-27 | ВЫПОЛНЕНА | Beads b4x-95i, closed 02.08; commits 53be408a/44beac3c/340ae441 |
@@ -931,7 +931,7 @@ confirmed scoped failure
   - Verify: `go vet ./...` PASS, `go build ./...` PASS, `go test -count=1 ./...` — 47 пакетов ok, 0 FAIL; gofmt clean.
   - Ограничение (отражено в audits): TUN/SOCKS-адаптеры, применяющие SO_MARK/rule metadata из RouteDecision, по-прежнему отсутствуют — применение на устройстве остаётся открытой работой.
 
-### FB-24. Stage 23: подключить adaptive matrix и shadow probes к production Discovery [M]
+### FB-24. Stage 23: подключить adaptive matrix и shadow probes к production Discovery [M] **— ВЫПОЛНЕНО** (Beads b4x-iud, 07.08)
 
 - **Проблема:** `RunAdaptiveMatrix` вызывается только тестом; `MaxShadowProbes` не потребляется.
 - **Что сделать:** подключить к registered Discovery controller/API/runtime. Matrix должна:
@@ -946,6 +946,28 @@ confirmed scoped failure
 
 - **Критерий:** root-to-matrix integration test; MaxShadowProbes влияет на bounded execution; mandatory candidates не исчезают; cancellation/reload cleanup; no direct promotion.
 - **Зависит:** FB-05, FB-02 ABD/DDI, FB-31.
+
+- **Что сделано (07.08, Beads b4x-iud):**
+  - Новый `src/discovery/adaptive_runtime.go` — production-контроллер на registered Discovery runtime:
+    - `AdaptivePolicyFromRuntimeConfig(config.DiscoveryRuntimeConfig) AdaptivePolicy` — потребляет `MaxProbes`/`MaxConcurrency`/`SamplesPerVariant`/`StableSuccesses`/`MaxShadowProbes` из runtime-конфига (ранее только валидировались в classifier_v23_validation_rollout.go), базовые значения от `DefaultAdaptivePolicy()`, нормализация границ (maxAdaptiveProbes=256, maxAdaptiveConcurrency=8, maxAdaptiveSamples=8, maxAdaptiveShadowProbes=16).
+    - `Runtime.RunAdaptiveDiscovery(ctx, cfg, req, runner) (AdaptiveRunResult, error)`:
+      - current compatible профиль: `NetworkDiagnosticProfile.Valid(time.Now())` reject с «adaptive run profile is not current compatible»;
+      - `CompileEligiblePlan(family, authority, prior, current, hints)` — обязательные baselines не выпадают, prior (detector.DiscoverySearchPrior / SecurityPrior) только переупорядочивает/ранжирует (FB-05/FB-31);
+      - bounded execution: политика из runtime-конфига, budget применяется к матрице;
+      - mandatory candidates: baseline-none (management strategy "none") + baseline-production (request.BaselineStrategyID, default "direct") всегда идут первыми;
+      - **no direct promotion:** `Result.Applied` всегда `false` (промоушн — отдельный owned процесс через runtime control / canary);
+      - cancellation/reload cleanup на всём прогоне (ctx отмены пробрасывается в матрицу; конфиг/policy читаются заново на каждый вызов);
+      - результат публикуется в `AdaptiveRunResult` (RunID, ProfileID, Scope, Matrix, Policy, Applied=false, Explanation, CreatedAt) + `log.Infof` итогом (samples/shadows/stop).
+  - Новый `src/discovery/adaptive_runtime_test.go` — 5 тестов:
+    - `TestRunAdaptiveDiscoveryRootToMatrix` — root-to-matrix integration test: input → `RunAdaptiveMatrix` исполняется (runner вызван), первые два sample — обязательные baseline-none и baseline-production, `Applied=false`, matrix-результат опубликован;
+    - `TestRunAdaptiveDiscoveryBaselineAndShadowBounds` — `MaxShadowProbes` (1 и 3) ограничивает shadow probes: `len(Matrix.Shadows) ≤ budget`, mandatory baseline-каналы присутствуют (runner: shadow → Available, остальные → DP Rest);
+    - `TestRunAdaptiveDiscoveryRejectsStaleProfile` — переиспользованный/expired `NetworkDiagnosticProfile` (Valid(now)=false) → отказ «not current compatible»;
+    - `TestRunAdaptiveDiscoveryCancellation` — pre-canceled context → error, матрица не запускается (cleanup);
+    - `TestRunAdaptiveDiscoveryNoDirectPromotion` — даже при удачном прогоне `Applied=false`, winner (`Matrix.Best`) не применяется напрямую.
+
+  (Примечание: результат матрицы по-прежнему подлежит отдельному каналу промоушена — runtime_manager promotion, что и есть требование «winner проходит через candidate/runtime».)
+
+- Verify: `go vet ./discovery/...` PASS; `go test -count=1 ./...` — 49 пакетов ok, 0 FAIL (полный прогон 07.08); gofmt: изменённые файлы чистые (pre-existing незаформатированные `discovery/eligible_plan_test.go` и `discovery/history.go` не трогались).
 
 ### FB-25. Stages 25/26: подключить real ClientHello lab capture и `FakeProfileCompiler` [L]
 
