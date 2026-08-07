@@ -412,8 +412,11 @@ type clientHelloEvidenceRequest struct {
 }
 
 type clientHelloEvidenceResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message,omitempty"`
+	Success           bool                                 `json:"success"`
+	Message           string                               `json:"message,omitempty"`
+	ProfileID         string                               `json:"profile_id,omitempty"`
+	PromotionEligible bool                                 `json:"promotion_eligible"`
+	TargetEvidence    map[string]discovery.ProfileEvidence `json:"target_evidence,omitempty"`
 }
 
 func (api *API) handleClientHelloEvidence(w http.ResponseWriter, r *http.Request) {
@@ -431,6 +434,7 @@ func (api *API) handleClientHelloEvidence(w http.ResponseWriter, r *http.Request
 		writeJsonError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
+	profileID := strings.TrimSpace(req.ProfileID)
 	observation := discovery.ProfileObservation{
 		TargetProfile:   strings.ToLower(strings.TrimSpace(req.TargetProfile)),
 		Samples:         req.Samples,
@@ -443,7 +447,7 @@ func (api *API) handleClientHelloEvidence(w http.ResponseWriter, r *http.Request
 	if observation.ObservedAt.IsZero() {
 		observation.ObservedAt = time.Now()
 	}
-	if err := catalog.RecordOutcome(strings.TrimSpace(req.ProfileID), observation); err != nil {
+	if err := catalog.RecordOutcome(profileID, observation); err != nil {
 		if errors.Is(err, discovery.ErrProfileNotFound) {
 			writeJsonError(w, http.StatusNotFound, "compiled profile not found")
 			return
@@ -451,7 +455,13 @@ func (api *API) handleClientHelloEvidence(w http.ResponseWriter, r *http.Request
 		writeJsonError(w, http.StatusBadRequest, "invalid evidence: "+err.Error())
 		return
 	}
-	sendResponse(w, clientHelloEvidenceResponse{Success: true, Message: "evidence recorded"})
+	sendResponse(w, clientHelloEvidenceResponse{
+		Success:           true,
+		Message:           "evidence recorded",
+		ProfileID:         profileID,
+		PromotionEligible: catalog.PromotionEligible(profileID),
+		TargetEvidence:    catalog.Evidence(profileID),
+	})
 }
 
 func (api *API) handleCompiledProfiles(w http.ResponseWriter, r *http.Request) {

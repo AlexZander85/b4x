@@ -233,8 +233,12 @@ type ProfileSelectionRequest struct {
 	Kind          FakeProfileKind
 	MinSamples    uint64
 	RequireCanary bool
-	AllowECH      bool
-	MaxCandidates int
+	// RequirePromotion gates candidates on the promotion evidence floor:
+	// only profiles that already accumulated enough stable, canary-passed
+	// observations across targets become executable at runtime.
+	RequirePromotion bool
+	AllowECH         bool
+	MaxCandidates    int
 }
 
 func (c *FakeProfileCatalog) Select(request ProfileSelectionRequest) []ProfileCandidate {
@@ -260,6 +264,9 @@ func (c *FakeProfileCatalog) Select(request ProfileSelectionRequest) []ProfileCa
 		}
 		evidence, ok := entry.evidence[request.TargetProfile]
 		if !ok || evidence.Samples < request.MinSamples || (request.RequireCanary && !evidence.CanaryPassed) {
+			continue
+		}
+		if request.RequirePromotion && !promotionEligible(entry.evidence) {
 			continue
 		}
 		result = append(result, ProfileCandidate{Profile: cloneCatalogProfile(entry.profile), TechniqueID: limitString(request.TechniqueID, 128), TargetProfile: request.TargetProfile, Score: profileScore(evidence), Samples: evidence.Samples, StableSuccesses: evidence.StableSuccesses, PromotionEligible: promotionEligible(entry.evidence), artifact: entry.artifact})
@@ -306,6 +313,22 @@ func (c *FakeProfileCatalog) Evidence(id string) map[string]ProfileEvidence {
 		result[target] = evidence
 	}
 	return result
+}
+
+// PromotionEligible reports whether the profile accumulated enough stable,
+// canary-passed evidence across targets to become executable at runtime.
+// The catalog never flips Active itself; this is only the promotion floor.
+func (c *FakeProfileCatalog) PromotionEligible(id string) bool {
+	if c == nil {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	entry := c.entries[id]
+	if entry == nil {
+		return false
+	}
+	return promotionEligible(entry.evidence)
 }
 
 func (c *FakeProfileCatalog) ExportMetadata() ([]byte, error) {

@@ -327,11 +327,14 @@ func commitTestProfile(t *testing.T, mux *http.ServeMux) string {
 
 // TestClientHelloEvidenceRecordsOutcome verifies the evidence endpoint records
 // runtime outcomes against committed compiled profiles and that the recorded
-// evidence feeds the production runtime selector (discovery.NewFakeProfileSource).
+// evidence feeds the production runtime selector (discovery.NewFakeProfileSource)
+// only after the promotion floor is crossed.
 func TestClientHelloEvidenceRecordsOutcome(t *testing.T) {
 	_, mux := compileTestAPI(t)
 	profileID := commitTestProfile(t, mux)
 
+	// Single-target evidence is recorded but does NOT cross the promotion
+	// floor: the runtime selector keeps missing and the response reports it.
 	rr := postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
 		"profile_id":       profileID,
 		"target_profile":   "API.YouTube.COM", // lowercased by the endpoint
@@ -348,31 +351,45 @@ func TestClientHelloEvidenceRecordsOutcome(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if !resp.Success {
+	if !resp.Success || resp.ProfileID != profileID {
 		t.Fatalf("evidence rejected: %+v", resp)
 	}
-
-	// Recorded evidence must make the profile selectable by the runtime
-	// source with MinSamples=1, exactly as the bootstrap wires it.
+	if resp.PromotionEligible {
+		t.Fatal("single-target evidence must not be promotion-eligible")
+	}
+	if evidence := resp.TargetEvidence; evidence == nil || evidence["api.youtube.com"].Samples != 500 {
+		t.Fatalf("evidence feedback missing accumulated samples: %+v", evidence)
+	}
 	source := discovery.NewFakeProfileSource(FakeProfileCatalog())
-	artifact, ok := source.SelectFakeProfile("api.youtube.com")
-	if !ok {
-		t.Fatal("evidence did not make the profile selectable at runtime")
-	}
-	if artifact.Profile.ID != profileID {
-		t.Fatalf("runtime selected %q, want %q", artifact.Profile.ID, profileID)
+	if _, ok := source.SelectFakeProfile("api.youtube.com"); ok {
+		t.Fatal("runtime must not select a profile below the promotion floor")
 	}
 
-	// Evidence accumulates across observations.
+	// A second target with stable, canary-passed evidence crosses the floor:
+	// the profile becomes runtime-selectable and the response reflects it.
 	rr = postLab(t, mux, "/api/lab/clienthello/evidence", map[string]interface{}{
 		"profile_id":       profileID,
-		"target_profile":   "api.youtube.com",
-		"samples":          100,
-		"successful":       100,
-		"stable_successes": 100,
+		"target_profile":   "api.youtube-ui.com",
+		"samples":          2,
+		"successful":       2,
+		"stable_successes": 2,
+		"canary_passed":    true,
 	})
 	if rr.Code != http.StatusOK {
 		t.Fatalf("second evidence status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if !resp.PromotionEligible {
+		t.Fatalf("cross-target evidence must be promotion-eligible: %+v", resp)
+	}
+	artifact, ok := source.SelectFakeProfile("api.youtube.com")
+	if !ok {
+		t.Fatal("evidence did not make the profile selectable at runtime after promotion")
+	}
+	if artifact.Profile.ID != profileID {
+		t.Fatalf("runtime selected %q, want %q", artifact.Profile.ID, profileID)
 	}
 	profiles := FakeProfileCatalog().Profiles()
 	if len(profiles) != 1 {

@@ -133,6 +133,43 @@ func FuzzFakeProfileCatalogRecordOutcome(f *testing.F) {
 	})
 }
 
+func TestFakeProfileCatalogPromotionGate(t *testing.T) {
+	artifact := catalogArtifact(t)
+	catalog := NewFakeProfileCatalog(4)
+	if err := catalog.AddCompiled(catalogRegistration(artifact), artifact); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(200, 0)
+	// A single-target observation is not enough evidence to promote: the
+	// runtime selection gate must keep the profile unusable even though the
+	// observed target itself satisfies MinSamples.
+	if err := catalog.RecordOutcome(artifact.Profile.ID, ProfileObservation{TargetProfile: "youtube-api", Samples: 3, Successful: 3, StableSuccesses: 2, CanaryPassed: true, ObservedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if catalog.PromotionEligible(artifact.Profile.ID) {
+		t.Fatal("single-target evidence must not be promotion-eligible")
+	}
+	if got := catalog.Select(ProfileSelectionRequest{TargetProfile: "youtube-api", MinSamples: 1, RequirePromotion: true}); len(got) != 0 {
+		t.Fatalf("promotion gate leaked an ineligible profile: %+v", got)
+	}
+	// Same profile, un-gated selection still works (dry-run/observation path),
+	// but it is not promotion-eligible.
+	if got := catalog.Select(ProfileSelectionRequest{TargetProfile: "youtube-api", MinSamples: 1}); len(got) != 1 || got[0].PromotionEligible {
+		t.Fatalf("ungated select wrong: %+v", got)
+	}
+
+	// A second target with canary-passed stable evidence crosses the floor.
+	if err := catalog.RecordOutcome(artifact.Profile.ID, ProfileObservation{TargetProfile: "youtube-ui", Samples: 2, Successful: 2, StableSuccesses: 2, CanaryPassed: true, ObservedAt: now.Add(time.Second)}); err != nil {
+		t.Fatal(err)
+	}
+	if !catalog.PromotionEligible(artifact.Profile.ID) {
+		t.Fatal("cross-target evidence must be promotion-eligible")
+	}
+	if got := catalog.Select(ProfileSelectionRequest{TargetProfile: "youtube-api", MinSamples: 1, RequirePromotion: true}); len(got) != 1 || !got[0].PromotionEligible {
+		t.Fatalf("promotion gate failed after cross-target evidence: %+v", got)
+	}
+}
+
 func BenchmarkFakeProfileCatalogSelect(b *testing.B) {
 	artifact := catalogArtifact(b)
 	catalog := NewFakeProfileCatalog(8)

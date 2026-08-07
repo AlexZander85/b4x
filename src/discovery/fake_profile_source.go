@@ -23,17 +23,20 @@ func NewFakeProfileSource(catalog *FakeProfileCatalog) nfq.FakeProfileSource {
 }
 
 // SelectFakeProfile returns the highest-scored verified compiled profile for
-// the observed target. A profile is usable only when it already has evidence
-// for the target, is sample-bounded, requires no ECH and carries a compiled
-// artifact. Missing candidates fail open to the caller's legacy path.
+// the observed target, gated on promotion eligibility: a profile becomes
+// usable at runtime only after it accumulated enough stable, canary-passed
+// evidence across targets. This is the promotion gate — compiled profiles are
+// never auto-promoted, and a profile with only incidental observations
+// misses and fails open to the caller's legacy path.
 func (s *fakeProfileSource) SelectFakeProfile(target string) (lab.CompiledArtifact, bool) {
 	if s == nil || s.catalog == nil || strings.TrimSpace(target) == "" {
 		return lab.CompiledArtifact{}, false
 	}
 	candidates := s.catalog.Select(ProfileSelectionRequest{
-		TargetProfile: strings.ToLower(strings.TrimSpace(target)),
-		MinSamples:    1,
-		MaxCandidates: 1,
+		TargetProfile:    strings.ToLower(strings.TrimSpace(target)),
+		MinSamples:       1,
+		RequirePromotion: true,
+		MaxCandidates:    1,
 	})
 	if len(candidates) == 0 {
 		return lab.CompiledArtifact{}, false
