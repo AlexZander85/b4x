@@ -15,8 +15,10 @@ import (
 
 	"github.com/daniellavrushin/b4/capture/ppe"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/discovery"
 	"github.com/daniellavrushin/b4/http/handler"
 	"github.com/daniellavrushin/b4/http/ws"
+	"github.com/daniellavrushin/b4/lab"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/nfq"
 )
@@ -41,6 +43,10 @@ func (f errLogFilter) Write(p []byte) (int, error) {
 func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhttp.Server, *handler.API, error) {
 	cfg := cfgPtr.Load()
 	ensureProcessPPE(cfgPtr, pool)
+	wireClientHelloLabSession(pool)
+	// Wire the explicit fake profile catalog used by the lab compile
+	// workflow. Compilation is opt-in and never auto-promotes.
+	handler.SetFakeProfileCatalog(discovery.NewFakeProfileCatalog(discovery.MaxFakeCatalogEntries))
 	if cfg.System.WebServer.Port == 0 {
 		log.Infof("Web server disabled (port 0)")
 		return nil, nil, nil
@@ -111,6 +117,11 @@ func StartServer(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) (*stdhtt
 		if err := api.CloseRuntimeControl(ctx); err != nil {
 			log.Errorf("runtime-control shutdown error: %v", err)
 		}
+		// Stop any active lab capture session so the production sink is
+		// detached and no capture buffers survive process shutdown.
+		if controller := handler.ClientHelloSessionController(); controller != nil {
+			controller.Stop()
+		}
 	})
 
 	go func() {
@@ -152,6 +163,19 @@ func registerAPIEndpoints(mux *stdhttp.ServeMux, cfgPtr *atomic.Pointer[config.C
 
 func LogWriter() io.Writer {
 	return ws.LogWriter()
+}
+
+// wireClientHelloLabSession binds the production NFQUEUE pool to the lab
+// session controller. The controller attaches the bounded ClientHello sink to
+// the pool only while a capture session is running, so the packet path stays
+// sink-free unless an explicit authorized lab capture is active.
+func wireClientHelloLabSession(pool *nfq.Pool) {
+	controller := lab.NewSessionController(func(sink lab.SegmentSink) {
+		if pool != nil {
+			pool.SetClientHelloSink(sink)
+		}
+	})
+	handler.SetClientHelloSessionController(controller)
 }
 
 func Shutdown() {

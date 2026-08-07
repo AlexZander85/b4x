@@ -405,6 +405,7 @@ func (a *API) saveAndPushConfig(newCfg *config.Config) error {
 			return ErrInternal(fmt.Sprintf("failed to update global pool config: %v", err))
 		}
 	}
+	InvalidateLabSessionForConfig(newCfg)
 
 	if globalSocks5Server != nil {
 		globalSocks5Server.UpdateConfig(newCfg)

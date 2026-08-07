@@ -159,3 +159,10 @@ func dnsHintConfigGeneration(cfg *config.Config) uint64 {
 	_, _ = h.Write([]byte(cfg.RuntimeGeneration))
 	return h.Sum64()
 }
+
+// ConfigGeneration exposes the runtime config generation hash to external
+// packages (lab session controller, HTTP handler) so capture sessions can be
+// invalidated when the classifier configuration is reloaded.
+func ConfigGeneration(cfg *config.Config) uint64 {
+	return dnsHintConfigGeneration(cfg)
+}

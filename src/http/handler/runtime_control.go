@@ -352,6 +352,7 @@ func (api *API) ApplyRuntimeControlConfig(candidate *config.Config) error {
 	if err := globalPool.UpdateConfig(candidate); err != nil {
 		return fmt.Errorf("apply candidate to NFQUEUE pool: %w", err)
 	}
+	InvalidateLabSessionForConfig(candidate)
 	rollback := func(cause error) error {
 		var rollbackErrs []error
 		if err := globalPool.UpdateConfig(current); err != nil {
