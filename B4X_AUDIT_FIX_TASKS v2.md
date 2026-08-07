@@ -68,7 +68,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
 | FB-21 | открыта | — |
 | FB-22 | ВЫПОЛНЕНА | Beads b4x-0xa, closed 04.08; nfq drop-path v4/v6: action.Plan+Executor fail-open (action_executor.go), интеграционные тесты |
-| FB-23 | открыта | — |
+| FB-23 | ВЫПОЛНЕНА | Beads b4x-jsd, closed 07.08; FallbackManager wired в authorized transactional route path (nfq/route_binding.go:52 после exact-flow Bind), конвертер nfq/fallback_route.go (fail-closed), GC в pool ticker, 4 новых теста |
 | FB-24 | открыта | — |
 | FB-25 | открыта | — |
 | FB-26 | открыта | — |
@@ -922,6 +922,14 @@ confirmed scoped failure
 
 - **Критерий:** production NFQ/TUN/controller root вызывает manager после authorization; negative controls reject; canary/rollback/cleanup tests; no leaked marks/routes; exact client/service/component/generation scope.
 - **Зависит:** FB-02 silentpath/MON/ABD/DDI, FB-31, runtimecontrol readiness.
+- **ВЫПОЛНЕНО (b4x-jsd, 07.08):**
+  - `nfq/fallback_route.go` — конвертер `FallbackRuntimeConfig → routing.RouteConfig` + `newFallbackManager` fail-closed (invalid proxy без route id → error+нет менеджера; disabled → nil).
+  - `nfq/route_binding.go:52` — FallbackManager консультируется **только после** авторизованного exact-flow Bind (BindingStore.Bind с валидной classifier.ActionAuthorization); отрицательная ветка `authorized=false` отвергается до fallback; scope = client/set/generation бинда.
+  - `nfq/connstate.go` (runtimeState.fallback), `nfq/pool.go` (проброс в workers + `fallback.GC` в cleanup ticker), `nfq/types.go` (поле Worker).
+  - `routing/fallback.go` — публичный `GC(now)` для bounded-состояния без утечек.
+  - Тесты: `nfq/fallback_route_test.go` (4: config-маппинг, fail-closed, authorized→fallback-консультация / unauthorized→reject, legacy-путь без fallback), `routing/fallback_test.go` (+`TestFallbackGC`).
+  - Verify: `go vet ./...` PASS, `go build ./...` PASS, `go test -count=1 ./...` — 47 пакетов ok, 0 FAIL; gofmt clean.
+  - Ограничение (отражено в audits): TUN/SOCKS-адаптеры, применяющие SO_MARK/rule metadata из RouteDecision, по-прежнему отсутствуют — применение на устройстве остаётся открытой работой.
 
 ### FB-24. Stage 23: подключить adaptive matrix и shadow probes к production Discovery [M]
 

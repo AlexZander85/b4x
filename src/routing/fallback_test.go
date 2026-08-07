@@ -150,6 +150,27 @@ func TestFallbackValidationAndHealthProbe(t *testing.T) {
 	}
 }
 
+func TestFallbackGC(t *testing.T) {
+	m, clk := fallbackManager(t, true, UnknownRouteProxy)
+	if err := m.RecordSuccess("scope-a", "proxy-a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.RecordFailure("scope-a", "proxy-a"); err != nil {
+		t.Fatal(err)
+	}
+	pool := m.Pool()
+	if err := pool.Put(PoolKey{ScopeID: "scope-a", RouteID: "proxy-a", Network: "tcp", Target: "api.youtube.com:443"}, &fallbackConn{}); err != nil {
+		t.Fatal(err)
+	}
+	if m.GC(clk.Now()) != 0 {
+		t.Fatalf("GC removed live last-good/cooldown entries")
+	}
+	clk.Advance(31 * time.Second) // past cooldown and last-good TTL (5m not reached, cooldown 30s is)
+	if m.GC(clk.Now()) == 0 {
+		t.Fatalf("GC did not remove expired cooldown entry")
+	}
+}
+
 func FuzzFallbackDecisionNoPanic(f *testing.F) {
 	f.Add(uint8(90), uint8(capture.ProtocolTCP), uint8(capture.AddressFamilyIPv4), uint8(classifier.PhaseResolved))
 	f.Add(uint8(1), uint8(capture.ProtocolUDP), uint8(capture.AddressFamilyIPv6), uint8(classifier.PhaseAmbiguous))

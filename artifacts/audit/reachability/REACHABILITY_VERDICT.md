@@ -12,7 +12,7 @@
 | Область | REACHABLE | PARTIAL | FAIL | NA |
 |---------|-----------|---------|------|----|
 | PATCH_PLAN этапы 1–18 | 13 | 2 (4, 7) | 1 (17) | 2 (1, 2) |
-| PATCH_PLAN этапы 19–36 | 6 (20,21,22,24,27,34) | 2 (32, 35) | 10 (19,23,25,26,28,29,30,31,33,36) | — |
+| PATCH_PLAN этапы 19–36 | 7 (20,21,22,24,27,33,34) | 2 (32, 35) | 9 (19,23,25,26,28,29,30,31,36) | — |
 | PPE addendum (8 стадий) | 8 | — | — | — |
 | CSI addendum | 4 (вкл. promote-гейт, счётчик) | — | — | — |
 | RST/GSO addendum | passive-RST подсистема | — | GSO-пайплайн, active RST, rst_path | — |
@@ -36,7 +36,7 @@
 | 4 | Stage 25: Real ClientHello Lab capture | `src/nfq/types.go:88` SetClientHelloSink — не вызывается (sink nil); `nfq/handler.go:261` submitClientHelloSegment no-op | **FB-25** (новая) |
 | 5 | Stage 26: Fake Profile Compiler | `src/lab/fake_profile_compiler.go:202` — только тесты | **FB-25** (новая) |
 | 6-9 | Stages 28–31: Level C стратегии (multisplit, hostfakesplit, fake payload catalog, fakemix/tlsrecordsplit) | `src/action/strategy.go:303-306`, `hostfakesplit.go:81`, `discovery/profile_catalog.go:118`, `fakemix.go:82`, `tlsrecordsplit.go:64` | **FB-26** (новая) |
-| 10 | Stage 33: FallbackManager | `src/routing/fallback.go:234` — только тесты | **FB-23** |
+| 10 | Stage 33: FallbackManager | `src/routing/fallback.go:234` — только тесты; **FB-23**: теперь вызывается из `src/nfq/route_binding.go:52` (authorized transactional route path, после exact-flow Bind) | **FB-23** (РЕШЕНО для nfq-пути) |
 | 11 | Stage 36: fieldtest-сюит (14 сценариев) | `src/fieldtest/*` — 0 импортеров | **FB-02** |
 | 12 | WARP v1.2: все 9 механик | `src/warp/*` — 0 импортеров (enrollment, secrets in-memory, geo:32/62, trace.go, routing/selection, isolation, masque/manifest, cover, verdicts) | **FB-02/FB-03/FB-17** |
 | 13-17 | SP v1.6: compiler/ownership/warp_profile/warp_recommendation/transaction | `src/serviceprofile/*` — 0 импортеров; `path_proof_supported` ABSENT | **FB-02** |
@@ -67,6 +67,7 @@
 
 - Core Fix: конфиг/версионирование, ClassificationPhase/Evidence/Confidence, client identity, bounded HostHintStore, DNS-парсер, DNS→first-flow, QUIC→TCP handoff, NFQ-решение+DomainOnly v2, TLS-метаданные, reassembly (config-gated), ECH-policy, hold/replay (config-gated), idempotency.
 - Metrics/Observability (Stage 20), Discovery sandbox (21), ProbeOutcome (22), Failure Inbox (24), transactional apply/canary/rollback (27), Backend config API (34), UI backend-часть (35-PARTIAL).
+- **FallbackManager (Stage 33, через FB-23):** достижим из production NFQ-пути — `nfq/fallback_route.go` (fail-closed конвертер) + вызов после авторизованного exact-flow Bind в `nfq/route_binding.go:52`; конфиг-гейт (disabled → nil), GC в pool cleanup ticker, метрика `fallback_route_decisions_total`. TUN/SOCKS-адаптеры применения SO_MARK/rule остаются PARTIAL/открытыми.
 - PPE стадии 1–8 (включая visibility-гейт — активен: server.go:177, tcp_hold_worker.go:74 и др.).
 - CSI: candidate≠authorization, promote-гейт, unrelated_control_action_total.
 - PassiveRST-подсистема (observe/suppress/rollback/API).

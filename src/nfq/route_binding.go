@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/diagnostics"
@@ -48,6 +49,22 @@ func (w *Worker) bindAuthorizedRoute(cfg *config.Config, pkt *pktInfo, sport, dp
 		"generation": fmt.Sprintf("%d", binding.ConfigGen), "provenance": binding.Provenance, "result": "bound",
 	}})
 	recordRouteBindingResult(set, "bound", "exact-flow")
+	// FB-23 (Stage 33): the fallback manager is consulted only inside the
+	// authorized transactional route path — after the exact-flow binding
+	// commit above proved the authorization. The decision stays scoped to the
+	// same client/set/generation identity as the binding; the manager itself
+	// only returns route metadata (SO_MARK/rule table) and never mutates
+	// sockets or iptables, so no route leak is possible here.
+	if w.fallback != nil {
+		family := capture.AddressFamilyIPv4
+		if pkt.ver == 6 {
+			family = capture.AddressFamilyIPv6
+		}
+		_, _ = w.fallback.Decide(routing.FlowRouteRequest{
+			SetID: classifierSetID(set), Client: client, Protocol: proto,
+			Family: family, Phase: classifier.PhaseResolved, Confidence: confidence,
+		})
+	}
 	return true
 }
 

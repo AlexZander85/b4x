@@ -430,6 +430,38 @@ func (m *FallbackManager) RecordFailure(scopeID, routeID string) error {
 	return nil
 }
 
+// GC removes expired last-good routes, cooldowns, pooled connections and UDP
+// sessions at the given instant. It is the bounded-state cleanup entry point
+// for production maintenance loops: a scoped fallback decision must never
+// leak marks/routes across generations (FB-23).
+func (m *FallbackManager) GC(now time.Time) int {
+	if m == nil {
+		return 0
+	}
+	removed := 0
+	m.mu.Lock()
+	for scope, last := range m.lastGood {
+		if !now.Before(last.ExpiresAt) {
+			delete(m.lastGood, scope)
+			removed++
+		}
+	}
+	for scope, cooldown := range m.cooldowns {
+		if !now.Before(cooldown.Until) {
+			delete(m.cooldowns, scope)
+			removed++
+		}
+	}
+	m.mu.Unlock()
+	if m.pool != nil {
+		removed += m.pool.GC(now)
+	}
+	if m.udp != nil {
+		removed += m.udp.GC(now)
+	}
+	return removed
+}
+
 func (m *FallbackManager) invalidateExpired() {
 	if m == nil {
 		return

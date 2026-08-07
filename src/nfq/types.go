@@ -61,6 +61,7 @@ type Worker struct {
 	destState          *destStateTracker
 	scopedFailures     *scopedFailureState
 	routeBindings      *routing.BindingStore
+	fallback           *routing.FallbackManager
 	srcResolver        *tunSrcResolver
 	dnsHints           *classifier.HostHintStore
 	tcpReassembly      *classifier.TCPReassemblyStore

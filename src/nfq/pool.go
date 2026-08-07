@@ -129,6 +129,7 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.destState = state.destState
 		w.scopedFailures = state.scopedFailures
 		w.routeBindings = state.routeBindings
+		w.fallback = state.fallback
 		w.gsoPassTokens = state.gsoPassTokens
 		w.actionTokens = state.actionTokens
 		w.passiveRST = state.passiveRST
@@ -173,6 +174,9 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 					pool.state.destState.Cleanup(300 * time.Second)
 					pool.state.scopedFailures.GC(time.Now())
 					pool.state.routeBindings.GC(time.Now())
+					if pool.state.fallback != nil {
+						pool.state.fallback.GC(time.Now())
+					}
 					if pool.state.passiveRST != nil {
 						pool.state.passiveRST.GC(time.Now())
 					}

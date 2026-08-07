@@ -8,6 +8,7 @@ import (
 
 	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/routing"
 )
 
@@ -377,6 +378,7 @@ type runtimeState struct {
 	destState      *destStateTracker
 	scopedFailures *scopedFailureState
 	routeBindings  *routing.BindingStore
+	fallback       *routing.FallbackManager
 	gsoPassTokens  *GSOPassTokenStore
 	actionTokens   *action.ActionTokenStore
 	passiveRST     *PassiveRSTStore
@@ -387,6 +389,11 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 	if cfg != nil {
 		passiveCfg = cfg.System.Classifier.Runtime.PassiveRST
 	}
+	fallback, err := newFallbackManager(cfg)
+	if err != nil {
+		log.Warnf("fallback manager disabled by invalid configuration: %v", err)
+		fallback = nil
+	}
 	return &runtimeState{
 		tlsCache: &tlsInfoCache{
 			conns: make(map[string]*tlsInfo),
@@ -396,6 +403,7 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 		},
 		scopedFailures: newScopedFailureState(),
 		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
+		fallback:       fallback,
 		gsoPassTokens:  NewGSOPassTokenStore(DefaultGSOPassTokenStoreConfig()),
 		actionTokens:   action.NewActionTokenStore(action.DefaultActionTokenStoreConfig()),
 		passiveRST:     NewPassiveRSTStore(passiveCfg, nil),
