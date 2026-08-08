@@ -65,6 +65,7 @@ type ProductService struct {
 	selfTestMu       sync.Mutex
 	selfTestFlight   atomic.Bool
 	started          bool
+	persistConfig    func(*config.Config) error
 }
 
 type productIdempotencyEntry struct {
@@ -188,7 +189,17 @@ func (s *ProductService) Start(ctx context.Context) error {
 	}
 	capability := s.Capabilities(ctx)
 	observability.Default().Metrics.Inc(observability.MetricPPESupported, map[string]string{"state": string(capability.State), "supported": fmt.Sprintf("%t", capability.Supported)}, 1)
-	if cfg.System.Classifier.Runtime.Capture.OffloadPolicy != config.OffloadPolicyExclude {
+	policy := cfg.System.Classifier.Runtime.Capture.OffloadPolicy
+	if policy != config.OffloadPolicyExclude {
+		// FB-21 owner integration: on a fresh installation (no user-chosen
+		// provenance) a Keenetic NDM + MediaTek platform with a supported
+		// capability may be auto-integrated into per-flow exclusion, but only
+		// through the staged readiness pipeline: capability probe, transactional
+		// apply, pre-commit visibility self-test, durable persist. Any failure
+		// leaves the product in detect with zero leaked rules.
+		if policy == config.OffloadPolicyDetect && !cfg.System.Classifier.Runtime.Capture.OffloadPolicyUserChosen {
+			s.tryAutoEnable(ctx, cfg, capability)
+		}
 		DefaultVisibilityGate().DisableRequirement("per-flow PPE exclusion is not active")
 		return nil
 	}
@@ -203,6 +214,107 @@ func (s *ProductService) Start(ctx context.Context) error {
 	}
 	s.ensureLifecycleStarted(capability)
 	return nil
+}
+
+// SetConfigPersister installs the durable commit closure used by the
+// start-time FB-21 integration. Auto-enable stays inactive (monitoring mode)
+// until a persister is set: runtime-only enablement without a durable commit
+// would be lost on restart and would violate the committed-exclude criterion.
+func (s *ProductService) SetConfigPersister(persister func(*config.Config) error) {
+	if s == nil || persister == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.persistConfig = persister
+}
+
+// tryAutoEnable implements the FB-21 owner product integration for fresh
+// Keenetic NDM + MediaTek installations. Every condition in the task list is
+// a pre-commit readiness gate: NDM platform, MediaTek SoC, capability probe
+// support, transactional apply, controlled visibility self-test PASS, and a
+// durable config commit. Any non-PASS leaves the product in detect with zero
+// leaked rules (the transient transaction is removed by autoEnableRollback).
+func (s *ProductService) tryAutoEnable(ctx context.Context, cfg *config.Config, capability CapabilityReport) {
+	if s == nil || cfg == nil {
+		return
+	}
+	if !capability.Platform.NDM {
+		s.record("auto-enable", "", false, "platform is not Keenetic NDM")
+		return
+	}
+	if capability.Platform.SocFamily != "mediatek" {
+		s.record("auto-enable", "", false, "SoC family is not MediaTek")
+		return
+	}
+	if !capability.Supported {
+		s.record("auto-enable", "", false, "per-flow exclusion capability probe failed: "+string(capability.State))
+		return
+	}
+	if s.selfTest == nil {
+		s.record("auto-enable", "", false, "visibility self-test controller is unavailable")
+		return
+	}
+	if s.transactions == nil {
+		s.record("auto-enable", "", false, "transactional backend is unavailable")
+		return
+	}
+	s.mu.Lock()
+	persist := s.persistConfig
+	s.mu.Unlock()
+	if persist == nil {
+		s.record("auto-enable", "", false, "durable config persister is unavailable; staying in monitoring mode")
+		return
+	}
+
+	candidate := cfg.CloneForRuntimeUpdate()
+	candidate.ConfigPath = cfg.ConfigPath
+	candidate.System.Classifier.Runtime.Capture.OffloadPolicy = config.OffloadPolicyExclude
+	if err := candidate.Validate(); err != nil {
+		s.record("auto-enable", "", false, "candidate config validation failed: "+err.Error())
+		return
+	}
+	if _, err := s.ApplyConfig(ctx, candidate); err != nil {
+		s.record("auto-enable", "", false, "transactional apply failed: "+err.Error())
+		return
+	}
+	current, ok := s.transactions.Current()
+	if !ok {
+		s.autoEnableRollback(ctx, "", "no active generation after apply")
+		return
+	}
+	request, ok := s.automaticSelfTestRequest(candidate)
+	if !ok {
+		// Pre-commit visibility cannot be established without a controlled
+		// endpoint; per FB-21 criteria the integration must not commit.
+		s.autoEnableRollback(ctx, current.Generation, "visibility self-test unavailable (controlled endpoint or mode missing)")
+		return
+	}
+	request.Generation = current.Generation
+	request.RunID = "auto-enable-" + current.Generation
+	request.TCPFlowID = request.RunID + "-tcp"
+	started := time.Now()
+	result := s.selfTest.Run(ctx, request)
+	s.publishSelfTestOutcome(request, result, started, "auto-enable")
+	if result.Verdict != VerdictPASS {
+		s.autoEnableRollback(ctx, current.Generation, "pre-commit visibility self-test "+string(result.Verdict))
+		return
+	}
+	if err := persist(candidate); err != nil {
+		s.autoEnableRollback(ctx, current.Generation, "durable commit failed: "+err.Error())
+		return
+	}
+	s.record("auto-enable", current.Generation, true, "per-flow exclusion committed on Keenetic NDM + MediaTek")
+}
+
+// autoEnableRollback removes the transient rules installed by a failed
+// auto-enable attempt so no exclusion rules leak when readiness stays below
+// the commit bar, then records the failed attempt in the product audit.
+func (s *ProductService) autoEnableRollback(ctx context.Context, generation, declineReason string) {
+	if _, err := s.Remove(ctx); err != nil {
+		declineReason = declineReason + " (rollback also failed: " + err.Error() + ")"
+	}
+	s.record("auto-enable", generation, false, declineReason)
 }
 
 func (s *ProductService) ensureLifecycleStarted(capability CapabilityReport) {
@@ -390,7 +502,12 @@ func (s *ProductService) automaticSelfTestRequest(cfg *config.Config) (SelfTestR
 	}
 	sourcePort := uint16(443)
 	if ports := cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts; len(ports) > 0 {
-		sourcePort = ports[0]
+		for _, p := range ports {
+			if p != 0 {
+				sourcePort = p
+				break
+			}
+		}
 	}
 	return SelfTestRequest{
 		RunID:              "auto",

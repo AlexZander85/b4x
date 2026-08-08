@@ -107,21 +107,28 @@ type HintStoreRuntimeConfig struct {
 }
 
 type CaptureRuntimeConfig struct {
-	OffloadPolicy        string               `json:"offload_policy"`
-	NFQueue              NFQueueCaptureConfig `json:"nfqueue"`
-	PPE                  PPEOffloadConfig     `json:"ppe"`
-	OutgoingPacketLimit  uint32               `json:"outgoing_packet_limit"`
-	IncomingPacketLimit  uint32               `json:"incoming_packet_limit"`
-	AlwaysQueueSynAck    bool                 `json:"always_queue_syn_ack"`
-	AlwaysQueueFIN       bool                 `json:"always_queue_fin"`
-	AlwaysQueueRST       bool                 `json:"always_queue_rst"`
-	AlwaysQueueQUIC      bool                 `json:"always_queue_quic_initial"`
-	ProcessedMark        uint32               `json:"processed_mark"`
-	ProcessedMarkMask    uint32               `json:"processed_mark_mask"`
-	QueueBypass          bool                 `json:"queue_bypass"`
-	CandidateQueueOffset int                  `json:"candidate_queue_offset"`
-	ReadinessTimeoutMS   int                  `json:"readiness_timeout_ms"`
-	OffloadSelfCheck     bool                 `json:"offload_self_check"`
+	OffloadPolicy string `json:"offload_policy"`
+	// OffloadPolicyUserChosen records an explicit user/dashboard choice
+	// (FB-21 tri-state provenance: unset/auto, user-detect, user-exclude).
+	// When false the start-time product integration may auto-enable per-flow
+	// exclusion on a fresh Keenetic NDM + MediaTek installation; when true
+	// the current value is an explicit operator decision and is never
+	// overwritten by product startup logic.
+	OffloadPolicyUserChosen bool                 `json:"offload_policy_user_chosen"`
+	NFQueue                 NFQueueCaptureConfig `json:"nfqueue"`
+	PPE                     PPEOffloadConfig     `json:"ppe"`
+	OutgoingPacketLimit     uint32               `json:"outgoing_packet_limit"`
+	IncomingPacketLimit     uint32               `json:"incoming_packet_limit"`
+	AlwaysQueueSynAck       bool                 `json:"always_queue_syn_ack"`
+	AlwaysQueueFIN          bool                 `json:"always_queue_fin"`
+	AlwaysQueueRST          bool                 `json:"always_queue_rst"`
+	AlwaysQueueQUIC         bool                 `json:"always_queue_quic_initial"`
+	ProcessedMark           uint32               `json:"processed_mark"`
+	ProcessedMarkMask       uint32               `json:"processed_mark_mask"`
+	QueueBypass             bool                 `json:"queue_bypass"`
+	CandidateQueueOffset    int                  `json:"candidate_queue_offset"`
+	ReadinessTimeoutMS      int                  `json:"readiness_timeout_ms"`
+	OffloadSelfCheck        bool                 `json:"offload_self_check"`
 }
 
 type NFQueueCaptureConfig struct {

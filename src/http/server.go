@@ -206,6 +206,20 @@ func ensureProcessPPE(cfgPtr *atomic.Pointer[config.Config], pool *nfq.Pool) *pp
 	if pool != nil {
 		pool.SetPPEPassiveObserver(service.ObservationBus())
 	}
+	// FB-21 durable commit path for the start-time auto-enable integration:
+	// the config is written to disk and published atomically through the
+	// shared pointer. It deliberately does not depend on the HTTP API, which
+	// is registered after PPE startup (see StartServer).
+	service.SetConfigPersister(func(c *config.Config) error {
+		if c == nil {
+			return nil
+		}
+		if err := c.SaveToFile(c.ConfigPath); err != nil {
+			return err
+		}
+		cfgPtr.Store(c)
+		return nil
+	})
 	if err := service.Start(context.Background()); err != nil {
 		log.Warnf("PPE product startup degraded to monitoring mode: %v", err)
 	}

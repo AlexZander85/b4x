@@ -20,6 +20,12 @@ func migratePPEProductDefaults(c *Config) error {
 	log.Tracef("Migration v52 PPE productization: preserving monitoring mode and adding safe defaults")
 	capture := &c.System.Classifier.Runtime.Capture
 	defaults := DefaultClassifierRuntimeConfig.Capture
+	// Any config that reaches this migration comes from an existing
+	// installation on disk (FB-21 owner decision 2026-08-03): auto-enable of
+	// per-flow exclusion applies only to fresh installs that never produced a
+	// config file. Mark the value as user-chosen so start-time integration
+	// never flips an existing deployment into exclusion automatically.
+	capture.OffloadPolicyUserChosen = true
 	if capture.OffloadPolicy == "" {
 		capture.OffloadPolicy = OffloadPolicyDetect
 	}

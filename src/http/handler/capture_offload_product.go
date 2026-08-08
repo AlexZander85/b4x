@@ -93,6 +93,10 @@ func (api *API) applyCaptureOffloadPolicy(w http.ResponseWriter, r *http.Request
 		candidate := current.CloneForRuntimeUpdate()
 		candidate.ConfigPath = current.ConfigPath
 		candidate.System.Classifier.Runtime.Capture.OffloadPolicy = policy
+		// The dashboard toggle is an explicit operator choice (FB-21): the
+		// persisted provenance must keep the product integration from ever
+		// auto-enabling or auto-disabling this value later.
+		candidate.System.Classifier.Runtime.Capture.OffloadPolicyUserChosen = true
 		if err := candidate.Validate(); err != nil {
 			return ppe.ProductStatus{}, fmt.Errorf("PPE candidate validation failed: %w", err)
 		}
