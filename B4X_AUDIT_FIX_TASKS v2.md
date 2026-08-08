@@ -42,15 +42,15 @@ Audit finding устанавливает наличие проблемы, но �
 
 ---
 
-## СТАТУС ВЫПОЛНЕНИЯ (синхронизировано с Beads, 03.08.2026)
+## СТАТУС ВЫПОЛНЕНИЯ (синхронизировано с Beads, 08.08.2026)
 
 | FB | Статус | Подтверждение |
 |---:|---|---|
 | FB-01 | ВЫПОЛНЕНА | Beads b4x-end, closed 03.08; тест уже использует &cfg, vet + test + -race PASS |
 | FB-02 | поставка 04.08 (частично) | WARP base-transport lifecycle runtime (controller loop: enrollment/restart/apply-route/control/rollback, bounded 3/64, mark ownership, atomic destination set, causal-trace redaction) + 10 verified §72 hard-gate producers (negative fixtures) + registry 283 gates / 45 applicable (10 warp; FB-29/30 producers re-declared в генераторе, yaml↔gen.go синхронизированы; mon_production_ready сохранён через EXTRA_GATES) + meta/applicable 35→45 + matrix (45 verified / 238 missing) + интеграция в main (SetWarpRuntime); full CI PASS; commits 790c8f6f + 26d8a139; Beads b4x-jjh. 04.08 (part 2, SPF): + 22 verified §45 SPF producers (src/silentpath/hard_gate_producers.go lifecycle guards: authorization/visibility/cross-*/correlation/recovery/rollback) + negative fixtures + registry/applicable 45→67 + matrix (67 verified / 216 missing); commits fed07a5d + 5ed181ea. 04.08 (part 2, DDI/TGB): + 24 verified §32/§33 producers (14 discovery guards src/discovery/hard_gate_producers.go: context/revalidation/WAN/hint/target/promotion; 10 bridge guards src/mtproto/hard_gate_producers.go: pending/prefix/route/failure/shutdown) + negative fixtures + registry/applicable 67→91 + matrix (91 verified / 192 missing); Beads b4x-61d | 04.08 (part 2, MON): + 52 verified sect.84-92 producers (src/monitoring/hard_gate_producers.go: observation authority/scope isolation/temporal/resolution/trigger-resource/multi-vantage/ABD-DDI/legacy/reliability) + negative fixtures + registry/applicable 91->143 + matrix (143 verified / 140 missing); commits 3e42845b + eafaee68; pushed; Beads b4x-61d 04.08 (part 2, ABD): + 79 verified sect.39-42 producers (src/detector/hard_gate_producers.go: detector safety/DNS-TLS-QUIC/L4 thresholds/blocking-profile-DDI/monitoring adapter) + negative fixtures + registry/applicable 143->222 + matrix (222 verified / 61 missing); commits a69ebcad + 7538b630; pushed; Beads b4x-61d | 04.08 (part 2, SP): + 14 verified sect.28A.11 producers (src/serviceprofile/hard_gate_producers.go: WARP recommendation lifecycle guards - IP-path evidence/destination-only scope/origin liveness/control health/cross-service/profile freshness/causal-trace gate/target canary/test-token/regression/failure-policy visibility/non-RU geo/camouflage binding/cleanup) + negative fixtures + mutation run (14/14 killed) + registry/applicable 222->236 + matrix (236 verified / 47 missing); commits 04c35ccf + 1cb91c6f + 8d5223f0 (mon_production_ready EXTRA_GATE verified) + e1319444; pushed; Beads b4x-61d. 05.08 (serviceprofile runtime + FT-C): SP-гварды подключены к production lifecycle controller (src/serviceprofile/runtime.go: Compile/Validate/BeginTest/Enable/ValidatePolicy/Promote, controller loop from main; 14 integration fixtures runtime_integration_test.go через production root) + fieldtest FT-C (Controller.EvaluateHardGates production root, FT-MON-A..J fixtures hard_gates_ftmon_test.go: 9 MON gates FAIL->PromotionFail + clean window PASS->PromotionPass) + artifacts FB02_SP_PRODUCERS.json + FB02_FIELDTEST_FTC.json + registry/applicable 236->237 (mon_production_ready) + matrix (237 verified / 46 missing); commits e8d411e2 + 7cc27eeb; pushed; Beads b4x-61d
 | FB-03 | поставка 04.08 (частично) | b4-validate CLI (list / plan full / full --profile release / requirement / meta) + узкий causal verdict (10 warp base_transport gates, FB-14 п.9) + meta-suite в CLI + FB03_GATE_PRODUCER_CONSUMER_MATRIX.json (283: 35 verified / 248 missing); runtime producers WARP/SPF/FT/MON — совместно с FB-02/07/27/28; Beads b4x-q58 |
-| FB-04 | открыта | — |
-| FB-05 | открыта | — |
+| FB-04 | ВЫПОЛНЕНА | Beads b4x-6l5, closed 05.08; #277: hardened Telegram bridge, silent drop убран — zero-byte soft timeout (5s) паркует в PendingHandshakeManager, hard timeout только observable cleanup, dial-fail через route ladder (fail-open), TGB guards в production path; commit c542d07c |
+| FB-05 | ВЫПОЛНЕНА | Beads b4x-1z5, closed 05.08; #278: detector prior в guided Discovery — CompileHintPlan TargetOrder ranking, ExcludedTargets deferred-but-visible, safety baselines не обходятся; commit 9432bbb5 |
 | FB-06 | ВЫПОЛНЕНА | Beads b4x-4xq, closed 03.08; release.yml: vet + -race + fuzz smoke (27 целей), найден и исправлен int-overflow в readCountryCode |
 | FB-07 | в работе | Beads b4x-070 (06.08): фаза A закрыта (commits c266527c+39fdb9cf): конфиг-поле `legacy_watchdog_direct_apply` (default false, MON §59) + startup warning + счётчик `monitor_legacy_watchdog_direct_apply_total`; MonitorAssessment + ShadowParityTracker + wiring в monitoring.Runtime; отчёты mon-11/mon-12 приведены к фактическому статусу. **Фаза C core (commit a6332d47):** `legacy_watchdog_api` (default true, §57.1) + 410 Gone на legacy mutating `/api/watchdog/*` + read-only status alias из Monitoring-проекции (§58) + API migration tests + startup warning. Осталось: фаза C остаток (escalating после running-полей), фаза D (IV-18/FT-MON-A..J validation), restart/reboot-прогоны, MON_PRODUCTION_READY. Уже готово из FB-28: src/monitor/* canonical model, monitoring.Runtime в main.go, /api/monitor/v1, 52 hard-gate producer'а |
 | FB-08 | выполнена | — |
@@ -63,24 +63,24 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-15 | ВЫПОЛНЕНА | Beads b4x-1yk, closed 03.08; build: swagger gen-defaults build-ui, pnpm 10.29.2 везде |
 | FB-16 | ОТМЕНЕНА | перепроверка 31.07: все 104 документа валидный UTF-8, перекодировка не требуется |
 | FB-17 | ВЫПОЛНЕНА | Beads b4x-qcz, closed 07.08; warp: geo TTL 300s→120s (geo.go), InnerRevokedBeforeParent блокирует Valid() (isolation.go), CandidateResult.ExpiresAt заполняется now+120s (selection.go, SECT C.7 success_hold_minimum/stability_window 120s), +2 теста, 3 теста расширены |
-| FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); 06.08 — 57 PASS / 3 BLOCKED / 1 NA (INV-5.17 закрыт, b4x-zq3); закрытие после FB-03/31/33-36/04/32/02/21/23 | — |
+| FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); 06.08 — 57 PASS / 3 BLOCKED / 1 NA (INV-5.17 закрыт, b4x-zq3); 07–08.08 — ARCH-139 (b4x-cst FB-32) и ARCH-145 (b4x-n6r FB-35) сняты → 59 PASS / 1 BLOCKED (ARCH-116 = b4x-6kt FB-21) / 1 NA; закрытие после FB-21 | — |
 | FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
-| FB-21 | открыта | — |
+| FB-21 | реализация готова (08.08), ждёт ecoacceptance на железе | Beads b4x-6kt: OffloadPolicyUserChosen tri-state + миграция v52→v53 (существующие установки user-chosen), staged auto-enable (NDM+MediaTek+probe+transaction+pre-commit self-test+persist; failure→detect, 0 leaked), handler-происхождение, port-0 guard; 12 новых тестов; addendum §3.2.1/§10.3; ARCH-116 остаётся BLOCKED до ecoacceptance |
 | FB-22 | ВЫПОЛНЕНА | Beads b4x-0xa, closed 04.08; nfq drop-path v4/v6: action.Plan+Executor fail-open (action_executor.go), интеграционные тесты |
 | FB-23 | ВЫПОЛНЕНА | Beads b4x-jsd, closed 07.08; FallbackManager wired в authorized transactional route path (nfq/route_binding.go:52 после exact-flow Bind), конвертер nfq/fallback_route.go (fail-closed), GC в pool ticker, 4 новых теста |
 | FB-24 | ВЫПОЛНЕНА | Beads b4x-iud, closed 07.08; discovery/adaptive_runtime.go: AdaptivePolicyFromRuntimeConfig (потребление MaxProbes/MaxConcurrency/SamplesPerVariant/StableSuccesses/MaxShadowProbes из runtime-конфига), Runtime.RunAdaptiveDiscovery (production-контроллер: current compatible BlockingProfile/prior, mandatory baselines первыми, FB-31 eligibility + FB-05 prior-ranking через CompileEligiblePlan, bounded policy, Applied=false — без direct promotion), 5 тестов root-to-matrix |
-| FB-25 | открыта | — |
-| FB-26 | открыта | — |
+| FB-25 | ВЫПОЛНЕНА | Beads b4x-ko2, closed 07.08; реальный ClientHello lab capture (SessionController wired to NFQ sink, capture start/stop/status API) + FakeProfileCompiler compile/commit workflow с license review, cross-catalog тесты PASS; commit 9298ec70 |
+| FB-26 | ВЫПОЛНЕНА | Beads b4x-1fp, closed 07.08; Level C стратегии подключаются только через centralized executor (marker + TLS via executor, интеграционные тесты); commit 554d08ac (fake-profile strategies — phase 2, нужен lab.CompiledArtifact loader) |
 | FB-27 | ВЫПОЛНЕНА | Beads b4x-95i, closed 02.08; commits 53be408a/44beac3c/340ae441 |
 | FB-28 | ВЫПОЛНЕНА | Beads b4x-pp4, closed 03.08; IV-18 suite, 24 entries, 57 mon gates |
 | FB-29 | ВЫПОЛНЕНА | Beads b4x-04h, closed 02.08; commit 5b0a364e |
 | FB-30 | ВЫПОЛНЕНА | Beads b4x-ivz, closed 03.08; commit f1149b3f |
-| FB-31 | открыта | — |
-| FB-32 | открыта | — |
+| FB-31 | ВЫПОЛНЕНА | Beads b4x-cka, closed 05.08; causal eligibility matrix runtime (9 failure families) + DDI discovery gate + SP recommendation gate, registry 285 gates / 239 applicable; commits 61e55916 + 06ce2775 |
+| FB-32 | ВЫПОЛНЕНА | Beads b4x-cst, closed 06.08 (SP v1.6: компилятор в ordinary B4 objects, ownership, preview diff, transactional apply/rollback, capability projection, warp_recommendation YAML, SP-30..32, API/UI/import/export/migration; commits b80a6d66+ab2bec94+ce3cee1b) + Beads b4x-vye, closed 07.08 (FB-32 tail: SP-12 import/export authoring fail-closed, 4 custom templates §17; commit edef4324). SP-11 (DC probe/MTProxy/SOCKS5/QR) — отдельная задача |
 | FB-33 | ВЫПОЛНЕНА | Beads b4x-yzt, closed 05.08; commit f112c72e: canonical Exact Source-Stage Registry (specs/registries/source_stage_registry.yaml, 291 требований / 13 документов), генераторы tools/gen_source_stage_registry.py + gen_source_stage_go.py, Go-реестр source_stage_registry.gen.go + CriteriaTotal()/ValidateSourceStageRegistry(), b4-validate registry, FB-18B хэши из реестра, CI --check шаги |
 | FB-34 | ВЫПОЛНЕНА | Beads b4x-xgc, closed 05.08; commit 258fa84a: canonical Principal Verdict Registry (specs/registries/principal_verdicts.yaml, 68 verdicts: ARCH §142 + IV §52/52.1 + §83 + §88), alias mapping без state store (TGB_PRODUCTION_READY←TELEGRAM_BRIDGE_PRODUCTION_READY, DETECTOR_GUIDED_STRATEGY_SEARCH_READY←GUIDED_DISCOVERY_READY), валидатор tools/validate_principal_verdicts.py --check (CI), генератор gen_principal_verdicts_go.py, Go: CanonicalVerdictName()/VerdictDependencyClosure()/ValidatePrincipalVerdictRegistry(), CLI b4-validate verdict <name>, тесты duplicate/ARCH-graph/alias-migration/evidence-invalidation; FB-34.1 (b4x-ewc, closed 05.08; commit 68c6500f): VerifyPrincipalVerdictNames() fail-closed runtime guard + mutation-guard tests binding fieldtest/detector/serviceprofile runtime verdict names to the registry |
-| FB-35 | открыта | — |
+| FB-35 | ВЫПОЛНЕНА | Beads b4x-n6r, closed 07.08; no-flag-day migration matrix для каждого subsystem, ARCH-145 PASS, crosswalk 61/59/1 (последний code blocker снят); commit bd66c52e |
 | FB-36 | ВЫПОЛНЕНА | Beads b4x-0yf, closed 06.08; canonical Capability Dependency Graph (specs/registries/capability_dependencies.yaml, 10 capabilities / layers 0-8), валидатор tools/validate_capability_deps.py --check + генератор gen_capability_deps_go.py --check (CI), Go: Capabilities()/CapabilityByID()/CapabilityExecutionOrder()/CapabilityExecutionWaves()/CapabilityExecutionSchedule()/CapabilityDependencyClosure()/CapabilityUpstreamBlocked()/AggregateCapabilityVerdicts()/ValidateCapabilityDependencyRegistry(), FullRunOrder выводится из графа (warp после mon/abd/ddi/canary, MON больше не пропускается), тесты ordering/WARP-blocking/upstream-block/PASS, shuffled-suite-same-verdict/TGB-parallel/mutation-guard; FB-18B ARCH-141 → PASS |
 | FB-37 | ВЫПОЛНЕНА | Beads b4x-4vt, closed 03.08; вариант (а) — intentional no-op задокументирован |
 | FB-38 | ВЫПОЛНЕНА | Beads b4x-izm, closed 03.08; guard learnedIPAuthorizationAllowed в nfq/handler.go (TCP/UDP legacy-пути), learnedIPCache legacy-only + счётчик в sni/match.go, 2 теста |
@@ -430,7 +430,7 @@ BLOCKED_TARGET_VALIDATION
   6. `artifacts/remediation/FB03_GATE_PRODUCER_CONSUMER_MATRIX.*` содержит evidence, а не grep-only proof.
 - **Зависит:** FB-14 canonical decisions; реализация subsystem-specific producers может завершаться совместно с FB-02/FB-07/FB-27/FB-28.
 
-### FB-04. #277: полностью интегрировать hardened Telegram bridge и убрать silent drop [L]
+### FB-04. #277: полностью интегрировать hardened Telegram bridge и убрать silent drop [L] **— ВЫПОЛНЕНА** (Beads b4x-6l5, 05.08; commit c542d07c)
 
 - **Проблема:** `src/mtproto/transparent.go` сохраняет legacy `(bool, net.Conn)` contract, fixed 5s deadline и `return true, nil` при zero-byte timeout/dial failure. Добавленные TGB types/FSM/pending/route helpers не подключены к TPROXY listener production path.
 
@@ -509,7 +509,7 @@ TPROXY/listener accept
   - `ISSUE_277_RESOLVED` остаётся false без Android/target evidence.
 - **Зависит:** FB-14 п.14; FB-02 production integration.
 
-### FB-05. #278: использовать detector prior в guided Discovery без обхода safety baselines [M]
+### FB-05. #278: использовать detector prior в guided Discovery без обхода safety baselines [M] **— ВЫПОЛНЕНА** (Bead b4x-1z5, 05.08; commit 9432bbb5)
 
 - **Проблема:** `src/discovery/hint_planner.go:56` игнорирует `prior`; DDI-6 API и DDI-7/ABD-11 behavior не исполняются.
 - **Что сделать:**
@@ -969,7 +969,7 @@ confirmed scoped failure
 
 - Verify: `go vet ./discovery/...` PASS; `go test -count=1 ./...` — 49 пакетов ok, 0 FAIL (полный прогон 07.08); gofmt: изменённые файлы чистые (pre-existing незаформатированные `discovery/eligible_plan_test.go` и `discovery/history.go` не трогались).
 
-### FB-25. Stages 25/26: подключить real ClientHello lab capture и `FakeProfileCompiler` [L]
+### FB-25. Stages 25/26: подключить real ClientHello lab capture и `FakeProfileCompiler` [L] **— ВЫПОЛНЕНА** (Bead b4x-ko2, 07.08; commit 9298ec70)
 
 - **Проблема:** `SetClientHelloSink` не wired; sink nil; lab API пуст; compiler test-only.
 - **Что сделать:**
@@ -985,7 +985,7 @@ confirmed scoped failure
 - **Критерий:** integration test через NFQ root → sink → lab API → compiler preview; non-eligible traffic не сохраняется; quotas/cleanup/privacy tests; sink non-nil только при active authorized session.
 - **Зависит:** capture envelope/reassembly readiness, FB-11; compiler output uses FB-22 executor semantics.
 
-### FB-26. Stages 28–31: интегрировать Level C strategies через centralized executor [L]
+### FB-26. Stages 28–31: интегрировать Level C strategies через centralized executor [L] **— ВЫПОЛНЕНА** (Bead b4x-1fp, 07.08; commit 554d08ac; fake-profile strategies — phase 2)
 
 - **Проблема:** multisplit, HostFakeSplit, Fake Payload Catalog, FakeMix/TLSRecordSplit существуют только в unit tests; NFQ использует legacy path.
 - **Что сделать после FB-22:**
@@ -1095,7 +1095,7 @@ android-canary
 - **Критерий:** schema/runtime/API/tests; capability mismatch and unavailable observer fixtures; stale/cross-context evidence rejected.
 - **Зависит:** FB-03, FB-29.
 
-### FB-31. Causal matrix failure family → candidate family [L, P0-SAFETY]
+### FB-31. Causal matrix failure family → candidate family [L, P0-SAFETY] **— ВЫПОЛНЕНА** (Beads b4x-cka, 05.08; commits 61e55916 + 06ce2775)
 
 - **Проблема:** guided search/transport fallback не имеют единой causal eligibility matrix.
 - **Что сделать:** canonical machine-readable mapping:
@@ -1114,7 +1114,7 @@ hypothesis/evidence family
 - **Критерий:** positive/negative/mutation matrix tests; broad WARP escalation by DNS-only/QUIC-only/single timeout blocked.
 - **Зависит:** FB-14 п.10/13, FB-03, FB-30.
 
-### FB-32. Service Profiles v1.6: SP-30…SP-32 и recommendation state machine [XL, P1]
+### FB-32. Service Profiles v1.6: SP-30…SP-32 и recommendation state machine [XL, P1] **— ВЫПОЛНЕНА** (Beads b4x-cst, 06.08 + tail b4x-vye, 07.08)
 
 - **Проблема:** IV/SP coverage не включает полный v1.6 recommendation contract.
 - **Что сделать:** зарегистрировать и реализовать:
