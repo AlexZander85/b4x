@@ -62,7 +62,7 @@ Audit finding устанавливает наличие проблемы, но �
 | FB-14 | ВЫПОЛНЕНА | Beads b4x-lv0, closed 04.08; commits 026ea485 (14/14 решений) + 8f9b6b94 (FB-18A пересчёт хэшей); верификация 04.08 — remediation report |
 | FB-15 | ВЫПОЛНЕНА | Beads b4x-1yk, closed 03.08; build: swagger gen-defaults build-ui, pnpm 10.29.2 везде |
 | FB-16 | ОТМЕНЕНА | перепроверка 31.07: все 104 документа валидный UTF-8, перекодировка не требуется |
-| FB-17 | открыта | — |
+| FB-17 | ВЫПОЛНЕНА | Beads b4x-qcz, closed 07.08; warp: geo TTL 300s→120s (geo.go), InnerRevokedBeforeParent блокирует Valid() (isolation.go), CandidateResult.ExpiresAt заполняется now+120s (selection.go, SECT C.7 success_hold_minimum/stability_window 120s), +2 теста, 3 теста расширены |
 | FB-18 | FB-18A готов; FB-18B — первая поставка 04.08 (исполняемый реестр 61 требования: 50 PASS / 10 BLOCKED / 1 NA, Beads b4x-c4q); 06.08 — 57 PASS / 3 BLOCKED / 1 NA (INV-5.17 закрыт, b4x-zq3); закрытие после FB-03/31/33-36/04/32/02/21/23 | — |
 | FB-19 | ВЫПОЛНЕНА | Beads b4x-iir, closed 03.08; quic_test.go + geodat_test.go, найден и исправлен баг в convertV2CidrToText (err != nil) |
 | FB-20 | ВЫПОЛНЕНА | Beads b4x-azj, closed 03.08; metrics/ содержит MetricsCollector (687 строк) |
@@ -1436,7 +1436,7 @@ b4-validate meta
 | FB-14 | Architecture/patch plan/all affected addenda/registries/changelogs |
 | FB-15 | Makefile, UI assets generation, package manager pin |
 | FB-16 | documentation facts only; no byte conversion |
-| FB-17 | `src/warp/geo.go`, `isolation.go`, `selection.go` |
+| FB-17 | `src/warp/geo.go`, `isolation.go`, `selection.go` (+3 тесты: geo_test, isolation_test, selection_test) |
 | FB-18 | crosswalk generator, `artifacts/remediation/FB18_*` |
 | FB-19 | `src/geodat/*`, `src/quic/*` tests/fuzz |
 | FB-20 | `src/metrics/*`, imports/docs |
@@ -1656,11 +1656,17 @@ CANONICAL_REGISTRY_INCOMPLETE
 > - **Критерий:** ни один файл не перекодирован; любые новые записи об аудите утверждают «все документы — UTF-8».
 > - **Зависит:** —
 > 
-> ### FB-17. Нормативные правки в src/warp [S]
+> ### FB-17. Нормативные правки в src/warp [S] — РЕАЛИЗОВАНО (b4x-qcz, 07.08)
 > - **Проблема (внутри мёртвого пакета):** geo TTL 300s вместо нормы 120s (`src/warp/geo.go:52`); `InnerRevokedBeforeParent` не проверяется (`src/warp/isolation.go:16`); `CandidateResult.ExpiresAt` не заполняется (`src/warp/selection.go:15`).
 > - **Что сделать:** исправить 3 места + тесты. (Актуально только при FB-02 Вариант A.)
 > - **Критерий:** тесты warp: TTL=120s, inner-revoke блокирует, ExpiresAt заполнен; 19/19 PASS.
 > - **Зависит:** FB-02.
+> - **Статус:** РЕАЛИЗОВАНО (b4x-qcz, 07.08):
+>   - `src/warp/geo.go:52` — `FreshUntil = now.Add(120 * time.Second)` (было 5 min / 300s; норма ADR-WARP-7 / WARP-10 — TTL 120s без grace).
+>   - `src/warp/isolation.go:16` — `Valid()` теперь возвращает false при `InnerRevokedBeforeParent == true` (inner отозван до parent → изоляция невалидна).
+>   - `src/warp/selection.go` — `SelectLeastInvasive(cs, now)` заполняет `CandidateResult.ExpiresAt = now.Add(candidateSelectionTTL).Unix()` (константа `candidateSelectionTTL = 120s`, источник слогов v1.2 §41 success_hold_minimum / §53 stability_window) — и для winner, и для «no stable candidate» (expiry всегда задан).
+>   - Тесты: +`TestInnerRevokedBeforeParentBlocksIsolation`, +`TestSelectionNoStableCandidateStillCarriesExpiry`; расширены `TestGeoQuorumRequiresFreshPathProof` (проверка получает `now+120s`), `TestOuterInnerStateCannotCrossAuthorize`, `TestSelectionRequiresForwardedAndStabilityEvidence` (проверка ExpiresAt).
+> - **Критерий:** `go test ./warp` PASS; весь репозиторий 57 пакетов 0 FAIL; `go vet ./...` чистый; изменённые файлы gofmt-чистые.
 > 
 > ### FB-18. Постатейная сверка ARCH v2.4 (40) и IV v1.5 (39) [L]
 > - **Проблема:** оба документа индексированы (`req_index_part3.md`), но постатейно не сверены; IV критерии 1–86 неисполнимы без активных gates (FB-03); ARCH §42-45 (hold) — покрыт FB-09, §132-136 (WARP) — FB-02.
@@ -1794,7 +1800,7 @@ CANONICAL_REGISTRY_INCOMPLETE
 > | FB-14 | документы (список в задаче) |
 > | FB-15 | `Makefile`, `src/http/ui/.gitignore`, `package.json` (pnpm pin) |
 > | FB-16 | `B4_FORK_PATCH_PLAN.md`, `B4_POST_V23_BUILTIN_WARP_MASQUE_TRANSPORT_ADDENDUM_v1.2.md`, `docs/audit/b4-1.73-flow-path.md` |
-> | FB-17 | `src/warp/geo.go`, `isolation.go`, `selection.go` |
+> | FB-17 | `src/warp/geo.go`, `isolation.go`, `selection.go` (+3 тесты) |
 > | FB-18 | (новый артефакт) `artifacts/audit/arch_iv_audit.md` |
 > | FB-19 | `src/geodat/*`, `src/quic/*` |
 > | FB-20 | `src/metrics/*`, `src/http/handler/*` |

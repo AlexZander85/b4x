@@ -1,6 +1,14 @@
 package warp
 
-import "sort"
+import (
+	"sort"
+	"time"
+)
+
+// candidateSelectionTTL is the validity window of a least-invasive selection
+// decision (SECT C.7 promotion hold). Normative source: addendum v1.2 §41
+// success_hold_minimum: 120s / §53 stability_window: 120s.
+const candidateSelectionTTL = 120 * time.Second
 
 type Candidate struct {
 	ID                                  string
@@ -15,7 +23,7 @@ type CandidateResult struct {
 	ExpiresAt   int64
 }
 
-func SelectLeastInvasive(cs []Candidate) CandidateResult {
+func SelectLeastInvasive(cs []Candidate, now time.Time) CandidateResult {
 	valid := make([]Candidate, 0, len(cs))
 	for _, c := range cs {
 		if c.ID != "" && c.Protocol && c.Router && c.Forwarded && c.Stable {
@@ -23,7 +31,7 @@ func SelectLeastInvasive(cs []Candidate) CandidateResult {
 		}
 	}
 	if len(valid) == 0 {
-		return CandidateResult{Reason: "no stable candidate"}
+		return CandidateResult{Reason: "no stable candidate", ExpiresAt: now.Add(candidateSelectionTTL).Unix()}
 	}
 	sort.Slice(valid, func(i, j int) bool {
 		if valid[i].Invasive != valid[j].Invasive {
@@ -31,5 +39,5 @@ func SelectLeastInvasive(cs []Candidate) CandidateResult {
 		}
 		return valid[i].ID < valid[j].ID
 	})
-	return CandidateResult{CandidateID: valid[0].ID, Winner: true, Reason: "least invasive stable candidate"}
+	return CandidateResult{CandidateID: valid[0].ID, Winner: true, Reason: "least invasive stable candidate", ExpiresAt: now.Add(candidateSelectionTTL).Unix()}
 }

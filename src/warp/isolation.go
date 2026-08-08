@@ -13,5 +13,5 @@ type IsolationReport struct {
 }
 
 func (r IsolationReport) Valid() bool {
-	return r.Outer.InstanceID != "" && r.Inner.InstanceID != "" && r.Outer.InstanceID != r.Inner.InstanceID && r.Outer.Mark != r.Inner.Mark && r.ParentLinkValid
+	return r.Outer.InstanceID != "" && r.Inner.InstanceID != "" && r.Outer.InstanceID != r.Inner.InstanceID && r.Outer.Mark != r.Inner.Mark && r.ParentLinkValid && !r.InnerRevokedBeforeParent
 }

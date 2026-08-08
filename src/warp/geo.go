@@ -49,7 +49,7 @@ func BuildGeoAttestation(obs []GeoObservation, now time.Time) GeoAttestation {
 	a.Quorum = 2
 	if counts[GeoNonRU] >= a.Quorum && counts[GeoRU] == 0 && counts[GeoUnknown] == 0 {
 		a.Class = GeoNonRU
-		a.FreshUntil = now.Add(5 * time.Minute)
+		a.FreshUntil = now.Add(120 * time.Second)
 	} else if counts[GeoRU] > 0 {
 		a.Class = GeoRU
 		a.Revoked = true
