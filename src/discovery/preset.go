@@ -740,6 +740,41 @@ func GetPhase2Presets(family StrategyFamily) []ConfigPreset {
 			})
 		}
 
+		// Decoy + max-delay / max-jitter variations (G-2.5 expanded axis:
+		// heavier pacing and decoy segments for throttle-heavy video targets)
+		for _, d := range []int{100, 200, 300} {
+			for _, decoy := range []bool{false, true} {
+				name := formatName("combo-maxdelay%d", d)
+				if decoy {
+					name += "-decoy"
+				}
+				presets = append(presets, ConfigPreset{
+					Name:     name,
+					Family:   FamilyCombo,
+					Phase:    PhaseOptimize,
+					Priority: 400 + d,
+					Config: withTCP(withFragmentation(base, config.FragmentationConfig{
+						Strategy:     "combo",
+						ReverseOrder: true,
+						MiddleSNI:    true,
+						SNIPosition:  1,
+						Combo: config.ComboFragConfig{
+							FirstByteSplit:  true,
+							ExtensionSplit:  true,
+							ShuffleMode:     "full",
+							FirstDelayMs:    d,
+							JitterMaxUs:     d * 100,
+							DecoyEnabled:    decoy,
+							FakePerSegCount: 3,
+						},
+					}), config.TCPConfig{
+						ConnBytesLimit: 19,
+						Seg2Delay:      d,
+					}),
+				})
+			}
+		}
+
 	case FamilyTCPFrag:
 		positions := []int{1, 2, 3, 5, 10}
 		for _, pos := range positions {
@@ -1230,6 +1265,97 @@ func GetPhase2Presets(family StrategyFamily) []ConfigPreset {
 				}),
 			})
 		}
+
+	case FamilyUDP:
+		// UDP/QUIC obfuscation axis (critical for YouTube: video/QUIC traffic).
+		// Fake QUIC Initial packets + QUIC authorization gate + checksum faking.
+		quicModes := []string{"parse", "all"}
+		udpStrategies := []string{"none", "checksum"}
+		udpVariants := []struct {
+			fakeLen int
+			seqLen  int
+		}{
+			{64, 6}, {128, 10}, {32, 6}, {128, 15},
+		}
+		for _, qm := range quicModes {
+			for _, strat := range udpStrategies {
+				for _, v := range udpVariants {
+					presets = append(presets, ConfigPreset{
+						Name:     formatName("udp-quic%s-fake%d-seq%d-%s", qm, v.fakeLen, v.seqLen, strat),
+						Family:   FamilyUDP,
+						Phase:    PhaseOptimize,
+						Priority: v.fakeLen,
+						Config: withUDP(withFragmentation(base, comboFrag()), config.UDPConfig{
+							Mode:           "fake",
+							FakeSeqLength:  v.seqLen,
+							FakeLen:        v.fakeLen,
+							FakingStrategy: strat,
+							FilterQUIC:     qm,
+							FilterSTUN:     true,
+							ConnBytesLimit: 8,
+							Seg2Delay:      20,
+						}),
+					})
+				}
+			}
+		}
+
+	case FamilyWindow:
+		// TCP window manipulation axis (oscillate/zero/random/escalate).
+		modes := []string{"oscillate", "zero", "random", "escalate"}
+		for _, mode := range modes {
+			presets = append(presets, ConfigPreset{
+				Name:     formatName("win-%s", mode),
+				Family:   FamilyWindow,
+				Phase:    PhaseOptimize,
+				Priority: 1,
+				Config: withTCP(base, config.TCPConfig{
+					ConnBytesLimit: 19,
+					Win: config.WinConfig{
+						Mode:   mode,
+						Values: []int{0, 1460, 8192, 65535},
+					},
+				}),
+			})
+		}
+
+	case FamilyMutation:
+		// ClientHello SNI mutation axis (grease/padding/duplicate/reorder/full/advanced).
+		variants := []struct {
+			mode      string
+			grease    int
+			padding   int
+			fakeExt   int
+		}{
+			{"grease", 1, 0, 0},
+			{"grease", 3, 0, 0},
+			{"grease", 5, 0, 0},
+			{"padding", 0, 256, 0},
+			{"padding", 0, 1024, 0},
+			{"padding", 0, 2048, 0},
+			{"duplicate", 0, 0, 0},
+			{"reorder", 0, 0, 0},
+			{"full", 3, 512, 2},
+			{"advanced", 0, 0, 0},
+		}
+		for i, v := range variants {
+			presets = append(presets, ConfigPreset{
+				Name:     formatName("mut-%s", v.mode),
+				Family:   FamilyMutation,
+				Phase:    PhaseOptimize,
+				Priority: i + 1,
+				Config: withFaking(base, config.FakingConfig{
+					SNI: true,
+					SNIMutation: config.SNIMutationConfig{
+						Mode:         v.mode,
+						GreaseCount:  v.grease,
+						PaddingSize:  v.padding,
+						FakeExtCount: v.fakeExt,
+						FakeSNIs:     []string{"ya.ru", "vk.com", "max.ru"},
+					},
+				}),
+			})
+		}
 	}
 
 	return presets
@@ -1406,6 +1532,11 @@ func withFaking(base config.SetConfig, faking config.FakingConfig) config.SetCon
 
 func withTCP(base config.SetConfig, tcp config.TCPConfig) config.SetConfig {
 	base.TCP = tcp
+	return base
+}
+
+func withUDP(base config.SetConfig, udp config.UDPConfig) config.SetConfig {
+	base.UDP = udp
 	return base
 }
 

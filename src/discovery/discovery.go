@@ -1959,6 +1959,9 @@ func (ds *DiscoverySuite) runExtendedSearch() []StrategyFamily {
 		FamilySynFake,
 		FamilyDelay,
 		FamilyHybrid,
+		FamilyUDP,
+		FamilyWindow,
+		FamilyMutation,
 	}
 
 	var workingFamilies []StrategyFamily
