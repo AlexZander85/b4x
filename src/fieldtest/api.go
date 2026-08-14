@@ -3,17 +3,26 @@ package fieldtest
 import "errors"
 
 type CapabilityValue struct {
-	Supported                                                      bool
-	State, Version, Hash, ValidatedAt, DegradedReason, TargetScope string
+	Supported      bool   `json:"supported"`
+	State          string `json:"state"`
+	Version        string `json:"version,omitempty"`
+	Hash           string `json:"hash,omitempty"`
+	ValidatedAt    string `json:"validated_at,omitempty"`
+	DegradedReason string `json:"degraded_reason,omitempty"`
+	TargetScope    string `json:"target_scope,omitempty"`
 }
 type Capabilities struct {
-	Commit                                                        string
-	APIVersions                                                   []string
-	NFQueue, CaptureEnvelope, OffloadVisibility, PCAP, AndroidAPI bool
-	SandboxCapacity                                               int
-	ResourceBudget                                                map[string]float64
-	Transports                                                    []string
-	Features                                                      map[string]CapabilityValue
+	Commit            string                     `json:"commit"`
+	APIVersions       []string                   `json:"api_versions"`
+	NFQueue           bool                       `json:"nfqueue"`
+	CaptureEnvelope   bool                       `json:"capture_envelope"`
+	OffloadVisibility bool                       `json:"offload_visibility"`
+	PCAP              bool                       `json:"pcap"`
+	AndroidAPI        bool                       `json:"android_api"`
+	SandboxCapacity   int                        `json:"sandbox_capacity"`
+	ResourceBudget    map[string]float64         `json:"resource_budget,omitempty"`
+	Transports        []string                   `json:"transports,omitempty"`
+	Features          map[string]CapabilityValue `json:"features"`
 }
 
 func (c Capabilities) Allows(name string) bool {

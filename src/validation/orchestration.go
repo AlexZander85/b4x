@@ -16,13 +16,21 @@ package validation
 //	rollback-cleanup, validation-of-validation, independent-aggregation
 var FullRunOrder = CapabilityExecutionOrder()
 
-type WARPVerdicts struct{ Base, Camouflage, NonRU, Causal Verdict }
+type WARPVerdicts struct {
+	Base       Verdict `json:"base"`
+	Camouflage Verdict `json:"camouflage"`
+	NonRU      Verdict `json:"non_ru"`
+	Causal     Verdict `json:"causal"`
+}
+
 type FullRun struct {
-	Results           []StageResult
-	WARP              WARPVerdicts
-	DeclaredWARPScope bool
-	CleanupComplete   bool
-	BundleArtifacts   []Artifact
+	Profile           string        `json:"profile"`
+	RunID             string        `json:"run_id"`
+	Results           []StageResult `json:"results"`
+	WARP              WARPVerdicts  `json:"warp"`
+	DeclaredWARPScope bool          `json:"declared_warp_scope"`
+	CleanupComplete   bool          `json:"cleanup_complete"`
+	BundleArtifacts   []Artifact    `json:"bundle_artifacts,omitempty"`
 }
 
 func (r FullRun) Verdict() Verdict {

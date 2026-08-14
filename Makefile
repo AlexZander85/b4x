@@ -46,6 +46,15 @@ swagger:
 	@echo "]" >> docs/static/swagger-versions/index.json
 	@echo "Swagger spec (v$(VERSION)) copied to docs/static/"
 
+.PHONY: b4-validate b4-field-test
+b4-validate:
+	@mkdir -p $(OUT_DIR)
+	go -C $(SRC_DIR) build $(BUILDFLAGS) -ldflags "$(LDFLAGS)" -o ../$(OUT_DIR)/b4-validate ./cmd/b4-validate
+
+b4-field-test:
+	@mkdir -p $(OUT_DIR)
+	go -C $(SRC_DIR) build $(BUILDFLAGS) -ldflags "$(LDFLAGS)" -o ../$(OUT_DIR)/b4-field-test ./cmd/b4-field-test
+
 # Build for current platform
 .PHONY: build
 build: swagger gen-defaults build-ui

@@ -202,6 +202,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterPrometheusAPI()
 	api.RegisterMonitorAPI()
 	api.RegisterServiceProfileAPI()
+	api.RegisterFieldTestAPI()
 }
 
 func sendResponse(w http.ResponseWriter, response interface{}) {

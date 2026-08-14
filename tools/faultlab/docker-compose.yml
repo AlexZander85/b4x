@@ -1,0 +1,16 @@
+services:
+  faultlab:
+    build: .
+    image: b4x-faultlab:local
+    container_name: b4x-faultlab
+    environment:
+      FAULTLAB_TCP_MODE: echo
+      FAULTLAB_TGB_DELAY: "5.1"
+      FAULTLAB_TGB_BYTES: "64"
+    ports:
+      - "18080:18080"
+      - "18081:18081"
+      - "18082:18082/udp"
+      - "18083:18083"
+      - "18053:18053/udp"
+    restart: unless-stopped

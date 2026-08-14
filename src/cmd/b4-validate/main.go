@@ -23,6 +23,10 @@
 //	                                      expiry/invalidation rules
 //	b4-validate matrix                    regenerate the gate producer/consumer
 //	                                      matrix artifact (FB-03 criterion 6)
+//	b4-validate preflight                 host registry + false-PASS mutant gate
+//	b4-validate run --profile NAME        execute a named IV/field profile
+//	b4-validate explain --verdict NAME    explain a principal verdict + claim policy
+//	b4-validate list --capability NAME    list one capability and its gates
 //
 // Every command appends its output to artifacts/remediation/logs/
 // (v2 §5.4); the matrix command writes
@@ -67,6 +71,14 @@ Usage:
   b4-validate matrix [--out PATH]
   b4-validate registry [--json]
   b4-validate verdict <name> [--json]
+  b4-validate preflight [--json]
+  b4-validate run --profile <name> [--json] [--evidence-dir DIR]
+  b4-validate explain --verdict <name> [--json]
+  b4-validate list [--json] [--capability NAME]
+
+Profiles: detector-quick, detector-deep, guided-search-ab,
+          telegram-bridge-android, warp-causal-trace,
+          warp-nested-nonru-trace, full-b4x
 
 Exit codes: 0 PASS / not applicable; 1 non-pass verdict (FAIL/BLOCKED/STALE);
 2 usage or lookup error. All commands log to artifacts/remediation/logs/.`)
@@ -96,6 +108,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdRegistry(rest, stdout)
 	case "verdict":
 		return cmdVerdict(rest, stdout)
+	case "preflight":
+		return cmdPreflight(rest, stdout)
+	case "run":
+		return cmdRun(rest, stdout)
+	case "explain":
+		return cmdExplain(rest, stdout)
 	case "help", "-h", "--help":
 		usage(stdout)
 		return 0
@@ -207,10 +225,16 @@ func sha256Of(path string) (string, int64, error) {
 func cmdList(args []string, stdout io.Writer) int {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	jsonOut := fs.Bool("json", false, "Emit JSON")
+	capability := fs.String("capability", "", "Filter by capability id or alias (detector-v2, telegram-transparent-bridge, ...)")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	w, closer, _ := tee("list", stdout, args)
+	if *capability != "" {
+		code := cmdListCapability(w, *capability, *jsonOut)
+		closer(code)
+		return code
+	}
 	defer closer(0)
 
 	gates := validation.AllHardGates()
