@@ -131,3 +131,26 @@ func TestRuntimeShadowParityEvidenceOnWatchdogSignal(t *testing.T) {
 	}
 }
 
+// TestRuntimeStopUnblocksDrain is a regression test for a graceful-shutdown
+// hang found in the field (Keenetic): Stop() waited forever on wg.Wait() when
+// the worker was blocked inside drain -> ObservationBus.Next with a
+// background (non-cancellable) context. Stop must unblock a worker that is
+// already parked in Next waiting for observations.
+func TestRuntimeStopUnblocksDrain(t *testing.T) {
+	cfg := DefaultConfig()
+	rt := NewRuntime(cfg)
+	rt.Start()
+	// Give the worker time to enter the blocking bus.Next (poll tick).
+	time.Sleep(cfg.WaitTimeout + 150*time.Millisecond)
+	done := make(chan struct{})
+	go func() {
+		rt.Stop()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop must unblock a worker parked in drain/Next")
+	}
+}
+

@@ -61,3 +61,7 @@ __pycache__/
 # FB-03 CLI logs (v2 §5.4)
 artifacts/remediation/logs/
 
+# Field campaign artifacts: binaries, diagnostics, config backups (may contain secrets)
+artifacts/field/
+artifacts/field-runs/
+

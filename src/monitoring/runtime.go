@@ -52,8 +52,10 @@ type Runtime struct {
 	parity    *monitor.ShadowParityTracker
 	cfg       RuntimeConfig
 
-	stop chan struct{}
-	wg   sync.WaitGroup
+	stop     chan struct{}
+	wg       sync.WaitGroup
+	ctx      context.Context
+	cancel   context.CancelFunc
 
 	unsubscribe func()
 }
@@ -99,6 +101,7 @@ func (rt *Runtime) Start() {
 		return
 	}
 	rt.stop = make(chan struct{})
+	rt.ctx, rt.cancel = context.WithCancel(context.Background())
 	rt.unsubscribe = ppe.DefaultVisibilityGate().SubscribeBlocked(rt.observePpeBlocked)
 	rt.wg.Add(1)
 	go rt.runLoop()
@@ -116,6 +119,9 @@ func (rt *Runtime) Stop() {
 	default:
 	}
 	close(rt.stop)
+	if rt.cancel != nil {
+		rt.cancel()
+	}
 	rt.wg.Wait()
 	if rt.unsubscribe != nil {
 		rt.unsubscribe()
@@ -204,7 +210,10 @@ func (rt *Runtime) StatusList() []monitor.MonitorStatus {
 
 func (rt *Runtime) runLoop() {
 	defer rt.wg.Done()
-	ctx := context.Background()
+	ctx := rt.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	poll := time.NewTicker(rt.cfg.WaitTimeout)
 	defer poll.Stop()
 	for {
