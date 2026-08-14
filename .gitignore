@@ -65,3 +65,5 @@ artifacts/remediation/logs/
 artifacts/field/
 artifacts/field-runs/
 
+# Field validation agent pack: contains access credentials, reports, local tooling
+B4X_FIELD_VALIDATION_AGENT_PACK/
