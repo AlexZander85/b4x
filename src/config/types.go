@@ -145,10 +145,21 @@ type QueueConfig struct {
 	TCPConnBytesLimit int            `json:"tcp_conn_bytes_limit"`
 	UDPConnBytesLimit int            `json:"udp_conn_bytes_limit"`
 	Interfaces        []string       `json:"interfaces"`
+	OutInterface      string         `json:"out_interface"` // WAN uplink to pin raw injection sockets to (SO_BINDTODEVICE); empty/"auto" = follow default route
 	Devices           DevicesConfig  `json:"devices"`
 	MSSClamp          MSSClampConfig `json:"mss_clamp"`
 	TUN               TUNConfig      `json:"tun"`
 	IsDiscovery       bool           `json:"-"`
+}
+
+// OutDevice returns the interface name raw injection sockets should be bound
+// to (SO_BINDTODEVICE), or "" to let the kernel pick via the default route.
+// "auto" is treated the same as empty, mirroring TUNConfig semantics.
+func (q QueueConfig) OutDevice() string {
+	if q.OutInterface == "" || q.OutInterface == "auto" {
+		return ""
+	}
+	return q.OutInterface
 }
 
 type TUNConfig struct {

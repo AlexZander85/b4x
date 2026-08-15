@@ -63,12 +63,13 @@ func pfBind(con *netlink.Conn, family uint8) error {
 func (w *Worker) Start() error {
 	cfg := w.getConfig()
 	mark := cfg.Queue.Mark
-	s, err := sock.NewSenderWithMark(int(capture.ProcessedMarkFor(mark)))
+	device := cfg.Queue.OutDevice()
+	s, err := sock.NewSenderWithMarkDevice(int(capture.ProcessedMarkFor(mark)), device)
 	if err != nil {
 		return err
 	}
 	w.sock = s
-	cs, err := sock.NewSenderWithMark(int(capture.ProcessedMarkFor(mark)) | engine.ClientMark)
+	cs, err := sock.NewSenderWithMarkDevice(int(capture.ProcessedMarkFor(mark))|engine.ClientMark, device)
 	if err != nil {
 		s.Close()
 		return err

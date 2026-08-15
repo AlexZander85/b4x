@@ -66,7 +66,13 @@ func (w *Worker) InitSender() error {
 	if tun {
 		reinjectMark |= engine.ReinjectMarkBit
 	}
-	s, err := sock.NewSenderWithMark(reinjectMark)
+	// In tun mode the TUN interface owns the traffic path, so raw sockets stay
+	// unbound; in nfq mode pin injections to the configured WAN uplink.
+	device := ""
+	if !tun {
+		device = cfg.Queue.OutDevice()
+	}
+	s, err := sock.NewSenderWithMarkDevice(reinjectMark, device)
 	if err != nil {
 		return err
 	}
@@ -80,7 +86,7 @@ func (w *Worker) InitSender() error {
 		}
 		w.clientSock = cs
 	} else {
-		cs, err := sock.NewSenderWithMark(reinjectMark | engine.ClientMark)
+		cs, err := sock.NewSenderWithMarkDevice(reinjectMark|engine.ClientMark, device)
 		if err != nil {
 			w.sock.Close()
 			w.sock = nil

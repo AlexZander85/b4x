@@ -403,6 +403,32 @@ func TestValidate_QueueFields(t *testing.T) {
 		}
 	})
 
+	t.Run("queue out_interface maps to OutDevice", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			in     string
+			want   string
+			accept bool
+		}{
+			{"empty follows default route", "", "", true},
+			{"auto follows default route", "auto", "", true},
+			{"explicit wan pinned", "eth1", "eth1", true},
+			{"whitespace trimmed by caller semantics", " eth1 ", " eth1 ", true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				cfg := NewConfig()
+				cfg.Queue.OutInterface = tc.in
+				if err := cfg.Validate(); err != nil && tc.accept {
+					t.Errorf("queue.out_interface=%q rejected: %v", tc.in, err)
+				}
+				if got := cfg.Queue.OutDevice(); got != tc.want {
+					t.Errorf("OutDevice() = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("tun mode rejects mark overlapping reserved bits", func(t *testing.T) {
 		cfg := NewConfig()
 		cfg.Queue.Mode = "tun"
