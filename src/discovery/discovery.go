@@ -1201,7 +1201,15 @@ func (ds *DiscoverySuite) fetchUsingIPForDomain(di DomainInput, timeout time.Dur
 			}
 			directAddr := net.JoinHostPort(ip, port)
 			log.Tracef("DNS bypass: connecting to %s instead of %s", directAddr, addr)
-			return baseDialer.DialContext(ctx, network, directAddr)
+			conn, err := baseDialer.DialContext(ctx, network, directAddr)
+			if err == nil {
+				// TCP handshake completed: any subsequent timeout (TLS, headers)
+				// must be classified as a post-connect failure, not ip_block_suspected.
+				// Relying on error-text markers is fragile ("context deadline exceeded"
+				// carries no stage information).
+				tracker.MarkTCPConnected()
+			}
+			return conn, err
 		}
 		return baseDialer.DialContext(ctx, network, addr)
 	}
@@ -1553,24 +1561,32 @@ func (ds *DiscoverySuite) buildTestConfig(preset ConfigPreset) *config.Config {
 			} else {
 				log.Tracef("Discovery: CDN %s - loaded %d domains, %d IPs", ds.Domain, len(domains), len(ips))
 			}
-		} else {
+		}
+
+		// The sandbox worker matches each packet with MatchIPWithSource
+		// against the in-memory ipRanger built from Targets.IpsToMatch, so
+		// probe destinations must always be present there — even when the set
+		// also carries geoip/geosite categories (those do not feed the
+		// ipRanger). Without an IP match the worker accepts the probe
+		// unmodified: a Go ClientHello (~1503 B) spans two TCP segments over
+		// a 1400-byte MSS, so a packet-local SNI is never parsed while TCP
+		// reassembly is disabled, and no preset mutation reaches the wire.
+		if dnsResult := ds.dnsResults[ds.Domain]; dnsResult != nil {
 			var ipsToAdd []string
-			dnsResult := ds.dnsResults[ds.Domain]
-			if dnsResult != nil {
-				ipsToAdd = append(ipsToAdd, dnsResult.ExpectedIPs...)
-				for _, probe := range dnsResult.ProbeResults {
-					if probe.ResolvedIP != "" {
-						found := false
-						for _, ip := range ipsToAdd {
-							if ip == probe.ResolvedIP {
-								found = true
-								break
-							}
-						}
-						if !found {
-							ipsToAdd = append(ipsToAdd, probe.ResolvedIP)
-						}
+			ipsToAdd = append(ipsToAdd, dnsResult.ExpectedIPs...)
+			for _, probe := range dnsResult.ProbeResults {
+				if probe.ResolvedIP == "" {
+					continue
+				}
+				found := false
+				for _, ip := range ipsToAdd {
+					if ip == probe.ResolvedIP {
+						found = true
+						break
 					}
+				}
+				if !found {
+					ipsToAdd = append(ipsToAdd, probe.ResolvedIP)
 				}
 			}
 
@@ -1943,7 +1959,12 @@ func (ds *DiscoverySuite) logDiscoverySummary() {
 }
 
 func (ds *DiscoverySuite) runExtendedSearch() []StrategyFamily {
+	// FamilyMutation runs FIRST: it is the only family that removes the SNI
+	// from the wire (substitute), so it is the most likely to defeat
+	// SNI-based blocking (e.g. TSPU) and its results are the most valuable
+	// feedback during field trials. The remaining families follow.
 	families := []StrategyFamily{
+		FamilyMutation,
 		FamilyCombo,
 		FamilyDisorder,
 		FamilyOverlap,
@@ -1961,7 +1982,6 @@ func (ds *DiscoverySuite) runExtendedSearch() []StrategyFamily {
 		FamilyHybrid,
 		FamilyUDP,
 		FamilyWindow,
-		FamilyMutation,
 	}
 
 	var workingFamilies []StrategyFamily

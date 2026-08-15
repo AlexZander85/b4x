@@ -3,11 +3,13 @@ package discovery
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"syscall"
 	"testing"
 	"time"
@@ -120,6 +122,56 @@ func TestProbeOutcomeMidstreamResetStallAndSlowValid(t *testing.T) {
 		t.Fatalf("slow but valid flow was rejected: %+v", slowOutcome)
 	}
 }
+
+func TestMarkHTTPProbeErrorTLSStageMarksTCPConnected(t *testing.T) {
+	// TLS-layer failures must keep the TCP-connected marker so the
+	// classifier reports the real stage (tls/dpi_drop) instead of lying
+	// with tcp_connect/ip_block_suspected when the TSPU drops the SNI.
+	handshake := NewProbeTracker(DefaultProbePolicy())
+	markHTTPProbeError(handshake, tlsHandshakeTimeoutError{})
+	outcome := handshake.Finish()
+	if !outcome.TCPConnected || !outcome.TimedOut {
+		t.Fatalf("TLS handshake timeout lost TCP-connected marker: %+v", outcome)
+	}
+	if outcome.Verdict != DiagnosticDPIDrop || outcome.FailureStage != "tls" || outcome.FailureSignature != FailureBeforeTLS {
+		t.Fatalf("TLS handshake timeout misclassified: %+v", outcome)
+	}
+
+	alert := NewProbeTracker(DefaultProbePolicy())
+	markHTTPProbeError(alert, errors.New(`Get "https://googlevideo.com": remote error: tls: unexpected message`))
+	outcome = alert.Finish()
+	if !outcome.TCPConnected || outcome.TLSResponseType != TLSResponseAlert {
+		t.Fatalf("peer TLS alert lost TCP/response marker: %+v", outcome)
+	}
+	if outcome.Verdict != DiagnosticTLSResponseOnly || outcome.FailureStage != "tls" {
+		t.Fatalf("peer TLS alert misclassified: %+v", outcome)
+	}
+
+	headers := NewProbeTracker(DefaultProbePolicy())
+	markHTTPProbeError(headers, errors.New(`Get "https://googlevideo.com": context deadline exceeded (Client.Timeout exceeded while awaiting headers)`))
+	outcome = headers.Finish()
+	if !outcome.TCPConnected {
+		t.Fatalf("post-request timeout lost TCP-connected marker: %+v", outcome)
+	}
+
+	// A real SYN drop (dial timeout, no TLS markers) must stay at the
+	// tcp_connect layer so ip_block_suspected remains an honest verdict.
+	dial := NewProbeTracker(DefaultProbePolicy())
+	markHTTPProbeError(dial, &url.Error{Op: "Get", URL: "https://googlevideo.com", Err: &net.OpError{Op: "dial", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("64.233.161.106"), Port: 443}, Err: timeoutError{}}})
+	outcome = dial.Finish()
+	if outcome.TCPConnected {
+		t.Fatalf("dial timeout was marked TCP-connected: %+v", outcome)
+	}
+	if outcome.Verdict != DiagnosticIPBlockSuspected || outcome.FailureStage != "tcp_connect" {
+		t.Fatalf("dial timeout misclassified: %+v", outcome)
+	}
+}
+
+type tlsHandshakeTimeoutError struct{}
+
+func (tlsHandshakeTimeoutError) Error() string   { return "net/http: TLS handshake timeout" }
+func (tlsHandshakeTimeoutError) Timeout() bool   { return true }
+func (tlsHandshakeTimeoutError) Temporary() bool { return true }
 
 func TestRunHTTPProbeHTTPErrorBodyAndReadCap(t *testing.T) {
 	body := bytes.Repeat([]byte("b"), 128<<10)

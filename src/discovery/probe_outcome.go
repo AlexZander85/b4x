@@ -479,6 +479,20 @@ func markHTTPProbeError(tracker *ProbeTracker, err error) {
 		return
 	}
 	tracker.MarkDNSResolved()
+
+	// TLS-layer errors can only happen after the TCP handshake completed.
+	// Without marking the connection the classifier would mislabel
+	// TLS-stage failures (TSPU SNI drop, peer alerts, cert errors) as
+	// tcp_connect / ip_block_suspected, hiding the real failure stage.
+	if strings.Contains(message, "tls") || strings.Contains(message, "handshake") ||
+		strings.Contains(message, "awaiting headers") || strings.Contains(message, "first record") ||
+		strings.Contains(message, "x509") || strings.Contains(message, "certificate") {
+		tracker.MarkTCPConnected()
+		if strings.Contains(message, "remote error: tls") {
+			tracker.MarkTLSResponse(TLSResponseAlert)
+		}
+	}
+
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		tracker.MarkTimeout()

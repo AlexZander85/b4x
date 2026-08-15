@@ -67,12 +67,17 @@ func (w *Worker) MutateClientHello(cfg *config.SetConfig, packet []byte, dst net
 	}
 
 	recordLen := int(binary.BigEndian.Uint16(payload[3:5]))
-	if len(payload) < 5+recordLen {
+	if recordLen < 4 {
 		return packet
 	}
 	if len(payload) < 6 || payload[5] != 0x01 {
 		return packet
 	}
+	// NOTE: the TLS record may span several TCP segments (Go's ClientHello
+	// is typically ~1503 bytes while the MSS is 1400). Mutations that can
+	// operate on a partial record (substitute) handle the truncation
+	// themselves; the others bail out inside when the extensions block is
+	// incomplete.
 
 	switch cfg.Faking.SNIMutation.Mode {
 	case "duplicate":
@@ -87,6 +92,8 @@ func (w *Worker) MutateClientHello(cfg *config.SetConfig, packet []byte, dst net
 		return w.fullMutation(packet, cfg)
 	case "advanced":
 		return w.addAdvancedMutations(packet)
+	case "substitute":
+		return w.substituteSNI(packet, cfg)
 	default:
 		return packet
 	}
@@ -403,6 +410,198 @@ func (w *Worker) addCommonExtensions(packet []byte) []byte {
 	extensions = append(extensions, ticket...)
 
 	return w.insertExtensions(packet, extensions)
+}
+
+// substituteSNI rewrites the single server_name (SNI) entry of the ClientHello
+// to the first configured FakeSNI. Unlike duplicate/grease/padding/reorder,
+// this REMOVES the original (possibly blocked) name from the wire while the
+// destination IP stays unchanged — defeating SNI-list based TLS drops.
+// The substitution happens before drop+inject, so the peer sees only the
+// fake name. Google-fronted endpoints answer any SNI with a generic
+// certificate (verified in field: SNI=ya.ru to 64.233.161.99:443 completes
+// TLS 0.1s while SNI=googlevideo.com times out).
+func (w *Worker) substituteSNI(packet []byte, cfg *config.SetConfig) []byte {
+	if cfg == nil || len(cfg.Faking.SNIMutation.FakeSNIs) == 0 {
+		return packet
+	}
+	fake := cfg.Faking.SNIMutation.FakeSNIs[0]
+	if fake == "" || len(fake) > MaxSNILength {
+		return packet
+	}
+	if len(packet) < 1 || packet[0]>>4 != 4 {
+		// IPv4 only for now (mirrors insertExtensions); IPv6 path untouched.
+		return packet
+	}
+
+	ipHdrLen := int((packet[0] & 0x0F) * 4)
+	tcpHdrLen := int((packet[ipHdrLen+12] >> 4) * 4)
+	payloadStart := ipHdrLen + tcpHdrLen
+
+	extOffset := w.findExtensionsOffset(packet[payloadStart:])
+	if extOffset < 0 {
+		return packet
+	}
+	extPos := payloadStart + extOffset
+	if len(packet) < extPos+2 {
+		return packet
+	}
+	currentExtLen := int(binary.BigEndian.Uint16(packet[extPos : extPos+2]))
+
+	// A ClientHello larger than the sender MSS is split into several TCP
+	// segments (Go sends ~1503 bytes over a 1400-byte MSS). The extensions
+	// header still carries the FULL block length, but the block itself is
+	// only partially present in this segment. Work on the entries that are
+	// actually here so the substitution applies to the first segment; the
+	// remaining segments keep their original sequence numbers, so the packet
+	// must not shrink (see the padding compensation below).
+	extsEnd := extPos + 2 + currentExtLen
+	if extsEnd > len(packet) {
+		extsEnd = len(packet)
+	}
+	// True when this segment carries only the head of the extensions block
+	// (a ClientHello larger than the sender MSS). The extension-length field
+	// and the TLS record/handshake lengths describe the WHOLE record across
+	// all segments, so they must keep their original values; only the bytes
+	// present in this segment can be rewritten.
+	incomplete := extsEnd < extPos+2+currentExtLen
+	exts := packet[extPos+2 : extsEnd]
+	sniStart, sniLen := findServerNameExtension(exts)
+	if sniStart < 0 {
+		return packet
+	}
+	sniExt := exts[sniStart : sniStart+sniLen]
+	// Layout: type(2) + len(2) + name_list_len(2) + name_type(1) + name_len(2) + name.
+	if len(sniExt) < 9 || sniExt[6] != 0 {
+		return packet
+	}
+	nameListLen := int(binary.BigEndian.Uint16(sniExt[4:6]))
+	oldNameLen := int(binary.BigEndian.Uint16(sniExt[7:9]))
+	if len(sniExt) < 6+nameListLen || 9+oldNameLen > len(sniExt) {
+		return packet
+	}
+
+	// Build the replacement server_name extension.
+	newSNIExt := make([]byte, 9+len(fake))
+	binary.BigEndian.PutUint16(newSNIExt[0:2], extServerName)
+	binary.BigEndian.PutUint16(newSNIExt[2:4], uint16(5+len(fake)))
+	binary.BigEndian.PutUint16(newSNIExt[4:6], uint16(3+len(fake)))
+	newSNIExt[6] = 0
+	binary.BigEndian.PutUint16(newSNIExt[7:9], uint16(len(fake)))
+	copy(newSNIExt[9:], fake)
+
+	// Rebuild the extensions block: the 2-byte length prefix is written into
+	// the packet separately, so newExts holds just the extension entries.
+	newExts := make([]byte, 0, len(exts)-sniLen+len(newSNIExt)+4)
+	newExts = append(newExts, exts[:sniStart]...)
+	newExts = append(newExts, newSNIExt...)
+
+	// A shorter fake SNI would shrink this packet and leave a hole in the
+	// TCP byte stream that the peer can never recover from (the following
+	// segments still carry the original sequence numbers). Compensate the
+	// length change with a TLS padding extension (RFC 7685), so the packet
+	// keeps its size and the stream stays contiguous. For a complete
+	// extensions block the padding must be the last extension, so it is
+	// appended after the original tail. For a truncated block the original
+	// tail (usually the key_share data) arrives in the next segment, so the
+	// padding goes right after the substituted SNI: at the end of this
+	// segment it would land inside the key_share bytes of the reassembled
+	// stream and corrupt the client key. When the fake is not shorter than
+	// the original name a complete block only grows, which is harmless (TCP
+	// peers ignore overlapping duplicate bytes); for a truncated block
+	// growing is fatal — the following segments keep the original sequence
+	// numbers, so the reassembled record would be shifted — and the
+	// substitution is refused instead.
+	if oldNameLen > len(fake) {
+		padLen := oldNameLen - len(fake) - 4
+		if padLen < 0 {
+			padLen = 0
+		}
+		padExt := make([]byte, 4+padLen)
+		binary.BigEndian.PutUint16(padExt[0:2], extPadding)     // extension type: padding
+		binary.BigEndian.PutUint16(padExt[2:4], uint16(padLen)) // payload length (zeros)
+		if incomplete {
+			newExts = append(newExts, padExt...)
+			newExts = append(newExts, exts[sniStart+sniLen:]...)
+		} else {
+			newExts = append(newExts, exts[sniStart+sniLen:]...)
+			newExts = append(newExts, padExt...)
+		}
+	} else {
+		newExts = append(newExts, exts[sniStart+sniLen:]...)
+	}
+
+	newExtLen := len(newExts)
+	if newExtLen > 65535 {
+		return packet
+	}
+	if incomplete && newExtLen != len(exts) {
+		// The head must keep its exact size: the following segments carry
+		// the original sequence numbers, so any size change here shifts the
+		// reassembled record. Padding only compensates when it fits (a fake
+		// at least as long as the original name would grow the head), so in
+		// that case the substitution is refused.
+		return packet
+	}
+
+	// Keep the same physical size whenever possible; if the block grew, the
+	// tail (empty for a truncated multi-segment ClientHello) shifts by the
+	// same amount.
+	newPacket := make([]byte, extPos+2+len(newExts)+len(packet)-(extPos+2+len(exts)))
+	copy(newPacket, packet[:extPos])
+	if incomplete {
+		// For a truncated block the field keeps its original value: it
+		// describes the FULL extensions block spanning the following
+		// segments, which cannot be recomputed from this segment alone.
+		copy(newPacket[extPos:extPos+2], packet[extPos:extPos+2])
+	} else {
+		binary.BigEndian.PutUint16(newPacket[extPos:extPos+2], uint16(newExtLen))
+	}
+	copy(newPacket[extPos+2:], newExts)
+	copy(newPacket[extPos+2+len(newExts):], packet[extPos+2+len(exts):])
+
+	// updatePacketLengths would rewrite the TLS record and handshake lengths
+	// from this segment's payload size, which is wrong for a multi-segment
+	// ClientHello: those lengths describe the WHOLE record and must stay at
+	// their original values (adjusted by any physical size change).
+	lengthDelta := newExtLen - len(exts)
+	origRecordLen := int(binary.BigEndian.Uint16(packet[payloadStart+3 : payloadStart+5]))
+	origHelloLen := int(packet[payloadStart+6])<<16 | int(packet[payloadStart+7])<<8 | int(packet[payloadStart+8])
+
+	if len(newPacket) >= payloadStart+9 {
+		binary.BigEndian.PutUint16(newPacket[2:4], uint16(len(newPacket)))
+		if newPacket[payloadStart] == 0x16 && origRecordLen+lengthDelta <= 65535 {
+			binary.BigEndian.PutUint16(newPacket[payloadStart+3:payloadStart+5], uint16(origRecordLen+lengthDelta))
+		}
+		if newPacket[payloadStart+5] == 0x01 {
+			newHelloLen := origHelloLen + lengthDelta
+			newPacket[payloadStart+6] = byte(newHelloLen >> 16)
+			newPacket[payloadStart+7] = byte(newHelloLen >> 8)
+			newPacket[payloadStart+8] = byte(newHelloLen)
+		}
+		sock.FixIPv4Checksum(newPacket[:ipHdrLen])
+		sock.FixTCPChecksum(newPacket)
+	}
+	return newPacket
+}
+
+// findServerNameExtension locates the server_name (SNI) extension inside an
+// extensions block (extension entries only, no total-length prefix).
+// Returns the start offset and the extension byte length (4 + payload),
+// or -1 when absent.
+func findServerNameExtension(exts []byte) (start, length int) {
+	pos := 0
+	for pos+4 <= len(exts) {
+		typ := binary.BigEndian.Uint16(exts[pos : pos+2])
+		el := int(binary.BigEndian.Uint16(exts[pos+2 : pos+4]))
+		if pos+4+el > len(exts) {
+			break
+		}
+		if typ == extServerName {
+			return pos, 4 + el
+		}
+		pos += 4 + el
+	}
+	return -1, 0
 }
 
 func (w *Worker) addAdvancedMutations(packet []byte) []byte {

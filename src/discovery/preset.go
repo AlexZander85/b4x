@@ -1320,27 +1320,42 @@ func GetPhase2Presets(family StrategyFamily) []ConfigPreset {
 		}
 
 	case FamilyMutation:
-		// ClientHello SNI mutation axis (grease/padding/duplicate/reorder/full/advanced).
+		// ClientHello SNI mutation axis (substitute/grease/padding/duplicate/reorder/full/advanced).
+		// "substitute" rewrites the real server_name to a non-blocked name and is
+		// the only mode that defeats SNI-list based TLS drops (field-proven).
 		variants := []struct {
-			mode      string
-			grease    int
-			padding   int
-			fakeExt   int
+			mode    string
+			grease  int
+			padding int
+			fakeExt int
+			snis    []string
+			label   string
 		}{
-			{"grease", 1, 0, 0},
-			{"grease", 3, 0, 0},
-			{"grease", 5, 0, 0},
-			{"padding", 0, 256, 0},
-			{"padding", 0, 1024, 0},
-			{"padding", 0, 2048, 0},
-			{"duplicate", 0, 0, 0},
-			{"reorder", 0, 0, 0},
-			{"full", 3, 512, 2},
-			{"advanced", 0, 0, 0},
+			{"substitute", 0, 0, 0, []string{"ya.ru"}, "ya-ru"},
+			{"substitute", 0, 0, 0, []string{"vk.com"}, "vk-com"},
+			{"substitute", 0, 0, 0, []string{"max.ru"}, "max-ru"},
+			{"grease", 1, 0, 0, nil, ""},
+			{"grease", 3, 0, 0, nil, ""},
+			{"grease", 5, 0, 0, nil, ""},
+			{"padding", 0, 256, 0, nil, ""},
+			{"padding", 0, 1024, 0, nil, ""},
+			{"padding", 0, 2048, 0, nil, ""},
+			{"duplicate", 0, 0, 0, nil, ""},
+			{"reorder", 0, 0, 0, nil, ""},
+			{"full", 3, 512, 2, nil, ""},
+			{"advanced", 0, 0, 0, nil, ""},
 		}
 		for i, v := range variants {
+			name := v.mode
+			if v.label != "" {
+				name = v.label
+			}
+			snis := v.snis
+			if snis == nil {
+				snis = []string{"ya.ru", "vk.com", "max.ru"}
+			}
 			presets = append(presets, ConfigPreset{
-				Name:     formatName("mut-%s", v.mode),
+				Name:     formatName("mut-%s", name),
 				Family:   FamilyMutation,
 				Phase:    PhaseOptimize,
 				Priority: i + 1,
@@ -1351,7 +1366,7 @@ func GetPhase2Presets(family StrategyFamily) []ConfigPreset {
 						GreaseCount:  v.grease,
 						PaddingSize:  v.padding,
 						FakeExtCount: v.fakeExt,
-						FakeSNIs:     []string{"ya.ru", "vk.com", "max.ru"},
+						FakeSNIs:     snis,
 					},
 				}),
 			})
