@@ -67,3 +67,8 @@ artifacts/field-runs/
 
 # Field validation agent pack: contains access credentials, reports, local tooling
 B4X_FIELD_VALIDATION_AGENT_PACK/
+
+# Go build caches (docker volume bind mounts)
+.go-cache/
+.go-mod/
+
