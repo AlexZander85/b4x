@@ -47,7 +47,7 @@ b4 iv18 --json        # IV-18 conformance suite: verdict PASS, production_ready 
 
 ## 1. Обязательный конфиг — включить cutover (MON §57.1)
 
-Файл `/etc/b4/b4.json`. Минимум для прогона — две важные строчки в секции `discovery.watchdog`:
+Файл `/etc/b4/b4.json`. Минимум для прогона — две важные строчки в секции `system.checker.watchdog` (JSON-путь `config.SystemConfig.Checker.DiscoveryConfig.WatchdogConfig`, types.go:409-444; НЕ `discovery.watchdog`):
 
 ```json
 {
@@ -60,12 +60,15 @@ b4 iv18 --json        # IV-18 conformance suite: verdict PASS, production_ready 
     "logging": {
       "level": "info",
       "directory": "/etc/b4/logs"
-    }
-  },
-  "discovery": {
-    "watchdog": {
-      "legacy_watchdog_api": false,
-      "legacy_watchdog_direct_apply": false
+    },
+    "checker": {
+      "watchdog": {
+        "enabled": true,
+        "domains": ["yandex.ru", "example.com"],
+        "interval_sec": 60,
+        "legacy_watchdog_api": false,
+        "legacy_watchdog_direct_apply": false
+      }
     }
   }
 }
@@ -74,7 +77,8 @@ b4 iv18 --json        # IV-18 conformance suite: verdict PASS, production_ready 
 Точки:
 - `legacy_watchdog_api: false` — кьюовер активен: legacy mutating `/api/watchdog/*` → 410 Gone, `GET /api/watchdog/status` — read-only проекция Monitoring (§57.1).
 - `legacy_watchdog_direct_apply` опущено/`false` — безопасно (по умолч. false; `true` невозможно для production).
-- Если уже есть рабочий конфиг — добавь эти два ключа в существующую секцию `discovery.watchdog`, не переписывай остальное.
+- `watchdog.enabled: true` — обязателен (DefaultConfig: false, config.go:271; watchdog пассивный наблюдатель, watchdog_core.go:13-17, домены из `Domains`, watchdog_core.go:57).
+- Если уже есть рабочий конфиг — добавь эти два ключа в существующую секцию `system.checker.watchdog`, не переписывай остальное.
 - Если в старой версии конфига ключей нет — b4 сам мигрирует при запуске (автосохранение), дефолты безопасны.
 
 ### Проверка загрузки конфига
