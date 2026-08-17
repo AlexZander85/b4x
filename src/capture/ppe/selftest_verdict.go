@@ -2,7 +2,7 @@ package ppe
 
 import "errors"
 
-func evaluateSelfTest(result CaptureVisibilityResult, requireQUIC bool) CaptureVisibilityResult {
+func evaluateSelfTest(result CaptureVisibilityResult, requireQUIC, allowLimitedApply bool) CaptureVisibilityResult {
 	b := result.PhaseB
 	result.OutgoingFirstPayloadSeen = b.TCPFirstPayloadSeen
 	result.OutgoingSecondRangeSeen = b.TCPSecondRangeSeen
@@ -27,6 +27,10 @@ func evaluateSelfTest(result CaptureVisibilityResult, requireQUIC bool) CaptureV
 	case bComplete:
 		result.Verdict = VerdictPASSWithLimitations
 		result.Evidence = append(result.Evidence, "visibility complete but A/B did not demonstrate an offload-dependent contrast")
+		if allowLimitedApply {
+			result.ProductionReady = true
+			result.Evidence = append(result.Evidence, "limited apply permitted by configuration (allow_limited_apply)")
+		}
 	case b.TCPFirstPayloadSeen:
 		result.Verdict = VerdictFAIL
 		result.FailureStage = "phase_b_visibility"

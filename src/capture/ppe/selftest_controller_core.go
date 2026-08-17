@@ -3,6 +3,7 @@ package ppe
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 )
@@ -65,7 +66,11 @@ func (c *SelfTestController) Run(ctx context.Context, request SelfTestRequest) (
 	if !capability.Supported || capability.State != CapabilitySupported {
 		return failResult(result, "capability", VerdictUNSUPPORTED, errors.New("PPE capability is not fully supported"))
 	}
-	if err := c.health.Check(ctx, request.ControlledEndpoint); err != nil {
+	healthEndpoint := strings.TrimSpace(request.HealthEndpoint)
+	if healthEndpoint == "" {
+		healthEndpoint = request.ControlledEndpoint
+	}
+	if err := c.health.Check(ctx, healthEndpoint); err != nil {
 		return failResult(result, "endpoint_health", VerdictINCONCLUSIVE, err)
 	}
 	if c.counters != nil {
@@ -99,5 +104,5 @@ func (c *SelfTestController) Run(ctx context.Context, request SelfTestRequest) (
 	if c.counters != nil {
 		result.RuleCountersAfter, _ = c.counters.RuleCounters(ctx)
 	}
-	return evaluateSelfTest(result, request.RequireQUIC)
+	return evaluateSelfTest(result, request.RequireQUIC, request.AllowLimitedApply)
 }

@@ -155,13 +155,19 @@ type PPEOffloadConfig struct {
 	IPv6                string            `json:"ipv6"`
 	SourceScope         string            `json:"source_scope"`
 	ReassertIntervalSec int               `json:"reassert_interval_sec"`
+	AllowLimitedApply   bool              `json:"allow_limited_apply"`
 	SelfTest            PPESelfTestConfig `json:"self_test"`
 }
 
 type PPESelfTestConfig struct {
 	Mode               string `json:"mode"`
 	ControlledEndpoint string `json:"controlled_endpoint"`
-	TimeoutMS          int    `json:"timeout_ms"`
+	// HealthEndpoint, when set, is used for the HTTP(S) health probe while
+	// ControlledEndpoint remains the packet-level probe target. This allows
+	// an HTTP health server to live on a different host/port than the TCP
+	// probe endpoint (which must not acknowledge probe payloads).
+	HealthEndpoint string `json:"health_endpoint,omitempty"`
+	TimeoutMS      int    `json:"timeout_ms"`
 }
 
 type ReassemblyRuntimeConfig struct {

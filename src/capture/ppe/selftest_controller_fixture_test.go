@@ -102,3 +102,20 @@ func TestSelfTestControllerNoContrastIsLimited(t *testing.T) {
 		t.Fatalf("unexpected result: %+v", result)
 	}
 }
+
+func TestSelfTestControllerLimitedApplyFlagSetsProductionReady(t *testing.T) {
+	bus := NewObservationBus()
+	controller := NewSelfTestController(func(context.Context) (CapabilityReport, error) { return supportedCapability(), nil }, nil, testHealth{}, scriptedProbe{bus: bus, mode: "both-complete"}, testIsolation{}, nil, bus, nil)
+	request := baseRequest()
+	request.AllowLimitedApply = true
+	result := controller.Run(context.Background(), request)
+	if result.Verdict != VerdictPASSWithLimitations || !result.ProductionReady {
+		t.Fatalf("expected limited verdict with production-ready, got: %+v", result)
+	}
+	if result.OffloadSuspected {
+		t.Fatalf("limited apply must not fabricate offload suspicion: %+v", result)
+	}
+	if !result.TCPBidirectionalComplete {
+		t.Fatalf("limited apply requires complete B-phase evidence: %+v", result.PhaseB)
+	}
+}

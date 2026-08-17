@@ -3,6 +3,7 @@ package ppe
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -59,11 +60,22 @@ func equalRules(a, b [][]string) bool {
 		return false
 	}
 	for i := range a {
-		if strings.Join(a[i], "\x00") != strings.Join(b[i], "\x00") {
+		if strings.Join(sortedCopy(a[i]), "\x00") != strings.Join(sortedCopy(b[i]), "\x00") {
 			return false
 		}
 	}
 	return true
+}
+
+// sortedCopy returns a sorted copy of the argument list. Argument order in a
+// rule is semantically irrelevant, and legacy iptables (e.g. 1.4.21 on
+// Keenetic NDM) reorders options in its -S listing (protocol before matches).
+// Comparison must therefore be order-insensitive to avoid false "owned PPE
+// rules differ" failures on perfectly installed rules.
+func sortedCopy(in []string) []string {
+	out := append([]string(nil), in...)
+	sort.Strings(out)
+	return out
 }
 
 func nonEmptyLines(value string) []string {

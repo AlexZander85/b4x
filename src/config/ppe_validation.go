@@ -93,6 +93,12 @@ func (c *Config) validatePPEConfig(v *validator) {
 			v.add("system.classifier.runtime.capture.ppe.self_test.controlled_endpoint", "invalid_url", fmt.Sprintf("invalid controlled endpoint %q", endpoint), nil)
 		}
 	}
+	if endpoint := strings.TrimSpace(ppe.SelfTest.HealthEndpoint); endpoint != "" {
+		u, err := url.Parse(endpoint)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			v.add("system.classifier.runtime.capture.ppe.self_test.health_endpoint", "invalid_url", fmt.Sprintf("invalid health endpoint %q", endpoint), nil)
+		}
+	}
 	if capture.OffloadPolicy == OffloadPolicyDisableGlobal {
 		// This remains an explicit advanced/debug choice. Validation preserves it,
 		// but runtime code must never select it as a fallback automatically.

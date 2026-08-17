@@ -34,6 +34,18 @@ func compileFamily(family, mode string, capability FamilyCapability, policy stri
 		plan.Reason = "capability unavailable in auto mode"
 		return plan, nil
 	}
+	// The managed-devices scope is a set match against an ipset that is
+	// populated with IPv4 addresses only (hash:ip, family inet). ip6tables
+	// rejects set matches against IPv4-family sets, so a scoped IPv6 plan
+	// cannot be installed. In auto mode IPv6 is skipped; in on mode the
+	// requirement is unsatisfiable and must fail loudly.
+	if len(scope) > 0 && family == "ipv6" {
+		if mode == config.PPEFamilyOn {
+			return FamilyPlan{}, fmt.Errorf("%w: managed-devices scope has no inet6 source ipset for %s", ErrFamilyRequiredUnsupported, family)
+		}
+		plan.Reason = "managed-devices scope is IPv4-only; IPv6 PPE disabled in auto mode"
+		return plan, nil
+	}
 	plan.Enabled = true
 	plan.Rules = compileRules(ppeCfg, tcpPorts, udpPorts, scope)
 	plan.RestoreScript = renderRestore(plan.Rules)

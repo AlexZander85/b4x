@@ -39,6 +39,10 @@ func (g *VisibilityGate) PublishSelfTestForGeneration(generation string, result 
 		}
 	case VerdictPASSWithLimitations:
 		reason = "bidirectional packets were visible but A/B did not prove offload exclusion"
+		if result.ProductionReady {
+			mode = VisibilityComplete
+			reason = "complete bidirectional visibility proven; limited apply permitted by configuration"
+		}
 	case VerdictFAIL:
 		mode = VisibilityIncomplete
 		if result.OutgoingFirstPayloadSeen && result.OutgoingSecondRangeSeen && result.OutgoingRetransSeen && !result.IncomingProgressSeen {

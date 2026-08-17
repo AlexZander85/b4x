@@ -120,8 +120,12 @@ func bypassRules(runID string, tcpSourcePort, quicSourcePort uint16) [][]string 
 	return rules
 }
 
+// safeRunID guards the A/B isolation rules against option injection: the run
+// ID is embedded in an iptables comment, so only a restricted character set is
+// accepted. The bound is generous because automatic runs use "auto-<64-hex
+// generation>" IDs (69 chars) that must fit in the 255-byte comment space.
 func safeRunID(runID string) bool {
-	if len(runID) < 3 || len(runID) > 64 {
+	if len(runID) < 3 || len(runID) > 128 {
 		return false
 	}
 	for _, char := range runID {

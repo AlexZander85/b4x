@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -150,7 +151,7 @@ func (s *ProductService) Status(ctx context.Context) DiagnosticsReport {
 	report := s.diagnostics.Status(ctx)
 	visibility := DefaultVisibilityGate().Snapshot()
 	report.FunctionalVerdict = functionalVerdictFor(visibility.LastVerdict)
-	report.ProductionReady = visibility.Mode == VisibilityComplete && visibility.LastVerdict == VerdictPASS
+	report.ProductionReady = visibility.Mode == VisibilityComplete && (visibility.LastVerdict == VerdictPASS || visibility.LastVerdict == VerdictPASSWithLimitations)
 	return report
 }
 
@@ -296,7 +297,7 @@ func (s *ProductService) tryAutoEnable(ctx context.Context, cfg *config.Config, 
 	started := time.Now()
 	result := s.selfTest.Run(ctx, request)
 	s.publishSelfTestOutcome(request, result, started, "auto-enable")
-	if result.Verdict != VerdictPASS {
+	if !result.ProductionReady {
 		s.autoEnableRollback(ctx, current.Generation, "pre-commit visibility self-test "+string(result.Verdict))
 		return
 	}
@@ -475,7 +476,7 @@ func (s *ProductService) publishSelfTestOutcome(request SelfTestRequest, result 
 	clone := cloneVisibilityResult(result)
 	s.lastSelfTest = &clone
 	s.mu.Unlock()
-	s.record("self-test", request.Generation, result.Verdict == VerdictPASS, trigger+":"+string(result.Verdict))
+	s.record("self-test", request.Generation, result.ProductionReady, trigger+":"+string(result.Verdict))
 }
 
 // automaticSelfTestRequest derives the automatic visibility self-test request
@@ -500,22 +501,45 @@ func (s *ProductService) automaticSelfTestRequest(cfg *config.Config) (SelfTestR
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}
-	sourcePort := uint16(443)
-	if ports := cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts; len(ports) > 0 {
-		for _, p := range ports {
-			if p != 0 {
-				sourcePort = p
-				break
-			}
-		}
-	}
+	sourcePort := selectProbeSourcePort(cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts)
 	return SelfTestRequest{
 		RunID:              "auto",
 		ControlledEndpoint: endpoint,
+		HealthEndpoint:     strings.TrimSpace(selfTest.HealthEndpoint),
 		Family:             "ipv4",
 		TCPSourcePort:      sourcePort,
 		Timeout:            timeout,
+		AllowLimitedApply:  cfg.System.Classifier.Runtime.Capture.PPE.AllowLimitedApply,
 	}, true
+}
+
+// selectProbeSourcePort picks a client source port for the controlled
+// self-test probe. The port MUST NOT belong to the PPE TCP port list: the
+// passive observer classifies a packet as incoming when its source port is in
+// the list, which would break source-port correlation for outgoing probe
+// traffic. The port is also kept free of the controlled-endpoint port space.
+func selectProbeSourcePort(tcpPorts []uint16) uint16 {
+	for attempt := 0; attempt < 32; attempt++ {
+		listener, err := net.Listen("tcp4", ":0")
+		if err != nil {
+			continue
+		}
+		port := uint16(listener.Addr().(*net.TCPAddr).Port)
+		listener.Close()
+		if port != 0 && !containsUint16(tcpPorts, port) {
+			return port
+		}
+	}
+	return 40000
+}
+
+func containsUint16(values []uint16, candidate uint16) bool {
+	for _, value := range values {
+		if value == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 // maybeRunAutomaticSelfTest starts an asynchronous self-test when the active
@@ -575,7 +599,8 @@ func (s *ProductService) runAutomaticSelfTest(request SelfTestRequest) {
 
 func provenForGeneration(generation string) bool {
 	snapshot := DefaultVisibilityGate().Snapshot()
-	return snapshot.Mode == VisibilityComplete && snapshot.Generation == generation && snapshot.LastVerdict == VerdictPASS
+	return snapshot.Mode == VisibilityComplete && snapshot.Generation == generation &&
+		(snapshot.LastVerdict == VerdictPASS || snapshot.LastVerdict == VerdictPASSWithLimitations)
 }
 
 func (s *ProductService) SelfTestResult(runID string) (CaptureVisibilityResult, bool) {

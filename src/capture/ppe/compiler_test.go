@@ -82,6 +82,27 @@ func TestCompileManagedScopeRequiredBeforePayload(t *testing.T) {
 	}
 }
 
+func TestCompileIPv6ManagedScopeDisabledInAuto(t *testing.T) {
+	cfg := compilerConfig() // SourceScope = PPESourceManagedDevices
+	state, err := Compile(CompileInput{Config: cfg, Capabilities: supportedCapabilities(), ManagedSourceSet: "b4_managed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Families[0].Family != "ipv4" || !state.Families[0].Enabled {
+		t.Fatalf("IPv4 must stay enabled: %+v", state.Families[0])
+	}
+	if state.Families[1].Family != "ipv6" || state.Families[1].Enabled {
+		t.Fatalf("IPv6 must be disabled under IPv4-only managed scope: %+v", state.Families[1])
+	}
+	if !strings.Contains(state.Families[1].Reason, "IPv4-only") {
+		t.Fatalf("unexpected reason: %q", state.Families[1].Reason)
+	}
+	cfg.System.Classifier.Runtime.Capture.PPE.IPv6 = config.PPEFamilyOn
+	if _, err := Compile(CompileInput{Config: cfg, Capabilities: supportedCapabilities(), ManagedSourceSet: "b4_managed"}); err == nil {
+		t.Fatal("required IPv6 with IPv4-only managed scope must fail")
+	}
+}
+
 func TestExpandPortExpression(t *testing.T) {
 	ports, err := expandPortExpression("80,443,1000-1002")
 	if err != nil || len(ports) != 5 {

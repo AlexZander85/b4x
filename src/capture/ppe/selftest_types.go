@@ -38,6 +38,16 @@ type SelfTestRequest struct {
 	QUICSourcePort     uint16        `json:"quic_source_port,omitempty"`
 	RequireQUIC        bool          `json:"require_quic"`
 	Timeout            time.Duration `json:"timeout"`
+	// AllowLimitedApply permits committing per-flow exclusion when the
+	// controlled A/B test proves complete bidirectional visibility but the
+	// platform cannot demonstrate an offload-dependent contrast (no hardware
+	// offload of the probe flow). The verdict stays PASS_WITH_LIMITATIONS but
+	// ProductionReady becomes true, so rules may be installed and asserted.
+	AllowLimitedApply bool `json:"allow_limited_apply"`
+	// HealthEndpoint overrides ControlledEndpoint for the HTTP(S) health
+	// check. Empty means the controlled endpoint doubles as the health
+	// endpoint.
+	HealthEndpoint string `json:"health_endpoint,omitempty"`
 }
 
 func (r SelfTestRequest) Validate() error {

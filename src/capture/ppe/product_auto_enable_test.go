@@ -108,7 +108,7 @@ func TestAutoEnableCommitPathOnFreshKeeneticMediaTek(t *testing.T) {
 	service.Stop(context.Background())
 }
 
-func TestAutoEnableSelfTestRequestUsesFirstNonZeroPort(t *testing.T) {
+func TestAutoEnableSelfTestRequestChoosesPortOutsidePPEPorts(t *testing.T) {
 	cfg := autoEnableConfig()
 	cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts = []uint16{0, 0, 8443}
 	service, _ := newAutoEnableService(&recordingSelfTestRunner{}, cfg, func(c *config.Config) error { return nil })
@@ -117,8 +117,15 @@ func TestAutoEnableSelfTestRequestUsesFirstNonZeroPort(t *testing.T) {
 	if !ok {
 		t.Fatal("startup-and-change mode with endpoint must produce a request")
 	}
-	if request.TCPSourcePort != 8443 {
-		t.Errorf("source port = %d, want 8443 (first non-zero)", request.TCPSourcePort)
+	// The probe source port must never collide with the PPE TCP port list:
+	// the passive observer classifies packets with a listed source port as
+	// incoming, which would break source-port correlation for outgoing probe
+	// traffic.
+	if containsUint16([]uint16{0, 0, 8443}, request.TCPSourcePort) {
+		t.Errorf("source port = %d must not be in the PPE TCP port list", request.TCPSourcePort)
+	}
+	if request.TCPSourcePort == 0 {
+		t.Error("source port must be non-zero")
 	}
 
 	cfg.System.Classifier.Runtime.Capture.PPE.TCPPorts = []uint16{0}
