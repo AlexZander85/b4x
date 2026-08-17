@@ -765,6 +765,14 @@ func initLogging(cfg *config.Config) error {
 	w := io.MultiWriter(log.OrigStderr(), b4http.LogWriter())
 	log.Init(w, log.Level(cfg.System.Logging.Level), cfg.System.Logging.Instaflush)
 
+	if mainLogPath := cfg.System.Logging.MainLogPath(); mainLogPath != "" {
+		if err := log.SetMainLogFile(mainLogPath); err != nil {
+			log.Errorf("Failed to open main log file: %v", err)
+		} else {
+			log.Infof("Main logging to file: %s", mainLogPath)
+		}
+	}
+
 	if cfg.System.Logging.Syslog {
 		if err := log.EnableSyslog("b4"); err != nil {
 			log.Warnf("Syslog unavailable, continuing without it: %v", err)

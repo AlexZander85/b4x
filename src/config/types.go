@@ -470,6 +470,15 @@ func (l Logging) UpdateLogPath() string {
 	return filepath.Join(l.Directory, "update.log")
 }
 
+// MainLogPath returns the path to the main console log (INFO/TRACE/ERROR),
+// or "" when file logging is disabled (empty Directory).
+func (l Logging) MainLogPath() string {
+	if l.Directory == "" {
+		return ""
+	}
+	return filepath.Join(l.Directory, "b4.log")
+}
+
 type SetConfig struct {
 	Id            string              `json:"id"`
 	Name          string              `json:"name"`

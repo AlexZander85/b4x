@@ -171,6 +171,51 @@ func StopCapture(w io.Writer) {
 	base.remove(w)
 }
 
+// mainLogRotateBytes is the size at which the main log is rotated when
+// (re)opened (b4.log -> b4.log.1). Kept generous: the log lives on persistent
+// storage and is used for long-running diagnostics.
+const mainLogRotateBytes = 64 << 20
+
+var (
+	mainFileMu sync.Mutex
+	mainFile   *os.File
+)
+
+// SetMainLogFile switches the main console log file capture to path: any
+// existing capture is stopped and closed first, then (if path is non-empty)
+// the file is opened for appending — rotating an overgrown file out of the
+// way — and all log levels start being captured into it. Passing "" stops
+// file capture and returns without error.
+func SetMainLogFile(path string) error {
+	mainFileMu.Lock()
+	defer mainFileMu.Unlock()
+	if mainFile != nil {
+		StopCapture(mainFile)
+		_ = mainFile.Sync()
+		_ = mainFile.Close()
+		mainFile = nil
+	}
+	if path == "" {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+	if st, err := os.Stat(path); err == nil && st.Size() > mainLogRotateBytes {
+		if err := os.Rename(path, path+".1"); err != nil {
+			return fmt.Errorf("failed to rotate main log: %w", err)
+		}
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open main log file: %w", err)
+	}
+	StartCapture(f)
+	mainFile = f
+	return nil
+}
+
 func InitErrorFile(path string) error {
 	if path == "" {
 		return nil

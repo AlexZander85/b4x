@@ -145,7 +145,13 @@ export const LoggingSettings = ({ config, onChange }: LoggingSettingsProps) => {
                 onChange("system.logging.directory", e.target.value)
               }
               placeholder={t("settings.Logging.logDirectoryPlaceholder")}
-              helperText={t("settings.Logging.logDirectoryHelp")}
+              helperText={
+                config.system.logging.directory
+                  ? `${t("settings.Logging.logDirectoryHelp")} ${t(
+                      "settings.Logging.logDirectoryFiles",
+                    )}: ${config.system.logging.directory}/b4.log, ${config.system.logging.directory}/errors.log, ${config.system.logging.directory}/update.log`
+                  : t("settings.Logging.logDirectoryHelp")
+              }
             />
             <B4Select
               label={t("settings.Logging.timezone")}

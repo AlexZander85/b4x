@@ -430,6 +430,11 @@ func (a *API) saveAndPushConfig(newCfg *config.Config) error {
 	}
 
 	if a.getCfg().System.Logging.Directory != newCfg.System.Logging.Directory {
+		if err := log.SetMainLogFile(newCfg.System.Logging.MainLogPath()); err != nil {
+			log.Errorf("Failed to switch main log to %q: %v", newCfg.System.Logging.Directory, err)
+		} else {
+			log.Infof("Main log directory changed to %q", newCfg.System.Logging.Directory)
+		}
 		if err := log.SetErrorFile(newCfg.System.Logging.ErrorFilePath()); err != nil {
 			log.Errorf("Failed to switch error log to %q: %v", newCfg.System.Logging.Directory, err)
 		} else {
