@@ -289,6 +289,14 @@ func GetComboSplitPoints(payload []byte, payloadLen int, combo *config.ComboFrag
 			if sniStart > 2 {
 				splits = append(splits, sniStart-1)
 			}
+			if sniLen > 5 {
+				// Cut the SNI right after its 4th byte so that blocked
+				// hostnames (e.g. "youtubei...") never appear in full in
+				// any single TCP segment ("yout" | "ubei..."). Mid-name
+				// splits alone leave e.g. "youtubei.g" intact, which DPI
+				// pattern-matching per segment still catches.
+				splits = append(splits, sniStart+4)
+			}
 			splits = append(splits, sniStart+sniLen/2)
 			if sniLen > 15 {
 				splits = append(splits, sniStart+sniLen*3/4)
