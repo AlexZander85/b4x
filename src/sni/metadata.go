@@ -65,6 +65,21 @@ func ParseTLSClientHelloMetadata(input []byte) TLSClientHelloMetadata {
 		if recordEnd > len(view) {
 			metadata.Incomplete(recordEnd - len(view))
 			metadata.RecordNeedBytes = recordEnd - len(view)
+			// The record is truncated at the segment boundary. When it carries
+			// a ClientHello, the available prefix still usually contains the
+			// SNI extension (it precedes padding and large key shares). Parse
+			// the prefix leniently so the hostname can be observed without
+			// waiting for a reassembled record.
+			if recordType == 0x16 && recordLength > 0 {
+				handshake = appendBounded(handshake, view[pos+5:], TLSClientHelloMetadataMaxBytes)
+				if len(handshake) >= 4 && handshake[0] == tlsHandshakeClientHello {
+					bodyLength := int(handshake[1])<<16 | int(handshake[2])<<8 | int(handshake[3])
+					helloLength := 4 + bodyLength
+					if helloLength <= TLSClientHelloMetadataMaxBytes {
+						parseClientHelloBodyPartial(handshake[4:], &metadata)
+					}
+				}
+			}
 			return metadata
 		}
 		metadata.RecordCount++
@@ -98,6 +113,11 @@ func ParseTLSClientHelloMetadata(input []byte) TLSClientHelloMetadata {
 				continue
 			}
 			metadata.Incomplete(helloLength - len(handshake))
+			// Handshake message spans multiple TLS records and the view is
+			// exhausted: parse the collected prefix leniently for SNI.
+			if len(handshake) >= 4 && handshake[0] == tlsHandshakeClientHello {
+				parseClientHelloBodyPartial(handshake[4:], &metadata)
+			}
 			return metadata
 		}
 
@@ -336,3 +356,85 @@ func parseMetadataVersions(data []byte, metadata *TLSClientHelloMetadata) error 
 }
 
 func errTLSMetadata(field string) error { return fmt.Errorf("malformed TLS ClientHello: %s", field) }
+
+// parseClientHelloBodyPartial extracts available metadata from a truncated
+// ClientHello body. It never fails on missing bytes: every structure is
+// walked while enough data remains and parsing stops silently at the first
+// shortage. A truncated SNI name is ignored rather than partially recorded.
+// parseClientHelloBody remains the strict full-body path.
+func parseClientHelloBodyPartial(body []byte, metadata *TLSClientHelloMetadata) {
+	if len(body) < 2 {
+		return
+	}
+	metadata.LegacyVersion = uint16(body[0])<<8 | uint16(body[1])
+	p := 2
+	if !skipMetadata(body, &p, 32) || !skipMetadataVector8(body, &p) || !skipMetadataVector16(body, &p) || !skipMetadataVector8(body, &p) {
+		return
+	}
+	extensions, ok := partialReadMetadataVector16(body, &p)
+	if !ok {
+		return
+	}
+	for len(extensions) >= 4 {
+		extensionType := uint16(extensions[0])<<8 | uint16(extensions[1])
+		extensionLength := int(extensions[2])<<8 | int(extensions[3])
+		extensions = extensions[4:]
+		if extensionLength > len(extensions) {
+			// Truncated extension data: the remaining prefix is not part of
+			// this extension. Stop walking; metadata already collected (SNI,
+			// supported versions) stays valid.
+			break
+		}
+		extensionData := extensions[:extensionLength]
+		extensions = extensions[extensionLength:]
+		switch extensionType {
+		case 0x0000:
+			if host, err := parseMetadataSNI(extensionData); err == nil && host != "" {
+				metadata.SNI = host
+			}
+		case 0x0010:
+			_ = parseMetadataALPN(extensionData, metadata)
+		case 0x002b:
+			_ = parseMetadataVersions(extensionData, metadata)
+		case 0xfe0d, 0xfe0e, 0xfe0f:
+			metadata.ECHPresent = true
+		}
+	}
+	if len(metadata.SupportedVersions) > 0 {
+		for _, version := range metadata.SupportedVersions {
+			if version > metadata.MaxVersion {
+				metadata.MaxVersion = version
+			}
+		}
+	}
+	if metadata.MaxVersion == 0 {
+		metadata.MaxVersion = metadata.LegacyVersion
+	}
+	if metadata.ECHPresent && metadata.SNI != "" {
+		metadata.ECHOuterName = metadata.SNI
+	}
+}
+
+// partialReadMetadataVector16 returns the available prefix of a 16-bit
+// length vector: the length prefix plus as much data as is present. ok is
+// false only when the length prefix itself is missing.
+func partialReadMetadataVector16(b []byte, p *int) ([]byte, bool) {
+	if *p+2 > len(b) {
+		return nil, false
+	}
+	n := int(b[*p])<<8 | int(b[*p+1])
+	*p += 2
+	if n == 0 {
+		return nil, true
+	}
+	avail := len(b) - *p
+	if avail <= 0 {
+		return nil, true
+	}
+	if avail > n {
+		avail = n
+	}
+	v := b[*p : *p+avail]
+	*p += avail
+	return v, true
+}

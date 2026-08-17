@@ -65,6 +65,39 @@ func TestTLSClientHelloMetadataSplitAndTrailingData(t *testing.T) {
 	}
 }
 
+// TestTLSClientHelloMetadataTruncatedRecordSNI locks in hostname extraction
+// from the first segment of a ClientHello record larger than one MSS. The
+// SNI extension precedes padding/key shares, so it must be observed without
+// waiting for reassembly of the remaining segments.
+func TestTLSClientHelloMetadataTruncatedRecordSNI(t *testing.T) {
+	record := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 1700)
+	if len(record) <= 1400 {
+		t.Fatalf("fixture record too small for split: %d", len(record))
+	}
+	metadata := ParseTLSClientHelloMetadata(record[:1400])
+	if metadata.Complete || metadata.NeedBytes <= 0 || metadata.RecordNeedBytes <= 0 {
+		t.Fatalf("truncated record metadata=%+v", metadata)
+	}
+	if metadata.SNI != "api.youtube.com" {
+		t.Fatalf("truncated record SNI = %q, want api.youtube.com (metadata=%+v)", metadata.SNI, metadata)
+	}
+	if metadata.MaxVersion != 0x0304 {
+		t.Fatalf("truncated record MaxVersion = %#x, want 0x0304", metadata.MaxVersion)
+	}
+}
+
+// TestTLSClientHelloMetadataTruncatedBeforeSNI verifies that a segment cut
+// before the SNI extension yields no hostname and no parse error.
+func TestTLSClientHelloMetadataTruncatedBeforeSNI(t *testing.T) {
+	record := fixtures.BuildTLSClientHello("api.youtube.com", 0x0304, false, 1700)
+	// Cut inside the fixed ClientHello header (legacy_version + random),
+	// long before any extension.
+	metadata := ParseTLSClientHelloMetadata(record[:20])
+	if metadata.Complete || metadata.SNI != "" || metadata.ParseError != "" {
+		t.Fatalf("early-cut metadata=%+v", metadata)
+	}
+}
+
 func TestTLSClientHelloMetadataALPNAndECHOuterName(t *testing.T) {
 	metadata := ParseTLSClientHelloMetadata(buildMetadataALPNRecord())
 	if !metadata.Complete || metadata.ParseError != "" || metadata.SNI != "api.youtube.com" || metadata.MaxVersion != 0x0304 {
