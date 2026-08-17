@@ -1,0 +1,37 @@
+# PROJECT DIRECTIVES — b4 (Кeenetic PPE + обход ТСПУ/DPI для YouTube)
+
+## Цель (всегда актуальна)
+Стабильный YouTube на .152 (телефон) и .40 (ПК): маскировка SNI от ТСПУ через b4.
+Стратегия №1 (основная): Fake SNI Desync (badsum/AutoTTL) + L4 Multisplit/Disorder (combo).
+Стратегия №2 (резерв): чистый TCP Multisplit/Disorder. `sni_mutation` НЕ использовать (ломает TLS1.3).
+Fake-инжекция и сплит — ТОЛЬКО для первого ClientHello; далее NF_ACCEPT в PPE offload.
+
+## PPE: штатная реализация vs эталон z2k (РЕШЕНИЕ 17.08.2026)
+- Форма правил ИДЕНТИЧНА эталону (z2k-ppe-deoffload.sh): mangle PREROUTING+FORWARD, `-m connskip --connskip 30 -j PPE` (+ UDP/443 QUIC). Проверено 3 экспериментами на роутере — обе формы работают (405/200).
+- **ИСПОЛЬЗУЕМ ШТАТНУЮ (b4 capture/ppe)**: полный lifecycle (selftest, generation, reconciler ~55с, NDM-хук /opt/etc/ndm/netfilter.d/94-b4-ppe-reconcile.sh — сигнал USR1, API apply/rollback, счётчики). Отличие от z2k: scope по ipset `b4_managed_devices` (только управляемые клиенты; z2k — все клиенты) и порты из конфига (443; z2k — 80,443,2053,2083,2087,2096,8443).
+- **НЕ ИСПОЛЬЗОВАТЬ ОБЕ ОДНОВРЕМЕННО**: наш apply/reconciler требует каноничности (наши jump'ы первыми, чужие правила отсутствуют — backend_iptables_apply.go "owned PPE jumps are not first", cleanup "foreign rule"); z2k-правило первым в PREROUTING сломает валидацию.
+- ВАЖНО: на роутере УСТАНОВЛЕН z2k (/opt/zapret2/, webpanel), НО сейчас НЕ запущен (нет процессов nfqws/zapret), его NDM-хуков НЕТ (в /opt/etc/ndm/netfilter.d/ только наш 94-b4-ppe-reconcile.sh), файла z2k-ppe-deoffload.sh нет. ЕСЛИ z2k будет включён (например, Telegram-туннель) — отключить его PPE-деоффлоад: `Z2K_PPE_DEOFFLOAD=0` в /opt/zapret2/config, ИНАЧЕ конфликт правил.
+
+## КОМАНДЫ / ДОСТУП (обновлено 17.08.2026 — логи на флешке)
+- Роутер SSH: 192.168.1.1:222 (`python %TEMP%\opencode\rssh.py 'cmd'`). UTC+5.
+- Деплой файлов: SFTP НЕ РАБОТАЕТ (dropbear без sftp-server) → `python %TEMP%\opencode\ssh_cat.py <локальный> <remote>` (файл льётся в SSH stdin: `cat > remote`). Бинарь: `/tmp/mnt/37fdc502.../bin/b4`, конфиг `/opt/etc/b4/b4.json`, автозапуск `/opt/etc/init.d/S99b4` (rc.func, stdout→/dev/null).
+- **ЛОГИ b4 — НА ФЛЕШКЕ (с 17.08.2026)**: `/tmp/mnt/37fdc502.../b4/log/{b4.log, errors.log, update.log}`. Задаётся `system.logging.directory` в b4.json. b4 САМ открывает b4.log (StartCapture; ротация 64MB→.1 при старте) и errors.log (ротация 1MB). `/tmp/b4.log` больше НЕ ИСПОЛЬЗУЕТСЯ (это был ручной nohup-редирект). Флешка /dev/sda1 ext4, 25GB свободно.
+- **/tmp = tmpfs 243MB — НЕ ЗАБИВАТЬ**: большие файлы (pcap, бинари) хранить на флешке или скачивать локально. Чистка: `rm -f /tmp/b4.*.bak /tmp/*.pcap /tmp/b4.*.log` (бэкапы бинарей и pcap есть на флешке/локально).
+- Сборка arm64 ТОЛЬКО через docker (на хосте go НЕТ; `-v` на этой машине ломается — использовать `--mount`): `docker run --rm --dns 8.8.8.8 --mount type=bind,source=D:\b4x,target=/src --mount type=bind,source=C:\Users\AlexZander\go\pkg\mod,target=/go/pkg/mod -w /src/src golang:1.25.3-alpine env CGO_ENABLED=0 GOOS=linux GOARCH=arm64 GOFLAGS=-mod=mod go build -trimpath -ldflags "-s -w -X main.Version=1.0.0 -X main.Commit=local -X main.Date=20260817" -o ../out/linux-arm64/b4 .` (без --dns 8.8.8.8 не качаются модули; без GOMODCACHE-маунта тоже). Контроль: md5 текущего репо = 6a41f5d3 (роутерный 20260817); с лог-фичей = 27e0f68d. Тесты: `go test ./config/ ./sni/` в том же контейнере.
+- Тест с ПК: `curl --resolve <domain>:443:<IP> https://...` (youtubei/yt — 405/200 = РАБОТАЕТ; 000 = блок).
+- b4 API на роутере: `curl -s http://127.0.0.1:7000/api/v1/capture/offload/status` (features/visibility), `POST /api/v1/capture/offload/rollback` (+ Idempotency-Key + expected_generation из status) — откат PPE-правил.
+- Устройства: .152 телефон (22:30:F3:33:62:27), .40 ПК (BC:FC:E7:B5:F5:8E). WAN eth3, SNAT-адрес 192.168.0.50.
+
+## KNOWN PITFALLS (топ-5) — симптом → причина → фикс
+1. **"b4 жив (процесс есть, API отвечает), но лог МОЛЧИТ (нет новых строк / обрывается на середине)"** → /tmp (tmpfs 243MB) ЗАПОЛНЕН НА 100%: write() = ENOSPC, log-флашер МОЛЧА ТЕРЯЕТ записи (log.go: flushLocked игнорирует ошибки). СЛУЧИЛОСЬ 17.08.2026: b4 молчал с 11:24 до 16:55 (после чистки /tmp и перезапуска — пишет). ФИКС: `df -h /tmp`; почистить (см. КОМАНДЫ/ДОСТУП: чистка /tmp); С 17.08.2026 логи на флешке — проблема исключена для b4-логов. ПРОВЕРКА: `tail -2 /tmp/mnt/37fdc502.../b4/log/b4.log` растёт при трафике.
+2. **"SNI не маскируется / combo не применяется / 000 при включённом PPE"** → НЕ ВИНИТЬ PPE-ПРАВИЛА: форма правил ИДЕНТИЧНА эталону (mangle PREROUTING+FORWARD, `-m connskip --connskip 30 -j PPE`; проверено 17.08.2026 тремя экспериментами: прямое правило / с ipset / цепочка+jump — ВСЕ работают с маскировкой 405/200). РЕАЛЬНЫЙ виновник сбоя 17.08 утром — не установлен (stale-состояние старого процесса b4/правил до перезапуска; после rollback + повторного apply всё работает). ДИАГНОСТИКА при 000: (а) есть ли "TCP payload to <ip>" в логе (CH дошёл?); (б) один ли процесс b4 (ps w|grep b4) и слушает ли он 537:540 (`cat /proc/net/netfilter/nfnetlink_queue`); (в) нет ли чужих TPROXY/DNAT-правил до наших (iptables-save -t mangle | head). ЛЕЧЕНИЕ: перезапуск b4 (kill -9 pid; запуск заново) + `POST /api/v1/capture/offload/rollback`/`apply` с Idempotency-Key — пересборка поколения.
+3. **"tcp_reassembly_mode отсутствует → реасемблер всегда off"** → дефолт `ReassemblyOff` (src/config/types.go:133). Без него SNI из многосегментного ClientHello (>MSS, 1400+173) не извлекается (парсер sni/metadata.go возвращает Incomplete на неполном record) → matched=false. ФИКС (уже в коде): partial-парсер SNI из первого сегмента (metadata.go: parseClientHelloBodyPartial) + в конфиг добавить `system.classifier.flags.tcp_reassembly_mode: "observe"` (страховка). Проверка: тест TestTLSClientHelloMetadataTruncatedRecordSNI.
+4. **"ClientHello полный (1400+173), decoy нет"** → см. pitfall 2 ИЛИ SNI-домен не в sni_domains сета (пример: youtubei.googleapis.com есть в combo-timestamp/random/pastseq-alt/duplicate/incoming-fake-combo, НО НЕ в youtube-ui; для тестов curl используй --resolve youtubei.googleapis.com:443:<IP> — матчится combo-timestamp).
+5. **Новые конфиги должны содержать**: `tcp_reassembly_mode: "observe"`; `tcp.incoming` с `mode:"fake", fake_count:5, strategy:"badsum"`; `faking: {sni_type:7, payload_domain:"www.google.com", ttl:7, sni:true}`; `fragmentation: {strategy:"combo", reverse_order:true, middle_sni:true, sni_position:1, combo:{first_byte_split:true, extension_split:true, shuffle_mode:"full", first_delay_ms:30, jitter_max_us:1000, decoy_enabled:true}}` (бэкап рабочего: /opt/etc/b4/b4.json.fullbackup, b4.json.pre-combo).
+
+## Инварианты
+- Реасемблер: решает только в observe-режиме; hold/replay активируется ТОЛЬКО при `tcp_reassembly_mode=observe` (tcp_hold_worker.go:95).
+- PPE visibility: PASS_WITH_LIMITATIONS даёт все фичи allowed (включая reassembly/hold-replay), если включён allow_limited_apply.
+- Уровень TRACE в логе: строки вида "TCP payload to <ip>: len=...", "Sending TCP packet with fragmentation strategy: combo", "sendDecoyPacket" — подтверждение маскировки.
+- curl youtubei=405 / www.youtube.com=200 = bypass работает; 000 = блок ТСПУ или флоу не доходит до b4.
+- ТСПУ: глушит TCP по SNI youtube* (тихий дроп после ClientHello, без RST); QUIC (UDP 443) пропускает; google.com на тех же IP — 200.
