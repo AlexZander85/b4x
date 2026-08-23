@@ -25,6 +25,7 @@ func (w *Worker) sendComboFragments(cfg *config.SetConfig, packet []byte, dst ne
 	}
 
 	splits := GetComboSplitPoints(pi.Payload, pi.PayloadLen, combo, cfg.Fragmentation.MiddleSNI)
+	splits = boundComboSplits(splits, pi.PayloadLen)
 	splits = uniqueSorted(splits, pi.PayloadLen)
 
 	if len(splits) < 1 {

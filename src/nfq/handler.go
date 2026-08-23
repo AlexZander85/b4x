@@ -225,6 +225,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	var reassemblyResult classifier.TCPReassemblyResult
 	sequence, sequenceOK := tcpPacketSequence(tcp)
 	tlsMetadata := w.tcpTLSDecisionMetadata(cfg, pkt, sport, dport, payload)
+	// tcp_has_ech (Часть 3 П.2): observation-only claim on any complete-in-
+	// one-segment ClientHello with an ECH extension, regardless of set.
+	if echFlowEnabled {
+		w.observeECHFlowMeta(pkt, sport, dport, tlsMetadata, set)
+	}
 
 	if cfg.IsTCPPort(sport) {
 		result, isTrackedRST := w.observePassiveRSTIncoming(cfg, pkt, tcp, payload, sport, dport)
@@ -243,6 +248,36 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return w.HandleIncoming(vc, pkt.ver, pkt.raw, pkt.ihl, pkt.src, pkt.dstStr, dport, pkt.srcStr, sport, payload)
 	}
 	w.observePassiveRSTOutgoing(cfg, pkt, tcp, payload, sport, dport, set)
+	// L-quicbound (Часть 2.5): observation-only counter of bare outbound
+	// SYNs toward youtube-video IPs. Never acts on the packet.
+	if quicboundEnabled {
+		if qbSet := set; qbSet != nil && isYouTubeVideoSet(qbSet) {
+			w.quicboundObserveOpen(pkt, qbSet)
+		} else if m := matcher; m != nil {
+			if ipMatched, ipSet := m.MatchIPWithSource(pkt.dst, pkt.srcMac); ipMatched && w.quicbound != nil && isYouTubeVideoSet(ipSet) {
+				w.quicboundObserveOpen(pkt, ipSet)
+			}
+		}
+	}
+	// L-steer (b4x-p0.8): packets of a flow already steered (RST sent) are
+	// dropped silently for steerSuppressTTL so Cronet retries do not linger.
+	// v2 additionally drops bare SYNs of a steered (device -> dstIP) pair for
+	// steerClientTTL: retry storms open fresh tuples that per-flow keys
+	// cannot match, and they must die at SYN before any hold/RST cost.
+	if steerSuppressedDrop(pkt, sport, dport) {
+		vc.drop()
+		return 0
+	}
+	if steerClientSYNSuppressedDrop(tcp[13], pkt) {
+		log.Infof("L-steer v2: dropped SYN %s:%d -> %s:%d (client scope armed)", pkt.srcStr, sport, pkt.dstStr, dport)
+		vc.drop()
+		return 0
+	}
+	// L-quicsynrst (Часть 2.6): while a pair is armed, an outbound bare SYN
+	// gets an immediate spoofed refused-RST instead of ~100 s of silence.
+	if quicSynRstEnabled && w.quicSynRstOnSyn(vc, pkt, tcp[13]) {
+		return 0
+	}
 	var secondaryToken *GSOPassToken
 	if w.normalizer {
 		token, selectedSet, ok, _ := w.consumeGSOPassForPacket(cfg, pkt, sport, dport, sequence, sequenceOK)
@@ -391,6 +426,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 						matchedSNI = true
 						matched = true
 						set = stSNI
+						if isGoogleVideoHost(host) {
+							w.observeQUICHandoff(cfg, pkt, dport, host, stSNI)
+						}
 					}
 				}
 			}
@@ -422,6 +460,9 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			w.actionTokens.CloseServerProgress(gsoFlowHash(flowKey))
 		}
 		w.releaseTCPHoldOnFlowTermination(flowKey, isFin)
+		if w.chHold != nil {
+			w.chHold.discard(fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport))
+		}
 	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
@@ -677,6 +718,38 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return vc.accept()
 	}
 
+	// ECH tail is not 0x16 and often has no SNI, so matched==false. Still
+	// append to a waiting hold (ReVanced 09:45 74.125.110.168: tail 379 B
+	// accepted while prefix sat in hold until the 80ms timeout).
+	if w.chHold != nil && sequenceOK && len(payload) > 0 {
+		holdKey := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
+		if dec, assembled, holdSet, replay := w.continueCHHold(holdKey, sequence, payload, pkt.dstStr); dec == chHoldWaiting {
+			vc.drop()
+			return 0
+		} else if dec == chHoldReady {
+			inj := holdSet
+			if inj == nil {
+				inj = set
+			}
+			if inj != nil && needsTCPInjection(inj) {
+				return w.dropAndInjectHandshake(vc, pkt, inj, assembled, replay)
+			}
+		}
+		// Sibling TCP to a googlevideo /24 can lose the set on an ECH prefix
+		// without SNI (09:58 .152:38818 173.194.151.67). Start hold from the
+		// raw QUIC/TCP hint even when Decide did not classify this packet.
+		if !matched && tlsHandshakeRecordIncomplete(payload) {
+			if hintSet := w.googlevideoSetForHold(cfg, pkt, dport); hintSet != nil && needsTCPInjection(hintSet) {
+				if dec, assembled, replay := w.considerCHHold(holdKey, sequence, pkt, payload, hintSet); dec == chHoldWaiting {
+					vc.drop()
+					return 0
+				} else if dec == chHoldReady {
+					return w.dropAndInjectHandshake(vc, pkt, hintSet, assembled, replay)
+				}
+			}
+		}
+	}
+
 	if matched {
 		ibdOn := set.TCP.IPBlockDetect.Enabled
 		canEscalate := set.Escalate.To != ""
@@ -778,36 +851,46 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			return vc.accept()
 		}
 
-		packetCopy := make([]byte, len(pkt.raw))
-		copy(packetCopy, pkt.raw)
-
-		if set.TCP.DropSACK {
-			if pkt.ver == 4 {
-				packetCopy = sock.StripSACKFromTCP(packetCopy)
-			} else {
-				packetCopy = sock.StripSACKFromTCPv6(packetCopy)
+		connKey := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
+		if sequenceOK && len(payload) > 0 {
+			switch dec, assembled, replay := w.considerCHHold(connKey, sequence, pkt, payload, set); dec {
+			case chHoldWaiting:
+				vc.drop()
+				return 0
+			case chHoldReady:
+				return w.dropAndInjectHandshake(vc, pkt, set, assembled, replay)
 			}
 		}
 
-		dstCopy := make(net.IP, len(pkt.dst))
-		copy(dstCopy, pkt.dst)
-		setCopy := set
-
-		if !vc.drop() {
-			return 0
+		// Handshake records (0x16) are always injected — including ClientHello
+		// retranmissions. exp-once2 accepted later 0x16 as "remainder" and the
+		// clear CH went to TSPU (23:43 74.125.173.134: 517 B 1603010200 retries).
+		// Tails of a split ECH CH are not 0x16 unless a hold is assembling them.
+		if len(payload) == 0 || payload[0] != 0x16 {
+			return vc.accept()
+		}
+		// Incomplete ECH prefix that hold refused (record too large): fake-only ACCEPT.
+		if tlsHandshakeRecordIncomplete(payload) {
+			log.Tracef("incomplete TLS handshake record (%d B), fake-only accept to %s", len(payload), pkt.dstStr)
+			if set.Faking.SNI && set.Faking.SNISeqLength > 0 {
+				packetCopy := append([]byte(nil), pkt.raw...)
+				dstCopy := append(net.IP(nil), pkt.dst...)
+				setCopy := set
+				ver := pkt.ver
+				w.wg.Add(1)
+				go func() {
+					defer w.wg.Done()
+					if ver == 4 {
+						w.sendFakeSNISequence(setCopy, packetCopy, dstCopy)
+					} else {
+						w.sendFakeSNISequencev6(setCopy, packetCopy, dstCopy)
+					}
+				}()
+			}
+			return vc.accept()
 		}
 
-		v := pkt.ver
-		w.wg.Add(1)
-		go func(s *config.SetConfig, pktData []byte, d net.IP) {
-			defer w.wg.Done()
-			if v == 4 {
-				w.dropAndInjectTCP(s, pktData, d)
-			} else {
-				w.dropAndInjectTCPv6(s, pktData, d)
-			}
-		}(setCopy, packetCopy, dstCopy)
-		return 0
+		return w.dropAndInjectHandshake(vc, pkt, set, pkt.raw, false)
 	}
 
 	return vc.accept()
@@ -1080,6 +1163,16 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		return 0
 
 	case "fake":
+		// L-quicbound (Часть 2.5): live masked-QUIC activity marker.
+		if quicboundEnabled {
+			w.quicboundNoteQUIC(pkt)
+		}
+		if qbpEnabled {
+			w.qbpNoteIP(pkt)
+		}
+		if stormEnabled {
+			stormNote(pkt.dstStr, time.Now())
+		}
 		packetCopy := make([]byte, len(pkt.raw))
 		copy(packetCopy, pkt.raw)
 		dstCopy := make(net.IP, len(pkt.dst))

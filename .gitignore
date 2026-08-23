@@ -72,3 +72,14 @@ B4X_FIELD_VALIDATION_AGENT_PACK/
 .go-cache/
 .go-mod/
 
+
+# Live router configs & field pack copies contain runtime secrets (ipinfo token, discovery secrets, web password hash)
+/b4*.json
+/b4x_field_validation_agent_pack.json
+
+# Compiled helper binaries dropped on repo root during field sessions
+/src/echprobe
+/grok.md
+
+# WARP reference repos (external clones for P1+ study, ~280MB)
+/warp/

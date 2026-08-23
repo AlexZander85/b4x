@@ -26,6 +26,13 @@ func (w *Worker) HandleIncoming(vc *verdictCtx, v byte, raw []byte, ihl int, src
 		tcpHdrLen := int((tcp[12] >> 4) * 4)
 		hasOpts := tcpHdrLen > 20
 
+		// L-quicbound (Часть 2.5): observation-only flow-fate classification
+		// from mirrored inbound control packets (RST/FIN). Store is keyed by
+		// server IP (srcStr here); open.sport is the client's source port.
+		if quicboundEnabled {
+			w.quicboundObserveIncoming(incomingSet, srcStr, dport, isRst, tcpFlags&0x01 != 0)
+		}
+
 		var pktTTL uint8
 		if v == IPv4 && len(raw) > 8 {
 			pktTTL = raw[8]

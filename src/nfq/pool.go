@@ -127,7 +127,11 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.ipToMac.Store(make(map[string]string))
 		w.tlsCache = state.tlsCache
 		w.connTracker = state.connState
+		w.tcpInjectOnce = state.tcpInjectOnce
+		w.chHold = state.chHold
 		w.destState = state.destState
+		w.quicbound = state.quicbound
+		w.echFlow = state.echFlow
 		w.scopedFailures = state.scopedFailures
 		w.routeBindings = state.routeBindings
 		w.fallback = state.fallback
@@ -136,6 +140,8 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.actionTokens = state.actionTokens
 		w.passiveRST = state.passiveRST
 		w.dnsHints = hintStore
+		w.qbp = state.qbp
+		w.ja4 = state.ja4
 		w.canary = canary
 		w.candidateSet.Store("")
 		w.configureGSONormalizer(normalizerQueue, normalizer)
@@ -195,6 +201,9 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 						if worker.clientHelloClaims != nil {
 							worker.clientHelloClaims.GC(time.Now())
 						}
+					}
+					if pool.state != nil && pool.state.chHold != nil {
+						pool.state.chHold.gc(time.Now())
 					}
 				case <-escalationTicker.C:
 					metrics.GetMetricsCollector().UpdateEscalations(pool.GetEscalations())

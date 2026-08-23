@@ -37,6 +37,8 @@ func BuildFakeSNIPacketV6(original []byte, cfg *config.SetConfig) []byte {
 		fakePayload = ApplyTLSMod(fakePayload, originalTLS, flags)
 	}
 
+	fakePayload = clipFakePayload(ipv6HdrLen, tcpHdrLen, fakePayload)
+
 	fakeLen := ipv6HdrLen + tcpHdrLen + len(fakePayload)
 	fake := make([]byte, fakeLen)
 	copy(fake[:ipv6HdrLen+tcpHdrLen], original[:ipv6HdrLen+tcpHdrLen])

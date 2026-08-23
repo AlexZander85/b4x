@@ -207,6 +207,12 @@ func (w *Worker) dropAndInjectTCP(cfg *config.SetConfig, raw []byte, dst net.IP)
 		w.sendFakeSNISequence(cfg, raw, dst)
 	}
 
+	if tlsHandshakeRecordIncomplete(raw[payloadStart:]) {
+		log.Tracef("incomplete TLS handshake record (%d B), skip fragmentation to %s", payloadLen, dst.String())
+		_ = w.sock.SendIPv4(raw, dst)
+		return
+	}
+
 	strategy := config.ResolveStrategyPool(cfg.Fragmentation.StrategyPool, cfg.Fragmentation.Strategy)
 
 	log.Tracef("Sending TCP packet with fragmentation strategy: %s", strategy)
@@ -433,11 +439,17 @@ func (w *Worker) sendFakeSNISequence(cfg *config.SetConfig, original []byte, dst
 	}
 
 	fake := sock.BuildFakeSNIPacketV4(original, cfg)
+	if fake == nil {
+		return
+	}
+	// exp-c-badsum: destroy fake with bad TCP checksum, not AutoTTL/pastseq.
+	// In-window seq + original TTL so TSPU reads the CH; server NIC drops it.
+	applyInWindowBadsumV4(fake, original)
 	ipHdrLen := int((fake[0] & 0x0F) * 4)
 	tcpHdrLen := int((fake[ipHdrLen+12] >> 4) * 4)
 
 	for i := 0; i < fk.SNISeqLength; i++ {
-		log.Tracef("Sending fake SNI packet %d/%d to %s", i+1, fk.SNISeqLength, dst.String())
+		log.Tracef("Sending fake SNI packet %d/%d (%d B IP) badsum to %s", i+1, fk.SNISeqLength, len(fake), dst.String())
 		_ = w.sock.SendIPv4(fake, dst)
 
 		if i+1 < fk.SNISeqLength {
@@ -450,6 +462,8 @@ func (w *Worker) sendFakeSNISequence(cfg *config.SetConfig, original []byte, dst
 				binary.BigEndian.PutUint32(fake[ipHdrLen+4:ipHdrLen+8], seq+uint32(payloadLen))
 				sock.FixIPv4Checksum(fake[:ipHdrLen])
 				sock.FixTCPChecksum(fake)
+				fake[ipHdrLen+16] ^= 0xFF
+				fake[ipHdrLen+17] ^= 0xFF
 			}
 		}
 	}
@@ -466,6 +480,11 @@ func (w *Worker) getMacByIp(ip string) string {
 func (w *Worker) Stop() {
 	if w.cancel != nil {
 		w.cancel()
+	}
+	if w.chHold != nil {
+		for _, e := range w.chHold.takeAllWaiting() {
+			w.flushCHHoldFallback(e)
+		}
 	}
 	if w.tcpHold != nil {
 		w.tcpHold.ReleaseAll(tcpHoldAbortShutdown)
@@ -507,6 +526,14 @@ func (w *Worker) gc(cfg *config.Config) {
 			}
 			if w.connTracker != nil {
 				w.connTracker.Cleanup()
+			}
+			// L-quicbound (Часть 2.5): timeout sweep + throttled summary.
+			if w.quicbound != nil {
+				w.quicbound.sweep(time.Now())
+			}
+			// tcp_has_ech (Часть 3 П.2): TTL sweep + throttled summary.
+			if w.echFlow != nil {
+				w.echFlow.sweep(time.Now())
 			}
 			_ = cleanupDNSPendingRoutes(time.Now())
 

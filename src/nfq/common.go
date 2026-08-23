@@ -270,6 +270,21 @@ func SetMaxSeqPSH(segments []Segment, ipHdrLen int, fixChecksum func([]byte)) {
 	fixChecksum(segments[maxSeqIdx].Data)
 }
 
+// boundComboSplits caps TCP piece size on large ECH ClientHellos. Field
+// 09:58–09:59: combo shuffled a 1726–1801 B fragment that still carried
+// googlevideo/ECH; TSPU dropped the flow after a successful hold+assemble.
+func boundComboSplits(splits []int, payloadLen int) []int {
+	const maxPiece = 400
+	if payloadLen <= maxPiece*2 {
+		return splits
+	}
+	out := append([]int(nil), splits...)
+	for off := 80; off < payloadLen; off += maxPiece {
+		out = append(out, off)
+	}
+	return out
+}
+
 func GetComboSplitPoints(payload []byte, payloadLen int, combo *config.ComboFragConfig, middleSNI bool) []int {
 	splits := []int{}
 

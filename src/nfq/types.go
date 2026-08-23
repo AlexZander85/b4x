@@ -58,7 +58,13 @@ type Worker struct {
 	ipToMac            atomic.Value
 	tlsCache           *tlsInfoCache
 	connTracker        *connStateTracker
+	tcpInjectOnce      *tcpInjectOnceStore
+	chHold             *chHoldStore
 	destState          *destStateTracker
+	quicbound          *quicboundStore
+	echFlow            *echFlowStore
+	qbp                *qbpStore
+	ja4                *ja4Store
 	scopedFailures     *scopedFailureState
 	routeBindings      *routing.BindingStore
 	fallback           *routing.FallbackManager

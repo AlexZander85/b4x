@@ -79,6 +79,26 @@ func TestHostHintStoreTTLIsAbsoluteNotSliding(t *testing.T) {
 	}
 }
 
+func TestHostHintStoreLookupFallsBackToIPv4Prefix24(t *testing.T) {
+	clk := clock.NewFixed(time.Unix(400, 0))
+	store := NewHostHintStore(HostHintStoreConfig{}, clk)
+	client := hintClient("192.0.2.14", 10)
+	pfx, ok := IPv4Prefix24(netip.MustParseAddr("74.125.162.105"))
+	if !ok || pfx.String() != "74.125.162.0" {
+		t.Fatalf("IPv4Prefix24=%s ok=%v", pfx, ok)
+	}
+	if err := store.Observe(hintEvidence(client, pfx.String(), "rr.googlevideo.com", "youtube-video", EvidenceQUICSNI, clk.Now(), clk.Now().Add(time.Minute), 1)); err != nil {
+		t.Fatal(err)
+	}
+	got := store.Lookup(client, netip.MustParseAddr("74.125.162.134"), 6)
+	if len(got) != 1 || got[0].SetID != "youtube-video" {
+		t.Fatalf("prefix24 fallback missed: %+v", got)
+	}
+	if other := store.Lookup(client, netip.MustParseAddr("74.125.163.1"), 6); len(other) != 0 {
+		t.Fatalf("cross-/24 fallback: %+v", other)
+	}
+}
+
 func TestHostHintStoreEvictionAndGenerationRevalidation(t *testing.T) {
 	clk := clock.NewFixed(time.Unix(400, 0))
 	store := NewHostHintStore(HostHintStoreConfig{MaxEntries: 2, MaxEntriesPerClient: 2, MaxCandidatesPerKey: 2}, clk)

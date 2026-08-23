@@ -225,7 +225,16 @@ func (s *HostHintStore) lookup(client ClientKey, dst netip.Addr, proto uint8, ge
 	defer s.mu.Unlock()
 	s.stats.Lookups++
 	s.pruneExpiredLocked(now)
-	entry, ok := s.entries[key]
+	lookupKey := key
+	entry, ok := s.entries[lookupKey]
+	if !ok {
+		// Exact CDN node miss: reuse this client's QUIC googlevideo /24
+		// affinity key (network address .0) when one was stored.
+		if pfx, okPfx := IPv4Prefix24(dst); okPfx && pfx != key.DestinationIP {
+			lookupKey.DestinationIP = pfx
+			entry, ok = s.entries[lookupKey]
+		}
+	}
 	if !ok {
 		s.stats.Misses++
 		return []Evidence{}
@@ -239,7 +248,7 @@ func (s *HostHintStore) lookup(client ClientKey, dst netip.Addr, proto uint8, ge
 				s.stats.Invalidated++
 			}
 		}
-		entry = s.entries[key]
+		entry = s.entries[lookupKey]
 		if entry == nil {
 			s.stats.Misses++
 			return []Evidence{}
@@ -677,6 +686,17 @@ func normalizeHintAddr(addr netip.Addr) netip.Addr {
 		return addr.Unmap()
 	}
 	return addr
+}
+
+// IPv4Prefix24 returns the /24 network address (x.y.z.0) for an IPv4 dest.
+func IPv4Prefix24(addr netip.Addr) (netip.Addr, bool) {
+	addr = normalizeHintAddr(addr)
+	if !addr.Is4() {
+		return netip.Addr{}, false
+	}
+	octets := addr.As4()
+	octets[3] = 0
+	return netip.AddrFrom4(octets), true
 }
 
 func normalizeHintClient(client ClientKey) ClientKey {

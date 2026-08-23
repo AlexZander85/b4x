@@ -375,7 +375,13 @@ func (t *destStateTracker) RecordRSTKill(host string, threshold int, window time
 type runtimeState struct {
 	tlsCache       *tlsInfoCache
 	connState      *connStateTracker
+	tcpInjectOnce  *tcpInjectOnceStore
+	chHold         *chHoldStore
 	destState      *destStateTracker
+	quicbound      *quicboundStore
+	echFlow        *echFlowStore
+	qbp            *qbpStore
+	ja4            *ja4Store
 	scopedFailures *scopedFailureState
 	routeBindings  *routing.BindingStore
 	fallback       *routing.FallbackManager
@@ -395,13 +401,15 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 		log.Warnf("fallback manager disabled by invalid configuration: %v", err)
 		fallback = nil
 	}
-	return &runtimeState{
+	rt := &runtimeState{
 		tlsCache: &tlsInfoCache{
 			conns: make(map[string]*tlsInfo),
 		},
 		connState: &connStateTracker{
 			conns: make(map[string]*connInfo),
 		},
+		tcpInjectOnce:  newTCPInjectOnceStore(),
+		chHold:         newCHHoldStore(),
 		scopedFailures: newScopedFailureState(),
 		routeBindings:  routing.NewBindingStore(routing.BindingCapabilities{ExactFlow: true}, 4096),
 		fallback:       fallback,
@@ -416,6 +424,19 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 			rstKills:    make(map[string]*rstKillEntry),
 		},
 	}
+	if quicboundEnabled {
+		rt.quicbound = newQuicboundStore()
+	}
+	if echFlowEnabled {
+		rt.echFlow = newECHFlowStore()
+	}
+	if qbpEnabled {
+		rt.qbp = newQBPStore()
+	}
+	if ja4Enabled {
+		rt.ja4 = newJA4Store()
+	}
+	return rt
 }
 
 func (t *connStateTracker) RegisterOutgoing(connKey string, set *config.SetConfig) {

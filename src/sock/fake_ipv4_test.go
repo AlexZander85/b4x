@@ -33,8 +33,10 @@ func TestBuildFakeSNIPacketV4_DefaultPayload1(t *testing.T) {
 		t.Fatal("expected non-nil result")
 	}
 
-	// Should contain FakeSNI payload
-	if len(result) < 40+len(config.FakeSNI1) {
+	if len(result) > ethernetMTU {
+		t.Errorf("fake IP %d exceeds MTU", len(result))
+	}
+	if len(result) < 80 {
 		t.Errorf("result too short: %d", len(result))
 	}
 }
@@ -49,8 +51,10 @@ func TestBuildFakeSNIPacketV4_DefaultPayload2(t *testing.T) {
 		t.Fatal("expected non-nil result")
 	}
 
-	// Should contain FakeSNI payload
-	if len(result) < 40+len(config.FakeSNI2) {
+	if len(result) > ethernetMTU {
+		t.Errorf("fake IP %d exceeds MTU", len(result))
+	}
+	if len(result) < 80 {
 		t.Errorf("result too short: %d", len(result))
 	}
 }
@@ -216,5 +220,29 @@ func TestFixTCPChecksum(t *testing.T) {
 	// Should not panic and packet should be valid length
 	if len(pkt) < 40 {
 		t.Error("packet corrupted")
+	}
+}
+
+func TestClipFakePayloadFitsEthernetMTU(t *testing.T) {
+	got := clipFakePayload(20, 32, make([]byte, 1573))
+	if len(got) != 1500-20-32 {
+		t.Fatalf("clipped %d want %d", len(got), 1500-20-32)
+	}
+}
+
+func TestBuildFakeSNIPacketV4_ClippedToMTU(t *testing.T) {
+	pkt := buildMinimalIPv4TCPPacket(100)
+	cfg := &config.SetConfig{}
+	cfg.Faking.SNIType = config.FakePayloadDefault1
+	result := BuildFakeSNIPacketV4(pkt, cfg)
+	if result == nil {
+		t.Fatal("nil")
+	}
+	if len(result) > ethernetMTU {
+		t.Fatalf("IP %d > MTU", len(result))
+	}
+	total := int(binary.BigEndian.Uint16(result[2:4]))
+	if total != len(result) {
+		t.Fatalf("IP totlen %d packet %d", total, len(result))
 	}
 }

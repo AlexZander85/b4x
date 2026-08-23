@@ -7,6 +7,17 @@ import (
 	"github.com/daniellavrushin/b4/config"
 )
 
+// ethernetMTU is WAN eth3. Field 19:37 UTC: fake IP 1625 never appeared on the wire.
+const ethernetMTU = 1500
+
+func clipFakePayload(ipHdrLen, tcpHdrLen int, payload []byte) []byte {
+	max := ethernetMTU - ipHdrLen - tcpHdrLen
+	if max < 16 || len(payload) <= max {
+		return payload
+	}
+	return payload[:max]
+}
+
 func BuildFakeSNIPacketV4(original []byte, cfg *config.SetConfig) []byte {
 	if len(original) < 40 || original[0]>>4 != 4 {
 		return nil
@@ -35,6 +46,9 @@ func BuildFakeSNIPacketV4(original []byte, cfg *config.SetConfig) []byte {
 		flags := ParseTLSMod(cfg.Faking.TLSMod)
 		fakePayload = ApplyTLSMod(fakePayload, originalTLS, flags)
 	}
+
+	// WAN eth3 MTU 1500. Field 19:37: fake IP 1625 never left the router.
+	fakePayload = clipFakePayload(ipHdrLen, tcpHdrLen, fakePayload)
 
 	fakeLen := ipHdrLen + tcpHdrLen + len(fakePayload)
 	fake := make([]byte, fakeLen)

@@ -31,6 +31,9 @@ func TestBuildFakeSNIPacketV6_DefaultPayload(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
+	if len(result) > ethernetMTU {
+		t.Fatalf("IPv6 fake %d > MTU", len(result))
+	}
 }
 
 func TestBuildFakeSNIPacketV6_TTLStrategy(t *testing.T) {

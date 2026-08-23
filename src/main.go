@@ -376,8 +376,25 @@ func runB4(cmd *cobra.Command, args []string) error {
 			log.Tracef("Skipping routing sync due to --skip-tables")
 		}
 
-		metrics.RecordEvent("info", fmt.Sprintf("NFQueue started with %d threads", cfg.Queue.Threads))
-		metrics.NFQueueStatus = "active"
+			metrics.RecordEvent("info", fmt.Sprintf("NFQueue started with %d threads", cfg.Queue.Threads))
+			metrics.NFQueueStatus = "active"
+
+			// L5 field test (Часть 2.7): apply the PPE handshake window
+			// directly (no policy change, no config persist).
+			maybeStartL5PPE(&cfgPtr, appCtx)
+
+			// Part 3 П.4: proactive GGC shard discovery — feed current
+			// googlevideo shard IPs into the scoped hint store so a seek to
+			// a fresh CDN IP classifies before any QUIC/DNS observation.
+			nfq.StartGGCShardDiscovery(appCtx, &cfgPtr, pool)
+
+			// Part 3 P.5: automatic QUIC liveness fact via Version-Negotiation
+			// probes toward current googlevideo shard endpoints.
+			nfq.StartVNBProbe(appCtx, &cfgPtr, pool)
+
+			// Part 3 follow-up: hourly external-churn gauge over masked-QUIC
+			// destination diversity (see nfq/storm.go).
+			nfq.StartStormGauge(appCtx, pool)
 
 		// Start tables monitor to handle rule restoration if system wipes them
 		if !cfg.System.Tables.SkipSetup && cfg.System.Tables.MonitorInterval > 0 {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/sock"
 )
@@ -96,6 +97,12 @@ func (w *Worker) dropAndInjectTCPv6(cfg *config.SetConfig, raw []byte, dst net.I
 
 	if cfg.Faking.SNI && cfg.Faking.SNISeqLength > 0 {
 		w.sendFakeSNISequencev6(cfg, raw, dst)
+	}
+
+	if tlsHandshakeRecordIncomplete(raw[payloadStart:]) {
+		log.Tracef("incomplete TLS handshake record (%d B), skip fragmentation to %s", payloadLen, dst.String())
+		_ = w.sock.SendIPv6(raw, dst)
+		return
 	}
 
 	strategy := config.ResolveStrategyPool(cfg.Fragmentation.StrategyPool, cfg.Fragmentation.Strategy)
@@ -342,6 +349,7 @@ func (w *Worker) sendFakeSNISequencev6(cfg *config.SetConfig, original []byte, d
 	if fake == nil {
 		return
 	}
+	applyInWindowBadsumV6(fake, original)
 
 	ipv6HdrLen := 40
 
