@@ -122,3 +122,52 @@ func KnownPort(port uint16) bool {
 	}
 	return false
 }
+
+// CatalogCandidates builds the bounded candidate list for a scan strategy
+// from the versioned map ONLY (addendum §34: discovery may test catalog
+// entries, never arbitrary internet addresses). H2 scanning stays
+// IPv4-first: usque ships h2_v6 intentionally empty, and the v6 blocks are
+// exercised through the QUIC anycast seeds instead.
+func CatalogCandidates(kind EndpointKind, s ScanStrategy) []netip.AddrPort {
+	if kind == KindMasqueQUIC {
+		return SeedEndpoints(kind)
+	}
+	def := DefaultH2Endpoint()
+	switch s {
+	case StrategyTurbo:
+		// "1 target, early-exit": the bootstrap default only.
+		return []netip.AddrPort{def}
+	case StrategyThorough:
+		// Full product of both measured H2 /24s x the port set.
+		out := make([]netip.AddrPort, 0, 512*len(Ports))
+		for _, cidr := range h2GatewayCIDRs {
+			if !cidr.Addr().Is4() {
+				continue
+			}
+			base := cidr.Masked().Addr()
+			for i := 0; i < 256; i++ {
+				for _, p := range Ports {
+					out = append(out, netip.AddrPortFrom(base, p))
+				}
+				base = base.Next()
+			}
+		}
+		return out
+	default: // balanced: seeds plus a deterministic edge sample per /24
+		out := SeedEndpoints(KindMasqueH2)
+		for _, cidr := range h2GatewayCIDRs {
+			if !cidr.Addr().Is4() {
+				continue
+			}
+			base := cidr.Masked().Addr()
+			first := base.Next() // x.x.x.1
+			out = append(out, netip.AddrPortFrom(first, 443))
+			last := base
+			for i := 0; i < 254; i++ {
+				last = last.Next() // x.x.x.254
+			}
+			out = append(out, netip.AddrPortFrom(last, 443))
+		}
+		return out
+	}
+}

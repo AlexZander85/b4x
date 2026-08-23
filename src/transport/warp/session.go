@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"crypto/sha256"
@@ -89,6 +90,11 @@ type SessionConfig struct {
 	ValidateWindow  time.Duration // DefaultValidateWindow when zero
 	ProbeInterval   time.Duration // DefaultProbeInterval when zero
 	HandshakeBudget time.Duration // overall TCP+TLS+headers budget, default 20s
+	// DialFunc overrides the raw-TCP carrier of the control socket (Backend
+	// B userspace proxy adapter: the inner session dials THROUGH the base).
+	// When nil the constrained DialPolicy dialer is used. The pinned TLS
+	// handshake and capsule framing are unchanged.
+	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 func (c *SessionConfig) fillDefaults() {
@@ -115,11 +121,12 @@ func (c *SessionConfig) fillDefaults() {
 // ConnectResult is the structured outcome of one attempt (MasquePhaseTrace
 // subset, §62.1): layer-specific failure class instead of a bare error.
 type ConnectResult struct {
-	Status       int           // HTTP status of the CONNECT-IP response; 0 before headers
+	Status       int // HTTP status of the CONNECT-IP response; 0 before headers
 	DurationMS   uint64
-	FailureClass string        // "" on success
-	PinDigest    string        // SHA-256 of the trusted endpoint key
-	ProtocolErr  string        // remote protocol error text when available
+	FailureClass string // "" on success
+	PinDigest    string // SHA-256 of the trusted endpoint key
+	ProtocolErr  string // remote protocol error text when available
+	Colo         string // cf-warp-colo edge telemetry (warp-socks mod.rs pattern)
 }
 
 // Session is one established CONNECT-IP stream carrying IP packets both ways.
@@ -131,10 +138,21 @@ type Session struct {
 	tr      *http2.Transport
 	packets chan packetMsg
 
-	writeMu sync.Mutex
+	writeMu   sync.Mutex
 	closeOnce sync.Once
-	done    chan struct{}
-	cancel  context.CancelFunc
+	done      chan struct{}
+	cancel    context.CancelFunc
+
+	// Packet accounting (addendum §43 counter-delta proof: a geo probe is
+	// only valid when the inner counters moved) plus packet taps for
+	// secondary in-tunnel consumers (geo gate). Counters are atomic; the
+	// tap registry is mutex-guarded.
+	txPkts, txBytes atomic.Uint64
+	rxPkts, rxBytes atomic.Uint64
+	droppedPrimary  atomic.Uint64
+	subMu           sync.Mutex
+	subs            map[chan []byte]struct{}
+	droppedTaps     uint64
 }
 
 type packetMsg struct {
@@ -168,7 +186,15 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 	ctx, cancel := context.WithCancel(parent)
 	tr := &http2.Transport{
 		DialTLSContext: func(_ context.Context, _, _ string, _ *tls.Config) (net.Conn, error) {
-			rawConn, err := cfg.Policy.Dialer().DialContext(ctx, "tcp", cfg.Endpoint.String())
+			// Raw-TCP carrier: the Backend-B proxy dial func when wired
+			// (the control stream then flows THROUGH the base tunnel),
+			// otherwise the constrained DialPolicy socket (§17/§18).
+			rawConn, err := func() (net.Conn, error) {
+				if cfg.DialFunc != nil {
+					return cfg.DialFunc(ctx, "tcp", cfg.Endpoint.String())
+				}
+				return cfg.Policy.Dialer().DialContext(ctx, "tcp", cfg.Endpoint.String())
+			}()
 			if err != nil {
 				return nil, err
 			}
@@ -247,6 +273,9 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 		}
 	}
 	res.Status = rsp.StatusCode
+	// Free edge telemetry (warp-socks): the CONNECT response carries the
+	// terminating colo code; redacted-safe for traces.
+	res.Colo = rsp.Header.Get("cf-warp-colo")
 	if rsp.StatusCode != http.StatusOK {
 		io.Copy(io.Discard, io.LimitReader(rsp.Body, 4096)) //nolint:errcheck
 		rsp.Body.Close()
@@ -282,6 +311,8 @@ func (s *Session) WritePacket(pkt []byte) error {
 	if _, err := s.pw.Write(frame); err != nil {
 		return err
 	}
+	s.txPkts.Add(1)
+	s.txBytes.Add(uint64(len(pkt)))
 	return nil
 }
 
@@ -370,6 +401,17 @@ func (s *Session) Close() error {
 		if s.tr != nil {
 			s.tr.CloseIdleConnections()
 		}
+		// Unblock tap receivers: closed channels end their select loops.
+		s.subMu.Lock()
+		taps := make([]chan []byte, 0, len(s.subs))
+		for ch := range s.subs {
+			taps = append(taps, ch)
+		}
+		s.subs = nil
+		s.subMu.Unlock()
+		for _, ch := range taps {
+			close(ch)
+		}
 	})
 	return nil
 }
@@ -407,15 +449,94 @@ func (s *Session) readerLoop() {
 		if typ != 0 {
 			continue // foreign control capsule: skip inbound (usque semantics)
 		}
+		s.rxPkts.Add(1)
+		s.rxBytes.Add(uint64(len(payload)))
 		s.emit(packetMsg{data: payload})
 	}
 }
 
+// emit delivers one inbound packet to the primary consumer and to every
+// tap subscriber. Delivery is DROP-INSTEAD-OF-BLOCK on both paths (resource
+// discipline, research Part 4): a stalled consumer must never wedge the
+// capsule reader, which would head-of-line-block the whole session.
 func (s *Session) emit(m packetMsg) {
 	select {
 	case s.packets <- m:
-	case <-s.done:
+	default:
+		if m.err == nil { // error messages matter more than data frames
+			s.droppedPrimary.Add(1)
+		} else {
+			select {
+			case s.packets <- m:
+			case <-s.done:
+			}
+		}
 	}
+	if m.err == nil && m.data != nil {
+		s.fanOut(m.data)
+	}
+}
+
+func (s *Session) fanOut(pkt []byte) {
+	s.subMu.Lock()
+	defer s.subMu.Unlock()
+	for ch := range s.subs {
+		select {
+		case ch <- pkt:
+		default:
+			s.droppedTaps++
+		}
+	}
+}
+
+// SubscribePackets registers a secondary consumer of inbound DATAGRAM
+// payloads. The returned channel is buffered; overflow drops frames
+// (counted in DroppedFrames). The cancel function unsubscribes and closes
+// the channel exactly once; Session.Close closes all remaining taps.
+func (s *Session) SubscribePackets() (<-chan []byte, func()) {
+	ch := make(chan []byte, 64)
+	s.subMu.Lock()
+	if s.subs == nil {
+		s.subs = make(map[chan []byte]struct{})
+	}
+	s.subs[ch] = struct{}{}
+	s.subMu.Unlock()
+	cancel := func() {
+		s.subMu.Lock()
+		if _, ok := s.subs[ch]; ok {
+			delete(s.subs, ch)
+			close(ch)
+		}
+		s.subMu.Unlock()
+	}
+	return ch, cancel
+}
+
+// PacketCounters snapshots the §43 inner-path traffic counters.
+type PacketCounters struct {
+	TxPackets uint64
+	TxBytes   uint64
+	RxPackets uint64
+	RxBytes   uint64
+}
+
+// Counters returns the current tx/rx packet counters of this session.
+func (s *Session) Counters() PacketCounters {
+	return PacketCounters{
+		TxPackets: s.txPkts.Load(),
+		TxBytes:   s.txBytes.Load(),
+		RxPackets: s.rxPkts.Load(),
+		RxBytes:   s.rxBytes.Load(),
+	}
+}
+
+// DroppedFrames reports dropped primary-consumer frames and dropped tap
+// frames (drop-instead-of-block accounting).
+func (s *Session) DroppedFrames() (primary, taps uint64) {
+	s.subMu.Lock()
+	taps = s.droppedTaps
+	s.subMu.Unlock()
+	return s.droppedPrimary.Load(), taps
 }
 
 func (s *Session) closeQuietly() {

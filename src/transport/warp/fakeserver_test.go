@@ -20,24 +20,74 @@ import (
 // CONNECT endpoint with configurable failure behaviour, speaking the same
 // capsule framing as the production path.
 type fakeServer struct {
-	t    *testing.T
-	ln   net.Listener
-	key  *ecdsa.PrivateKey
+	t   *testing.T
+	ln  net.Listener
+	key *ecdsa.PrivateKey
 
-	mu         sync.Mutex
-	status     int  // CONNECT response status (default 200)
-	dropData   bool // accept control, never echo back (silent-DPI class)
+	mu              sync.Mutex
+	status          int  // CONNECT response status (default 200)
+	dropData        bool // accept control, never echo back (silent-DPI class)
 	echoForeignCaps bool
-	teardownAfter   int  // echo N packets then hard-close the stream
-	echoed     int
-	capsulesSeen int
-	connects   int
+	teardownAfter   int           // echo N packets then hard-close the stream
+	dropEvery  int  // lossy fixture: drop every Nth capsule (0 = off)
+	rejectNext int  // refuse the next N CONNECT requests with 500 (flap fixture)
+	echoDelay  time.Duration // artificial per-capsule echo delay (RTT fixture)
+	respond    func(payload []byte) []byte // replaces echo when set
+	colo       string // cf-warp-colo telemetry value served on success
+	echoed          int
+	capsulesSeen    int
+	connects        int
+	payloads        [][]byte // every DATAGRAM payload received, in order
+}
+
+// setLossy configures the every-Nth-capsule drop fixture.
+func (f *fakeServer) setLossy(n int) {
+	f.mu.Lock()
+	f.dropEvery = n
+	f.mu.Unlock()
+}
+
+// setRejectNext makes the next N CONNECT attempts fail with 500.
+func (f *fakeServer) setRejectNext(n int) {
+	f.mu.Lock()
+	f.rejectNext = n
+	f.mu.Unlock()
+}
+
+// setEchoDelay installs an artificial echo delay (RTT ranking fixture).
+func (f *fakeServer) setEchoDelay(d time.Duration) {
+	f.mu.Lock()
+	f.echoDelay = d
+	f.mu.Unlock()
+}
+
+// setResponder replaces the echo with a computed reply per payload
+// (DNS-in-tunnel fixture). Returning nil drops the packet.
+func (f *fakeServer) setResponder(fn func(payload []byte) []byte) {
+	f.mu.Lock()
+	f.respond = fn
+	f.mu.Unlock()
+}
+
+// receivedPayloads returns a copy of the payload log (oldest first).
+func (f *fakeServer) receivedPayloads() [][]byte {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([][]byte(nil), f.payloads...)
 }
 
 func newFakeServer(t *testing.T) *fakeServer {
 	t.Helper()
-	fs := &fakeServer{t: t, status: 200}
-	fs.key = newTestKey(t)
+	key := newTestKey(t)
+	return newFakeServerWithKey(t, key)
+}
+
+// newFakeServerWithKey lets a test pin the SAME endpoint key as another
+// fixture (e.g. the registration API's served pin) so supervisor-level flows
+// pass endpoint pin verification.
+func newFakeServerWithKey(t *testing.T, key *ecdsa.PrivateKey) *fakeServer {
+	t.Helper()
+	fs := &fakeServer{t: t, status: 200, key: key, colo: "TEST"}
 	certDER := selfSignedDERForTest(t, fs.key)
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
 		Certificates: []tls.Certificate{{
@@ -98,13 +148,23 @@ func (f *fakeServer) serve() {
 func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.connects++
-	status, drop, foreign, teardownAfter := f.status, f.dropData, f.echoForeignCaps, f.teardownAfter
+	status, teardownAfter := f.status, f.teardownAfter
+	if f.rejectNext > 0 {
+		f.rejectNext--
+		f.mu.Unlock()
+		writeErr(w, http.StatusInternalServerError, 1009, "flap fixture")
+		return
+	}
 	f.mu.Unlock()
 
 	if r.Method != http.MethodConnect {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+	f.mu.Lock()
+	colo := f.colo
+	f.mu.Unlock()
+	w.Header().Set("cf-warp-colo", colo)
 	w.WriteHeader(status)
 	if status != http.StatusOK {
 		// Return immediately: the h2 server ends the stream (END_STREAM on
@@ -120,6 +180,7 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 
 	buf := make([]byte, 16<<10)
 	var pending []byte
+	streamSeq := 0 // capsules seen on THIS stream (for drop-every-N)
 	for {
 		typ, length, hl, complete := parseCapsuleFrom(pending)
 		if !(complete && len(pending) >= hl+length) {
@@ -138,10 +199,24 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		// Re-read behavior flags per capsule so tests can flip them on a
+		// LIVE connection (mid-session silent-drop fixtures).
 		var doTeardown bool
+		var echoDelay time.Duration
+		var respFn func(payload []byte) []byte
+		dropThis := false
 		f.mu.Lock()
 		f.capsulesSeen++
+		f.payloads = append(f.payloads, append([]byte(nil), payload...))
 		doTeardown = teardownAfter > 0 && f.echoed >= teardownAfter
+		dropNow := f.dropData
+		foreignNow := f.echoForeignCaps
+		echoDelay = f.echoDelay
+		respFn = f.respond
+		if f.dropEvery > 0 {
+			streamSeq++
+			dropThis = streamSeq%f.dropEvery == 0
+		}
 		f.echoed++
 		f.mu.Unlock()
 
@@ -149,19 +224,33 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			_ = r.Body.Close()
 			panic(http.ErrAbortHandler) // abrupt mid-stream teardown fixture
 		}
-		if drop {
+		if dropNow {
 			continue // swallow payloads: silent-DPI fixture
 		}
-		if foreign {
+		if echoDelay > 0 {
+			time.Sleep(echoDelay) // RTT ranking fixture; outside the lock
+		}
+		if dropThis {
+			continue // lossy fixture: every Nth capsule vanishes
+		}
+
+		outPayload := payload
+		if respFn != nil {
+			outPayload = respFn(payload)
+			if len(outPayload) == 0 {
+				continue // responder chose to drop
+			}
+		}
+		if foreignNow {
 			frame := AppendVarint(nil, 7) // unknown type must be skipped inbound
-			frame = AppendVarint(frame, uint64(len(payload)))
-			frame = append(frame, payload...)
+			frame = AppendVarint(frame, uint64(len(outPayload)))
+			frame = append(frame, outPayload...)
 			_, _ = w.Write(frame)
 		}
-		out := make([]byte, 0, 10+len(payload))
+		out := make([]byte, 0, 10+len(outPayload))
 		out = AppendVarint(out, 0)
-		out = AppendVarint(out, uint64(len(payload)))
-		out = append(out, payload...)
+		out = AppendVarint(out, uint64(len(outPayload)))
+		out = append(out, outPayload...)
 		if _, err := w.Write(out); err != nil {
 			return
 		}
