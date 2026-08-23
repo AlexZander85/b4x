@@ -364,11 +364,12 @@ func TestEnrollment429ExtendsCooldown(t *testing.T) {
 		t.Fatalf("cooldown not extended to Retry-After cap: %v", until)
 	}
 
-	// Immediate retry performs zero network calls.
+	// Immediate retry performs zero network calls; cooldown is a STRUCTURED
+	// outcome for the supervisor (E3), not an error condition.
 	before, _, _, _, _ := h.fake.counters()
 	blocked, err := h.rec.Ensure(context.Background())
-	if err == nil {
-		t.Fatal("cooldown must block")
+	if err != nil {
+		t.Fatalf("cooldown block must be structured, not an error: %v", err)
 	}
 	if blocked.Action != ActionBlockedCooldown || blocked.FailureClass != ClassEnrollmentCooldown {
 		t.Fatalf("want cooldown block, got %+v", blocked)
