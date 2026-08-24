@@ -58,6 +58,8 @@ type MasqueDatagramCarrier struct {
 	pumpOnce  sync.Once
 
 	droppedInbound atomic.Uint64
+	demuxMatched   atomic.Uint64
+	demuxUnknown   atomic.Uint64
 	closed         atomic.Bool
 }
 
@@ -109,8 +111,10 @@ func (c *MasqueDatagramCarrier) pump(ch <-chan []byte) {
 		c.mu.Unlock()
 		if f == nil {
 			c.droppedInbound.Add(1)
+			c.demuxUnknown.Add(1)
 			continue
 		}
+		c.demuxMatched.Add(1)
 		buf := make([]byte, len(payload))
 		copy(buf, payload)
 		select {
@@ -184,6 +188,12 @@ func (c *MasqueDatagramCarrier) ProofSnapshot() (string, bool) {
 
 // DroppedInbound reports drop-instead-of-block accounting of the pump.
 func (c *MasqueDatagramCarrier) DroppedInbound() uint64 { return c.droppedInbound.Load() }
+
+// DemuxStats reports matched vs unknown-tuple inbound datagrams
+// (observability N4: separates "plane dead" from "stale flow").
+func (c *MasqueDatagramCarrier) DemuxStats() (matched, unknown uint64) {
+	return c.demuxMatched.Load(), c.demuxUnknown.Load()
+}
 
 // Close unsubscribes the pump and closes every flow (idempotent).
 func (c *MasqueDatagramCarrier) Close() {

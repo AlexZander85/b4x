@@ -1,8 +1,8 @@
 # E-NM — WARP Nested Matrix: Implementation Report (N1–N5)
 
-Дата: 2026-08-24. База: `6f57ce0c` (WG6), ветка `agent/classifier-v2.3-capture-envelope`.
+Дата: 2026-08-24 (вечер, обновлено). База: `6f57ce0c` (WG6), ветка `agent/classifier-v2.3-capture-envelope`.
 Тикет: bd `b4x-ji0`. Дизайн: `.ag/research/warp-nested-matrix-design.md`.
-Коммит НЕ создавался (правило: без прямой просьбы владельца).
+Коммиты: `1bf346d5` feat(nested) N1–N5 ядро; e2e M+W + brief-sync — следующим коммитом по команде владельца.
 
 ## 1. Карта пакета `src/transport/nested` (11 файлов, ~1459 строк; тесты 6 файлов, ~907)
 
@@ -47,6 +47,21 @@ gofmt-замечания `transport/warp/{fakeserver_test,probe,probe_test,varin
 
 ## 4. Хвосты (follow-up, в bd)
 
-- E2E M+W целиком: fake CONNECT-IP эдж, релеящий крафт в fake AWG-эдж (зеркало WG6 two-device e2e) — следующий суб-этап внутри b4x-ji0.
-- W+M прод-wiring: Reconciler/identity вторичного слота + MSS/PMTU-параметры конфигурации.
+- ~~E2E M+W целиком~~ **ЗАКРЫТО**: `masque_awg_e2e_test.go` — настоящий
+  `twarp.DialSession` против fake CONNECT-IP эджа (капсульный NAT) в НАСТОЯЩИЙ
+  amneziawg-go респондер; inner AWG проходит handshake + trust gate до
+  `wg_established` сквозь обе плоскости (~3.5s, count=2 стабильно). Попутно
+  `MasqueAwgConfig.Supervisor` → `Plane CapsulePlane` (DI для e2e без зачисления).
+- прод-wiring W+M: Reconciler/identity вторичного слота + MSS/PMTU-параметры конфигурации.
 - Экспорт метрик Metrics наружу (pipeline-адаптер уровня интеграции).
+
+## 5. Уроки e2e (для будущих фикстур)
+
+- varint капсул — QUIC/RFC9000 §16 (2-битный префикс длины), НЕ LEB128;
+  эталон — transportwarp/varint.go AppendVarint.
+- tun.Device.Read возвращает ЧИСЛО БУФЕРОВ, байты — sizes[0].
+- порт эджа брать только из bind.ActualPort() ПОСЛЕ Up(), не из пробной сокеты.
+- gVisor этого пина: TCP-connect игнорирует ctx при хендшейке; UDP/IP чексуммы
+  на входе netstack валидируются строго.
+- NAT-фикстура: clientSport по «последний писатель побеждает» — самозаживление
+  между поколениями inner-сессии.

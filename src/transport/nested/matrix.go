@@ -18,7 +18,6 @@ import (
 	"sync"
 	"time"
 
-	twarp "github.com/daniellavrushin/b4/transport/warp"
 	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
@@ -187,8 +186,11 @@ func CarrierDialFunc(c NestedCarrier) func(ctx context.Context, network, addr st
 type MasqueAwgConfig struct {
 	Pair PairConfig // must validate as masque-h2 outer + awg inner
 
-	Supervisor *twarp.Supervisor // OUTER instance (already configured)
-	LocalV4    [4]byte           // outer assigned address (carrier source)
+	// Plane is the OUTER MASQUE CONNECT-IP instance (*warp.Supervisor in
+	// production; the interface keeps the runtime e2e-testable with a
+	// direct DialSession adapter).
+	Plane   CapsulePlane
+	LocalV4 [4]byte // outer assigned address (carrier source)
 
 	// Inner AWG layer pieces.
 	InnerIdent   *twg.Identity
@@ -232,8 +234,8 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 		return nil, fmt.Errorf("nested: MasqueAwgRuntime requires masque-h2+awg, got %s+%s",
 			cfg.Pair.Outer.Kind, cfg.Pair.Inner.Kind)
 	}
-	if cfg.Supervisor == nil || cfg.InnerIdent == nil {
-		return nil, errors.New("nested: masque+awg requires supervisor and inner identity")
+	if cfg.Plane == nil || cfg.InnerIdent == nil {
+		return nil, errors.New("nested: masque+awg requires capsule plane and inner identity")
 	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 20 * time.Millisecond
@@ -242,7 +244,7 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 		cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
 	}
 	carrier, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
-		Plane:   cfg.Supervisor,
+		Plane:   cfg.Plane,
 		LocalV4: cfg.LocalV4,
 	})
 	if err != nil {
@@ -293,6 +295,16 @@ func (r *MasqueAwgRuntime) Status() (link string, parentGen uint64, childRunning
 	return r.link, r.parentGen, child
 }
 
+// RelayDroppedInbound exposes the carrier's demux drop counter (diagnostics).
+func (r *MasqueAwgRuntime) RelayDroppedInbound() uint64 {
+	return r.carrier.DroppedInbound()
+}
+
+// RelayDemuxStats exposes matched/unknown inbound demux counters.
+func (r *MasqueAwgRuntime) RelayDemuxStats() (matched, unknown uint64) {
+	return r.carrier.DemuxStats()
+}
+
 func (r *MasqueAwgRuntime) run(ctx context.Context) {
 	defer close(r.done)
 	t := time.NewTicker(r.cfg.PollInterval)
@@ -304,7 +316,7 @@ func (r *MasqueAwgRuntime) run(ctx context.Context) {
 			return
 		case <-t.C:
 		}
-		nowHeld := r.cfg.Supervisor.Snapshot().RouteHeld
+		nowHeld := r.cfg.Plane.Snapshot().RouteHeld
 		switch {
 		case nowHeld && !held:
 			gen := r.parentGen + 1

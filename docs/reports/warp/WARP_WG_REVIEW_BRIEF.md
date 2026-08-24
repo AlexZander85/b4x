@@ -295,3 +295,35 @@ Identity refusal:    только 401/404/410 = перевыпуск; 403/429/5x
 ```
 
 *Конец брифа. Спасибо за глубину.*
+
+# Часть VII. Приложение E-NM: nested matrix (bd b4x-ji0)
+
+Статус: ядро N1-N5 сдано и запушено (commit 1bf346d5); e2e M+W добавлен следом.
+Полный отчёт: docs/reports/warp/NESTED_MATRIX_IMPLEMENTATION.md (карта файлов,
+гейты, self-report отклонений от буквы дизайна - раздел 3).
+
+## Что ревьюить
+
+| Зона | Файлы |
+|---|---|
+| Контракт носителя | src/transport/nested/carrier.go, doc.go |
+| Kernel-route ownership | kernelroute.go, kernelroute_ops.go (+_linux/_stub) |
+| Netstack carrier | netstack.go |
+| MASQUE datagram carrier | masque_carrier.go, udpdgram.go |
+| Матрица+runtime M+W | matrix.go |
+| Наблюдаемость | metrics.go |
+| Аддитивные швы движков | transportwarp/supervisor.go (SubscribePackets/tapPump), transportwg/forwarder.go (экспорт alias) |
+
+## Верификация (фактом)
+
+- go build ./... ok; gofmt/vet чисто по слою; nested/warp/wg count=2 ok; race(CGO) ok
+- полный суит go test ./... -count=1 = 54 packages ok / 0 FAIL
+- КРОСС-ДВИЖКОВЫЙ E2E M+W (masque_awg_e2e_test.go): настоящий DialSession против
+  fake CONNECT-IP эджа с NAT в НАСТОЯЩИЙ amneziawg-go респондер; inner AWG сессия
+  проходит handshake + trust gate (DNS round trips) СКВОЗЬ обе плоскости до
+  wg_established. Это офлайн-пруф эскалационного пути дерева НЕ РФ (7.5 шаг 2).
+
+## Хвосты E-NM
+
+- прод-wiring W+M (Reconciler вторичного слота, MSS/PMTU конфиг)
+- экспорт Metrics в pipeline уровня интеграции

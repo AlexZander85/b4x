@@ -9,20 +9,8 @@ import (
 	"testing"
 	"time"
 
-	twarp "github.com/daniellavrushin/b4/transport/warp"
 	twg "github.com/daniellavrushin/b4/transport/wg"
 )
-
-func testSupervisor(t *testing.T) *twarp.Supervisor {
-	t.Helper()
-	sup, err := twarp.NewSupervisor(twarp.SupervisorConfig{
-		Reconciler: &twarp.Reconciler{},
-	})
-	if err != nil {
-		t.Fatalf("supervisor: %v", err)
-	}
-	return sup
-}
 
 func TestMasqueAwgRuntimeRejectsWrongKinds(t *testing.T) {
 	cfg := MasqueAwgConfig{Pair: validPair()}
@@ -35,19 +23,19 @@ func TestMasqueAwgRuntimeRejectsWrongKinds(t *testing.T) {
 func TestMasqueAwgRuntimeRequiresPlaneAndIdentity(t *testing.T) {
 	cfg := MasqueAwgConfig{Pair: validPair()}
 	if _, err := NewMasqueAwgRuntime(cfg); err == nil {
-		t.Fatal("missing supervisor must be rejected")
+		t.Fatal("missing capsule plane must be rejected")
 	}
-	cfg.Supervisor = testSupervisor(t)
+	cfg.Plane = newFakePlane()
 	if _, err := NewMasqueAwgRuntime(cfg); err == nil {
 		t.Fatal("missing inner identity must be rejected")
 	}
 }
 
 func TestMasqueAwgRuntimeWaitingParentAndCleanStop(t *testing.T) {
-	sup := testSupervisor(t)
+	plane := newFakePlane()
 	cfg := MasqueAwgConfig{
 		Pair:       validPair(),
-		Supervisor: sup,
+		Plane:      plane,
 		LocalV4:    localV4(),
 		InnerIdent: &twg.Identity{},
 	}
@@ -74,8 +62,8 @@ func TestMasqueAwgRuntimeWaitingParentAndCleanStop(t *testing.T) {
 
 	rt.Stop() // idempotent teardown (child-first order internally)
 	rt.Stop() // second call must not panic or block
-	// sup is intentionally never Stop()ed here: Supervisor.Stop blocks until
-	// its loop exits, and this test never Start()ed it.
+	// The plane fixture needs no teardown; a production Supervisor stays
+	// owned by its creator.
 
 	if _, _, child := rt.Status(); child {
 		t.Fatal("child must not exist after Stop")
