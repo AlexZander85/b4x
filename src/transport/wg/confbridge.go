@@ -11,6 +11,7 @@ package transportwg
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -32,6 +33,23 @@ func GenerateKey() (Key, error) {
 }
 
 func (k Key) Hex() string { return hex.EncodeToString(k[:]) }
+
+// B64 renders the key as padded standard base64 (WireGuard ecosystem form).
+func (k Key) B64() string { return base64.StdEncoding.EncodeToString(k[:]) }
+
+// ParseKeyB64 decodes 32 bytes from standard base64.
+func ParseKeyB64(s string) (Key, error) {
+	var k Key
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return k, fmt.Errorf("transportwg: key base64: %w", err)
+	}
+	if len(b) != 32 {
+		return k, fmt.Errorf("transportwg: key must be 32 bytes, got %d", len(b))
+	}
+	copy(k[:], b)
+	return k, nil
+}
 
 // ParseKey decodes 32 bytes from hex.
 func ParseKey(s string) (Key, error) {
