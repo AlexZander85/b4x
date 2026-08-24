@@ -165,6 +165,11 @@ type Supervisor struct {
 	events       []SupervisorEvent
 	cur          *Session
 
+	// pktSubs: secondary consumers of inbound DATAGRAM payloads (nested
+	// carriers). Channels survive across session generations; each live
+	// session gets its own pump goroutine (see SubscribePackets).
+	pktSubs map[chan []byte]struct{}
+
 	startOnce sync.Once
 	stopOnce  sync.Once
 	cancel    context.CancelFunc
@@ -275,6 +280,75 @@ func (s *Supervisor) WritePacket(pkt []byte) error {
 	return nil
 }
 
+// SubscribePackets registers a secondary consumer of inbound DATAGRAM
+// payloads of the CURRENT session and of every future generation: nested
+// carriers subscribe once at composition start and keep receiving frames
+// across reconnects. Delivery is drop-instead-of-block (same discipline as
+// Session.fanOut); overflow counts toward DroppedTaps. The cancel function
+// unsubscribes and closes the channel exactly once; Supervisor loop exit
+// closes all remaining taps.
+func (s *Supervisor) SubscribePackets() (<-chan []byte, func()) {
+	ch := make(chan []byte, 64)
+	s.mu.Lock()
+	if s.pktSubs == nil {
+		s.pktSubs = make(map[chan []byte]struct{})
+	}
+	s.pktSubs[ch] = struct{}{}
+	s.mu.Unlock()
+	cancel := func() {
+		s.mu.Lock()
+		if _, ok := s.pktSubs[ch]; ok {
+			delete(s.pktSubs, ch)
+			close(ch)
+		}
+		s.mu.Unlock()
+	}
+	return ch, cancel
+}
+
+// tapPump forwards one live session's tap stream to supervisor-level
+// subscribers. Exactly one pump runs per generation; it exits when the
+// session's own tap channel closes (Session.Close) or ctx is cancelled.
+func (s *Supervisor) tapPump(ctx context.Context, sess *Session) {
+	src, _ := sess.SubscribePackets()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case pkt, open := <-src:
+			if !open {
+				return
+			}
+			s.fanOutTaps(pkt)
+		}
+	}
+}
+
+func (s *Supervisor) fanOutTaps(pkt []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for ch := range s.pktSubs {
+		select {
+		case ch <- pkt:
+		default:
+		}
+	}
+}
+
+// closeTaps terminates every subscriber channel (loop teardown).
+func (s *Supervisor) closeTaps() {
+	s.mu.Lock()
+	taps := make([]chan []byte, 0, len(s.pktSubs))
+	for ch := range s.pktSubs {
+		taps = append(taps, ch)
+	}
+	s.pktSubs = nil
+	s.mu.Unlock()
+	for _, ch := range taps {
+		close(ch)
+	}
+}
+
 // Restart requests an immediate reconnect (kick). Kicks are cooldown-paced
 // (z2k kick 300s); force bypasses the cooldown for operator actions.
 func (s *Supervisor) Restart(force bool) error {
@@ -369,6 +443,7 @@ func (b *backoffSeq) observeLifetime(lived time.Duration) {
 func (s *Supervisor) run(ctx context.Context) {
 	defer close(s.done)
 	defer s.setState(StateStopped)
+	defer s.closeTaps()
 
 	var (
 		ident     *Identity
@@ -485,6 +560,11 @@ func (s *Supervisor) run(ctx context.Context) {
 		attempt = 0
 		sessStart := s.cfg.now()
 		s.emit(SupervisorEvent{Name: EvMasqueConnected, DurationMS: msDur(sessStart.Sub(started)), Colo: cres.Colo})
+
+		// Packet taps for secondary in-tunnel consumers (nested carriers):
+		// one pump per generation; it dies together with the session while
+		// the subscriber channels survive across reconnects.
+		go s.tapPump(ctx, sess)
 
 		// First-packet fix: flush the buffered wake-up packet, if any.
 		if pkt := s.takePending(); pkt != nil {

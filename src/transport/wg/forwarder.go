@@ -31,6 +31,14 @@ import (
 // carrier; anything else would widen the inner blast radius.
 const DefaultForwarderHost = "127.0.0.1"
 
+// UDPConn is the exported alias of the internal relay conn surface
+// (Read/Write/Close). Cross-transport compositions (nested matrix) adapt
+// their carriers to this seam without duplicating the pump logic.
+type UDPConn = udpConn
+
+// DialUDPFunc is the exported alias of the forwarder's upstream dial seam.
+type DialUDPFunc = dialUDPFunc
+
 // LoopbackForwarder relays UDP between one host-loopback client and the
 // inner edge through an injected dial (netstack in production).
 type LoopbackForwarder struct {
@@ -49,8 +57,9 @@ type LoopbackForwarder struct {
 }
 
 // NewLoopbackForwarder builds a forwarder toward innerEdge. dial is the
-// upstream socket factory (nsUDPDial of the OUTER tunnel's netstack).
-func NewLoopbackForwarder(dial dialUDPFunc, innerEdge netip.AddrPort) (*LoopbackForwarder, error) {
+// upstream socket factory (nsUDPDial of the OUTER tunnel's netstack, or a
+// nested-matrix carrier session).
+func NewLoopbackForwarder(dial DialUDPFunc, innerEdge netip.AddrPort) (*LoopbackForwarder, error) {
 	if dial == nil {
 		return nil, errors.New("transportwg: forwarder requires a dial function")
 	}

@@ -1,0 +1,420 @@
+// Matrix layer (N3, design 3/6): ONE declarative schema for every outer x
+// inner combination plus the assembly helpers that compose them from the two
+// shipping engines. Rules enforced here are common to all pairs (design 2):
+//
+//   - different edge IPs per layer (gool hard rule, cross-transport);
+//   - inner MTU <= 1200 under any outer;
+//   - inner identity lives in the SECONDARY slot (one CF device per layer);
+//   - failure_mode is fail-closed-scoped only;
+//   - carrier resolves by the OUTER data-plane mode, never by transports.
+package nested
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/netip"
+	"sync"
+	"time"
+
+	twarp "github.com/daniellavrushin/b4/transport/warp"
+	twg "github.com/daniellavrushin/b4/transport/wg"
+)
+
+// Kind selects the transport family of one layer.
+type Kind string
+
+const (
+	KindAWG      Kind = "awg"
+	KindMasqueH2 Kind = "masque-h2"
+)
+
+func (k Kind) valid() bool { return k == KindAWG || k == KindMasqueH2 }
+
+// Identity slots (design 2: one CF device cannot be two layers).
+const (
+	SlotPrimary   = "primary"
+	SlotSecondary = "secondary"
+)
+
+// CarrierMode selects (or auto-resolves) the outer-side carrier.
+type CarrierMode string
+
+const (
+	CarrierAuto        CarrierMode = "auto"
+	CarrierKernelRoute CarrierMode = "kernel-route"
+	CarrierNetstack    CarrierMode = "netstack"
+	// CarrierDatagram is the resolved mode for a MASQUE CONNECT-IP outer.
+	CarrierDatagram CarrierMode = "masque-datagram"
+)
+
+// FailureMode: the only supported posture (design 6).
+const FailureModeFailClosedScoped = "fail-closed-scoped"
+
+// Validation errors carry structural identity (design 5 classes).
+var (
+	// ErrEdgeCollision names its class in the text so traces can classify
+	// without parsing free form (nested/edge-collision).
+	ErrEdgeCollision = errors.New("nested/edge-collision: layers terminate on the same edge IP")
+	ErrBadKind       = errors.New("nested: illegal layer kind")
+	ErrBadSlot       = errors.New("nested: inner identity slot must be " + SlotSecondary)
+)
+
+// MaxInnerMTU is the hard cap under ANY outer (design 2: encapsulation headroom).
+const MaxInnerMTU = 1200
+
+// LayerSpec declares one layer of the pair.
+type LayerSpec struct {
+	Kind         Kind
+	IdentitySlot string
+	ProfileID    string // profile catalog reference; resolved by wiring
+	Endpoint     netip.AddrPort
+	MTU          int // 0 = engine default (outer) / MaxInnerMTU (inner cap)
+}
+
+// PairConfig is the declarative schema of one nested pair (design 6).
+type PairConfig struct {
+	Outer LayerSpec
+	Inner LayerSpec
+	// Carrier: auto | kernel-route | netstack (datagram is resolved-only).
+	Carrier CarrierMode
+	// FailureMode: empty or fail-closed-scoped.
+	FailureMode string
+}
+
+// Validate enforces every matrix rule without touching network state.
+func (p *PairConfig) Validate() error {
+	if !p.Outer.Kind.valid() || !p.Inner.Kind.valid() {
+		return fmt.Errorf("%w: outer=%q inner=%q", ErrBadKind, p.Outer.Kind, p.Inner.Kind)
+	}
+	if p.Outer.IdentitySlot != SlotPrimary {
+		return fmt.Errorf("nested: outer identity slot must be %q", SlotPrimary)
+	}
+	if p.Inner.IdentitySlot != SlotSecondary {
+		return ErrBadSlot
+	}
+	if p.Outer.ProfileID == "" || p.Inner.ProfileID == "" {
+		return errors.New("nested: profile_id required for both layers")
+	}
+	if !p.Outer.Endpoint.IsValid() || p.Outer.Endpoint.Port() == 0 ||
+		!p.Inner.Endpoint.IsValid() || p.Inner.Endpoint.Port() == 0 {
+		return errors.New("nested: both layer endpoints must be valid addr:port")
+	}
+	if p.Outer.Endpoint.Addr() == p.Inner.Endpoint.Addr() {
+		return ErrEdgeCollision
+	}
+	innerMTU := p.Inner.MTU
+	if innerMTU == 0 {
+		innerMTU = MaxInnerMTU
+	}
+	if innerMTU > MaxInnerMTU {
+		return fmt.Errorf("nested: inner mtu %d exceeds cap %d", innerMTU, MaxInnerMTU)
+	}
+	switch p.Carrier {
+	case "", CarrierAuto, CarrierKernelRoute, CarrierNetstack:
+	default:
+		return fmt.Errorf("nested: carrier mode %q is not declarable (resolved only)", p.Carrier)
+	}
+	if p.FailureMode != "" && p.FailureMode != FailureModeFailClosedScoped {
+		return fmt.Errorf("nested: unsupported failure_mode %q", p.FailureMode)
+	}
+	return nil
+}
+
+// ResolveCarrier implements the auto rule: the OUTER data-plane mode decides.
+// awg outer -> kernel route when the outer rides a kernel TUN, netstack when
+// it runs the gVisor stack; masque-h2 outer -> datagram plane.
+func ResolveCarrier(p PairConfig, outerKernelTUN bool) (CarrierMode, error) {
+	switch p.Carrier {
+	case CarrierKernelRoute, CarrierNetstack, CarrierDatagram:
+		return p.Carrier, nil
+	case "", CarrierAuto:
+	default:
+		return "", fmt.Errorf("nested: unknown carrier mode %q", p.Carrier)
+	}
+	switch p.Outer.Kind {
+	case KindMasqueH2:
+		return CarrierDatagram, nil
+	case KindAWG:
+		if outerKernelTUN {
+			return CarrierKernelRoute, nil
+		}
+		return CarrierNetstack, nil
+	default:
+		return "", ErrBadKind
+	}
+}
+
+// ---- assembly seams ----
+
+// ForwarderSeam adapts any UDPSessionCarrier to the transportwg Backend-B
+// forwarder dial seam: the relay keeps its tested pump logic while its
+// upstream becomes the carrier session (M+W path).
+func ForwarderSeam(c UDPSessionCarrier) twg.DialUDPFunc {
+	return func(ctx context.Context, network, address string) (twg.UDPConn, error) {
+		if network != "udp" && network != "udp4" {
+			return nil, fmt.Errorf("nested: forwarder seam carries udp only, got %q", network)
+		}
+		ap, err := netip.ParseAddrPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("nested: forwarder seam endpoint: %w", err)
+		}
+		return c.DialUDPThrough(ctx, ap)
+	}
+}
+
+// CarrierDialFunc adapts a NestedCarrier to transportwarp SessionConfig.DialFunc:
+// the inner MASQUE control socket dials THROUGH the outer (W+M path).
+func CarrierDialFunc(c NestedCarrier) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" {
+			return nil, fmt.Errorf("nested: carrier dial func carries tcp only, got %q", network)
+		}
+		ap, err := netip.ParseAddrPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("nested: carrier dial endpoint: %w", err)
+		}
+		return c.DialTCPThrough(ctx, ap)
+	}
+}
+
+// ---- M+W runtime: MASQUE outer carrying an AWG inner ----
+
+// MasqueAwgConfig wires the composed pair. Engine specifics stay with the
+// caller (identity enrollment, profiles, catalogs); the runtime owns ONLY
+// the composition lifecycle (parent-link contracts reused from E5/WG6).
+type MasqueAwgConfig struct {
+	Pair PairConfig // must validate as masque-h2 outer + awg inner
+
+	Supervisor *twarp.Supervisor // OUTER instance (already configured)
+	LocalV4    [4]byte           // outer assigned address (carrier source)
+
+	// Inner AWG layer pieces.
+	InnerIdent   *twg.Identity
+	InnerProfile twg.Profile
+	DNS          netip.Addr // inside BOTH planes' resolvers; default 8.8.8.8
+
+	MaxInnerGenerations int
+	PollInterval        time.Duration // parent-link tick; default 20ms
+
+	OnEvent      func(Event)
+	InnerOnEvent func(twg.SessionEvent) // engine-native passthrough
+}
+
+// MasqueAwgRuntime owns the composed M+W pair: the MASQUE supervisor is the
+// parent plane; the inner AWG session's ONLY egress is the Backend-B
+// forwarder dialed through the MasqueDatagramCarrier (ErrInnerNotLoopback
+// proof inherited from WG6 - the inner still dials loopback; its datagrams
+// physically ride the capsule stream).
+type MasqueAwgRuntime struct {
+	cfg     MasqueAwgConfig
+	carrier *MasqueDatagramCarrier
+
+	mu        sync.Mutex
+	link      string // waiting-parent | up | child-invalidated
+	parentGen uint64
+	inner     *twg.Session
+	fwd       *twg.LoopbackForwarder
+
+	cancel   context.CancelFunc
+	done     chan struct{}
+	startOne sync.Once
+	stopOnce sync.Once
+}
+
+// NewMasqueAwgRuntime validates the declaration and returns a stopped runtime.
+func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
+	if err := cfg.Pair.Validate(); err != nil {
+		return nil, err
+	}
+	if cfg.Pair.Outer.Kind != KindMasqueH2 || cfg.Pair.Inner.Kind != KindAWG {
+		return nil, fmt.Errorf("nested: MasqueAwgRuntime requires masque-h2+awg, got %s+%s",
+			cfg.Pair.Outer.Kind, cfg.Pair.Inner.Kind)
+	}
+	if cfg.Supervisor == nil || cfg.InnerIdent == nil {
+		return nil, errors.New("nested: masque+awg requires supervisor and inner identity")
+	}
+	if cfg.PollInterval <= 0 {
+		cfg.PollInterval = 20 * time.Millisecond
+	}
+	if !cfg.DNS.IsValid() {
+		cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
+	}
+	carrier, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
+		Plane:   cfg.Supervisor,
+		LocalV4: cfg.LocalV4,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &MasqueAwgRuntime{
+		cfg:     cfg,
+		carrier: carrier,
+		link:    "waiting-parent",
+		done:    make(chan struct{}),
+	}, nil
+}
+
+// Start launches the parent-link controller and the carrier pump.
+func (r *MasqueAwgRuntime) Start(parent context.Context) error {
+	r.startOne.Do(func() {
+		ctx, cancel := context.WithCancel(parent)
+		r.cancel = cancel
+		r.carrier.StartPumping()
+		go r.run(ctx)
+	})
+	select {
+	case <-r.done:
+		return fmt.Errorf("nested: masque+awg runtime exited during start")
+	default:
+		return nil
+	}
+}
+
+// Stop tears down CHILD-FIRST (inner, forwarder), then the controller and
+// the carrier. The MASQUE supervisor itself stays owned by its creator.
+func (r *MasqueAwgRuntime) Stop() {
+	r.stopOnce.Do(func() {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		<-r.done
+		r.stopChild()
+		r.carrier.Close()
+	})
+}
+
+// Status snapshots the parent-link state.
+func (r *MasqueAwgRuntime) Status() (link string, parentGen uint64, childRunning bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	child := r.inner != nil && r.inner.State() != twg.StateClosed
+	return r.link, r.parentGen, child
+}
+
+func (r *MasqueAwgRuntime) run(ctx context.Context) {
+	defer close(r.done)
+	t := time.NewTicker(r.cfg.PollInterval)
+	defer t.Stop()
+	held := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		nowHeld := r.cfg.Supervisor.Snapshot().RouteHeld
+		switch {
+		case nowHeld && !held:
+			gen := r.parentGen + 1
+			if err := r.startChild(gen); err != nil {
+				r.setLink("child-invalidated", gen, err.Error())
+				break
+			}
+			r.setLink("up", gen, "")
+		case !nowHeld && held:
+			r.stopChild()
+			r.mu.Lock()
+			r.link = "child-invalidated"
+			r.mu.Unlock()
+			r.emit(Event{Class: "warp_masque_disconnected",
+				Reason: "parent lost: child invalidated"})
+		}
+		held = nowHeld
+	}
+}
+
+func (r *MasqueAwgRuntime) startChild(gen uint64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	fwd, err := twg.NewLoopbackForwarder(ForwarderSeam(r.carrier), r.cfg.Pair.Inner.Endpoint)
+	if err != nil {
+		return fmt.Errorf("forwarder: %w", err)
+	}
+	addr, err := fwd.Start(context.Background())
+	if err != nil {
+		_ = fwd.Close()
+		return fmt.Errorf("forwarder start: %w", err)
+	}
+	sessCfg := twg.SessionConfig{
+		Ident:          r.cfg.InnerIdent,
+		Profile:        r.cfg.InnerProfile,
+		Endpoint:       addr.String(),
+		Tunnel:         r.innerTunnel(),
+		MaxGenerations: r.cfg.MaxInnerGenerations,
+		Health:         twg.HealthConfig{KeepaliveSec: twg.NestedInnerKeepaliveSec},
+		Callbacks:      twg.SessionCallbacks{OnEvent: r.innerEvent},
+	}
+	sess, err := twg.NewSession(sessCfg)
+	if err != nil {
+		_ = fwd.Close()
+		return fmt.Errorf("inner config: %w", err)
+	}
+	if err := sess.Start(); err != nil {
+		_ = fwd.Close()
+		return fmt.Errorf("inner start: %w", err)
+	}
+	r.inner, r.fwd = sess, fwd
+	r.parentGen = gen
+	r.link = "up"
+	r.emit(Event{Class: "wg_nested_child_revalidated",
+		Reason: fmt.Sprintf("gen=%d fwd=%s proof=%v", gen, addr, r.proofText())})
+	return nil
+}
+
+func (r *MasqueAwgRuntime) stopChild() {
+	r.mu.Lock()
+	inner, fwd := r.inner, r.fwd
+	r.inner, r.fwd = nil, nil
+	r.mu.Unlock()
+	if inner != nil {
+		inner.Stop()
+	}
+	if fwd != nil {
+		_ = fwd.Close()
+	}
+}
+
+func (r *MasqueAwgRuntime) setLink(link string, gen uint64, reason string) {
+	r.mu.Lock()
+	r.link, r.parentGen = link, gen
+	r.mu.Unlock()
+	if reason != "" {
+		r.emit(Event{Class: ClassCarrierRouteLost, Reason: reason})
+	}
+}
+
+func (r *MasqueAwgRuntime) innerTunnel() twg.TunnelConfig {
+	mtu := r.cfg.Pair.Inner.MTU
+	if mtu <= 0 {
+		mtu = MaxInnerMTU
+	}
+	return twg.TunnelConfig{
+		Mode:      twg.ModeNetstack,
+		Addresses: []netip.Addr{mustAddr(r.cfg.InnerIdent.AssignedV4)},
+		DNS:       []netip.Addr{r.cfg.DNS},
+		MTU:       mtu,
+	}
+}
+
+func (r *MasqueAwgRuntime) innerEvent(ev twg.SessionEvent) {
+	if cb := r.cfg.InnerOnEvent; cb != nil {
+		cb(ev)
+	}
+}
+
+func (r *MasqueAwgRuntime) proofText() string {
+	p, _ := r.carrier.ProofSnapshot()
+	return p
+}
+
+func (r *MasqueAwgRuntime) emit(ev Event) {
+	ev.At = time.Now()
+	if cb := r.cfg.OnEvent; cb != nil {
+		cb(ev)
+	}
+}
+
+func mustAddr(s string) netip.Addr { return netip.MustParseAddr(s) }
