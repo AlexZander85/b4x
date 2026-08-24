@@ -45,15 +45,28 @@ gofmt-замечания `transport/warp/{fakeserver_test,probe,probe_test,varin
 4. **W+W не переписывался**: матрица делегирует зелёному `transportwg.NestedWgRuntime`; e2e двух устройств уже покрыт WG6. Улучшение «инжект без loopback-шим» реализовано там, где оно ново — в MasqueDatagramCarrier.
 5. **TCP-dial сквозь gVisor игнорирует ctx во время хендшейка** (пин gvisor 2023-12-01f7806d) — та же категория ограничения, что задокументирована в transportwg/trustgate.go; юнит-тест заменён детерминированным closed-carrier контрактом, e2e-случай отнесён к интеграционному стенду.
 
-## 4. Хвосты (follow-up, в bd)
+## 4. Хвосты
 
 - ~~E2E M+W целиком~~ **ЗАКРЫТО**: `masque_awg_e2e_test.go` — настоящий
   `twarp.DialSession` против fake CONNECT-IP эджа (капсульный NAT) в НАСТОЯЩИЙ
   amneziawg-go респондер; inner AWG проходит handshake + trust gate до
   `wg_established` сквозь обе плоскости (~3.5s, count=2 стабильно). Попутно
   `MasqueAwgConfig.Supervisor` → `Plane CapsulePlane` (DI для e2e без зачисления).
-- прод-wiring W+M: Reconciler/identity вторичного слота + MSS/PMTU-параметры конфигурации.
-- Экспорт метрик Metrics наружу (pipeline-адаптер уровня интеграции).
+- ~~прод-wiring W+M~~ **ЗАКРЫТО**: `wgmasque.go` — `WgMasqueRuntime`
+  (callback-driven parent-link поверх AWG-outer; fresh carrier + fresh MASQUE
+  supervisor на каждое поколение; child-first teardown). Вторичный слот
+  ОБЯЗАТЕЛЕН структурно (`InnerEnroll` + `InnerSlotPath` → Reconciler;
+  разделение identity = красная линия #3). MSS/PMTU: `tcp_mss*.go` —
+  явный TCP_MAXSEG через DialerWithMSS для kernel-route носителя (дизайн §3.3);
+  netstack-носитель сегментирует по своему MTU сам (задокументировано).
+  Kernel-TUN режим компилируется под linux (LINUX-BUILD-OK), полный e2e W+M —
+  интеграционный стенд/поле (нужен живой enrollment API вторичного слота).
+- ~~Экспорт метрик Metrics~~ **ЗАКРЫТО**: `metrics_pipeline.go` —
+  `Snapshot()/Export()/ExportLoop()` с именами серий из дизайна §5
+  (nested_pair_active, nested_repin_total, nested_carrier_route_lost_total,
+  nested_edge_collision_total, nested_layer_gate_duration_seconds{layer});
+  адаптация в конверт src/warp TracePipeline — интеграционный слой
+  (тот же принцип разделения, что E7 для supervisor-событий).
 
 ## 5. Уроки e2e (для будущих фикстур)
 
@@ -61,7 +74,7 @@ gofmt-замечания `transport/warp/{fakeserver_test,probe,probe_test,varin
   эталон — transportwarp/varint.go AppendVarint.
 - tun.Device.Read возвращает ЧИСЛО БУФЕРОВ, байты — sizes[0].
 - порт эджа брать только из bind.ActualPort() ПОСЛЕ Up(), не из пробной сокеты.
-- gVisor этого пина: TCP-connect игнорирует ctx при хендшейке; UDP/IP чексуммы
+- gVisor этого пина: TCP-connect игнорирует ctx во время хендшейка; UDP/IP чексуммы
   на входе netstack валидируются строго.
 - NAT-фикстура: clientSport по «последний писатель побеждает» — самозаживление
   между поколениями inner-сессии.
