@@ -124,6 +124,10 @@ func newTestSeeker(t *testing.T, base SessionConfig, cands []netip.AddrPort, tar
 		OnEvent:           onEvent,
 		TunnelFactory:     factory,
 		Strikes:           strikes,
+		// Tests-only escape (loopback fake edges live outside the endpoint
+		// catalog); production leaves this false — gate covered by
+		// TestSeekerCatalogGate*.
+		AllowOutOfCatalog: true,
 	})
 	if err != nil {
 		t.Fatal(err)

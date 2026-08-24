@@ -124,6 +124,13 @@ type SeekerConfig struct {
 	// Strikes carries cross-run strike/cooldown state. nil -> the seeker
 	// allocates its own (single-lifetime usage).
 	Strikes *StrikeState
+
+	// AllowOutOfCatalog is a TESTS-ONLY escape (loopback fake edges bind
+	// outside the endpoint catalog). Production MUST leave it false: with
+	// the gate on, every candidate AND the last-good entry are validated
+	// against InWGCatalog/KnownWGPort and silently skipped otherwise
+	// (design §11.5 via MASQUE §34: no arbitrary endpoints, ever).
+	AllowOutOfCatalog bool
 }
 
 func (c *SeekerConfig) fillDefaults() {
@@ -200,12 +207,16 @@ func containsAddr(list []netip.AddrPort, v netip.AddrPort) bool {
 }
 
 // orderedCandidates returns candidates with the last-good endpoint first,
-// skipping cooled-down endpoints.
+// skipping cooled-down endpoints. With the catalog gate on (default), the
+// last-good binding is honored only while the stored pair still lives
+// inside a catalog pool — a stale or out-of-pool entry is dropped and the
+// ladder re-seeks (warp-socks rule: last_good-first only while it is still
+// in the pool).
 func (s *Seeker) orderedCandidates(now time.Time) []netip.AddrPort {
 	var preferred netip.AddrPort
 	hasPreferred := false
 	if s.cfg.Store != nil {
-		if lg, ok := s.cfg.Store.Get(); ok {
+		if lg, ok := s.cfg.Store.Get(); ok && s.admissible(lg.Endpoint) {
 			preferred = lg.Endpoint
 			hasPreferred = true
 		}
@@ -213,6 +224,9 @@ func (s *Seeker) orderedCandidates(now time.Time) []netip.AddrPort {
 	out := make([]netip.AddrPort, 0, len(s.cfg.Candidates))
 	push := func(c netip.AddrPort) {
 		if containsAddr(out, c) || s.strikes.Cooling(c, now) {
+			return
+		}
+		if !s.admissible(c) {
 			return
 		}
 		out = append(out, c)
@@ -224,6 +238,11 @@ func (s *Seeker) orderedCandidates(now time.Time) []netip.AddrPort {
 		push(c)
 	}
 	return out
+}
+
+// admissible applies the §34-analog gate unless the tests-only escape is set.
+func (s *Seeker) admissible(c netip.AddrPort) bool {
+	return s.cfg.AllowOutOfCatalog || endpointInCatalog(c)
 }
 
 // orderedLadder returns profiles for one candidate: last-good profile first
