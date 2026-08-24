@@ -131,7 +131,7 @@ func TestFakeEdgeReservedRoutingHappyPath(t *testing.T) {
 		t.Fatalf("edge stats: seen=%d dropped=%d", len(seen), dropped)
 	}
 	for i, s := range seen {
-		if s != reserved {
+		if s.Res != reserved {
 			t.Fatalf("datagram %d carried reserved %v, want %v (routing broken)", i, s, reserved)
 		}
 	}
@@ -178,7 +178,7 @@ func TestFakeEdgeRejectsWrongClientID(t *testing.T) {
 		t.Fatalf("routing discipline not exercised: seen=%d dropped=%d", len(seen), dropped)
 	}
 	for i, s := range seen {
-		if s == reserved {
+		if s.Res == reserved {
 			t.Fatalf("datagram %d matched foreign expected id — fixture broken", i)
 		}
 	}
@@ -221,7 +221,7 @@ func TestGenericAWGServerSeesZerosWithoutCFFlag(t *testing.T) {
 		t.Fatalf("edge stats: seen=%d dropped=%d", len(seen), dropped)
 	}
 	for i, s := range seen {
-		if s != zeros {
+		if s.Res != zeros {
 			t.Fatalf("datagram %d carried reserved %v without cf_warp — red line §11.3 violated", i, s)
 		}
 	}

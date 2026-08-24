@@ -17,6 +17,7 @@ package transportwg
 
 import (
 	"context"
+	"encoding/binary"
 	"net"
 	"net/netip"
 	"strings"
@@ -59,13 +60,31 @@ func (w chainedDump) AdjustInbound(buf []byte) {
 	}
 }
 
+// edgeRXKind classifies one captured datagram at the wire layer.
+type edgeRXKind string
+
+const (
+	rxInit    edgeRXKind = "init"   // vanilla handshake initiation (type 1)
+	rxResp    edgeRXKind = "resp"   // vanilla handshake response (type 2)
+	rxCookie  edgeRXKind = "cookie" // type 3
+	rxData    edgeRXKind = "data"   // vanilla transport (type 4)
+	rxUnknown edgeRXKind = "unknown"
+)
+
+// edgeRX is one captured datagram with its wire classification.
+type edgeRX struct {
+	Res   [3]byte
+	Kind  edgeRXKind
+	Bytes int
+}
+
 type edgeBind struct {
 	mu      sync.Mutex
 	conn    *net.UDPConn
 	expect  [3]byte
 	require bool // true = drop non-matching reserved (CF routing discipline)
 	stampTX bool // true = stamp outbound types 1..4 (real CF behavior)
-	seen    [][3]byte
+	seen    []edgeRX
 	dropped int
 	closed  chan struct{}
 }
@@ -101,13 +120,25 @@ func (b *edgeBind) receive(bufs [][]byte, sizes []int, eps []conn.Endpoint) (int
 			return 0, err
 		}
 		pkt := bufs[0][:n]
-		var seen [3]byte
+		rec := edgeRX{Bytes: n}
 		if n >= 4 {
-			copy(seen[:], pkt[1:4])
+			copy(rec.Res[:], pkt[1:4])
+		}
+		switch {
+		case n >= 1 && pkt[0] == 1:
+			rec.Kind = rxInit
+		case n >= 1 && pkt[0] == 2:
+			rec.Kind = rxResp
+		case n >= 1 && pkt[0] == 3:
+			rec.Kind = rxCookie
+		case n >= 1 && pkt[0] == 4:
+			rec.Kind = rxData
+		default:
+			rec.Kind = rxUnknown
 		}
 		b.mu.Lock()
-		b.seen = append(b.seen, seen)
-		mismatch := b.require && seen != b.expect
+		b.seen = append(b.seen, rec)
+		mismatch := b.require && rec.Res != b.expect
 		if mismatch {
 			b.dropped++
 		}
@@ -169,20 +200,24 @@ func (b *edgeBind) ParseEndpoint(s string) (conn.Endpoint, error) {
 func (b *edgeBind) BatchSize() int       { return 1 }
 func (b *edgeBind) SetMark(uint32) error { return nil }
 
-func (b *edgeBind) stats() (seen [][3]byte, dropped int) {
+func (b *edgeBind) stats() (seen []edgeRX, dropped int) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	return append([][3]byte(nil), b.seen...), b.dropped
+	return append([]edgeRX(nil), b.seen...), b.dropped
 }
 
 var _ conn.Bind = (*edgeBind)(nil)
 
 // fakeEdge bundles the responder device with its instrumented bind.
 type fakeEdge struct {
-	tun  *tuntest.ChannelTUN
-	dev  *device.Device
-	bind *edgeBind
-	ip   [4]byte
+	mu       sync.Mutex
+	tun      *tuntest.ChannelTUN
+	dev      *device.Device
+	bind     *edgeBind
+	ip       [4]byte
+	stopResp chan struct{}
+	respMode ResponderMode
+	inner    []innerRX
 }
 
 // startFakeEdge brings up the vanilla-profile responder on loopback UDP.
@@ -199,7 +234,7 @@ func startFakeEdge(t *testing.T, expect [3]byte, requireReserved, stampTX bool) 
 		bind: newEdgeBind(pc.(*net.UDPConn), expect, requireReserved, stampTX),
 		ip:   [4]byte{10, 9, 9, 1},
 	}
-	e.dev = device.NewDevice(e.tun.TUN(), e.bind, edgeLogger(t))
+	e.dev = device.NewDevice(&onceCloseTUN{Device: e.tun.TUN()}, e.bind, edgeLogger(t))
 	t.Cleanup(e.dev.Close)
 	return e, nil
 }
@@ -213,8 +248,9 @@ func edgeLogger(t *testing.T) *device.Logger {
 }
 
 // Configure sets the edge private key and expects the given client public
-// key. Allowed IPs: the client's tunnel /32 plus the edge inner IP so a
-// client ping addressed to the edge lands on the TUN.
+// key. Allowed IPs: the client's tunnel /32, the edge inner IP, and the DNS
+// resolver the trust gate probes (8.8.8.8) so decrypted gate queries route
+// to the TUN.
 func (e *fakeEdge) Configure(edgePriv Key, clientPub Key, clientTunnelIP netip.Addr) error {
 	c := Config{
 		PrivateKey: edgePriv,
@@ -223,6 +259,7 @@ func (e *fakeEdge) Configure(edgePriv Key, clientPub Key, clientTunnelIP netip.A
 			AllowedIPs: []netip.Prefix{
 				netip.PrefixFrom(clientTunnelIP, 32),
 				netip.PrefixFrom(ip4(e.ip), 32),
+				netip.PrefixFrom(netip.MustParseAddr("8.8.8.8"), 32),
 			},
 		}},
 	}
@@ -234,6 +271,146 @@ func (e *fakeEdge) Configure(edgePriv Key, clientPub Key, clientTunnelIP netip.A
 		return err
 	}
 	return e.dev.Up()
+}
+
+// ResponderMode controls the edge's data-plane behavior for session tests.
+type ResponderMode int
+
+const (
+	// ResponderNormal answers UDP/53 queries with a crafted A reply.
+	ResponderNormal ResponderMode = iota
+	// ResponderSilent swallows everything (silent-DPI fixture).
+	ResponderSilent
+)
+
+// innerRX is one decrypted packet observed at the edge TUN.
+type innerRX struct {
+	Kind  string // "dns-boot" | "dns-gate" | "icmp" | "other"
+	QName string
+}
+
+// classifyInner decodes a decrypted IP packet at the edge TUN.
+func classifyInner(pkt []byte) innerRX {
+	if len(pkt) >= 20 && pkt[0]>>4 == 4 {
+		switch pkt[9] {
+		case 1:
+			if len(pkt) >= 28 {
+				return innerRX{Kind: "icmp"}
+			}
+		case 17:
+			ihl := int(pkt[0]&0x0f) * 4
+			u := pkt[ihl:]
+			if len(u) >= 8+12 {
+				dport := int(u[2])<<8 | int(u[3])
+				if dport == 53 {
+					dns := u[8:]
+					qname := parseQName(dns[12:])
+					kind := "dns-gate"
+					if strings.HasPrefix(qname, bootstrapQNameLabel) {
+						kind = "dns-boot"
+					}
+					return innerRX{Kind: kind, QName: qname}
+				}
+			}
+		}
+	}
+	return innerRX{Kind: "other"}
+}
+
+// parseQName reads a dotted DNS name starting at the question section.
+func parseQName(b []byte) string {
+	var sb strings.Builder
+	pos := 0
+	for pos < len(b) {
+		l := int(b[pos])
+		if l == 0 {
+			break
+		}
+		if sb.Len() > 0 {
+			sb.WriteByte('.')
+		}
+		if pos+1+l > len(b) {
+			return sb.String()
+		}
+		sb.Write(b[pos+1 : pos+1+l])
+		pos += 1 + l
+	}
+	return sb.String()
+}
+
+// StartResponder pumps decrypted packets back into the tunnel: UDP/53 gets
+// a crafted reply (unless silent mode), everything else is dropped. Every
+// decrypted packet is classified into the inner log for ordering tests.
+func (e *fakeEdge) StartResponder(mode ResponderMode) {
+	stop := make(chan struct{})
+	e.mu.Lock()
+	if e.stopResp != nil {
+		e.mu.Unlock()
+		return // already running; call StopResponder first
+	}
+	e.stopResp = stop
+	e.respMode = mode
+	e.mu.Unlock()
+	go func() {
+		for {
+			select {
+			case <-stop:
+				return
+			case pkt := <-e.tun.Inbound:
+				e.mu.Lock()
+				e.inner = append(e.inner, classifyInner(pkt))
+				silent := e.respMode == ResponderSilent
+				e.mu.Unlock()
+				if silent {
+					continue
+				}
+				reply := dnsReplyPacket(pkt)
+				if reply == nil {
+					continue
+				}
+				select {
+				case e.tun.Outbound <- reply:
+				default:
+				}
+			}
+		}
+	}()
+}
+
+// SetResponderMode flips behavior on a live responder (mid-session drop).
+func (e *fakeEdge) SetResponderMode(m ResponderMode) {
+	e.mu.Lock()
+	e.respMode = m
+	e.mu.Unlock()
+}
+
+// innerStats returns a copy of the decrypted-packet log.
+func (e *fakeEdge) innerStats() []innerRX {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]innerRX(nil), e.inner...)
+}
+
+// dnsReplyPacket crafts an IP-level DNS A reply for a query packet.
+func dnsReplyPacket(query []byte) []byte {
+	if len(query) < 40 || query[0]>>4 != 4 || query[9] != 17 {
+		return nil
+	}
+	out := append([]byte(nil), query...)
+	copy(out[12:16], query[16:20])
+	copy(out[16:20], query[12:16])
+	out[10], out[11] = 0, 0
+	binary.BigEndian.PutUint16(out[10:], ipv4Checksum(out[:20]))
+	ihl := int(query[0]&0x0f) * 4
+	u := out[ihl:]
+	u[0], u[1], u[2], u[3] = u[2], u[3], u[0], u[1]
+	binary.BigEndian.PutUint16(u[6:], 0)
+	dns := u[8:]
+	if len(dns) < 12 {
+		return nil
+	}
+	dns[2] |= 0x80
+	return out
 }
 
 // addr returns the loopback UDP address of the edge.

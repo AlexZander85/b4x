@@ -17,9 +17,11 @@
 package transportwg
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/netip"
+	"time"
 
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun"
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
@@ -42,10 +44,20 @@ const (
 )
 
 // Tunnel bundles the device handle with its netstack accessor (nil unless
-// ModeNetstack).
+// ModeNetstack). For raw-TUN modes the trust gate needs the two directions
+// of the TUN explicitly:
+//
+//   - Inject feeds an outbound packet INTO the tunnel (kernel: /dev fd
+//     write; channel test backend: chan send);
+//   - Capture awaits one inbound packet the device delivers to the local
+//     stack (kernel: /dev fd read; channel test backend: chan receive).
+//
+// Netstack mode leaves both nil and uses its own sockets instead.
 type Tunnel struct {
 	Device   tun.Device
 	Netstack *netstack.Net
+	Inject   func([]byte) error
+	Capture  func(ctx context.Context) ([]byte, error)
 }
 
 // TunnelConfig describes a new tunnel device.
@@ -81,7 +93,37 @@ func NewTunnel(cfg TunnelConfig) (*Tunnel, error) {
 		if err != nil {
 			return nil, fmt.Errorf("transportwg: %w: %v", ErrKernelTUNUnavailable, err)
 		}
-		return &Tunnel{Device: dev}, nil
+		f := dev.File()
+		inject := func(b []byte) error {
+			// Bounded write: a full kernel queue must not wedge the session
+			// lifecycle; fd close during teardown unblocks the helper.
+			errc := make(chan error, 1)
+			go func() {
+				_, werr := f.Write(b)
+				errc <- werr
+			}()
+			select {
+			case err := <-errc:
+				return err
+			case <-time.After(3 * time.Second):
+				return errors.New("transportwg: tun inject timeout")
+			}
+		}
+		capture := func(ctx context.Context) ([]byte, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			pkt := make([]byte, 65535)
+			// Blocking read: unblocks with an error when teardown closes the
+			// device fd; ctx cancellation is honored by the session owning
+			// the teardown ordering.
+			n, err := f.Read(pkt)
+			if err != nil {
+				return nil, err
+			}
+			return pkt[:n], nil
+		}
+		return &Tunnel{Device: dev, Inject: inject, Capture: capture}, nil
 	default:
 		return nil, fmt.Errorf("transportwg: unknown TUN mode %d", cfg.Mode)
 	}
