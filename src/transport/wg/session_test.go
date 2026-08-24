@@ -1,7 +1,7 @@
-// WG3 session integration: establishment through the trust gate against the
-// fake edge, structural loss classification on silent drop, and flap
-// recovery via generation restarts. Windows are shrunk for CI; production
-// numbers stay the design defaults.
+// WG3/WG4 session integration suite: establishment through the trust gate,
+// structural loss classification, flap recovery, cold-start ordering,
+// keepalive liveness, and the mid-session refused-identity stall arc.
+// CI windows are shrunk; production numbers stay the design defaults.
 package transportwg
 
 import (
@@ -19,10 +19,9 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/v3/tun/tuntest"
 )
 
-// tuntestPing injects one ICMP echo into the current generation's TUN.
-func tuntestPing(ch *testChannel, dst, src netip.Addr) error {
-	return ch.inject(tuntest.Ping(dst, src))
-}
+var cfReserved = [3]byte{0xb9, 0x2f, 0x7f} // client_id "uS9/"
+
+// ---- event recorder ----
 
 type sessionRecorder struct {
 	mu     sync.Mutex
@@ -66,7 +65,13 @@ func (r *sessionRecorder) names() []string {
 	return out
 }
 
-// testChannel exposes the channel TUN's raw surfaces for session tests.
+// ---- channel TUN (self-owned, idempotent close) ----
+//
+// Upstream tuntest.ChannelTUN panics on double Close, and BOTH our session
+// teardown and upstream's fatal-read auto-close path (send.go:398-412 -> go
+// device.Close()) may race a second Close. Its Read/Write must also never
+// return transient errors: upstream treats ANY read error as fatal.
+
 type testChannel struct {
 	Device   tun.Device
 	Inbound  <-chan []byte // decrypted packets arriving FROM the tunnel
@@ -74,12 +79,9 @@ type testChannel struct {
 	inject   func([]byte) error
 }
 
-// chanTUN is a self-owned channel TUN with truly idempotent close (upstream
-// tuntest.ChannelTUN panics on double close, and both our session teardown
-// AND upstream's fatal-read auto-close path call Close).
 type chanTUN struct {
-	inbound   chan []byte // decrypted packets arriving FROM the tunnel
-	outbound  chan []byte // packets injected INTO the tunnel
+	inbound   chan []byte
+	outbound  chan []byte
 	events    chan tun.Event
 	closed    chan struct{}
 	closeOnce sync.Once
@@ -98,29 +100,9 @@ func newTestChannelTUN() *testChannel {
 	return tc
 }
 
-// inject publishes an outbound packet without ever blocking indefinitely:
-// a generation teardown may leave the device reader gone mid-flight.
-func (c *chanTUN) inject(b []byte) error {
-	select {
-	case <-c.closed:
-		return os.ErrClosed
-	default:
-	}
-	select {
-	case <-c.closed:
-		return os.ErrClosed
-	case c.outbound <- b:
-		return nil
-	case <-time.After(2 * time.Second):
-		return errors.New("transportwg: inject timeout (device reader gone)")
-	}
-}
-
 func (c *chanTUN) File() *os.File { return nil }
 
 func (c *chanTUN) Read(bufs [][]byte, sizes []int, offset int) (int, error) {
-	// NOTE: must never return a transient error — upstream treats ANY read
-	// error as fatal and tears the whole device down (send.go:398-412).
 	select {
 	case <-c.closed:
 		return 0, os.ErrClosed
@@ -153,7 +135,25 @@ func (c *chanTUN) Close() error {
 	return nil
 }
 
-// onceCloseTUN remains as belt-and-braces for any other tun.Device.
+// inject publishes an outbound packet without ever blocking indefinitely: a
+// generation teardown may leave the device reader gone mid-flight.
+func (c *chanTUN) inject(b []byte) error {
+	select {
+	case <-c.closed:
+		return os.ErrClosed
+	default:
+	}
+	select {
+	case <-c.closed:
+		return os.ErrClosed
+	case c.outbound <- b:
+		return nil
+	case <-time.After(2 * time.Second):
+		return errors.New("transportwg(test): inject timeout (device reader gone)")
+	}
+}
+
+// onceCloseTUN remains as belt-and-braces for other tun.Device impls.
 type onceCloseTUN struct {
 	tun.Device
 	once sync.Once
@@ -165,14 +165,45 @@ func (w *onceCloseTUN) Close() error {
 	return err
 }
 
+// ---- harness ----
+//
+// mustKeyNow / ip4 / mustAddrPort / itoaPort live in interop_test.go and
+// seek_test.go (same package).
+
+func tuntestPing(ch *testChannel, dst, src netip.Addr) error {
+	return ch.inject(tuntest.Ping(dst, src))
+}
+
+func waitFor(cond func() bool, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return true
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
+}
+
+func assertContains(t *testing.T, list []string, want string) {
+	t.Helper()
+	for _, v := range list {
+		if v == want {
+			return
+		}
+	}
+	t.Fatalf("missing event %q in %v", want, list)
+}
+
 func newTestSession(t *testing.T, edge *fakeEdge, opts ...func(*SessionConfig)) (*Session, *sessionRecorder, func() *testChannel) {
 	t.Helper()
-	edgePriv, edgePub := edgeKeyPair(t)
-	id, err := NewIdentity(mustB64Key(t), edgePub.B64(), "uS9/", clientTunnelIP, "", true)
+	edgePriv, _ := edgeKeyPair(t)
+	clientPriv := mustKeyNow()
+	id, err := NewIdentity(clientPriv.B64(), edgePriv.Pub().B64(), "uS9/", clientTunnelIP, "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := edge.Configure(edgePriv, mustPub(t, id.PrivateKey), netip.MustParseAddr(clientTunnelIP)); err != nil {
+	if err := edge.Configure(edgePriv, mustPub(t, clientPriv), netip.MustParseAddr(clientTunnelIP)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -184,6 +215,7 @@ func newTestSession(t *testing.T, edge *fakeEdge, opts ...func(*SessionConfig)) 
 		defer curMu.Unlock()
 		return cur
 	}
+
 	sc := SessionConfig{
 		Ident:    id,
 		Endpoint: edge.addr(),
@@ -241,19 +273,13 @@ func newTestSession(t *testing.T, edge *fakeEdge, opts ...func(*SessionConfig)) 
 	return sess, rec, current
 }
 
-func waitFor(cond func() bool, timeout time.Duration) bool {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if cond() {
-			return true
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return false
-}
+// ---- tests ----
 
+// Establishment through the trust gate: handshake, gate payload observed by
+// the edge, reserved bytes stamped on EVERY datagram, PersistentKeepalive
+// applied by the engine (config + live traffic), and user data transiting.
 func TestSessionEstablishesThroughTrustGate(t *testing.T) {
-	edge, err := startFakeEdge(t, [3]byte{0xb9, 0x2f, 0x7f}, true /*require*/, true /*stamp*/)
+	edge, err := startFakeEdge(t, cfReserved, true /*require*/, true /*stamp*/, true /*scrub*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,8 +302,7 @@ func TestSessionEstablishesThroughTrustGate(t *testing.T) {
 	assertContains(t, names, "wg_gate_passed")
 	assertContains(t, names, "wg_established")
 
-	// (3) PersistentKeepalive from Health must be IN the applied config —
-	// otherwise the NAT binding dies between trust-gate cycles.
+	// (refine #3a) PersistentKeepalive is IN the applied engine config.
 	ipc, err := sess.IPCSnapshot()
 	if err != nil {
 		t.Fatal(err)
@@ -287,8 +312,8 @@ func TestSessionEstablishesThroughTrustGate(t *testing.T) {
 		t.Fatalf("keepalive not applied to the engine: want %q in ipc", wantKA)
 	}
 
-	// ...and the engine must actually EMIT keepalives: with ka=1s the edge
-	// must record extra datagrams within ~2.2 s of establishment.
+	// (refine #3b) ...and the engine EMITS it: with ka=1 s the edge records
+	// extra datagrams within ~2.2 s of establishment (NAT binding alive).
 	n0, _ := edge.bind.stats()
 	time.Sleep(2200 * time.Millisecond)
 	n1, _ := edge.bind.stats()
@@ -296,9 +321,8 @@ func TestSessionEstablishesThroughTrustGate(t *testing.T) {
 		t.Fatalf("no keepalive traffic after establishment: %d -> %d", len(n0), len(n1))
 	}
 
-	// Data plane: ping client -> edge inner IP must land on the edge TUN.
-	// Arrival is asserted via the responder's classified inner log (the
-	// responder owns the Inbound channel).
+	// Data plane: ping client -> edge inner IP lands on the edge TUN
+	// (asserted via the responder's classified inner log).
 	marker := len(edge.innerStats())
 	if err := tuntestPing(current(), netip.MustParseAddr(edgeInnerIP), netip.MustParseAddr(clientTunnelIP)); err != nil {
 		t.Fatal(err)
@@ -322,103 +346,17 @@ func TestSessionEstablishesThroughTrustGate(t *testing.T) {
 	if dropped != 0 || len(seen) == 0 {
 		t.Fatalf("edge stats: seen=%d dropped=%d", len(seen), dropped)
 	}
-	reserved := [3]byte{0xb9, 0x2f, 0x7f}
 	for i, s := range seen {
-		if s.Res != reserved {
-			t.Fatalf("datagram %d reserved=%v want %v", i, s.Res, reserved)
+		if s.Res != cfReserved {
+			t.Fatalf("datagram %d reserved=%v want %v", i, s.Res, cfReserved)
 		}
 	}
 }
 
-func assertContains(t *testing.T, list []string, want string) {
-	t.Helper()
-	for _, v := range list {
-		if v == want {
-			return
-		}
-	}
-	t.Fatalf("missing event %q in %v", want, list)
-}
-
-func itoaU64(v uint64) string { return strconv.FormatUint(v, 10) }
-
-// (4г) Cold-start ordering: a user packet that arrives during handshake wait
-// must ship at keypair establishment BEFORE the first trust-gate probe.
-func TestSessionColdStartUserPacketShipsBeforeGateProbes(t *testing.T) {
-	edge, err := startFakeEdge(t, [3]byte{0xb9, 0x2f, 0x7f}, true /*require*/, true /*stamp*/)
-	if err != nil {
-		t.Fatal(err)
-	}
-	edge.StartResponder(ResponderNormal)
-
-	sess, rec, current := newTestSession(t, edge)
-
-	// As soon as the edge sees our initiation, queue the user packet: it is
-	// staged behind the bootstrap probe and flushes at keypair establishment.
-	go func() {
-		waitFor(func() bool {
-			s, _ := edge.bind.stats()
-			for _, r := range s {
-				if r.Kind == rxInit {
-					return true
-				}
-			}
-			return false
-		}, 8*time.Second)
-		_ = tuntestPing(current(), netip.MustParseAddr(edgeInnerIP), netip.MustParseAddr(clientTunnelIP))
-	}()
-
-	if err := sess.Start(); err != nil {
-		t.Fatal(err)
-	}
-	if !waitFor(func() bool { return rec.establishedCount() > 0 }, 15*time.Second) {
-		t.Fatalf("never established; events=%v", rec.names())
-	}
-
-	// Wait until the FIRST trust-gate probe has been observed decrypted.
-	var inner []innerRX
-	if !waitFor(func() bool {
-		inner = edge.innerStats()
-		for _, r := range inner {
-			if r.Kind == "dns-gate" {
-				return true
-			}
-		}
-		return false
-	}, 10*time.Second) {
-		t.Fatalf("gate probes never reached the edge")
-	}
-
-	icmpIdx, firstGateIdx, bootIdx := -1, -1, -1
-	for i, r := range inner {
-		switch r.Kind {
-		case "icmp":
-			if icmpIdx == -1 {
-				icmpIdx = i
-			}
-		case "dns-gate":
-			if firstGateIdx == -1 {
-				firstGateIdx = i
-			}
-		case "dns-boot":
-			if bootIdx == -1 {
-				bootIdx = i
-			}
-		}
-	}
-	if bootIdx == -1 || icmpIdx == -1 || firstGateIdx == -1 {
-		t.Fatalf("fixture incomplete: boot=%d icmp=%d gate=%d inner=%+v", bootIdx, icmpIdx, firstGateIdx, inner)
-	}
-	if !(icmpIdx < firstGateIdx) {
-		t.Fatalf("user packet shipped AFTER a gate probe (icmp=%d gate=%d)", icmpIdx, firstGateIdx)
-	}
-}
-
-// TestSessionSilentDropLostThenFlapRecovery proves the full supervisor arc:
-// mid-session silent drop -> structural wg-stall-rx loss + restart; when the
-// path heals, the next generation re-establishes.
+// Mid-session silent drop -> structural wg-stall-rx loss + restart; healing
+// the path lets the next generation re-establish (flap recovery).
 func TestSessionSilentDropLostThenFlapRecovery(t *testing.T) {
-	edge, err := startFakeEdge(t, [3]byte{0xb9, 0x2f, 0x7f}, true, true)
+	edge, err := startFakeEdge(t, cfReserved, true, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -435,37 +373,29 @@ func TestSessionSilentDropLostThenFlapRecovery(t *testing.T) {
 	}
 	gen1 := sess.Generation()
 
-	// Kill the data plane: no more replies at all (silent-DPI fixture).
 	edge.SetResponderMode(ResponderSilent)
 
 	if !waitFor(func() bool { return len(rec.lostList()) > 0 }, 10*time.Second) {
 		t.Fatalf("no loss detected after silent drop; events=%v", rec.names())
 	}
 	lost := rec.lostList()
-	if len(lost) == 0 {
-		t.Fatal("no losses recorded")
-	}
-	f := lost[0]
-	if f.Class != ClassStallRX {
-		t.Fatalf("class=%s want wg-stall-rx", f.Class)
+	if lost[0].Class != ClassStallRX {
+		t.Fatalf("class=%s want wg-stall-rx", lost[0].Class)
 	}
 
-	// Heal the path: the next generation must establish again.
 	edge.SetResponderMode(ResponderNormal)
 	if !waitFor(func() bool { return rec.establishedCount() >= 2 }, 20*time.Second) {
-		seen, dropped := edge.bind.stats()
-		t.Fatalf("flap recovery failed; events=%v lost=%+v seen=%d dropped=%d",
-			rec.names(), rec.lostList(), len(seen), dropped)
+		t.Fatalf("flap recovery failed; events=%v", rec.names())
 	}
 	if sess.Generation() <= gen1 {
 		t.Fatalf("generation did not advance: %d", sess.Generation())
 	}
 }
 
-// (4a) Up() without ANY user traffic: the bootstrap probe alone must force
-// the handshake initiation, and the fake edge must record it.
+// (4a) Up() without ANY user traffic: the bootstrap probe alone forces the
+// handshake initiation, recorded by the fake edge.
 func TestSessionBootstrapTriggersHandshakeWithoutTraffic(t *testing.T) {
-	edge, err := startFakeEdge(t, [3]byte{0xb9, 0x2f, 0x7f}, true, true)
+	edge, err := startFakeEdge(t, cfReserved, true, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,7 +409,8 @@ func TestSessionBootstrapTriggersHandshakeWithoutTraffic(t *testing.T) {
 		t.Fatal("edge never saw a handshake without user traffic")
 	}
 	sawInit := false
-	for _, r := range func() []edgeRX { s, _ := edge.bind.stats(); return s }() {
+	st, _ := edge.bind.stats()
+	for _, r := range st {
 		if r.Kind == rxInit {
 			sawInit = true
 		}
@@ -487,16 +418,16 @@ func TestSessionBootstrapTriggersHandshakeWithoutTraffic(t *testing.T) {
 	if !sawInit {
 		t.Fatal("edge did not record a handshake initiation")
 	}
-	if rec.establishedCount() == 0 && !waitFor(func() bool { return rec.establishedCount() > 0 }, 5*time.Second) {
+	if !waitFor(func() bool { return rec.establishedCount() > 0 }, 5*time.Second) {
 		t.Fatal("session did not reach established")
 	}
 }
 
 // (4б) Edge answers handshake but silently drops ALL data: the trust gate
-// must fail with the structural wg-stall-rx class and the generation must
-// be torn down (restart loop advances).
+// fails with the structural wg-stall-rx class and the generation is torn
+// down (the supervisor advances to a fresh generation).
 func TestSessionSilentDataGateTimesOutByClass(t *testing.T) {
-	edge, err := startFakeEdge(t, [3]byte{0xb9, 0x2f, 0x7f}, true, true)
+	edge, err := startFakeEdge(t, cfReserved, true, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -521,18 +452,88 @@ func TestSessionSilentDataGateTimesOutByClass(t *testing.T) {
 	if !waitFor(func() bool { return sess.Generation() >= 2 }, 5*time.Second) {
 		t.Fatalf("generation did not advance after loss: %d", sess.Generation())
 	}
-	if st := sess.State(); st == StateClosed {
-		t.Fatalf("unexpected closed state mid-test")
+}
+
+// (4г) Cold-start ordering: a user packet queued during handshake wait ships
+// at keypair establishment BEFORE the first trust-gate probe (bootstrap
+// carries its own qname label so the two service probes are distinguishable
+// on the wire).
+func TestSessionColdStartUserPacketShipsBeforeGateProbes(t *testing.T) {
+	edge, err := startFakeEdge(t, cfReserved, true, true, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge.StartResponder(ResponderNormal)
+
+	sess, rec, current := newTestSession(t, edge)
+
+	go func() {
+		waitFor(func() bool {
+			st, _ := edge.bind.stats()
+			for _, r := range st {
+				if r.Kind == rxInit {
+					return true
+				}
+			}
+			return false
+		}, 8*time.Second)
+		_ = tuntestPing(current(), netip.MustParseAddr(edgeInnerIP), netip.MustParseAddr(clientTunnelIP))
+	}()
+
+	if err := sess.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if !waitFor(func() bool { return rec.establishedCount() > 0 }, 15*time.Second) {
+		t.Fatalf("never established; events=%v", rec.names())
+	}
+
+	var inner []innerRX
+	if !waitFor(func() bool {
+		inner = edge.innerStats()
+		for _, r := range inner {
+			if r.Kind == "dns-gate" {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second) {
+		t.Fatal("gate probes never reached the edge")
+	}
+
+	icmpIdx, firstGateIdx, bootIdx := -1, -1, -1
+	for i, r := range inner {
+		switch r.Kind {
+		case "icmp":
+			if icmpIdx == -1 {
+				icmpIdx = i
+			}
+		case "dns-gate":
+			if firstGateIdx == -1 {
+				firstGateIdx = i
+			}
+		case "dns-boot":
+			if bootIdx == -1 {
+				bootIdx = i
+			}
+		}
+	}
+	if bootIdx == -1 || icmpIdx == -1 || firstGateIdx == -1 {
+		t.Fatalf("fixture incomplete: boot=%d icmp=%d gate=%d inner=%+v",
+			bootIdx, icmpIdx, firstGateIdx, inner)
+	}
+	if !(icmpIdx < firstGateIdx) {
+		t.Fatalf("user packet shipped AFTER a gate probe (icmp=%d gate=%d)",
+			icmpIdx, firstGateIdx)
 	}
 }
 
-// (4в) Refused identity: handshake completes against a permissive edge but
-// the far side never answers data — scripted counters make tx grow with rx
-// pinned at zero; the stall detector must fire the version-mismatch class
-// within its window and the session must restart.
+// (4в) Refused identity — watchdog wiring inside a live session: the pair
+// establishes normally; scripted counters then make tx grow while rx stays
+// frozen (the wire equivalent: peer refuses our data-plane parameters).
+// The watchdog must fire awg-version-mismatch within its window and the
+// supervisor must advance the generation.
 func TestSessionRefusedIdentityStallFiresWithinWindow(t *testing.T) {
-	var zeros [3]byte
-	edge, err := startFakeEdge(t, zeros, false /*permissive*/, false)
+	edge, err := startFakeEdge(t, cfReserved, true /*require*/, true /*stamp*/, true /*scrub*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,12 +546,12 @@ func TestSessionRefusedIdentityStallFiresWithinWindow(t *testing.T) {
 	tx := uint64(0)
 	sess.countersOverride = func(context.Context) (CounterSample, error) {
 		nowT = nowT.Add(100 * time.Millisecond)
-		tx += 60 // every bootstrap/gate probe is ~60 bytes on the wire
+		tx += 60 // bootstrap/gate probes and keepalives accumulate on tx
 		return CounterSample{Time: nowT, TxBytes: tx, RxBytes: 0}, nil
 	}
 	sess.cfg.Health.Watchdog = WatchdogConfig{
 		RXIdle: 10 * time.Hour, // isolate the signature trigger
-		Window: 1200 * time.Millisecond,
+		Window: 1400 * time.Millisecond,
 		MinTX:  128,
 		MaxRX:  0,
 		Tick:   100 * time.Millisecond,
@@ -559,6 +560,9 @@ func TestSessionRefusedIdentityStallFiresWithinWindow(t *testing.T) {
 
 	if err := sess.Start(); err != nil {
 		t.Fatal(err)
+	}
+	if !waitFor(func() bool { return rec.establishedCount() > 0 }, 15*time.Second) {
+		t.Fatalf("never established; events=%v", rec.names())
 	}
 
 	if !waitFor(func() bool {

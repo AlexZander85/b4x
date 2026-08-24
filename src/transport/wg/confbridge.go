@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+
+	"golang.org/x/crypto/curve25519"
 )
 
 // Key is a 32-byte curve25519 key rendered as lowercase hex in IPC strings
@@ -49,6 +51,18 @@ func ParseKeyB64(s string) (Key, error) {
 	}
 	copy(k[:], b)
 	return k, nil
+}
+
+// Pub derives the curve25519 public key of a private key
+// (X25519 scalar-mult against the basepoint).
+func (k Key) Pub() Key {
+	out, err := curve25519.X25519(k[:], curve25519.Basepoint)
+	if err != nil || len(out) != 32 {
+		return Key{}
+	}
+	var pub Key
+	copy(pub[:], out)
+	return pub
 }
 
 // ParseKey decodes 32 bytes from hex.

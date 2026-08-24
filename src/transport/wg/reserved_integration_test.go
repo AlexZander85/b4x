@@ -96,7 +96,7 @@ func TestFakeEdgeReservedRoutingHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	edge, err := startFakeEdge(t, reserved, true /*require*/, true /*stamp*/)
+	edge, err := startFakeEdge(t, reserved, true /*require*/, true /*stamp*/, true /*scrub*/)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +154,7 @@ func TestFakeEdgeRejectsWrongClientID(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	edge, err := startFakeEdge(t, reserved, true /*require*/, true)
+	edge, err := startFakeEdge(t, reserved, true, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestGenericAWGServerSeesZerosWithoutCFFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	edge, err := startFakeEdge(t, zeros, false /*require: generic server*/, false /*stampTX*/)
+	edge, err := startFakeEdge(t, zeros, false /*require: generic server*/, false /*stampTX*/, false /*scrub*/)
 	if err != nil {
 		t.Fatal(err)
 	}

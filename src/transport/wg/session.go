@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 	twarp "github.com/daniellavrushin/b4/transport/warp"
 )
 
@@ -79,6 +80,9 @@ type SessionConfig struct {
 	Tunnel       TunnelConfig
 	Health       HealthConfig
 	Callbacks    SessionCallbacks
+	// MaxGenerations bounds restart cycles: 0 (default) = unlimited;
+	// 1 = single-shot establishment (seek-ladder attempts).
+	MaxGenerations int
 	// VerboseDiagnostics routes per-generation device logs to stdout
 	// (debug aid; production keeps the silent logger).
 	VerboseDiagnostics bool
@@ -173,7 +177,7 @@ func (s *Session) emit(ev SessionEvent) {
 }
 
 // run is the supervisor loop: assemble -> handshake -> gate -> established,
-// restart on any structural failure until ctx dies.
+// restart on any structural failure until ctx dies or MaxGenerations ends.
 func (s *Session) run(ctx context.Context) {
 	defer func() {
 		s.teardown()
@@ -182,12 +186,17 @@ func (s *Session) run(ctx context.Context) {
 		s.mu.Unlock()
 		close(s.done)
 	}()
+	gens := 0
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		default:
 		}
+		if s.cfg.MaxGenerations > 0 && gens >= s.cfg.MaxGenerations {
+			return
+		}
+		gens++
 		s.mu.Lock()
 		s.gen++
 		gen := s.gen
@@ -203,6 +212,9 @@ func (s *Session) run(ctx context.Context) {
 		s.teardown()
 
 		if ctx.Err() != nil {
+			return
+		}
+		if s.cfg.MaxGenerations > 0 && gens >= s.cfg.MaxGenerations {
 			return
 		}
 		s.mu.Lock()
@@ -272,7 +284,7 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	gate := s.cfg.Health.Gate
 	gate.LocalV4 = localV4Of(s.cfg.Ident)
 	gate.fillDefaults()
-	if err := tunRes.Inject(gateBootstrapPacket(gate)); err != nil {
+	if err := s.bootstrapThrough(tunRes, gateBootstrapPacket(gate)); err != nil {
 		return newFailure(ClassStallRX, "bootstrap-inject", err)
 	}
 
@@ -287,9 +299,35 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	s.setState(StateProving)
 	rt := s.roundTripper(tunRes)
 	gate.LocalV4 = localV4Of(s.cfg.Ident)
+
+	// Pre-gate counter snapshot: on gate failure the delta classifies the
+	// outcome — tx growth with rx pinned at zero is the AWG version-mismatch
+	// signature ("92 B received / 20 KB sent" family), not a plain stall.
+	pre, preOK := s.countersSampler(dev)(ctx)
 	if err := gate.Verify(gctx, rt); err != nil {
 		var f *Failure
 		if errors.As(err, &f) {
+			// Upgrade rule: ONLY a junk-bearing (non-vanilla) profile whose
+			// tx grows while rx stays zero is the AWG parameter-disagreement
+			// signature. A vanilla profile failing the gate means the
+			// endpoint itself is dead/DPI'd — plain stall class.
+			if f.Class == ClassStallRX && !s.cfg.Profile.VanillaSafe() && preOK == nil {
+				if post, e := s.countersSampler(dev)(ctx); e == nil {
+					txDelta := post.TxBytes - pre.TxBytes
+					rxDelta := post.RxBytes - pre.RxBytes
+					sigTX := gate.SigMinTX
+					if sigTX == 0 {
+						sigTX = DefaultGateSigMinTX
+					}
+					if txDelta >= sigTX && rxDelta == 0 {
+						return &Failure{
+							Class:  ClassVersionMismatch,
+							Reason: "92b-20kb-gate",
+							Err:    f,
+						}
+					}
+				}
+			}
 			return f
 		}
 		return newFailure(ClassStallRX, "gate", err)
@@ -345,21 +383,51 @@ func (s *Session) buildIPC() (string, error) {
 // roundTripper picks the gate IO implementation per TUN mode.
 func (s *Session) roundTripper(t *Tunnel) DNSRoundTripper {
 	if t.Netstack != nil {
-		ns := t.Netstack
-		local := localV4Of(s.cfg.Ident)
-		return NewNetstackRoundTripper(func(ctx context.Context, network, address string) (udpConn, error) {
-			c, err := ns.DialContext(ctx, network, address)
-			if err != nil {
-				return nil, err
-			}
-			uc, ok := c.(udpConn)
-			if !ok {
-				return nil, fmt.Errorf("netstack conn does not expose UDP surface")
-			}
-			return uc, nil
-		}, local)
+		return NewNetstackRoundTripper(nsUDPDial(t.Netstack), localV4Of(s.cfg.Ident))
 	}
 	return &RawTUNRoundTripper{Inject: t.Inject, Capture: t.Capture}
+}
+
+// bootstrapThrough pushes the handshake-triggering probe using whichever
+// surface the TUN mode provides: raw injection (kernel/channel) or a real
+// UDP write through the gvisor stack (netstack).
+func (s *Session) bootstrapThrough(t *Tunnel, pkt []byte) error {
+	switch {
+	case t.Inject != nil:
+		return t.Inject(pkt)
+	case t.Netstack != nil:
+		rt := &NetstackRoundTripper{NS: nsUDPDial(t.Netstack), Local: localV4Of(s.cfg.Ident)}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		conn, err := rt.NS(ctx, "udp", "8.8.8.8:53")
+		if err != nil {
+			return err
+		}
+		defer func() { _ = conn.Close() }()
+		const dnsPayloadOffset = 28
+		if len(pkt) <= dnsPayloadOffset {
+			return errors.New("transportwg: bootstrap probe too short")
+		}
+		_, err = conn.Write(pkt[dnsPayloadOffset:])
+		return err
+	default:
+		return errors.New("transportwg: no bootstrap surface for this TUN mode")
+	}
+}
+
+// nsUDPDial adapts netstack.Net.DialContext to the udpConn surface.
+func nsUDPDial(ns *netstack.Net) func(ctx context.Context, network, address string) (udpConn, error) {
+	return func(ctx context.Context, network, address string) (udpConn, error) {
+		c, err := ns.DialContext(ctx, network, address)
+		if err != nil {
+			return nil, err
+		}
+		uc, ok := c.(udpConn)
+		if !ok {
+			return nil, fmt.Errorf("netstack conn does not expose UDP surface")
+		}
+		return uc, nil
+	}
 }
 
 // gateBootstrapPacket builds the one probe packet queued right after Up():

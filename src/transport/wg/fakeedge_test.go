@@ -84,13 +84,14 @@ type edgeBind struct {
 	expect  [3]byte
 	require bool // true = drop non-matching reserved (CF routing discipline)
 	stampTX bool // true = stamp outbound types 1..4 (real CF behavior)
+	scrubRX bool // true = zero [1:4] inbound before MAC (CF stamps; generic AWG servers do NOT)
 	seen    []edgeRX
 	dropped int
 	closed  chan struct{}
 }
 
-func newEdgeBind(conn *net.UDPConn, expect [3]byte, require, stampTX bool) *edgeBind {
-	return &edgeBind{conn: conn, expect: expect, require: require, stampTX: stampTX, closed: make(chan struct{})}
+func newEdgeBind(conn *net.UDPConn, expect [3]byte, require, stampTX, scrubRX bool) *edgeBind {
+	return &edgeBind{conn: conn, expect: expect, require: require, stampTX: stampTX, scrubRX: scrubRX, closed: make(chan struct{})}
 }
 
 func (b *edgeBind) Open(uint16) ([]conn.ReceiveFunc, uint16, error) {
@@ -146,7 +147,7 @@ func (b *edgeBind) receive(bufs [][]byte, sizes []int, eps []conn.Endpoint) (int
 		if mismatch {
 			continue // routing discipline: a foreign identity never lands here
 		}
-		if n >= 4 {
+		if n >= 4 && b.scrubRX {
 			pkt[1], pkt[2], pkt[3] = 0, 0, 0 // the MAC covers zeroed reserved
 		}
 		sizes[0] = n
@@ -218,10 +219,17 @@ type fakeEdge struct {
 	stopResp chan struct{}
 	respMode ResponderMode
 	inner    []innerRX
+
+	// remembered keying material for live reconfiguration (tests).
+	edgePriv   Key
+	clientPub  Key
+	clientAddr netip.Addr
 }
 
-// startFakeEdge brings up the vanilla-profile responder on loopback UDP.
-func startFakeEdge(t *testing.T, expect [3]byte, requireReserved, stampTX bool) (*fakeEdge, error) {
+// startFakeEdge brings up the responder on loopback UDP. scrubRX must be
+// true ONLY for Cloudflare-mode fixtures (the real edge stamps reserved and
+// expects the client MAC over zeroed bytes).
+func startFakeEdge(t *testing.T, expect [3]byte, requireReserved, stampTX, scrubRX bool) (*fakeEdge, error) {
 	t.Helper()
 	pc, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
@@ -231,7 +239,7 @@ func startFakeEdge(t *testing.T, expect [3]byte, requireReserved, stampTX bool) 
 
 	e := &fakeEdge{
 		tun:  tuntest.NewChannelTUN(),
-		bind: newEdgeBind(pc.(*net.UDPConn), expect, requireReserved, stampTX),
+		bind: newEdgeBind(pc.(*net.UDPConn), expect, requireReserved, stampTX, scrubRX),
 		ip:   [4]byte{10, 9, 9, 1},
 	}
 	e.dev = device.NewDevice(&onceCloseTUN{Device: e.tun.TUN()}, e.bind, edgeLogger(t))
@@ -250,10 +258,23 @@ func edgeLogger(t *testing.T) *device.Logger {
 // Configure sets the edge private key and expects the given client public
 // key. Allowed IPs: the client's tunnel /32, the edge inner IP, and the DNS
 // resolver the trust gate probes (8.8.8.8) so decrypted gate queries route
-// to the TUN.
+// to the TUN. The edge runs with a VANILLA profile.
 func (e *fakeEdge) Configure(edgePriv Key, clientPub Key, clientTunnelIP netip.Addr) error {
+	return e.ConfigureProfile(edgePriv, clientPub, clientTunnelIP, Profile{})
+}
+
+// ConfigureProfile is the AWG-generation variant: the edge runs the given
+// obfuscation profile (matching S/H required on both ends; I-chains are
+// client-side only and irrelevant to the edge).
+func (e *fakeEdge) ConfigureProfile(edgePriv Key, clientPub Key, clientTunnelIP netip.Addr, prof Profile) error {
+	e.mu.Lock()
+	e.edgePriv = edgePriv
+	e.clientPub = clientPub
+	e.clientAddr = clientTunnelIP
+	e.mu.Unlock()
 	c := Config{
 		PrivateKey: edgePriv,
+		Profile:    prof,
 		Peers: []PeerConfig{{
 			PublicKey: clientPub,
 			AllowedIPs: []netip.Prefix{
@@ -384,6 +405,15 @@ func (e *fakeEdge) SetResponderMode(m ResponderMode) {
 	e.mu.Unlock()
 }
 
+// Reconfigure flips the edge's AWG parameters mid-session (refused-identity
+// fixture): re-renders IPC with remembered keying material.
+func (e *fakeEdge) Reconfigure(prof Profile) error {
+	e.mu.Lock()
+	priv, pub, ip := e.edgePriv, e.clientPub, e.clientAddr
+	e.mu.Unlock()
+	return e.ConfigureProfile(priv, pub, ip, prof)
+}
+
 // innerStats returns a copy of the decrypted-packet log.
 func (e *fakeEdge) innerStats() []innerRX {
 	e.mu.Lock()
@@ -404,12 +434,32 @@ func dnsReplyPacket(query []byte) []byte {
 	ihl := int(query[0]&0x0f) * 4
 	u := out[ihl:]
 	u[0], u[1], u[2], u[3] = u[2], u[3], u[0], u[1]
-	binary.BigEndian.PutUint16(u[6:], 0)
 	dns := u[8:]
 	if len(dns) < 12 {
 		return nil
 	}
 	dns[2] |= 0x80
+	// gvisor validates the UDP checksum: compute over the pseudo-header.
+	binary.BigEndian.PutUint16(u[6:], 0)
+	var src, dst [4]byte
+	copy(src[:], out[12:16])
+	copy(dst[:], out[16:20])
+	sum := uint32(17 + len(u))
+	add := func(b []byte) {
+		for i := 0; i+1 < len(b); i += 2 {
+			sum += uint32(b[i])<<8 | uint32(b[i+1])
+		}
+		if len(b)%2 == 1 {
+			sum += uint32(b[len(b)-1]) << 8
+		}
+	}
+	add(src[:])
+	add(dst[:])
+	add(u)
+	for sum > 0xffff {
+		sum = (sum >> 16) + (sum & 0xffff)
+	}
+	binary.BigEndian.PutUint16(u[6:], ^uint16(sum))
 	return out
 }
 

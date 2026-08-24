@@ -15,7 +15,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/netip"
 	"time"
 
@@ -33,8 +32,14 @@ const (
 	// re-transmit within the window (Aether init-retry reference 750/2000 ms;
 	// we stay under 750 ms so the first retry beats the handshake backoff).
 	probeRetryInterval = 700 * time.Millisecond
+	// DefaultGateSigMinTX: minimum tx delta across a failed gate window for
+	// the failure to be upgraded to awg-version-mismatch (rx must be exactly
+	// zero). Probes are ~60 B and retries double them, so 128 B separates
+	// "we really sent" from "nothing left the host".
+	DefaultGateSigMinTX uint64 = 128
 	// bootstrapQNameLabel marks the session's own handshake-triggering probe
-	// so wire-level ordering tests can tell it apart from trust-gate probes.
+	// so wire-level consumers (and tests) can tell it apart from trust-gate
+	// probes.
 	bootstrapQNameLabel = "bootstrap."
 )
 
@@ -56,6 +61,10 @@ type TrustGate struct {
 	Gap        time.Duration
 	Window     time.Duration // per-round-trip budget
 	E2EProbe   E2EProbe      // optional; nil = skip (kernel-TUN field layer)
+	// SigMinTX is the gate-scope version-mismatch signature threshold: on a
+	// failed gate, tx delta >= SigMinTX with zero rx upgrades the failure to
+	// awg-version-mismatch. 0 -> DefaultGateSigMinTX.
+	SigMinTX uint64
 }
 
 func (g *TrustGate) fillDefaults() {
@@ -241,12 +250,12 @@ type NetstackRoundTripper struct {
 
 type dialUDPFunc func(ctx context.Context, network, address string) (udpConn, error)
 
-// udpConn is the minimal conn surface used by the netstack exchanger
-// (gonet.UDPConn satisfies it, including read deadlines for retries).
+// udpConn is the minimal conn surface used by the netstack exchanger.
+// NOTE: retries are intentionally NOT implemented here yet — gonet read
+// deadlines need dedicated verification; the raw-TUN path carries them.
 type udpConn interface {
 	Write(b []byte) (int, error)
 	Read(b []byte) (int, error)
-	SetReadDeadline(t time.Time) error
 	Close() error
 }
 
@@ -256,8 +265,7 @@ func NewNetstackRoundTripper(dial func(ctx context.Context, network, address str
 }
 
 // Exchange sends the probe's DNS payload to server:53 through the stack and
-// reads until the matching reply arrives; lost probes are re-written every
-// probeRetryInterval within the window.
+// reads until the matching reply arrives or the window closes.
 func (rt *NetstackRoundTripper) Exchange(ctx context.Context, probe twarp.Probe, timeout time.Duration) ([]byte, error) {
 	const dnsPayloadOffset = 28 // ip20 + udp8
 	if len(probe.Packet) <= dnsPayloadOffset {
@@ -273,53 +281,43 @@ func (rt *NetstackRoundTripper) Exchange(ctx context.Context, probe twarp.Probe,
 		return nil, fmt.Errorf("gate udp dial: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
-
 	if _, err := conn.Write(query); err != nil {
 		return nil, fmt.Errorf("gate udp write: %w", err)
 	}
-	lastSend := time.Now()
-	deadline := lastSend.Add(timeout)
 	buf := make([]byte, 4096)
-	for {
-		now := time.Now()
-		remainTotal := deadline.Sub(now)
-		if remainTotal <= 0 {
-			return nil, errGateTimeout
-		}
-		wait := probeRetryInterval - now.Sub(lastSend)
-		if wait > remainTotal {
-			wait = remainTotal
-		}
-		if wait < 0 {
-			wait = 0
-		}
-		if err := conn.SetReadDeadline(now.Add(wait)); err != nil {
-			return nil, fmt.Errorf("gate udp deadline: %w", err)
-		}
-		n, rerr := conn.Read(buf)
-		if rerr == nil {
+	ch := make(chan netstackRead, 1)
+	go func() {
+		for {
+			n, rerr := conn.Read(buf)
+			if rerr != nil {
+				ch <- netstackRead{err: rerr}
+				return
+			}
 			if n >= 12 && buf[0] == probe.TXID[0] && buf[1] == probe.TXID[1] && buf[2]&0x80 != 0 {
-				return append([]byte(nil), buf[:n]...), nil
+				ch <- netstackRead{data: append([]byte(nil), buf[:n]...)}
+				return
 			}
-			continue
+			// non-matching datagram: keep reading
 		}
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		var nerr net.Error
-		isTimeout := errors.As(rerr, &nerr) && nerr.Timeout()
-		if !isTimeout {
-			return nil, rerr
-		}
-		now = time.Now()
-		if now.After(deadline) {
-			return nil, errGateTimeout
-		}
-		if now.Sub(lastSend) >= probeRetryInterval {
-			if _, err := conn.Write(query); err != nil {
-				return nil, fmt.Errorf("gate udp write(retry): %w", err)
+	}()
+	select {
+	case r := <-ch:
+		if r.err != nil {
+			if ctx.Err() != nil {
+				return nil, errGateTimeout
 			}
-			lastSend = now
+			return nil, r.err
 		}
+		return r.data, nil
+	case <-ctx.Done():
+		// Unblock the reader by closing the socket; the abandoned goroutine
+		// exits on the resulting error.
+		_ = conn.Close()
+		return nil, errGateTimeout
 	}
+}
+
+type netstackRead struct {
+	data []byte
+	err  error
 }
