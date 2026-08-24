@@ -140,6 +140,16 @@ func (s *Session) Generation() uint64 {
 	return s.gen
 }
 
+// Tunnel snapshots the live generation's tunnel device (nil-safe; nil when
+// no generation is currently assembled). Consumers of the Backend-B nested
+// carrier grab the OUTER tunnel's netstack from here right after
+// OnEstablished fires, when the owning generation is guaranteed alive.
+func (s *Session) Tunnel() *Tunnel {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.tun
+}
+
 // Start launches the lifecycle goroutine. Idempotent while running.
 func (s *Session) Start() error {
 	s.mu.Lock()
