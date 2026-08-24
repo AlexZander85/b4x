@@ -83,3 +83,7 @@ B4X_FIELD_VALIDATION_AGENT_PACK/
 
 # WARP reference repos (external clones for P1+ study, ~280MB)
 /warp/
+
+# Project-local Go module cache (WG layer: amneziawg-go lives here, not on C:)
+/.go-modcache/
+/.go-buildcache/
