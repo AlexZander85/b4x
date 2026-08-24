@@ -174,11 +174,13 @@ func emit(r result) {
 }
 
 // craftVNTrigger builds a QUIC long header with a forced-version-negotiation
-// value (RFC 9000 SS6.2 "version negotiation was requested"): 0x1a2a3a4a
-// matches the 0x?a?a?a?a pattern that MUST elicit a Version Negotiation
-// packet from any conforming endpoint.
+// value (RFC 9000 SS6.2 "version negotiation was requested": version
+// 0x?a?a?a?a MUST elicit a Version Negotiation packet) padded to the 1200-byte
+// minimum — RFC 9000 SS14.1 makes servers DISCARD sub-1200 long-header
+// datagrams before any VN logic, so unpadded triggers die silently (field-
+// proven on session #1: every port looked dead until this fix).
 func craftVNTrigger() []byte {
-	pkt := make([]byte, 0, 1+4+1+8+1+8)
+	pkt := make([]byte, 0, 1200)
 	first := byte(0xc0) // long header form, fixed bit set; type bits irrelevant for VN
 	version := uint32(0x1a2a3a4a)
 	dcid := randBytes(8)
@@ -190,6 +192,8 @@ func craftVNTrigger() []byte {
 	pkt = append(pkt, dcid...)
 	pkt = append(pkt, byte(len(scid)))
 	pkt = append(pkt, scid...)
+	// Zero bytes are PADDING frames; extend to the required datagram size.
+	pkt = pkt[:cap(pkt)]
 	return pkt
 }
 

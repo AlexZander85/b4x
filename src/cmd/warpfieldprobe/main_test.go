@@ -10,8 +10,8 @@ import (
 // parseable DCID/SCID length structure (RFC 9000 SS6.2).
 func TestCraftVNTrigger(t *testing.T) {
 	pkt := craftVNTrigger()
-	if len(pkt) != 1+4+1+8+1+8 {
-		t.Fatalf("vn trigger len = %d", len(pkt))
+	if len(pkt) < 1200 {
+		t.Fatalf("vn trigger len = %d, RFC 9000 SS14.1 requires >=1200 or servers discard it", len(pkt))
 	}
 	if pkt[0]&0x80 == 0 {
 		t.Fatal("long header form bit not set")
@@ -29,8 +29,14 @@ func TestCraftVNTrigger(t *testing.T) {
 	}
 	scidOff := 6 + dcidLen
 	scidLen := int(pkt[scidOff])
-	if scidLen < 8 || scidOff+1+scidLen != len(pkt) {
+	hdrEnd := scidOff + 1 + scidLen
+	if scidLen < 8 || hdrEnd > len(pkt) {
 		t.Fatalf("scid framing broken: off=%d len=%d total=%d", scidOff, scidLen, len(pkt))
+	}
+	for _, b := range pkt[hdrEnd:] {
+		if b != 0 {
+			t.Fatal("padding region must be zero bytes (PADDING frames)")
+		}
 	}
 
 	other := craftVNTrigger()
