@@ -254,6 +254,12 @@ var DefaultConfig = Config{
 			DCFallbackURL:     TGDCFallbackURL,
 		},
 
+		Warp: WarpConfig{
+			Enabled:      false,
+			IdentityPath: DefaultWarpIdentityPath,
+			Endpoint:     "",
+		},
+
 		Logging: Logging{
 			Level:      log.LevelInfo,
 			Instaflush: true,

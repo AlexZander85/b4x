@@ -1,0 +1,49 @@
+package config
+
+import (
+	"fmt"
+	"net/netip"
+
+	warp "github.com/daniellavrushin/b4/transport/warp"
+)
+
+// DefaultWarpIdentityPath is the on-router location of the engine identity
+// store (atomic 0600 writes; the reconciler keeps its cooldown stamps next
+// to it as <path>.state). Design: .ag/research/warp-dataplane-design.md SS5.
+const DefaultWarpIdentityPath = "/opt/etc/b4/warp/identity.json"
+
+// WarpConfig enables the built-in WARP/MASQUE base transport (design v2;
+// E0-E8 engine lives in src/transport/warp). It is DISABLED by default: the
+// field layer flips it explicitly on a config COPY (deploy discipline in
+// AGENTS.md / PROJECT_DIRECTIVES SS4).
+type WarpConfig struct {
+	Enabled bool `json:"enabled"`
+	// IdentityPath is the engine identity store path. An empty value is
+	// filled with DefaultWarpIdentityPath by ApplyConfigDefaults.
+	IdentityPath string `json:"identity_path"`
+	// Endpoint overrides the catalog-default H2 endpoint ("ip:port").
+	// Empty = transportwarp.DefaultH2Endpoint(). Any explicit value must be
+	// a member of the versioned endpoint catalog (addendum SS34: no
+	// arbitrary internet scanning).
+	Endpoint string `json:"endpoint"`
+}
+
+// EffectiveEndpoint resolves the configured endpoint against the versioned
+// catalog. The zero-value Endpoint maps to the measured default edge; an
+// explicit value must pass the InCatalog + KnownPort gates.
+func (w *WarpConfig) EffectiveEndpoint() (netip.AddrPort, error) {
+	if w.Endpoint == "" {
+		return warp.DefaultH2Endpoint(), nil
+	}
+	ap, err := netip.ParseAddrPort(w.Endpoint)
+	if err != nil {
+		return netip.AddrPort{}, fmt.Errorf("system.warp.endpoint %q: %v", w.Endpoint, err)
+	}
+	if !warp.InCatalog(warp.KindMasqueH2, ap.Addr()) {
+		return ap, fmt.Errorf("system.warp.endpoint %q: address outside the versioned MASQUE-H2 catalog (addendum SS34)", w.Endpoint)
+	}
+	if !warp.KnownPort(ap.Port()) {
+		return ap, fmt.Errorf("system.warp.endpoint %q: port outside the catalog port set", w.Endpoint)
+	}
+	return ap, nil
+}

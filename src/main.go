@@ -37,6 +37,7 @@ import (
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/validation"
 	"github.com/daniellavrushin/b4/warp"
+	"github.com/daniellavrushin/b4/warpservice"
 	"github.com/daniellavrushin/b4/watchdog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -110,6 +111,104 @@ var iv18Cmd = &cobra.Command{
 
 func init() {
 	iv18Cmd.Flags().Bool("json", false, "Emit the full suite result as JSON")
+}
+
+// warpCmd exposes identity lifecycle operations for the built-in WARP/MASQUE
+// transport (warpservice). Enrollment accepts the Cloudflare ToS on behalf
+// of the operator — field session phase B requires explicit owner consent
+// recorded in the session report before this command runs.
+var warpCmd = &cobra.Command{
+	Use:   "warp",
+	Short: "WARP/MASQUE transport operations (identity enroll/status)",
+}
+
+var warpEnrollCmd = &cobra.Command{
+	Use:   "enroll",
+	Short: "Run one identity reconciliation pass against Cloudflare (idempotent)",
+	Long: `Provision or revalidate the WARP/MASQUE device identity stored at
+system.warp.identity_path. A valid existing identity produces ZERO
+registration requests (idempotent); refused/throttled API verdicts are
+reported structurally instead of retried. The first provisioning registers a
+real device with Cloudflare and accepts the WARP Terms of Service on behalf
+of the operator.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := warpConfigPath(cmd)
+		if err != nil {
+			return err
+		}
+		c := config.NewConfig()
+		if _, err := c.LoadWithMigration(path); err != nil {
+			return err
+		}
+		rt, err := warpservice.Build(&c, nil)
+		if err != nil {
+			return err
+		}
+		res, enrollErr := rt.EnrollOnce(cmd.Context())
+		out, _ := json.MarshalIndent(warpservice.EnrollSummary(res, c.System.Warp.IdentityPath), "", "  ")
+		fmt.Println(string(out))
+		return enrollErr
+	},
+}
+
+var warpStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Print the redacted identity summary (offline, no network)",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := warpConfigPath(cmd)
+		if err != nil {
+			return err
+		}
+		c := config.NewConfig()
+		if _, err := c.LoadWithMigration(path); err != nil {
+			return err
+		}
+		out, _ := json.MarshalIndent(warpservice.OfflineSummary(c.System.Warp.IdentityPath), "", "  ")
+		fmt.Println(string(out))
+		return nil
+	},
+}
+
+func warpConfigPath(cmd *cobra.Command) (string, error) {
+	path, _ := cmd.Flags().GetString("config")
+	if path == "" {
+		return "", fmt.Errorf("--config is required (path to b4.json)")
+	}
+	return path, nil
+}
+
+// logWarpEvent renders one supervisor event for the structured router log.
+// SupervisorEvent payloads are redacted-safe by engine contract; only
+// non-zero fields are printed to keep lines greppable.
+func logWarpEvent(ev warpservice.Event) {
+	line := fmt.Sprintf("[warp] event=%s attempt=%d", ev.Name, ev.Attempt)
+	if ev.FailureClass != "" {
+		line += fmt.Sprintf(" class=%s", ev.FailureClass)
+	}
+	if ev.Status != 0 {
+		line += fmt.Sprintf(" status=%d", ev.Status)
+	}
+	if ev.Colo != "" {
+		line += fmt.Sprintf(" colo=%s", ev.Colo)
+	}
+	if ev.BackoffMS != 0 {
+		line += fmt.Sprintf(" backoff_ms=%d", ev.BackoffMS)
+	}
+	if ev.DurationMS != 0 {
+		line += fmt.Sprintf(" duration_ms=%d", ev.DurationMS)
+	}
+	if ev.Detail != "" {
+		line += fmt.Sprintf(" detail=%q", ev.Detail)
+	}
+	log.Infof("%s", line)
+}
+
+func init() {
+	for _, sub := range []*cobra.Command{warpEnrollCmd, warpStatusCmd} {
+		sub.Flags().String("config", "", "Path to b4.json (required)")
+		warpCmd.AddCommand(sub)
+	}
+	rootCmd.AddCommand(warpCmd)
 }
 
 // @title B4 API
@@ -496,6 +595,26 @@ func runB4(cmd *cobra.Command, args []string) error {
 	warpRT.Start()
 	handler.SetWarpRuntime(warpRT)
 
+	// WARP/MASQUE data-plane engine (design v2; E0-E8 engine in
+	// src/transport/warp, warpservice assembly). Zero goroutines unless
+	// system.warp.enabled=true — the default config keeps the section off,
+	// so daemon behavior matches the p35b baseline unless explicitly
+	// switched (field session phases B/C). Supervisor events go to the
+	// structured log with redacted-safe payload fields only.
+	var warpEngine *warpservice.Runtime
+	if cfgPtr.Load().System.Warp.Enabled {
+		rt, err := warpservice.Build(cfgPtr.Load(), logWarpEvent)
+		if err != nil {
+			log.Errorf("[warp] engine disabled this run: %v", err)
+		} else if err := rt.Start(appCtx); err != nil {
+			log.Errorf("[warp] engine start failed: %v", err)
+		} else {
+			warpEngine = rt
+			st := rt.Status().Status
+			log.Infof("[warp] engine started state=%s attempt=%d colo=%s", st.State, st.Attempt, st.LastColo)
+		}
+	}
+
 	// Service-profile WARP-recommendation lifecycle controller (FB-02 sp
 	// section §28A.11): owns the recommendation state machine
 	// (compile -> begin-test -> validate -> enable/promote) and the fourteen
@@ -539,6 +658,9 @@ func runB4(cmd *cobra.Command, args []string) error {
 	wd.Stop()
 	monitoringRT.Stop()
 	warpRT.Stop()
+	if warpEngine != nil {
+		warpEngine.Stop()
+	}
 	if geoScheduler != nil {
 		geoScheduler.Stop()
 	}

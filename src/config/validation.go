@@ -63,6 +63,7 @@ func (v *validator) result() error {
 func (c *Config) Validate() error {
 	v := &validator{}
 	c.validateClassifierConfig(v)
+	c.validateWarp(v)
 	if v.hasErrors() {
 		return v.result()
 	}
@@ -349,6 +350,28 @@ func (c *Config) Validate() error {
 	c.BuildSetPortRanges()
 
 	return v.result()
+}
+
+// validateWarp checks the built-in WARP/MASQUE transport section. Disabled
+// is the shipping default; an explicit endpoint override is validated even
+// when disabled so a typo cannot hide until enable day (field session).
+func (c *Config) validateWarp(v *validator) {
+	w := c.System.Warp
+	if w.Endpoint != "" {
+		if _, err := w.EffectiveEndpoint(); err != nil {
+			v.add("system.warp.endpoint", "invalid_value", err.Error(), nil)
+		}
+	}
+	if !w.Enabled {
+		return
+	}
+	if w.IdentityPath == "" {
+		v.add("system.warp.identity_path", "required", "identity_path must be set when warp is enabled", nil)
+		return
+	}
+	if !filepath.IsAbs(w.IdentityPath) {
+		v.addf("system.warp.identity_path", "must_be_absolute", map[string]any{"path": w.IdentityPath}, "warp identity_path must be an absolute path (got: %q)", w.IdentityPath)
+	}
 }
 
 func (c *Config) validateClassifierConfig(v *validator) {

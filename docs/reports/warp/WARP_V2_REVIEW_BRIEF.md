@@ -175,6 +175,15 @@ Wire-протокол Cloudflare MASQUE H2 (наш primary транспорт):
 
 # Часть III. Состояние кода на момент сдачи (E0–E6 выполнены)
 
+> **Актуализация 2026-08-25 (prep-сессия warp-h2-field1).** Эта часть зафиксирована на момент
+> сдачи E0–E6 и сохранена дословно как контракт ревью того объёма. Последующие этапы задокументированы
+> отдельно: E7/E8 — в `WARP_IMPLEMENTATION_REPORT.md` («nfq+wiring», «finalization»), nested-матрица —
+> в `NESTED_MATRIX_IMPLEMENTATION.md`. «Последняя миля» до полевой сессии (конфиг-схема `system.warp`
+> в основном конфиге, warpservice-сборка движка для демона, CLI `b4 warp enroll/status`) добавлена
+> 2026-08-25; бинарь `exp-warp1` собран с тегами паритета p35b (`l5ppe echflow ggcdisc qbp vnb ja4 storm`),
+> sha256 `af95eab24fa8ef2021d3a07c836b73a9ee71233b48d61a555806ed89e3110fd7`, полный суит 55 ok / 0 FAIL.
+> На роутер НЕ деплоился — только локально в `out/linux-arm64/`.
+
 Пакет `github.com/daniellavrushin/b4/transport/warp` (import `b4/transport/warp`). Файловая карта ниже —
 **контракт сдачи**: каждый компонент обязан присутствовать, иметь юнит/интеграционные тесты и
 соответствовать своему этапу дизайна. Отсутствие = находка `plan-deviation` (SEV=MAJOR).
