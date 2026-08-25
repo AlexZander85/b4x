@@ -84,6 +84,7 @@ type Worker struct {
 	actionTokens       *action.ActionTokenStore
 	actionSender       packetInjector // raw injector for the centralized action executor (nil until Start)
 	actionMark         uint32         // processed provenance mark used for action plans
+	clientInjector     packetInjector // optional override for forged client-bound packets (tests only; nil in production)
 	passiveRST         *PassiveRSTStore
 	normalizerQueue    uint16
 	normalizer         bool

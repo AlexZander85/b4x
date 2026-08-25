@@ -119,8 +119,8 @@ func (api *API) handleAdBlockConfig(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, ErrInvalidJSON())
 		return
 	}
-	if req.Action != nil && *req.Action != "drop" && *req.Action != "rst" {
-		writeAPIError(w, ErrBadRequest("action must be drop or rst"))
+	if req.Action != nil && !config.ValidAdBlockAction(*req.Action) {
+		writeAPIError(w, ErrBadRequest("action must be \"drop\" or \"rst\""))
 		return
 	}
 

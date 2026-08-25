@@ -328,7 +328,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if tlsObservation.ECHPresent {
 			adblock.CountECHSkip()
 		} else if d, listName := adblock.Decide(host); d == adblock.DecisionBlock {
-			log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock")
+			// BLK-6: the action gate forges a server-side RST toward the
+			// client (seq=clientACK) when AdBlock.Action=="rst" and returns
+			// the connection-log metadata tag ("adblock" / "adblock-rst").
+			// The ClientHello itself still dies here in both modes.
+			log.LogConnection(w.adblockOnBlockAction(cfg, pkt), "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock")
 			metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)
 			// BLK-7: offer the dst-IP to the kernel-acceleration sublayer.
 			w.maybeLearnBlockedIP(matcher, host, pkt, listName)
@@ -1018,6 +1022,9 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			host = h
 			// SNI ad-block (BLK-3): QUIC Initial carries the same hostname
 			// evidence as a TCP ClientHello; drop before any service logic.
+			// BLK-6: RST action does NOT apply here — UDP has no reset
+			// primitive, so QUIC keeps the silent timeout-drop regardless
+			// of AdBlock.Action.
 			if d, listName := adblock.Decide(host); d == adblock.DecisionBlock {
 				log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock-quic")
 				metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)

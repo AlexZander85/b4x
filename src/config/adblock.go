@@ -87,6 +87,23 @@ const (
 	LearnedIPSetV6 = "b4_adblock_learn6"
 )
 
+// Ad-block actions (AdBlockConfig.Action).
+const (
+	// AdBlockActionDrop silently drops the ClientHello/Initial (default):
+	// the client sees a connection timeout.
+	AdBlockActionDrop = "drop"
+	// AdBlockActionRST additionally forges a TCP RST toward the LAN client
+	// (seq=clientACK, spoofed from the real server 5-tuple) so the client
+	// fails instantly instead of timing out. TCP only — QUIC has no reset
+	// and keeps the silent drop.
+	AdBlockActionRST = "rst"
+)
+
+// ValidAdBlockAction reports whether s is an accepted action value.
+func ValidAdBlockAction(s string) bool {
+	return s == AdBlockActionDrop || s == AdBlockActionRST
+}
+
 // Defaults for the IP-learn sublayer (conservative: off by default).
 const (
 	DefaultIPLearnTTLSec     = 21600 // 6h
@@ -99,7 +116,7 @@ const DefaultMaxListEntries = 300000
 // FillDefaults applies zero-value defaults (exported for the adblock layer).
 func (a *AdBlockConfig) FillDefaults() {
 	if a.Action == "" {
-		a.Action = "drop"
+		a.Action = AdBlockActionDrop
 	}
 	if a.MaxEntries <= 0 {
 		a.MaxEntries = DefaultMaxListEntries
