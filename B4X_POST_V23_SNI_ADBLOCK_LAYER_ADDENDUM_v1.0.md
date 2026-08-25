@@ -201,14 +201,30 @@ URL-подписки, refresh_hours, atomic replace, size-limit. Верифик�
 ## BLK-6 — RST action (опционально, отдельным owner decision)
 Быстрый фейл клиента вместо таймаута. Только после полевой проверки BLK-1..4.
 
+## BLK-7 — Выполнено вместе с BLK-5: дефолтные подписки
+
+| Источник | URL | Формат | Провенанс |
+|---|---|---|---|
+| AdGuard DNS filter | `https://adguardteam.github.io/HostlistsRegistry/assets/filter_1.txt` | ABP network rules | компиляция AdGuard Base+Social+Tracking+Mobile+EasyList/EasyPrivacy; ежедневная пересборка; содержит региональные ad-сети |
+| AdGuard Russian filter | `https://filters.adtidy.org/extension/chromium/filters/1.txt` | ABP | RU-специфичные рекламные/трекерные домены |
+| StevenBlack unified hosts | `https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts` | hosts | классический независимый baseline |
+
+Все три верифицированы живым fetch на момент включения (25.08). Форматы покрыты
+парсером после добавления ABP-tolerance (`||domain^`, `.domain^`, `$modifiers`
+отбрасываются консервативно; regex/wildcard правила пропускаются).
+Порядок загрузки не влияет на результат: merge в единый exact/suffix матчер;
+allowlist всегда сильнее.
+
 # Часть V. Red lines
 
 1. Слой НЕ трогает DNS-трафик и не зависит от ADNS-компонентов (§12 ADNS соблюдён).
 2. Fail-open к disabled при любой ошибке списков; никогда не блокировать по умолчанию.
 3. Только client-side SNI из ClientHello/QUIC-Initial; никакой payload-инспекции.
 4. Hot path: одно решение на флоу; O(len(host)); без аллокаций на пакеты без SNI.
-5. Списки — только локальные файлы владельца или подписки с явным enable; никаких
-   встроенных «рекомендованных» списков в бинаре.
+5. Списки: локальные файлы владельца ИЛИ подписки; при `enabled=true` с пустым
+   `lists` активируются встроенные дефолтные подписки (решение владельца 25.08,
+   см. §7) — всегда видимые в effective-config, переопределяемые явным списком.
+   Никаких скрытых «рекомендованных» списков вне конфигурации.
 6. Все ограничения базового этапа действуют: коммиты по явной просьбе, роутер не трогаем,
    live-тесты только с consent.
 

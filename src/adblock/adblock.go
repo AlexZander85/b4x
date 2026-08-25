@@ -118,41 +118,75 @@ func fileFingerprint(cfg config.AdBlockConfig) string {
 	return sb.String()
 }
 
+// normalizeListLine converts one raw list line into a lowercase domain
+// entry. Accepted forms:
+//   - plain "domain", trailing dots trimmed;
+//   - hosts lines ("0.0.0.0 domain", "::1 domain");
+//   - ABP/uBlock network rules "||domain^" and ".domain^" suffix form,
+//     including "$modifier" tails (rule dropped conservatively when it
+//     carries options we cannot express: regexes, wildcards).
+//
+// Comments (#/!), "@@" exceptions and unparsable lines yield ok=false.
+func normalizeListLine(raw string) (string, bool) {
+	line := strings.TrimSpace(raw)
+	if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
+		return "", false
+	}
+	if strings.HasPrefix(line, "@@") {
+		return "", false
+	}
+	// ABP network rule family.
+	if strings.HasPrefix(line, "||") {
+		rest := line[2:]
+		if i := strings.IndexAny(rest, "^$"); i >= 0 {
+			rest = rest[:i]
+		}
+		rest = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(rest)), ".")
+		if rest == "" || strings.ContainsAny(rest, "*/?") {
+			return "", false // regex/wildcard/path-bound rule: unsupported
+		}
+		return rest, true
+	}
+	if strings.HasPrefix(line, "/") {
+		return "", false // raw regex rule: unsupported
+	}
+	fields := strings.Fields(line)
+	switch len(fields) {
+	case 1:
+		line = fields[0]
+	case 2:
+		line = fields[1] // hosts format: resolver-ip domain
+	default:
+		return "", false
+	}
+	line = strings.TrimPrefix(line, ".")
+	if i := strings.IndexAny(line, "^$"); i >= 0 {
+		line = line[:i] // ABP anchor/options tail on plain-suffix rules
+	}
+	domain := strings.ToLower(strings.TrimSuffix(line, "."))
+	if domain == "" || strings.ContainsAny(domain, "^$*") {
+		return "", false
+	}
+	return domain, true
+}
+
 // parseListFile reads domains/hosts-format lines into the matcher.
-// Accepted: "domain", "#comment", "!comment", hosts lines "0.0.0.0 domain",
-// "::1 domain". "@@" exceptions are ignored with a warning count.
-func parseListFile(path string, maxEntries int) (*matcher, int, int, error) {
+func parseListFile(path string, maxEntries int) (*matcher, int, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("open %s: %w", path, err)
+		return nil, 0, fmt.Errorf("open %s: %w", path, err)
 	}
 	defer f.Close()
 
-	name := path
-	m := newMatcher(name)
-	warnExceptions := 0
+	m := newMatcher(nameFromPath(path))
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 0, 64*1024), 256*1024)
 	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
+		domain, ok := normalizeListLine(sc.Text())
+		if !ok {
 			continue
 		}
-		if strings.HasPrefix(line, "@@") {
-			warnExceptions++
-			continue
-		}
-		fields := strings.Fields(line)
-		switch len(fields) {
-		case 1:
-			// bare domain
-		case 2:
-			// hosts format: resolver-ip domain (take the domain field)
-			line = fields[1]
-		default:
-			continue
-		}
-		if !m.add(line) {
+		if !m.add(domain) {
 			continue
 		}
 		if maxEntries > 0 && m.entries >= maxEntries {
@@ -160,9 +194,19 @@ func parseListFile(path string, maxEntries int) (*matcher, int, int, error) {
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return nil, 0, warnExceptions, fmt.Errorf("scan %s: %w", path, err)
+		return nil, 0, fmt.Errorf("scan %s: %w", path, err)
 	}
-	return m, m.entries, warnExceptions, nil
+	return m, m.entries, nil
+}
+
+func nameFromPath(path string) string {
+	if i := strings.LastIndexByte(path, '/'); i >= 0 && i+1 < len(path) {
+		return path[i+1:]
+	}
+	if i := strings.LastIndexByte(path, '\\'); i >= 0 && i+1 < len(path) {
+		return path[i+1:]
+	}
+	return path
 }
 
 // Reload (re)builds the active snapshot from cfg. Idempotent: an unchanged
@@ -195,7 +239,7 @@ func Reload(cfg config.AdBlockConfig) {
 	block := newMatcher("block")
 	loadedAny := false
 	for _, p := range cfg.Lists {
-		m, n, _, err := parseListFile(p, cfg.MaxEntries)
+		m, n, err := parseListFile(p, cfg.MaxEntries)
 		if err != nil {
 			listInvalid.Add(1)
 			log.Warnf("adblock: list %s invalid: %v", p, err)
@@ -207,7 +251,7 @@ func Reload(cfg config.AdBlockConfig) {
 	}
 	allow := newMatcher("allow")
 	for _, p := range cfg.Allowlist {
-		m, n, _, err := parseListFile(p, cfg.MaxEntries)
+		m, n, err := parseListFile(p, cfg.MaxEntries)
 		if err != nil {
 			listInvalid.Add(1)
 			log.Warnf("adblock: allowlist %s invalid: %v", p, err)
@@ -283,6 +327,8 @@ type Stats struct {
 	ListMissing  int64
 	ListInvalid  int64
 	ReloadFailed int64
+	FetchOK      int64
+	FetchFail    int64
 	Enabled      bool
 }
 
@@ -295,6 +341,8 @@ func GetStats() Stats {
 		ListMissing:  listMissing.Load(),
 		ListInvalid:  listInvalid.Load(),
 		ReloadFailed: reloadFailures.Load(),
+		FetchOK:      fetchOK.Load(),
+		FetchFail:    fetchFail.Load(),
 		Enabled:      enabledFlag.Load(),
 	}
 }

@@ -12,17 +12,21 @@ type AdBlockConfig struct {
 	// Action is the block action: "drop" (v1.0). "rst" is reserved for a
 	// later stage and falls back to "drop".
 	Action string `json:"action"`
-	// Lists are paths to domain lists (domains or hosts format).
+	// Lists are paths OR http(s):// subscription URLs. URL entries are
+	// downloaded into CacheDir and served from there (BLK-5).
 	Lists []string `json:"lists"`
-	// Allowlist paths win over blocklists (first match wins).
+	// Allowlist paths win over blocklists (first match wins). Local files
+	// only in v1.0.
 	Allowlist []string `json:"allowlist"`
-	// RefreshHours is the remote-list re-check interval; 0 disables
-	// periodic refresh (BLK-5).
+	// RefreshHours is the subscription re-check interval; 0 = download only
+	// when the cached copy is missing.
 	RefreshHours int `json:"refresh_hours"`
 	// LogMatches emits a connection-log line per blocked flow.
 	LogMatches bool `json:"log_matches"`
 	// MaxEntries bounds entries per list (RAM guard for MIPS devices).
 	MaxEntries int `json:"max_entries"`
+	// CacheDir stores downloaded subscriptions. Empty = "<config dir>/adblock".
+	CacheDir string `json:"cache_dir"`
 }
 
 // DefaultMaxListEntries is the RAM guard default for MIPS-class devices.
