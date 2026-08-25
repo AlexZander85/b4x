@@ -99,8 +99,10 @@ usque/Aether/warp-socks линейке; AWG-проекты не знают пр�
 
 Финальный гейт сдачи (все — исполненные команды, см. отчёт): gofmt по пакету пуст;
 `go build ./...`; `go vet ./...`; `go test ./transport/wg/ -count=2` ok; race-CGO на
-юнит-фильтре ok; **полный суит репозитория `go test ./... -count=1`: 53 пакета ok / 0 FAIL**.
-Пакет содержит **84 тест-функции** в 17 тест-файлах (+ фикстуры fake-edge/chanTUN).
+юнит-фильтре ok; **полный суит репозитория `go test ./... -count=1`: 0 FAIL** (53 пакета ok
+на момент WG6; 57 ok на момент сдачи WG7 — плюс 4 пакета параллельной работы владельца вне
+слоя wg, все зелёные). Пакет содержит **85 тест-функций** в 17 тест-файлах (+ фикстуры
+fake-edge/chanTUN).
 
 ## WG1 — ядро
 
@@ -142,7 +144,7 @@ seam живёт здесь, применяется в `bind.go`), `bind_seam_tes
 | Компонент | Обязанности |
 |---|---|
 | profiles_catalog.go | CatalogVersion; семьи: quic-a/quic-b (фейковый QUIC Initial, маркер 44d0), sip-invite (+100 Trying), crlf-light/aggressive, vanilla-off; поля engine_generation/client_side/match_side/affinity; side-разметка обязательна |
-| seek.go | Лестница [preferred → vanilla-off → quic → sip → crlf-light → aggressive]; исходы WINNER / awg-version-mismatch (92B/20KB сигнатура) / handshake-fail; детерминизм; дедлайн 80–120 с; события трассировки на каждый шаг |
+| seek.go | Лестница [preferred → quic-a → quic-b → sip-invite → crlf-light → crlf-aggressive → vanilla-off] — JUNK-FIRST политика (решение владельца 24.08): джанк живёт только на фазе handshake, ваниль — последний fallback, last-good запоминает победителя; исходы WINNER / awg-version-mismatch (92B/20KB сигнатура) / handshake-fail; детерминизм; дедлайн 80–120 с; события трассировки на каждый шаг; acceptance-тест junk-client↔vanilla-edge (`TestJunkClientAgainstVanillaEdge`) |
 
 ## WG5 — endpoints
 
@@ -287,8 +289,10 @@ MTU:                 TUN 1280; nested inner 1200; warp-socks референс 13
 Keepalive:           одиночный 25 c (NAT); gool outer 5 / inner 20
 Trust gate:          handshake + 2 DNS RT (гэп 600 мс) в окне 10 с; стартовый бюджет ~20 с
 Stall:               нет RX >10 c ИЛИ tx>=4096 при delta rx<=1024 за 120 c
-Seek:                >=3 попытки/endpoint; лестница preferred->off->quic->sip->crlf;
-                     cooldown endpoint 300 c после 2 провалов
+Seek:                >=3 попытки/endpoint; лестница cf-warp JUNK-FIRST
+                      (решение владельца 24.08): preferred->quic->sip->crlf->
+                      vanilla-off (последний fallback); джанк только на фазе
+                      handshake; cooldown endpoint 300 c после 2 провалов
 Валидация профиля:   Jc 1-128; Jmin<=Jmax<=1280; H непересекающиеся диапазоны; HP => S>=12;
                      chain-DSL через пробел; J1-J3/Itime не рендерить
 Identity refusal:    только 401/404/410 = перевыпуск; 403/429/5xx = лимит (НЕ перерегистрировать)

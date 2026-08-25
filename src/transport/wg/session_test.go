@@ -353,6 +353,69 @@ func TestSessionEstablishesThroughTrustGate(t *testing.T) {
 	}
 }
 
+// (WG7) Junk-client against a VANILLA edge: the default cf-warp ladder
+// leads with junk families (owner decision 2026-08-24), so a real
+// amneziawg device in PURE-VANILLA config must accept our junk-bearing
+// establishment end to end. Proves three things at once: (a) the quic-a
+// profile passes Validate/render and physically leaves the host as
+// unclassifiable junk datagrams (edge sees rxUnknown traffic); (b) the
+// vanilla edge tolerates them under full CF reserved discipline and still
+// completes handshake + trust gate; (c) protocol datagrams remain correctly
+// reserved-stamped alongside the junk.
+func TestJunkClientAgainstVanillaEdge(t *testing.T) {
+	edge, err := startFakeEdge(t, cfReserved, true /*require*/, true /*stamp*/, true /*scrub*/)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge.StartResponder(ResponderNormal)
+
+	sess, rec, _ := newTestSession(t, edge, func(sc *SessionConfig) {
+		sc.Profile = mustBuild(t, mustLookup(t, "quic-a"))
+	})
+	if err := sess.Start(); err != nil {
+		t.Fatal(err)
+	}
+
+	if !waitFor(func() bool { return rec.establishedCount() > 0 }, 15*time.Second) {
+		t.Fatalf("junk client never established against vanilla edge; events=%v lost=%+v",
+			rec.names(), rec.lostList())
+	}
+	names := rec.names()
+	assertContains(t, names, "wg_handshake_ok")
+	assertContains(t, names, "wg_gate_passed")
+	assertContains(t, names, "wg_established")
+
+	if !waitFor(func() bool {
+		for _, r := range edge.innerStats() {
+			if r.Kind == "dns-gate" {
+				return true
+			}
+		}
+		return false
+	}, 10*time.Second) {
+		t.Fatalf("gate payload never reached the vanilla edge; inner=%+v", edge.innerStats())
+	}
+
+	seen, dropped := edge.bind.stats()
+	var unknown int
+	for _, s := range seen {
+		switch s.Kind {
+		case rxUnknown:
+			unknown++ // junk datagrams: unclassifiable at the wire layer
+		case rxInit, rxResp, rxData:
+			if s.Res != cfReserved {
+				t.Fatalf("protocol datagram %s reserved=%v want %v", s.Kind, s.Res, cfReserved)
+			}
+		}
+	}
+	if unknown < 3 {
+		t.Fatalf("expected junk datagrams at the vanilla edge, unknown=%d seen=%d", unknown, len(seen))
+	}
+	if dropped < 3 {
+		t.Fatalf("vanilla-edge routing discipline should drop the junk, dropped=%d", dropped)
+	}
+}
+
 // Mid-session silent drop -> structural wg-stall-rx loss + restart; healing
 // the path lets the next generation re-establish (flap recovery).
 func TestSessionSilentDropLostThenFlapRecovery(t *testing.T) {

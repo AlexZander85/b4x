@@ -45,8 +45,16 @@ func TestCatalogInvariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ladder[0].ID != "vanilla-off" {
-		t.Fatalf("ladder[0]=%s want vanilla-off", ladder[0].ID)
+	// Junk-first default policy (owner decision 2026-08-24): families lead,
+	// vanilla-off anchors LAST as the compatibility fallback.
+	wantOrder := []string{"quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive", "vanilla-off"}
+	if len(ladder) != len(wantOrder) {
+		t.Fatalf("cf-warp ladder len=%d want %d (%v)", len(ladder), len(wantOrder), ladder)
+	}
+	for i, want := range wantOrder {
+		if ladder[i].ID != want {
+			t.Fatalf("ladder[%d]=%s want %s", i, ladder[i].ID, want)
+		}
 	}
 	for _, tp := range ladder {
 		if tp.Target != TargetCfWarp {

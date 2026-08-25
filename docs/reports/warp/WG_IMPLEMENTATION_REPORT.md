@@ -48,8 +48,9 @@
 | forwarder.go | 214 | LoopbackForwarder: host-loopback ↔ gonet connected conn через dial-seam; last-writer-wins; closeOnce+Wait |
 | nested_runtime.go | 288 | NestedWgRuntime: колбэк-driven parent-link контроллер; child-first teardown; пересоздание форвардера на netstack каждой генерации outer; статусы waiting-parent/up/child-invalidated; события wg_nested_* |
 
-Тесты: **84 тест-функции** в 17 файлах (вкл. fake CF/AWG-edge стенд на реальном amneziawg
-Device, chanTUN-фикстуры, interop triple vanilla↔vanilla / AWG↔AWG / AWG↔vanilla).
+Тесты: **85 тест-функций** в 17 файлах (вкл. fake CF/AWG-edge стенд на реальном amneziawg
+Device, chanTUN-фикстуры, interop triple vanilla↔vanilla / AWG↔AWG / AWG↔vanilla,
+junk-client↔vanilla-edge acceptance).
 
 ## 3. Верификация сдачи (все строки — исполненные команды, docker golang:1.25.3-alpine)
 
@@ -59,7 +60,8 @@ go build ./...                               → ok
 go vet ./...                                 → ok (clean)
 go test ./transport/wg/ -count=2             → ok (~59 s)
 CGO_ENABLED=1 go test -race ./transport/wg/ -run '<unit-filter>' -count=2 → ok
-go test ./... -count=1                       → 53 packages ok / 0 FAIL (полный суит репозитория)
+go test ./... -count=1                       → 0 FAIL; 53 packages ok (WG6) → 57 ok (WG7 сдача,
+                                               +4 пакета параллельной работы владельца вне слоя wg)
 ```
 
 Юнит-фильтр race (device-lifecycle исключён — известная гонка апстрима device/timers.go,
@@ -85,6 +87,19 @@ TestLicense|TestEndpoint|TestRace|TestNestedWg|TestForwarder.
    до Stop, его жизненный цикл — зона ответственности надстройки.
 5. **CI-окна таймингов** через опциональные хуки OuterHealth/InnerHealth (production = числа
    дизайна).
+6. **JUNK-FIRST дефолт лестницы cf-warp** (решение владельца 24.08, посмертное изменение
+   плана §5 дизайна): порядок `[quic-a → quic-b → sip-invite → crlf-light → crlf-aggressive
+   → vanilla-off]` вместо `[vanilla-off → …]`. Обоснование: джанк живёт только на фазе
+   handshake (I-пакеты до инициации + Jc вокруг handshake-сообщений; транспорт без джанка),
+   поэтому дефолт почти ничего не стоит в steady-state, зато убирает сигнатуру
+   WG-establishment (148Б init / type-byte) с первого датаграммы — против DPI-детекта
+   классического WireGuard. Ваниль остаётся последним fallback'ом, last-good запоминает
+   победителя, seek автоматически эскалирует вниз при провале gate. Красная линия §11.4 не
+   тронута: против CF по-прежнему только VanillaSafe client-side семейства. Acceptance-гэп
+   «junk-клиент ↔ ванильный эдж» закрыт тестом `TestJunkClientAgainstVanillaEdge`
+   (реальный vanilla amneziawg Device + полный CF reserved-дисциплин: junk доходит как
+   rxUnknown и отбрасывается routing-discipline, protocol-датаграммы остаются
+   зарезервированными, handshake+gate проходят).
 
 ## 5. Известные ограничения
 

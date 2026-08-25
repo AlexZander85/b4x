@@ -17,6 +17,17 @@
 // Seeds are deliberately conservative templates, not claimed byte-exact
 // copies of any vendor blob: exact payloads belong to field libraries and
 // can be loaded over this schema later.
+//
+// DEFAULT LADDER POLICY (owner decision 2026-08-24): for cf-warp the
+// JUNK FAMILIES GO FIRST and vanilla-off anchors LAST. Rationale: junk is
+// confined to the handshake phase (I-packets precede initiation; Jc packets
+// interleave around handshake messages; transport data carries no junk), so
+// defaulting to junk costs ~nothing in steady state while defeating passive
+// WireGuard establishment fingerprinting (148-byte init / type-byte
+// signatures) at DPI middleboxes from the very first datagram. The seeker
+// escalates DOWN to vanilla-off automatically when a family fails the gate,
+// and last-good persists whatever won — the order only sets where we START,
+// never where we are FORCED TO STAY.
 package transportwg
 
 import (
@@ -177,10 +188,18 @@ func CatalogIDs() []string {
 	return ids
 }
 
+// cfWarpLadderOrder is the default cf-warp ladder policy (junk-first,
+// owner decision 2026-08-24 — see the package comment for rationale).
+var cfWarpLadderOrder = []string{
+	"quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive", "vanilla-off",
+}
+
 // LadderFor builds the per-candidate profile order for a target:
 // preferred (last-good) first when it exists in the catalog, then the
-// default family order (vanilla-off anchors first — the compatibility
-// baseline — followed by escalating junk families).
+// DEFAULT LADDER POLICY of the target. For cf-warp that policy is
+// JUNK-FIRST (quic → sip → crlf families, vanilla-off LAST as the
+// compatibility fallback); for awg-server targets the catalog order applies
+// (S/H templates first and only).
 func LadderFor(target ProfileTarget, preferredID string) ([]ProfileTemplate, error) {
 	var ladder []ProfileTemplate
 	push := func(t ProfileTemplate) {
@@ -200,9 +219,28 @@ func LadderFor(target ProfileTarget, preferredID string) ([]ProfileTemplate, err
 			push(t)
 		}
 	}
-	for _, t := range defaultCatalog() {
-		if t.Target == target {
-			push(t)
+	pushAll := func(ids []string) error {
+		for _, id := range ids {
+			t, err := LookupProfile(id)
+			if err != nil {
+				return err
+			}
+			if t.Target == target {
+				push(t)
+			}
+		}
+		return nil
+	}
+	switch target {
+	case TargetCfWarp:
+		if err := pushAll(cfWarpLadderOrder); err != nil {
+			return nil, err
+		}
+	default:
+		for _, t := range defaultCatalog() {
+			if t.Target == target {
+				push(t)
+			}
 		}
 	}
 	if len(ladder) == 0 {
