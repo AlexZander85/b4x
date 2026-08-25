@@ -1,0 +1,304 @@
+// H3 CONNECT carrier - handwritten minimal HTTP/3 over raw quic-go (owner
+// decision FX2 option (a): x/net/http3 is NOT vendored and stays so). Wire
+// shape mirrors the reference h3ProxySession (main.go:2609-2794) but builds
+// the protocol by hand from the proven E-H1/E-H2 primitives: QUIC ALPN h3,
+// InitialPacketSize 1200 (reference gotcha: the 1280 default exceeds low-MTU
+// paths once IP/UDP headers are added - handshakes die invisibly),
+// KeepAlivePeriod 30s; control+QPACK uni-streams; plain CONNECT per target
+// (:method CONNECT, :authority, Proxy-Authorization Bearer); 2xx => DATA
+// frames relay raw bytes.
+package fxvpn
+
+import (
+	"context"
+	"crypto/tls"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/quic-go/quic-go"
+)
+
+const (
+	h3InitialPacketSize = 1200 // below RFC 8899 floor; PMTU grows it back
+	h3KeepAlivePeriod   = 30 * time.Second
+	h3MaxStreams        = 64
+)
+
+// DialH3 establishes one upstream HTTP/3 CONNECT session through a UDP
+// carrier socket created under cfg.Policy (SO_MARK/SO_BINDTODEVICE before
+// bind, fail-closed).
+func DialH3(ctx context.Context, cfg TunnelConfig) (*H3Tunnel, error) {
+	cfg.fillDefaults()
+	authority := cfg.Authority()
+
+	family := "udp"
+	if ip := net.ParseIP(cfg.Host); ip != nil && ip.To4() == nil {
+		family = "udp6"
+	}
+	uc, err := cfg.Policy.ListenUDP(ctx, family, ":0")
+	if err != nil {
+		return nil, fmt.Errorf("fxvpn: h3 carrier socket %s: %w", authority, err)
+	}
+
+	dctx, cancel := context.WithTimeout(ctx, cfg.HandshakeBudget)
+	defer cancel()
+
+	tlsCfg := &tls.Config{
+		ServerName:       cfg.Host,
+		MinVersion:       tls.VersionTLS13,
+		NextProtos:       []string{"h3"},
+		CurvePreferences: []tls.CurveID{tls.CurveP256, tls.CurveP384},
+	}
+	if cfg.TLS != nil {
+		tlsCfg = cfg.TLS.Clone()
+		tlsCfg.MinVersion = tls.VersionTLS13
+		tlsCfg.NextProtos = []string{"h3"}
+		tlsCfg.CurvePreferences = []tls.CurveID{tls.CurveP256, tls.CurveP384}
+		if tlsCfg.ServerName == "" {
+			tlsCfg.ServerName = cfg.Host
+		}
+	}
+	quicCfg := &quic.Config{
+		KeepAlivePeriod:    h3KeepAlivePeriod,
+		InitialPacketSize:  h3InitialPacketSize,
+		MaxIncomingStreams: h3MaxStreams,
+	}
+	conn, err := quic.Dial(dctx, uc, &net.UDPAddr{IP: net.ParseIP(cfg.Host), Port: cfg.Port}, tlsCfg, quicCfg)
+	if err != nil {
+		_ = uc.Close()
+		return nil, classifyH3HandshakeFailure(authority, err)
+	}
+	if got := conn.ConnectionState().TLS.NegotiatedProtocol; got != "h3" {
+		_ = conn.CloseWithError(0, "")
+		_ = uc.Close()
+		return nil, fmt.Errorf("%w: %s negotiated %q", errH3NegotiationFailed, authority, got)
+	}
+	if err := writeClientPreamble(conn); err != nil {
+		_ = conn.CloseWithError(0, "")
+		_ = uc.Close()
+		return nil, err
+	}
+
+	s := &H3Tunnel{
+		conn:          conn,
+		udpConn:       uc,
+		edgeAuthority: authority,
+		cfg:           cfg,
+		token:         cfg.Token,
+		stopWatchDone: make(chan struct{}),
+	}
+	s.alive.Store(true)
+	go s.watchDone()
+	return s, nil
+}
+
+// classifyH3HandshakeFailure maps QUIC handshake outcomes onto ladder
+// classes: blackhole/timeouts => udp-egress-blocked; TLS/ALPN/protocol
+// rejections => h3-negotiation-failed; anything else passes through raw.
+func classifyH3HandshakeFailure(authority string, err error) error {
+	var idle *quic.IdleTimeoutError
+	var hs *quic.HandshakeTimeoutError
+	var vne *quic.VersionNegotiationError
+	var sre *quic.StatelessResetError
+	switch {
+	case errors.As(err, &idle), errors.As(err, &hs), errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("%w: %s: %v", errUDPEgressBlocked, authority, err)
+	case errors.As(err, &vne), errors.As(err, &sre):
+		return fmt.Errorf("%w: %s: %v", errUDPEgressBlocked, authority, err)
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "no application protocol") ||
+		strings.Contains(msg, "tls:") ||
+		strings.Contains(msg, "PROTOCOL_VIOLATION") {
+		return fmt.Errorf("%w: %s: %v", errH3NegotiationFailed, authority, err)
+	}
+	var ae *quic.ApplicationError
+	if errors.As(err, &ae) {
+		return fmt.Errorf("%w: %s: %v", errH3NegotiationFailed, authority, err)
+	}
+	return fmt.Errorf("fxvpn: h3 dial %s: %w", authority, err)
+}
+
+// H3Tunnel is one live upstream HTTP/3 CONNECT session.
+type H3Tunnel struct {
+	conn          *quic.Conn
+	udpConn       *net.UDPConn
+	edgeAuthority string
+	cfg           TunnelConfig
+
+	tokenMu sync.RWMutex
+	token   string
+
+	health        failureTracker
+	closeOnce     sync.Once
+	closeErr      error
+	alive         atomic.Bool
+	stopWatchDone chan struct{}
+}
+
+// watchDone flips the alive flag when the QUIC connection terminates.
+func (s *H3Tunnel) watchDone() {
+	select {
+	case <-s.conn.Context().Done():
+		s.alive.Store(false)
+	case <-s.stopWatchDone:
+	}
+}
+
+// IsAlive reports whether new tunnels may be opened.
+func (s *H3Tunnel) IsAlive() bool { return s.alive.Load() }
+
+func (s *H3Tunnel) bearerToken() string {
+	s.tokenMu.RLock()
+	defer s.tokenMu.RUnlock()
+	return s.token
+}
+
+// UpdateToken swaps the proxy pass in place; applies to subsequent tunnels
+// (reference UpdateToken semantics).
+func (s *H3Tunnel) UpdateToken(token string) error {
+	if strings.TrimSpace(token) == "" {
+		return fmt.Errorf("fxvpn: empty proxy session token")
+	}
+	s.tokenMu.Lock()
+	s.token = token
+	s.tokenMu.Unlock()
+	return nil
+}
+
+// Close tears the session down once.
+func (s *H3Tunnel) Close() error {
+	s.closeOnce.Do(func() {
+		s.alive.Store(false)
+		close(s.stopWatchDone)
+		s.closeErr = s.conn.CloseWithError(0, "")
+		if cerr := s.udpConn.Close(); s.closeErr == nil {
+			s.closeErr = cerr
+		}
+	})
+	return s.closeErr
+}
+
+// OpenTunnel opens one plain CONNECT relay to authority over H3.
+func (s *H3Tunnel) OpenTunnel(parent context.Context, authority string) (net.Conn, error) {
+	octx, cancel := context.WithTimeout(parent, s.cfg.OpenBudget)
+	stream, err := s.conn.OpenStreamSync(octx)
+	if err != nil {
+		cancel()
+		return nil, s.health.observe(authority, classifyOpenFailure(err), fmt.Errorf("fxvpn: open stream: %w", err))
+	}
+
+	req := EncodeConnectFieldSection(authority, [][2]string{
+		{"proxy-authorization", "Bearer " + s.bearerToken()},
+	})
+	if _, err := stream.Write(appendH3Headers(nil, req)); err != nil {
+		_ = stream.Close()
+		cancel()
+		return nil, s.health.observe(authority, "", fmt.Errorf("fxvpn: write CONNECT %s: %w", authority, err))
+	}
+	// Bound the response wait: quic-go streams honor deadlines.
+	if derr := stream.SetDeadline(octxDeadline(octx)); derr != nil {
+		_ = stream.Close()
+		cancel()
+		return nil, s.health.observe(authority, "", fmt.Errorf("fxvpn: CONNECT %s deadline: %w", authority, derr))
+	}
+
+	fr := newH3Framer(stream)
+	_, payload, err := fr.ReadKnownFrame(map[uint64]bool{h3FrameHeaders: true})
+	if err != nil {
+		_ = stream.Close()
+		cancel()
+		return nil, s.health.observe(authority, classifyOpenFailure(err), fmt.Errorf("fxvpn: CONNECT %s response: %w", authority, err))
+	}
+	fields, derr := DecodeFieldSection(payload)
+	if derr != nil {
+		_ = stream.Close()
+		cancel()
+		return nil, s.health.observe(authority, "", fmt.Errorf("fxvpn: CONNECT %s headers: %w", authority, derr))
+	}
+	status := 0
+	for _, kv := range fields {
+		if kv[0] == ":status" {
+			status, _ = strconv.Atoi(kv[1])
+			break
+		}
+	}
+	if status < 200 || status > 299 {
+		_ = stream.Close()
+		cancel()
+		rej := &ConnectRejectedError{StatusCode: status, Status: strconv.Itoa(status)}
+		var kind string
+		if rej.StatusCode == http.StatusBadGateway {
+			kind = "bad-gateway"
+		}
+		return nil, s.health.observe(authority, kind, rej)
+	}
+	s.health.observe(authority, "", nil)
+	// The establishment budget must not kill the long-lived relay: clear it.
+	_ = stream.SetDeadline(time.Time{})
+	return &tunnelConn{
+		reader: &h3StreamReader{fr: fr, st: stream},
+		writer: &h3StreamWriter{st: stream},
+		cancel: cancel,
+	}, nil
+}
+
+// octxDeadline extracts the context deadline (zero time when absent).
+func octxDeadline(ctx context.Context) time.Time {
+	d, _ := ctx.Deadline()
+	return d
+}
+
+// h3StreamReader turns inbound DATA frames into a plain byte stream.
+type h3StreamReader struct {
+	fr  *h3Framer
+	st  *quic.Stream
+	buf []byte
+	eof bool
+}
+
+func (r *h3StreamReader) Read(p []byte) (int, error) {
+	for len(r.buf) == 0 && !r.eof {
+		typ, payload, err := r.fr.ReadKnownFrame(map[uint64]bool{h3FrameData: true})
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				r.eof = true
+				break
+			}
+			return 0, err
+		}
+		if typ == h3FrameData {
+			r.buf = payload
+		}
+	}
+	if len(r.buf) == 0 {
+		return 0, io.EOF
+	}
+	n := copy(p, r.buf)
+	r.buf = r.buf[n:]
+	return n, nil
+}
+
+// Close tears the relay stream down.
+func (r *h3StreamReader) Close() error { return r.st.Close() }
+
+// h3StreamWriter wraps outbound bytes into DATA frames.
+type h3StreamWriter struct{ st *quic.Stream }
+
+func (w *h3StreamWriter) Write(p []byte) (int, error) {
+	if _, err := w.st.Write(appendH3Frame(nil, h3FrameData, p)); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// Close finishes the send side (FIN).
+func (w *h3StreamWriter) Close() error { return w.st.Close() }
