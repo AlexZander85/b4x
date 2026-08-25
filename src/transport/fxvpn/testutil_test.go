@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"math/big"
 	"net"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -70,3 +71,9 @@ func halfClose(conn net.Conn) error {
 // echoChunkLen is how many bytes the teardown stands echo back before
 // killing the stream/stream-reset (both carriers' tests read this much).
 const echoChunkLen = 16
+
+// storeSeedPath returns a fresh temp path for an accounts.json fixture.
+func storeSeedPath(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(t.TempDir(), "accounts.json")
+}
