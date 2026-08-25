@@ -205,7 +205,13 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 				_ = rawConn.Close()
 				return nil, err
 			}
-			if proto := tc.ConnectionState().NegotiatedProtocol; proto != "h2" {
+			// ALPN: "h2" is the expected negotiation; "" is ACCEPTED by
+			// field evidence (2026-08-25): production MASQUE edges
+			// (162.159.198.1/.2/.10) complete TLS WITHOUT echoing an ALPN
+			// value — the pin already binds the peer identity, and the h2
+			// preface itself is enforced by http2.Transport on this
+			// connection. Any OTHER protocol (e.g. http/1.1) stays fatal.
+			if proto := tc.ConnectionState().NegotiatedProtocol; proto != "h2" && proto != "" {
 				_ = rawConn.Close()
 				return nil, fmt.Errorf("%w: negotiated %q", ErrMalformedCapsule, proto)
 			}
