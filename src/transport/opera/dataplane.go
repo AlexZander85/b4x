@@ -89,23 +89,30 @@ func (d *NodeDialer) baseDial(ctx context.Context, network, addr string) (net.Co
 	return dd.DialContext(ctx, network, addr)
 }
 
-// DialContext connects to address THROUGH the node: TCP + TLS + CONNECT.
-// On success the returned conn carries raw tunnel bytes (any response-header
-// lookahead already buffered is replayed first via prefixConn).
-func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
-	switch network {
-	case "tcp", "tcp4", "tcp6":
-	default:
-		return nil, fmt.Errorf("bad network for node dial: %q (tcp only)", network)
+// errSetup marks probe/dial failures caused by LOCAL configuration rather
+// than the remote node (guards below). The health layer maps it to the
+// cant-bind verdict so local misconfiguration never rotates healthy nodes.
+var errSetup = fmt.Errorf("node dialer misconfigured")
+
+// DialNodeTLS performs the cheap half of the data plane: TCP + TLS handshake
+// to the node WITHOUT any CONNECT. The health layer (OP3) uses it as the L1
+// liveness probe; callers close the returned conn themselves.
+func (d *NodeDialer) DialNodeTLS(ctx context.Context) (net.Conn, error) {
+	tlsConn, err := d.dialNodeTLS(ctx)
+	if err != nil {
+		return nil, err
 	}
-	if strings.TrimSpace(d.Address) == "" {
-		return nil, fmt.Errorf("node dialer: empty node address")
-	}
-	if strings.TrimSpace(d.TLSServerName) == "" {
-		return nil, fmt.Errorf("node dialer: empty TLS server name")
-	}
-	if d.Auth == nil {
-		return nil, fmt.Errorf("node dialer: auth provider required")
+	return tlsConn, nil
+}
+
+func (d *NodeDialer) dialNodeTLS(ctx context.Context) (*tls.Conn, error) {
+	switch {
+	case strings.TrimSpace(d.Address) == "":
+		return nil, fmt.Errorf("%w: empty node address", errSetup)
+	case strings.TrimSpace(d.TLSServerName) == "":
+		return nil, fmt.Errorf("%w: empty TLS server name", errSetup)
+	case d.Auth == nil:
+		return nil, fmt.Errorf("%w: auth provider required", errSetup)
 	}
 
 	conn, err := d.baseDial(ctx, "tcp", d.Address)
@@ -143,7 +150,22 @@ func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (
 		_ = conn.Close()
 		return nil, newFailure(ClassDataPlaneTLS, "node handshake", err)
 	}
-	conn = tlsConn
+	return tlsConn, nil
+}
+
+// DialContext connects to address THROUGH the node: TCP + TLS + CONNECT.
+// On success the returned conn carries raw tunnel bytes (any response-header
+// lookahead already buffered is replayed first via prefixConn).
+func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	switch network {
+	case "tcp", "tcp4", "tcp6":
+	default:
+		return nil, fmt.Errorf("%w: bad network %q (tcp only)", errSetup, network)
+	}
+	conn, err := d.dialNodeTLS(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	auth, err := d.Auth()
 	if err != nil {

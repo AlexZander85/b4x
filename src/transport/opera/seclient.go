@@ -233,7 +233,7 @@ type SEIPEntry struct {
 }
 
 // NetAddr picks ports[0] with the 443 fallback (reference semantics).
-func (e *SEIPEntry) NetAddr() string {
+func (e SEIPEntry) NetAddr() string {
 	if len(e.Ports) == 0 {
 		return net.JoinHostPort(e.IP, "443")
 	}
@@ -242,7 +242,7 @@ func (e *SEIPEntry) NetAddr() string {
 
 // TLSServerName resolves the CONNECT TLS name: explicit host wins, otherwise
 // <geo>0.sec-tunnel.com (main.go proxyTLSServerName parity; OP2 consumes it).
-func (e *SEIPEntry) TLSServerName() string {
+func (e SEIPEntry) TLSServerName() string {
 	if h := strings.TrimSpace(e.Host); h != "" {
 		return h
 	}
@@ -458,6 +458,15 @@ func (c *Client) EnsureSession(ctx context.Context) error {
 		return c.registerNewLocked(ctx)
 	}
 	return nil
+}
+
+// RegisterNew forces a fresh anonymous device registration, replacing any
+// adopted identity. Health-layer recovery path (OP3): the supervisor calls
+// it under its restart cap when the server rejected stored credentials.
+func (c *Client) RegisterNew(ctx context.Context) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.registerNewLocked(ctx)
 }
 
 // RefreshCredentials runs subscriber_login + device_generate_password and
