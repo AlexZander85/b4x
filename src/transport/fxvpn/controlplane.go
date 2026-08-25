@@ -60,9 +60,10 @@ type ControlPlane struct {
 	EP   Endpoints
 	Pins *PinStore // nil disables SPKI pinning (tests only)
 
-	tlsCfg  *tls.Config
-	chMu    chan struct{} // serializes Fastly challenge solving per client
-	rootCAs *x509.CertPool
+	tlsCfg   *tls.Config
+	chMu     chan struct{} // serializes Fastly challenge solving per client
+	rootCAs  *x509.CertPool
+	baseDial func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 // NewControlPlane builds the client. pinPath empty = no TOFU persistence
@@ -98,6 +99,23 @@ func NewControlPlane(pinPath string) (*ControlPlane, error) {
 	return cp, nil
 }
 
+// SetBaseDial overrides the TCP leg UNDER the pinned TLS handshake
+// (bootstrap-through-carrier seam: control-plane requests ride the active
+// base tunnel while SPKI pinning keeps verifying the far end). Must be set
+// before the first request.
+func (c *ControlPlane) SetBaseDial(dial func(ctx context.Context, network, addr string) (net.Conn, error)) {
+	c.baseDial = dial
+}
+
+// dialTCP performs the TCP leg honoring the optional base-dial override.
+func (c *ControlPlane) dialTCP(ctx context.Context, network, addr string) (net.Conn, error) {
+	if c.baseDial != nil {
+		return c.baseDial(ctx, network, addr)
+	}
+	d := &net.Dialer{}
+	return d.DialContext(ctx, network, addr)
+}
+
 // dialTLS dials TCP then handshakes with our TLS config, verifying the
 // TOFU SPKI pin for the target host afterwards (fail-closed on mismatch:
 // the connection is closed before it can carry a request).
@@ -106,8 +124,7 @@ func (c *ControlPlane) dialTLS(ctx context.Context, network, addr string) (net.C
 	if err != nil {
 		return nil, fmt.Errorf("fxvpn: bad addr %q: %w", addr, err)
 	}
-	d := &net.Dialer{}
-	raw, err := d.DialContext(ctx, network, addr)
+	raw, err := c.dialTCP(ctx, network, addr)
 	if err != nil {
 		return nil, err
 	}

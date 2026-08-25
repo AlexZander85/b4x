@@ -331,6 +331,7 @@ type SystemConfig struct {
 	MTProto     MTProtoConfig       `json:"mtproto"`
 	Warp        WarpConfig          `json:"warp"`
 	Opera       OperaConfig         `json:"opera"`
+	FxVPN       FxVPNConfig         `json:"fxvpn"`
 	Checker     DiscoveryConfig     `json:"checker"`
 	Geo         geodat.GeoDatConfig `json:"geo"`
 	API         ApiConfig           `json:"api"`

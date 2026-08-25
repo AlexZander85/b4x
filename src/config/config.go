@@ -270,6 +270,13 @@ var DefaultConfig = Config{
 			Region:       "EU",
 		},
 
+		FxVPN: FxVPNConfig{
+			Enabled:            false,
+			AccountsPath:       DefaultFxvpnAccountsPath,
+			Location:           FxVPNLocation{Mode: "auto"},
+			RotateThresholdPct: 15,
+		},
+
 		Logging: Logging{
 			Level:      log.LevelInfo,
 			Instaflush: true,
