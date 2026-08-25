@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/daniellavrushin/b4/adblock"
 	"github.com/daniellavrushin/b4/capture"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
@@ -320,6 +321,19 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	host := tlsObservation.Host
 	tlsVersion := tlsObservation.TLSVersion
 	isClientHello := host != ""
+	// SNI ad-block (BLK-2): one decision per flow at ClientHello time.
+	// ECH-only flows cannot be evaluated honestly (outer public name) and
+	// are counted as skipped, never blocked.
+	if isClientHello {
+		if tlsObservation.ECHPresent {
+			adblock.CountECHSkip()
+		} else if d, _ := adblock.Decide(host); d == adblock.DecisionBlock {
+			log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock")
+			metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)
+			vc.drop()
+			return 0
+		}
+	}
 	matchedSNI := secondaryToken != nil
 	matchedLearned := false
 	matchedScopedHint := false
@@ -1000,6 +1014,14 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	if host == "" && isQUIC {
 		if h, ok := sni.ParseQUICClientHelloSNI(payload); ok {
 			host = h
+			// SNI ad-block (BLK-3): QUIC Initial carries the same hostname
+			// evidence as a TCP ClientHello; drop before any service logic.
+			if d, _ := adblock.Decide(host); d == adblock.DecisionBlock {
+				log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock-quic")
+				metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)
+				vc.drop()
+				return 0
+			}
 		}
 	}
 

@@ -17,6 +17,10 @@ type Config struct {
 	System SystemConfig `json:"system"`
 	Sets   []*SetConfig `json:"sets"`
 
+	// AdBlock configures the SNI ad/tracker blocking layer
+	// (B4X_POST_V23_SNI_ADBLOCK_LAYER_ADDENDUM_v1.0.md); DNS is untouched.
+	AdBlock AdBlockConfig `json:"adblock"`
+
 	tcpPortMap map[uint16]bool // pre-computed TCP port set for fast lookup in packet handler
 }
 

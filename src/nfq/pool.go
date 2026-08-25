@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/action"
+	"github.com/daniellavrushin/b4/adblock"
 	"github.com/daniellavrushin/b4/classifier"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/dhcp"
@@ -19,6 +20,11 @@ import (
 
 func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	if cfg != nil {
+		// SNI ad-block initial list load (BLK-1); idempotent, outside hot path.
+		adblock.Reload(cfg.AdBlock)
+	}
 
 	w := &Worker{
 		qnum:              qnum,
@@ -350,6 +356,11 @@ func (w *Worker) UpdateConfig(newCfg *config.Config) {
 		w.passiveRST.Reconfigure(newCfg.System.Classifier.Runtime.PassiveRST)
 	}
 	w.cfg.Store(newCfg)
+	// SNI ad-block lists reload outside the hot path; idempotent by
+	// config+file fingerprint (BLK-1).
+	if newCfg != nil {
+		adblock.Reload(newCfg.AdBlock)
+	}
 }
 
 func buildMatcher(cfg *config.Config) *sni.SuffixSet {
