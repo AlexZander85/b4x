@@ -35,14 +35,19 @@ import (
 
 // §62.1 event names emitted by the supervisor (minimum required set).
 const (
-	EvSessionGenerationStarted = "warp_session_generation_started"
-	EvReconnectScheduled       = "warp_reconnect_scheduled"
-	EvMasqueConnected          = "warp_masque_connected"
-	EvMasqueRejected           = "warp_masque_rejected"
-	EvMasqueDisconnected       = "warp_masque_disconnected"
-	EvKeepaliveFailed          = "warp_keepalive_failed"
-	EvIdentityBlocked          = "warp_identity_blocked"
-	EvRouteReleasedFailOpen    = "warp_route_released_failopen"
+	EvSessionGenerationStarted     = "warp_session_generation_started"
+	EvReconnectScheduled           = "warp_reconnect_scheduled"
+	EvMasqueConnected              = "warp_masque_connected"
+	EvMasqueRejected               = "warp_masque_rejected"
+	EvMasqueDisconnected           = "warp_masque_disconnected"
+	EvKeepaliveFailed              = "warp_keepalive_failed"
+	EvIdentityBlocked              = "warp_identity_blocked"
+	EvIdentityRevalidationDeferred = "warp_identity_revalidation_deferred"
+	EvRouteReleasedFailOpen        = "warp_route_released_failopen"
+
+	// E-H3 ladder taxonomy (EH3/EH4): transport changes are NEVER silent.
+	EvH3Negotiated      = "warp_h3_negotiated"
+	EvTransportSwitched = "warp_transport_switched"
 )
 
 // Disconnect reasons (structural enums, not free text).
@@ -74,6 +79,10 @@ type SupervisorConfig struct {
 	Template SessionConfig
 	// Reconciler owns identity state and the registration API.
 	Reconciler *Reconciler
+	// Dialer selects the carrier for every generation (E-H3 ladder,
+	// design §6). nil keeps the legacy H2-only behavior unchanged —
+	// existing configurations and tests are unaffected.
+	Dialer TransportDialer
 
 	InitialBackoff       time.Duration // 1s
 	MaxBackoff           time.Duration // 30s
@@ -89,6 +98,18 @@ type SupervisorConfig struct {
 	Now   func() time.Time
 	Sleep func(ctx context.Context, d time.Duration) error
 	Sink  func(SupervisorEvent)
+
+	// DeferRevalidation trusts a locally valid stored identity for the
+	// FIRST connect without contacting the registration API. Field finding
+	// (2026-08-25): networks that SNI-filter api.cloudflareclient.com turn
+	// the start-of-session Ensure() into a permanent blocked-throttle loop —
+	// the supervisor never dials, although the tunnel itself may be the very
+	// path that restores API reachability. With the flag on: a stored
+	// identity that passes local field validation is used directly,
+	// ensuredAt is stamped at load time and periodic revalidation resumes on
+	// the normal cadence after that. Absent/corrupt stores fall through to
+	// the regular Ensure() path unchanged.
+	DeferRevalidation bool
 }
 
 func (c *SupervisorConfig) fillDefaults() {
@@ -142,8 +163,12 @@ type Status struct {
 	BackoffUntil     time.Time
 	LastFailureClass string
 	LastColo         string
-	PendingPacket    bool
-	DroppedWakeups   uint64
+	// LastTransport names the carrier of the last established session
+	// ("h2"/"h3"; "" before the first connection or with the legacy H2
+	// dialer path).
+	LastTransport  string
+	PendingPacket  bool
+	DroppedWakeups uint64
 }
 
 var ErrAlreadyRunning = errors.New("transportwarp: supervisor already running")
@@ -152,18 +177,20 @@ var ErrAlreadyRunning = errors.New("transportwarp: supervisor already running")
 type Supervisor struct {
 	cfg SupervisorConfig
 
-	mu           sync.Mutex
-	state        SupervisorState
-	attempt      uint32
-	routeHeld    bool
-	backoffUntil time.Time
-	lastClass    string
-	lastColo     string
-	pending      []byte
-	dropped      uint64
-	lastKick     time.Time
-	events       []SupervisorEvent
-	cur          *Session
+	mu            sync.Mutex
+	state         SupervisorState
+	attempt       uint32
+	routeHeld     bool
+	backoffUntil  time.Time
+	lastClass     string
+	lastColo      string
+	lastTransport string
+	pending       []byte
+	dropped       uint64
+	lastKick      time.Time
+	events        []SupervisorEvent
+	cur           packetTransport
+	lastIdent     *Identity
 
 	// pktSubs: secondary consumers of inbound DATAGRAM payloads (nested
 	// carriers). Channels survive across session generations; each live
@@ -225,6 +252,7 @@ func (s *Supervisor) Snapshot() Status {
 		BackoffUntil:     s.backoffUntil,
 		LastFailureClass: s.lastClass,
 		LastColo:         s.lastColo,
+		LastTransport:    s.lastTransport,
 		PendingPacket:    s.pending != nil,
 		DroppedWakeups:   s.dropped,
 	}
@@ -309,7 +337,7 @@ func (s *Supervisor) SubscribePackets() (<-chan []byte, func()) {
 // tapPump forwards one live session's tap stream to supervisor-level
 // subscribers. Exactly one pump runs per generation; it exits when the
 // session's own tap channel closes (Session.Close) or ctx is cancelled.
-func (s *Supervisor) tapPump(ctx context.Context, sess *Session) {
+func (s *Supervisor) tapPump(ctx context.Context, sess packetTransport) {
 	src, _ := sess.SubscribePackets()
 	for {
 		select {
@@ -400,6 +428,12 @@ func (s *Supervisor) setClass(class string) {
 	s.mu.Unlock()
 }
 
+func (s *Supervisor) setLastIdent(ident *Identity) {
+	s.mu.Lock()
+	s.lastIdent = ident
+	s.mu.Unlock()
+}
+
 func (s *Supervisor) emit(ev SupervisorEvent) {
 	s.mu.Lock()
 	ev.ObservedAt = s.cfg.now()
@@ -458,6 +492,17 @@ func (s *Supervisor) run(ctx context.Context) {
 
 		// --- identity phase ---
 		now := s.cfg.now()
+		if ident == nil && s.cfg.DeferRevalidation {
+			if stored, err := s.cfg.Reconciler.Store.Load(); err == nil {
+				ident = stored
+				ensuredAt = s.cfg.now()
+				s.setLastIdent(stored)
+				s.emit(SupervisorEvent{Name: EvIdentityRevalidationDeferred})
+			}
+			// Load failure (absent/corrupt/quarantined) intentionally falls
+			// through to the standard Ensure() path below: provisioning and
+			// quarantine handling stay exactly as before.
+		}
 		if ident == nil || now.Sub(ensuredAt) >= s.cfg.RevalidationInterval {
 			res, err := s.cfg.Reconciler.Ensure(ctx)
 			// Order matters: a blocked outcome is STRUCTURED even when err
@@ -501,6 +546,7 @@ func (s *Supervisor) run(ctx context.Context) {
 			}
 			ident = res.Identity
 			ensuredAt = s.cfg.now()
+			s.setLastIdent(ident)
 			bo.index = 0 // fresh identity generation: clean slate
 		}
 
@@ -521,14 +567,20 @@ func (s *Supervisor) run(ctx context.Context) {
 		started := s.cfg.now()
 		s.emit(SupervisorEvent{Name: EvSessionGenerationStarted, Attempt: attempt})
 
-		sess, cres, derr := DialSession(ctx, scfg)
+		sess, att, derr := s.dialCarrier(ctx, scfg)
+		// Ladder events (transport_switched / h3_negotiated) are emitted by
+		// the supervisor on the single event path — never by the dialer.
+		for _, ev := range att.Events {
+			ev.Attempt = attempt
+			s.emit(ev)
+		}
 		if derr != nil {
-			s.setClass(cres.FailureClass)
+			s.setClass(att.Result.FailureClass)
 			s.setState(StateBackoff)
-			s.emit(SupervisorEvent{Name: EvMasqueRejected, Attempt: attempt, FailureClass: cres.FailureClass, Status: cres.Status, DurationMS: cres.DurationMS})
+			s.emit(SupervisorEvent{Name: EvMasqueRejected, Attempt: attempt, FailureClass: att.Result.FailureClass, Status: att.Result.Status, DurationMS: att.Result.DurationMS})
 			d := bo.next()
 			s.schedule(d)
-			s.emit(SupervisorEvent{Name: EvReconnectScheduled, Attempt: attempt, FailureClass: cres.FailureClass, BackoffMS: msDur(d)})
+			s.emit(SupervisorEvent{Name: EvReconnectScheduled, Attempt: attempt, FailureClass: att.Result.FailureClass, BackoffMS: msDur(d)})
 			if !s.pause(ctx, d) {
 				return
 			}
@@ -536,6 +588,12 @@ func (s *Supervisor) run(ctx context.Context) {
 		}
 
 		if verr := sess.ValidateDataPlane(ctx); verr != nil {
+			if s.cfg.Dialer != nil {
+				for _, ev := range s.cfg.Dialer.ObserveValidation(att.Transport, verr) {
+					ev.Attempt = attempt
+					s.emit(ev)
+				}
+			}
 			sess.Close()
 			s.setClass(FailureValidation)
 			s.setState(StateBackoff)
@@ -548,6 +606,12 @@ func (s *Supervisor) run(ctx context.Context) {
 			}
 			continue
 		}
+		if s.cfg.Dialer != nil {
+			for _, ev := range s.cfg.Dialer.ObserveValidation(att.Transport, nil) {
+				ev.Attempt = attempt
+				s.emit(ev)
+			}
+		}
 
 		// --- connected ---
 		s.mu.Lock()
@@ -555,11 +619,12 @@ func (s *Supervisor) run(ctx context.Context) {
 		s.routeHeld = true
 		s.state = StateConnected
 		s.attempt = 0 // validated connection resets the attempt counter
-		s.lastColo = cres.Colo
+		s.lastColo = att.Result.Colo
+		s.lastTransport = att.Transport
 		s.mu.Unlock()
 		attempt = 0
 		sessStart := s.cfg.now()
-		s.emit(SupervisorEvent{Name: EvMasqueConnected, DurationMS: msDur(sessStart.Sub(started)), Colo: cres.Colo})
+		s.emit(SupervisorEvent{Name: EvMasqueConnected, DurationMS: msDur(sessStart.Sub(started)), Colo: att.Result.Colo, Detail: "transport=" + att.Transport})
 
 		// Packet taps for secondary in-tunnel consumers (nested carriers):
 		// one pump per generation; it dies together with the session while
@@ -571,7 +636,7 @@ func (s *Supervisor) run(ctx context.Context) {
 			_ = sess.WritePacket(pkt)
 		}
 
-		reason := s.healthLoop(ctx, sess)
+		reason := s.healthLoop(ctx, sess, scfg.LocalV4)
 		lived := s.cfg.now().Sub(sessStart)
 		bo.observeLifetime(lived)
 
@@ -596,13 +661,25 @@ func (s *Supervisor) run(ctx context.Context) {
 	}
 }
 
+// dialCarrier routes one generation through the configured TransportDialer,
+// or the legacy H2 carrier when no dialer is wired (byte-for-byte the
+// pre-EH3 behavior: DialSession + supervisor-side validation).
+func (s *Supervisor) dialCarrier(ctx context.Context, scfg SessionConfig) (packetTransport, TransportAttempt, error) {
+	if s.cfg.Dialer == nil {
+		sess, cres, err := DialSession(ctx, scfg)
+		return sess, TransportAttempt{Transport: TransportH2, Result: cres}, err
+	}
+	return s.cfg.Dialer.Dial(ctx, scfg)
+}
+
 // healthLoop probes the established session every HealthInterval. Any
 // inbound packet counts as alive; ProbeTimeout without a reply is one
 // failure. The streak reaching HealthFailureLimit tears the session down
 // with ReasonHealthStreak (fail-open was applied by the caller).
 // Exactly ONE reader goroutine exists per call; it terminates when the
-// session closes or the context is cancelled.
-func (s *Supervisor) healthLoop(ctx context.Context, sess *Session) string {
+// session closes or the context is cancelled. localV4 feeds the synthetic
+// DNS probe (carrier-independent since the E-H3 ladder).
+func (s *Supervisor) healthLoop(ctx context.Context, sess packetTransport, localV4 [4]byte) string {
 	pktCh := make(chan packetMsg, 16)
 	readerDone := make(chan struct{})
 	go func() {
@@ -636,7 +713,7 @@ func (s *Supervisor) healthLoop(ctx context.Context, sess *Session) string {
 		case <-ticker.C:
 		}
 
-		probe, err := NewDNSProbe(sess.cfg.LocalV4, [4]byte{8, 8, 8, 8}, "cloudflare.com")
+		probe, err := NewDNSProbe(localV4, [4]byte{8, 8, 8, 8}, "cloudflare.com")
 		if err == nil {
 			err = sess.WritePacket(probe.Packet)
 		}

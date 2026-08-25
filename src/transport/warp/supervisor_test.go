@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -176,6 +177,103 @@ func indexOf(names []string, name string) int {
 		}
 	}
 	return -1
+}
+
+// apiCounters snapshots the fake registration API request counters so a test
+// can assert an exact-zero delta across a phase.
+type apiCounters struct {
+	post, patch, get, account, del int
+}
+
+func counterSnapshot(api *fakeAPI) apiCounters {
+	post, patch, get, account, del := api.counters()
+	return apiCounters{post, patch, get, account, del}
+}
+
+func diffCounters(before apiCounters, api *fakeAPI) apiCounters {
+	now := counterSnapshot(api)
+	return apiCounters{
+		post:    now.post - before.post,
+		patch:   now.patch - before.patch,
+		get:     now.get - before.get,
+		account: now.account - before.account,
+		del:     now.del - before.del,
+	}
+}
+
+// DeferRevalidation: a locally valid stored identity is trusted for the
+// FIRST connect with ZERO registration/revalidation API traffic and the
+// revalidation-deferred event is emitted. Field finding 2026-08-25: networks
+// that SNI-filter api.cloudflareclient.com otherwise deadlock Ensure-at-start
+// before the tunnel — which may itself restore API reachability — comes up.
+func TestSupervisorDeferredRevalidationSkipsAPI(t *testing.T) {
+	h := newSupHarness(t)
+	ctx := context.Background()
+
+	seed := h.newSupervisor(t, func(c *SupervisorConfig) {
+		c.HealthInterval = time.Hour
+	})
+	if err := seed.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, 5*time.Second, "provisioning connect", func() bool {
+		st := seed.Snapshot()
+		return st.State == StateConnected && st.RouteHeld
+	})
+	seed.Stop()
+
+	apiBefore := counterSnapshot(h.api)
+	namesBefore := len(h.eventNames())
+
+	sup := h.newSupervisor(t, func(c *SupervisorConfig) {
+		c.HealthInterval = time.Hour
+		c.DeferRevalidation = true
+	})
+	if err := sup.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer sup.Stop()
+	waitFor(t, 5*time.Second, "deferred connect", func() bool {
+		st := sup.Snapshot()
+		return st.State == StateConnected && st.RouteHeld
+	})
+
+	if got := diffCounters(apiBefore, h.api); got != (apiCounters{}) {
+		t.Fatalf("deferred run touched the API: %+v", got)
+	}
+	names := h.eventNames()[namesBefore:]
+	if countName(names, EvIdentityRevalidationDeferred) == 0 {
+		t.Fatalf("revalidation-deferred event missing: %v", names)
+	}
+	if countName(names, EvMasqueConnected) == 0 {
+		t.Fatalf("masque_connected must still fire: %v", names)
+	}
+}
+
+// Corrupt store + DeferRevalidation falls through to the standard Ensure
+// path: provisioning happens exactly as without the flag.
+func TestDeferredRevalidationFallsBackOnCorruptStore(t *testing.T) {
+	h := newSupHarness(t)
+	if err := os.WriteFile(h.rec.Store.Path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	sup := h.newSupervisor(t, func(c *SupervisorConfig) {
+		c.HealthInterval = time.Hour
+		c.DeferRevalidation = true
+	})
+	ctx := context.Background()
+	if err := sup.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer sup.Stop()
+	waitFor(t, 5*time.Second, "fallback provisioning connect", func() bool {
+		st := sup.Snapshot()
+		return st.State == StateConnected && st.RouteHeld
+	})
+	post, _, _, _, _ := h.api.counters()
+	if post != 1 {
+		t.Fatalf("fallback must provision exactly once, post=%d", post)
+	}
 }
 
 // Storm guard: a dead endpoint produces bounded reconnect pacing — the

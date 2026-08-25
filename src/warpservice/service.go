@@ -81,8 +81,9 @@ func Build(cfg *config.Config, sink func(Event)) (*Runtime, error) {
 			// Client key + pin are injected per-generation by the
 			// supervisor from the stored identity (buildSessionConfig).
 		},
-		Reconciler: rec,
-		Sink:       sink,
+		Reconciler:        rec,
+		Sink:              sink,
+		DeferRevalidation: wc.DeferRevalidation,
 	})
 	if err != nil {
 		return nil, err
@@ -129,6 +130,17 @@ func (r *Runtime) Status() StatusSnapshot {
 // registrations.
 func (r *Runtime) EnrollOnce(ctx context.Context) (warp.EnsureResult, error) {
 	return r.rec.Ensure(ctx)
+}
+
+// AttachNetstack mounts the userspace TCP/IP carrier (bd b4x-9aa) on the
+// current session generation; the tunnel-local address is taken from the
+// loaded identity.
+func (r *Runtime) AttachNetstack() (*warp.NetstackCarrier, func(), error) {
+	local, ok := r.sup.AssignedLocalV4()
+	if !ok {
+		return nil, nil, errors.New("warpservice: no assigned tunnel address yet")
+	}
+	return r.sup.AttachNetstack(local, 0)
 }
 
 // EnrollSummary converts an EnsureResult into a redacted CLI summary.

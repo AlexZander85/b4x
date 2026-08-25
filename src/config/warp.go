@@ -23,9 +23,16 @@ type WarpConfig struct {
 	IdentityPath string `json:"identity_path"`
 	// Endpoint overrides the catalog-default H2 endpoint ("ip:port").
 	// Empty = transportwarp.DefaultH2Endpoint(). Any explicit value must be
-	// a member of the versioned endpoint catalog (addendum SS34: no
+	// a member of the versioned endpoint catalog (addendum §34: no
 	// arbitrary internet scanning).
 	Endpoint string `json:"endpoint"`
+	// DeferRevalidation trusts a locally valid stored identity for the first
+	// connect without contacting the registration API (field finding:
+	// networks that SNI-filter api.cloudflareclient.com deadlock the default
+	// Ensure-at-start loop). Revalidation resumes on the normal 24h cadence
+	// after the connect. Default false — the strict discipline stays the
+	// shipping behavior.
+	DeferRevalidation bool `json:"defer_revalidation"`
 }
 
 // EffectiveEndpoint resolves the configured endpoint against the versioned

@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -96,12 +98,15 @@ func (c *eventCollector) snapshot() []warpservice.Event {
 }
 
 // cmdRun starts the supervisor, waits for the connected state (engine trust
-// gate passed: data-plane probe round trips over the live tunnel), dumps
-// status + events and stops. This proves the H2-MASQUE data plane end-to-end.
+// gate passed: data-plane probe round trips over the live tunnel), optionally
+// mounts the userspace TCP carrier and fetches cdn-cgi/trace THROUGH the
+// tunnel (warp=on|plus = the ROUTER_PATH_VERIFIED evidence), dumps status +
+// events and stops.
 func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	path := fs.String("config", "", "path to config json (required)")
 	wait := fs.Duration("wait", 45*time.Second, "max wait for connected state")
+	trace := fs.Bool("trace", false, "after connect: mount netstack carrier and GET https://1.1.1.1/cdn-cgi/trace through the tunnel")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -133,6 +138,30 @@ func cmdRun(args []string) error {
 		}
 		time.Sleep(250 * time.Millisecond)
 	}
+
+	traceBody := ""
+	if reached && *trace {
+		if carrier, closer, aerr := rt.AttachNetstack(); aerr != nil {
+			traceBody = "attach failed: " + aerr.Error()
+		} else {
+			defer closer()
+			tctx, tcancel := context.WithTimeout(ctx, 20*time.Second)
+			defer tcancel()
+			req, _ := http.NewRequestWithContext(tctx, http.MethodGet, "https://1.1.1.1/cdn-cgi/trace", nil)
+			resp, rerr := carrier.HTTPClient(15 * time.Second).Do(req)
+			if rerr != nil {
+				traceBody = "trace failed: " + rerr.Error()
+			} else {
+				body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+				resp.Body.Close()
+				traceBody = string(body)
+			}
+		}
+		fmt.Println("--- cdn-cgi/trace through tunnel ---")
+		fmt.Println(traceBody)
+		fmt.Println("------------------------------------")
+	}
+
 	snap := rt.Status()
 	printJSON(map[string]any{
 		"reached_connected": reached,
