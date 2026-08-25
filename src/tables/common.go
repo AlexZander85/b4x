@@ -34,12 +34,22 @@ func AddRules(cfg *config.Config) error {
 
 	if backend == backendNFTables {
 		nft := NewNFTablesManager(cfg)
-		return nft.Apply()
+		if err := nft.Apply(); err != nil {
+			return err
+		}
+		// BLK-7 tail: reinstall learned-IP drop rules after the rebuild and
+		// trigger an immediate entry reassert (fail-open on error).
+		ensureAdBlockLearnRulesTail(cfg)
+		return nil
 	}
 
 	ipt := NewIPTablesManager(cfg, backend == backendIPTablesLegacy)
 
-	return ipt.Apply()
+	if err := ipt.Apply(); err != nil {
+		return err
+	}
+	ensureAdBlockLearnRulesTail(cfg)
+	return nil
 }
 
 func ClearRules(cfg *config.Config) error {

@@ -327,9 +327,11 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 	if isClientHello {
 		if tlsObservation.ECHPresent {
 			adblock.CountECHSkip()
-		} else if d, _ := adblock.Decide(host); d == adblock.DecisionBlock {
+		} else if d, listName := adblock.Decide(host); d == adblock.DecisionBlock {
 			log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock")
 			metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)
+			// BLK-7: offer the dst-IP to the kernel-acceleration sublayer.
+			w.maybeLearnBlockedIP(matcher, host, pkt, listName)
 			vc.drop()
 			return 0
 		}
@@ -1016,9 +1018,11 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			host = h
 			// SNI ad-block (BLK-3): QUIC Initial carries the same hostname
 			// evidence as a TCP ClientHello; drop before any service logic.
-			if d, _ := adblock.Decide(host); d == adblock.DecisionBlock {
+			if d, listName := adblock.Decide(host); d == adblock.DecisionBlock {
 				log.LogConnection("blocked", "", host, pkt.srcStr, sport, "", pkt.dstStr, dport, pkt.srcMac, "", "adblock-quic")
 				metrics.GetMetricsCollector().RecordBlock(host, pkt.srcMac)
+				// BLK-7: offer the dst-IP to the kernel-acceleration sublayer.
+				w.maybeLearnBlockedIP(matcher, host, pkt, listName)
 				vc.drop()
 				return 0
 			}

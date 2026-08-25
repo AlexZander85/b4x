@@ -67,7 +67,31 @@ type AdBlockConfig struct {
 	MaxEntries int `json:"max_entries"`
 	// CacheDir stores downloaded subscriptions. Empty = "<config dir>/adblock".
 	CacheDir string `json:"cache_dir"`
+	// IPLearn enables kernel-level acceleration of repeat blocks (addendum
+	// §BLK-8): the dst-IP of a first SNI block enters the dedicated
+	// b4_adblock_learn nft/ipset set whose drop rule sits BEFORE the NFQUEUE
+	// capture rule; subsequent connections to that IP die in-kernel.
+	IPLearn bool `json:"ip_learn"`
+	// IPLearnTTLSec is the lifetime of one learned entry (and its kernel
+	// set timeout). Default DefaultIPLearnTTLSec (6h).
+	IPLearnTTLSec int `json:"ip_learn_ttl_sec"`
+	// IPLearnMaxEntries caps the learned set size; oldest entries are
+	// evicted first. Default DefaultIPLearnMaxEntries.
+	IPLearnMaxEntries int `json:"ip_learn_max_entries"`
 }
+
+// LearnedIPSetV4/V6 are the kernel set names shared by the adblock layer and
+// the tables backends (iptables ipset / nftables set).
+const (
+	LearnedIPSetV4 = "b4_adblock_learn"
+	LearnedIPSetV6 = "b4_adblock_learn6"
+)
+
+// Defaults for the IP-learn sublayer (conservative: off by default).
+const (
+	DefaultIPLearnTTLSec     = 21600 // 6h
+	DefaultIPLearnMaxEntries = 4096
+)
 
 // DefaultMaxListEntries is the RAM guard default for MIPS-class devices.
 const DefaultMaxListEntries = 300000
@@ -79,6 +103,12 @@ func (a *AdBlockConfig) FillDefaults() {
 	}
 	if a.MaxEntries <= 0 {
 		a.MaxEntries = DefaultMaxListEntries
+	}
+	if a.IPLearnTTLSec <= 0 {
+		a.IPLearnTTLSec = DefaultIPLearnTTLSec
+	}
+	if a.IPLearnMaxEntries <= 0 {
+		a.IPLearnMaxEntries = DefaultIPLearnMaxEntries
 	}
 }
 

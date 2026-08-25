@@ -6,7 +6,7 @@
 **База:** `B4_FORK_ARCHITECTURE_v2.4.md`, `B4_FORK_PATCH_PLAN.md` v2.3, действующие post-v2.3 addenda; ортогонален `B4X_POST_V23_ADAPTIVE_DNS_DETECTOR_PATH_CONTROLLER_AND_MANAGED_DNSCRYPT_BACKEND_ADDENDUM_v1.0.md` (ADNS)
 **Основная платформа:** Keenetic/Entware (MIPS/ARM), NFQUEUE/TUN режимы
 **Целевая capability:** `sni-adblock`
-**Стадии:** `BLK-1 … BLK-6`
+**Стадии:** `BLK-1 … BLK-8`
 
 ---
 
@@ -50,6 +50,16 @@ ADNS-аддендум §12 прямо выводит `filtering/blocklists/cloak
 - **Транспортная реклама YouTube** (server-side ads) — вне любых сетевых блокировщиков.
 - Никакой инспекции payload/MITM: решение принимается ТОЛЬКО по открытомy SNI ClientHello.
 
+## 0.4. Ускорение повторных блокировок (BLK-8, IP-learn)
+
+Повторные соединения к уже заблокированному рекламному серверу гаснут **в ядре**: первый
+блок домена по SNI учитывает его dst-IP в выделенном nft/ipset-сете с drop-правилом,
+стоящим ДО правила NFQUEUE-перехвата. Aging-TTL ограничивает жизнь записи, CDN-guards
+защищают от ложных блоков shared-IP. Важно: сам аппаратный PPE **не может** ускорять
+решение — инспекция SNI требует userspace-прохождения ClientHello, аппаратный офлоад
+флоу исключает инспекцию; PPE-координация нужна лишь для сброса offload-окон при
+изменениях конфигурации слоя. Детали — §BLK-8.
+
 ---
 
 # Часть I. Нормативная архитектура
@@ -80,6 +90,7 @@ UDP/QUIC flow:
 
 ```text
 AdBlockConfig ≠ BlocklistFile ≠ SuffixSet ≠ MatchDecision ≠ MetricsSnapshot
+≠ LearnedIPEntry ≠ NftSetRule ≠ KernelDropVerdict
 ```
 
 Списки (файлы) и активный матчер разделены: обновление файла → атомарная перестройка
@@ -94,6 +105,9 @@ regex на MIPS в default-политике                           (толь�
 матч на каждом пакете флоу                                 (запрещено; только ClientHello/Initial)
 блокировка без ECH-учёта в статистике                      (запрещено; ech_skipped обязателен)
 URL-подписка без атомарной замены и лимита размера         (запрещено)
+учить private/reserved/CDN-коллидирующий IP                (запрещено; BLK-8 guards)
+применять табличные изменения на пакетном пути             (запрещено; enqueue-only worker)
+ошибка материализации таблиц ⇒ block-all                   (запрещено; fail-open, SNI-слой живёт)
 ```
 
 ## 4. Отношение к существующим подсистемам (ownership)
@@ -161,6 +175,14 @@ b4_adblock_ech_skipped_total
 b4_adblock_list_state{list,state}      # loaded|missing|invalid|disabled
 b4_adblock_reload_total{list,result}
 b4_adblock_allowlisted_total
+b4_adblock_fetch_ok_total
+b4_adblock_fetch_fail_total
+b4_adblock_ip_learn_total
+b4_adblock_ip_learn_cdn_skip_total
+b4_adblock_ip_learn_private_skip_total
+b4_adblock_ip_learn_dropped_total      # переполнение очереди обучения
+b4_adblock_ip_active                   # gauge активных выученных записей
+b4_adblock_table_apply_fail_total
 ```
 
 Лог совпадений: существующий `LogConnection` c protocol="blocked"; qname/SNI в логах
@@ -198,8 +220,12 @@ negative-host → pass; ECH-only → pass+ech_skipped.
 URL-подписки, refresh_hours, atomic replace, size-limit. Верификация: обрыв загрузки
 сохраняет предыдущий активный матчер.
 
-## BLK-6 — RST action (опционально, отдельным owner decision)
+## BLK-6 — RST action (НЕ реализовано; опционально, отдельным owner decision)
 Быстрый фейл клиента вместо таймаута. Только после полевой проверки BLK-1..4.
+Статус: конфиг-поле `action` зарезервировано, но значение `"rst"` API ОТКЛОНЯЕТ
+(честный отказ — иначе оно молча вело бы себя как drop). Реализация потребует
+forged-RST с корректными seq/ack (переиспользование rst_client/passive_rst),
+TCP-only — QUIC в любом случае дропается по таймауту.
 
 ## BLK-7 — Выполнено вместе с BLK-5: дефолтные подписки
 
@@ -215,6 +241,96 @@ URL-подписки, refresh_hours, atomic replace, size-limit. Верифик�
 Порядок загрузки не влияет на результат: merge в единый exact/suffix матчер;
 allowlist всегда сильнее.
 
+## BLK-8 — IP-learn → nft sets с aging (bd b4x-8jz; РЕАЛИЗОВАНО 26.08, локально, ждёт слова владельца на коммит)
+
+Kernel-level ускорение повторных блокировок. Первый блок домена по SNI учитывает его
+dst-IP в выделенный сет `b4_adblock_learn`(+6) с drop-правилом, установленным **до** правила
+NFQUEUE-перехвата; последующие соединения к этому IP (ретраи клиента, новые процессы)
+дропаются в ядре без userspace.
+
+### Карта файлов (факт 26.08)
+
+| Файл | Содержимое |
+|---|---|
+| `src/config/adblock.go` | `ip_learn` / `ip_learn_ttl_sec` / `ip_learn_max_entries` + дефолты + имена сетов |
+| `src/adblock/iplearn.go` | стор, worker, guards, aging, cap-вытеснение, персист (atomic 0600), метрики |
+| `src/nfq/adblock_learn.go` | hot-path хенд-офф: CDN-guard + bounded-enqueue (метод Worker) |
+| `src/tables/adblock_learn.go` | материализация: сеты+цепочка+jump+drop (iptables/ipset и nft), аплаер |
+| `src/main.go` | биндинг аплаера (`cfgPtr.Load`) и refresh-func после создания пула |
+
+### Механика (факт)
+
+```text
+SNI block (domain, dstIP)  [BLK-2/3]
+        ↓ CDN-guard на месте хука (matcher.MatchIPWithSource → skip+counter)
+        ↓ EnqueueLearn: ОДИН аллок ip.String() в bounded chan(256); full ⇒ dropped_total++
+worker-goroutine:
+  parse → private/reserved-guard → dedup / TTL-extend / cap-evict(oldest-expiry)
+        → LearnApplier.AddIPs (батч: ipset restore / nft add element {… timeout})
+aging sweeper (60s): expire → RemoveIPs; EnsureRules + reassert живых (z2k#6);
+                     persist-if-dirty
+таблицы пересобраны извне (TablesRefreshFunc и т.п.) ⇒ tail AddRules переустанавливает
+правила и дёргает мгновенный reassert (окно без kernel-дропов ~мс)
+```
+
+Порядок правил гарантирован конструкцией: drop живёт в **отдельной цепочке**
+(`B4_ADBLOCK` / `b4_adblock_chain`), в capture-цепочку встаёт один jump **головой**
+(iptables `-I B4` применяется последним в манифесте ⇒ верх; nft `insert rule` = prepend).
+Юнит-гейт: manifest-index тест (jump после всех NFQUEUE-правил) + replay-тест nft-плана
+(insert ⇒ позиция 0). Дропы скоупятся по настроенным service-dport'ам (tcp+udp) — паритет
+с тем, что SNI-слой вообще мог увидеть.
+
+### Guards (консервативные, обязательные) — все реализованы
+
+| Guard | Правило | Где |
+|---|---|---|
+| CDN-коллизии | не учить IP, уже матчащийся сервисным сетам (`matcher.MatchIPWithSource`) | nfq-хук |
+| Диапазоны | unspecified/loopback/private/link-local/multicast/broadcast (v4+v6) | worker |
+| Allowlist | структурно (Decide отдаёт allow→pass) + purge при позднем allowlist'е | Decide + purge |
+| Кап | `ip_learn_max_entries`, вытеснение по старейшему ExpiresAt | worker |
+| Hot path | только bounded-enqueue; таблицы/валидация вне пакетного пути | дизайн |
+
+### Конфигурация
+
+```json
+"adblock": {
+  "ip_learn": false,
+  "ip_learn_ttl_sec": 21600,
+  "ip_learn_max_entries": 4096
+}
+```
+
+Выключение ip_learn полностью снимает слой: stop worker → flush сета → TearDown правил
+(jump/цепочка/сеты) → удаление персист-файла. Персист — `<cache_dir>/iplearn.json`
+(atomic tmp+fsync+rename, 0600), восстановление при старте фильтрует протухшие записи;
+корректность НИКОГДА не зависит от файла (z2k#6).
+
+### Метрики
+
+Экспорт — `adblock.Stats` → GET `/api/adblock` (`stats.*`): `ip_learn_total`,
+`ip_learn_cdn_skip_total`, `ip_learn_private_skip_total`, `ip_learn_dropped_total`,
+`ip_active_gauge`, `table_apply_fail_total`. Prometheus-неймспейс `b4_adblock_*` из §8 —
+следующий шаг (не в этом периметре).
+
+### Координация PPE-offload
+
+Переход disabled→enabled ip_learn вызывает существующий механизм полного обновления таблиц
+(тот же closure, что `SetTablesRefreshFunc`) — на живых l5ppe-системах это точка сброса
+offload-окон. Биндинг выполняется ПОСЛЕ создания пула: включённый при загрузке ip_learn не
+может перестроить таблицы до готовности NFQUEUE-листенеров (boot-порядок гарантирует tail
+AddRules). Инспекция SNI требует userspace-прохождения ClientHello — аппаратный офлоад
+флоу исключает инспекцию; глобальный `offload_policy=exclude` запрещён (FORBIDDEN).
+
+### Верификация (гейты 26.08, docker golang:1.25.3-alpine, скелет repo-root)
+
+gofmt чисто (файлы слоя); go build ./... OK; go vet {adblock,tables,nfq,config} чисто;
+go test ./... -count=1 = 60 ok / 0 FAIL слоя (единственный FAIL — чужой флап
+transport/wg TestRaceEndpointsStaggerOrder, A/B: проходит при повторе); CGO race
+{adblock,nfq,tables} ok. Тесты слоя: TTL-aging, повтор-продление, кап-вытеснение,
+reserved-диапазоны ×11, переполнение очереди, unlearn по удалению списка и по allowlist,
+lifecycle disable (flush+persist-remove), персист round-trip 0600, CDN-guard хука,
+порядок правил (iptables manifest + nft plan replay).
+
 # Часть V. Red lines
 
 1. Слой НЕ трогает DNS-трафик и не зависит от ADNS-компонентов (§12 ADNS соблюдён).
@@ -223,8 +339,16 @@ allowlist всегда сильнее.
 4. Hot path: одно решение на флоу; O(len(host)); без аллокаций на пакеты без SNI.
 5. Списки: локальные файлы владельца ИЛИ подписки; при `enabled=true` с пустым
    `lists` активируются встроенные дефолтные подписки (решение владельца 25.08,
-   см. §7) — всегда видимые в effective-config, переопределяемые явным списком.
+   см. §BLK-7) — всегда видимые в effective-config, переопределяемые явным списком.
    Никаких скрытых «рекомендованных» списков вне конфигурации.
+6. Базовые ограничения этапа: коммиты по явной просьбе, роутер не трогаем,
+   live-тесты только с consent.
+7. IP-learn никогда не применяется к private/reserved/link-local диапазонам, к IP,
+   коллидирующим с сервисными сетами, и к allowlist-доменам; кап записей обязателен.
+8. Ошибка материализации таблиц переводит только IP-learn в disabled (fail-open);
+   SNI-слой продолжает работать через NFQ-точку.
+9. Изменения слоя (enable/списки/ip_learn) требуют сброса существующих offload-окон
+   флоу для гарантии инспекции новых установлений.
 6. Все ограничения базового этапа действуют: коммиты по явной просьбе, роутер не трогаем,
    live-тесты только с consent.
 

@@ -241,6 +241,7 @@ func Reload(cfg config.AdBlockConfig) {
 			log.Warnf("adblock: enabled but no lists configured; layer disabled")
 		}
 		disableWithFingerprint(fp)
+		RequestPurge() // layer inactive: learned entries must not outlive it
 		return
 	}
 
@@ -274,6 +275,7 @@ func Reload(cfg config.AdBlockConfig) {
 		reloadFailures.Add(1)
 		log.Warnf("adblock: no list could be loaded; layer disabled")
 		disableWithFingerprint(fp)
+		RequestPurge()
 		return
 	}
 
@@ -284,6 +286,9 @@ func Reload(cfg config.AdBlockConfig) {
 	digest.Store(&fpCopy)
 	log.Infof("adblock: active (%d block entries, %d allow entries)",
 		block.entries, allow.entries)
+	// Sources changed: previously learned IPs attributed to domains that no
+	// longer block (or became allowlisted) must be unlearned (BLK-7c).
+	RequestPurge()
 }
 
 func disableWithFingerprint(fp string) {
@@ -338,10 +343,18 @@ type Stats struct {
 	FetchOK      int64 `json:"fetch_ok"`
 	FetchFail    int64 `json:"fetch_fail"`
 	Enabled      bool  `json:"enabled"`
+
+	// IP-learn sublayer (addendum §BLK-8).
+	IPLearnTotal       int64 `json:"ip_learn_total"`
+	IPLearnCDNSkip     int64 `json:"ip_learn_cdn_skip_total"`
+	IPLearnPrivateSkip int64 `json:"ip_learn_private_skip_total"`
+	IPLearnDropped     int64 `json:"ip_learn_dropped_total"`
+	IPLearnActive      int64 `json:"ip_active_gauge"`
+	TableApplyFail     int64 `json:"table_apply_fail_total"`
 }
 
 func GetStats() Stats {
-	return Stats{
+	st := Stats{
 		BlockedTotal: blockedTotal.Load(),
 		PassTotal:    passTotal.Load(),
 		ECHSkipped:   echSkipped.Load(),
@@ -353,4 +366,12 @@ func GetStats() Stats {
 		FetchFail:    fetchFail.Load(),
 		Enabled:      enabledFlag.Load(),
 	}
+	ls := currentLearnStats()
+	st.IPLearnTotal = ls.LearnTotal
+	st.IPLearnCDNSkip = ls.LearnCDNSkip
+	st.IPLearnPrivateSkip = ls.LearnPrivateSkip
+	st.IPLearnDropped = ls.LearnDropped
+	st.IPLearnActive = ls.LearnActive
+	st.TableApplyFail = ls.TableApplyFail
+	return st
 }

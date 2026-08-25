@@ -22,8 +22,9 @@ func NewWorkerWithQueue(cfg *config.Config, qnum uint16) *Worker {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if cfg != nil {
-		// SNI ad-block initial list load (BLK-1); idempotent, outside hot path.
-		adblock.Reload(cfg.AdBlock)
+		// SNI ad-block initial load (BLK-1) + refresher/IP-learn lifecycle
+		// wiring (BLK-5/BLK-7); idempotent, outside hot path.
+		adblock.ApplyConfig(cfg.AdBlock, "", cfg.ConfigPath)
 	}
 
 	w := &Worker{
@@ -357,9 +358,10 @@ func (w *Worker) UpdateConfig(newCfg *config.Config) {
 	}
 	w.cfg.Store(newCfg)
 	// SNI ad-block lists reload outside the hot path; idempotent by
-	// config+file fingerprint (BLK-1).
+	// config+file fingerprint (BLK-1). ApplyConfig also drives the
+	// subscription-refresher and IP-learn lifecycles (BLK-5/BLK-7).
 	if newCfg != nil {
-		adblock.Reload(newCfg.AdBlock)
+		adblock.ApplyConfig(newCfg.AdBlock, "", newCfg.ConfigPath)
 	}
 }
 

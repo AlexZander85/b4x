@@ -183,14 +183,18 @@ func resolveLists(cfg config.AdBlockConfig) []config.AdBlockList {
 }
 
 // ApplyConfig is the single entry point from config updates: manages the
-// subscription refresher lifecycle and applies the current lists. Safe to
-// call from every worker/config update — internally idempotent.
+// subscription refresher lifecycle, the IP-learn sublayer (BLK-7) and applies
+// the current lists. Safe to call from every worker/config update —
+// internally idempotent.
 func ApplyConfig(cfg config.AdBlockConfig, cacheDir, configPath string) {
 	cfg.FillDefaults()
 	cfg.Lists = resolveLists(cfg)
 	if cacheDir == "" {
 		cacheDir = ResolveCacheDir(cfg, configPath)
 	}
+	// Kernel-acceleration sublayer lifecycle (idempotent by fingerprint;
+	// fully torn down incl. kernel-set flush when disabled).
+	ConfigureLearn(cfg, PersistPathFor(cacheDir))
 	interval := time.Duration(cfg.RefreshHours) * time.Hour
 	urls, _ := splitLists(cfg.Lists)
 	sources := make([]string, 0, len(urls))
@@ -245,8 +249,9 @@ func effectiveConfig(cfg config.AdBlockConfig, cacheDir string) config.AdBlockCo
 	return out
 }
 
-// StopRefresher cancels any running subscription refresh loop (shutdown and
-// tests). The active matcher snapshot is left untouched.
+// StopRefresher cancels any running subscription refresh loop and the
+// IP-learn worker (shutdown and tests), persisting pending learn state.
+// The active matcher snapshot is left untouched.
 func StopRefresher() {
 	refState.mu.Lock()
 	if refState.cancel != nil {
@@ -254,6 +259,7 @@ func StopRefresher() {
 		refState.cancel, refState.fp = nil, ""
 	}
 	refState.mu.Unlock()
+	StopLearn()
 }
 
 // subscriptionLoop applies immediately, then re-checks per interval.

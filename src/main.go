@@ -19,6 +19,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/daniellavrushin/b4/ai"
+	"github.com/daniellavrushin/b4/adblock"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discovery"
 	"github.com/daniellavrushin/b4/geodat"
@@ -299,7 +300,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 	startCFRefresh(&cfg)
 	handler.SetMTProtoCFRefreshFunc(startCFRefresh)
 
-	handler.SetTablesRefreshFunc(func() error {
+	refreshTables := func() error {
 		c := cfgPtr.Load()
 		if c.System.Tables.SkipSetup {
 			return nil
@@ -332,7 +333,8 @@ func runB4(cmd *cobra.Command, args []string) error {
 		tables.RoutingSyncConfig(c)
 		handler.GetMetricsCollector().TablesStatus = tables.DetectBackend(c)
 		return nil
-	})
+	}
+	handler.SetTablesRefreshFunc(refreshTables)
 	handler.SetRoutingSyncFunc(func(c *config.Config) {
 		tproxyMgr.SyncConfig(c)
 		tables.RoutingSyncConfig(c)
@@ -391,6 +393,19 @@ func runB4(cmd *cobra.Command, args []string) error {
 	isTUN := cfg.Queue.Mode == "tun"
 
 	pool := nfq.NewPool(&cfg)
+
+	// BLK-7 wiring: the IP-learn sublayer talks to the kernel through the
+	// tables backend and reuses the production full-tables-refresh mechanism
+	// for enable transitions (PPE coordination). Bound AFTER pool creation so
+	// a boot-time-enabled ip_learn cannot trigger a refresh before the
+	// NFQUEUE listeners are ready; boot-time rule order is guaranteed by the
+	// AddRules tail integration instead.
+	adblock.SetLearnApplier(tables.NewAdBlockLearnApplier(cfgPtr.Load))
+	adblock.SetRefreshTablesFunc(func() {
+		if err := refreshTables(); err != nil {
+			log.Warnf("adblock: ip_learn enable refresh failed (SNI layer unaffected): %v", err)
+		}
+	})
 
 	var tunEngine *b4tun.Engine
 	var tablesMonitor *tables.Monitor
@@ -730,6 +745,10 @@ func gracefulShutdown(cfg *config.Config, pool *nfq.Pool, tunEngine *b4tun.Engin
 	// Shutdown WebSocket connections
 	log.Infof("Shutting down WebSocket connections...")
 	b4http.Shutdown()
+
+	// BLK-7: stop the adblock refresher + IP-learn worker, persisting the
+	// pending learn snapshot before kernel state goes away.
+	adblock.StopRefresher()
 
 	if discoveryRT != nil && discoveryRT.IsActive() {
 		log.Infof("Stopping active discovery...")
