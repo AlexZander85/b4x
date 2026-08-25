@@ -330,6 +330,7 @@ type SystemConfig struct {
 	Socks5      Socks5Config        `json:"socks5"`
 	MTProto     MTProtoConfig       `json:"mtproto"`
 	Warp        WarpConfig          `json:"warp"`
+	Opera       OperaConfig         `json:"opera"`
 	Checker     DiscoveryConfig     `json:"checker"`
 	Geo         geodat.GeoDatConfig `json:"geo"`
 	API         ApiConfig           `json:"api"`

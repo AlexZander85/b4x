@@ -291,7 +291,10 @@ func (c *Client) ProxyAuthHeader() (string, error) {
 
 // NodeDialer wires a dialer for the given discovered entry using live client
 // credentials (per-dial resolution) and the default system root pool.
-// fakeSNI follows design §1.3: empty => suppressed SNI.
+// fakeSNI follows design §1.3: empty => suppressed SNI. The base TCP dialer
+// is the client's own DialContext (direct or the bootstrap-through-carrier
+// chain wired at assembly), so data-plane dials follow the same egress
+// policy as the control channel.
 func (c *Client) NodeDialer(entry SEIPEntry, fakeSNI string) (*NodeDialer, error) {
 	addr := entry.NetAddr()
 	name := entry.TLSServerName()
@@ -303,5 +306,6 @@ func (c *Client) NodeDialer(entry SEIPEntry, fakeSNI string) (*NodeDialer, error
 		TLSServerName: name,
 		FakeSNI:       fakeSNI,
 		Auth:          c.ProxyAuthHeader,
+		Next:          c.opts.DialContext,
 	}, nil
 }

@@ -514,6 +514,44 @@ func (h *HealthSupervisor) pruneRestarts(now time.Time) {
 	h.restarts = kept
 }
 
+// ActiveEntry returns a copy of the currently selected node entry.
+func (h *HealthSupervisor) ActiveEntry() SEIPEntry {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.currentLocked()
+}
+
+// SetDesiredRegion switches the desired megaregion WITHOUT touching the
+// device identity (design §5: the device stays the same — region lives in
+// discover). An established session immediately attempts discovery toward
+// the new region; failure schedules the usual backoff.
+func (h *HealthSupervisor) SetDesiredRegion(region string) error {
+	r, err := NormalizeRegion(region)
+	if err != nil {
+		return err
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cfg.Region == r {
+		return nil
+	}
+	h.cfg.Region = r
+	h.degraded = "" // a live region command re-arms a degraded supervisor
+	if !h.sessionOK {
+		return nil
+	}
+	if err := h.discoverLocked(r); err != nil {
+		// Alternate-region machinery takes over from here: if we were sitting
+		// on an alternate for the old desired, the next Tick returns toward
+		// the new desired via begin_desired_retry scheduling.
+		h.scheduleDesiredRetry(h.now())
+		return err
+	}
+	h.retryRound = 0
+	h.nextDesiredRetry = time.Time{}
+	return nil
+}
+
 // Status snapshots the supervisor state.
 func (h *HealthSupervisor) Status() HealthStatus {
 	h.mu.Lock()

@@ -260,6 +260,12 @@ var DefaultConfig = Config{
 			Endpoint:     "",
 		},
 
+		Opera: OperaConfig{
+			Enabled:      false,
+			IdentityPath: DefaultOperaIdentityPath,
+			Region:       "EU",
+		},
+
 		Logging: Logging{
 			Level:      log.LevelInfo,
 			Instaflush: true,

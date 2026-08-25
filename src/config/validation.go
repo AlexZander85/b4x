@@ -64,6 +64,7 @@ func (c *Config) Validate() error {
 	v := &validator{}
 	c.validateClassifierConfig(v)
 	c.validateWarp(v)
+	c.validateOpera(v)
 	if v.hasErrors() {
 		return v.result()
 	}
@@ -372,6 +373,56 @@ func (c *Config) validateWarp(v *validator) {
 	if !filepath.IsAbs(w.IdentityPath) {
 		v.addf("system.warp.identity_path", "must_be_absolute", map[string]any{"path": w.IdentityPath}, "warp identity_path must be an absolute path (got: %q)", w.IdentityPath)
 	}
+}
+
+// validateOpera checks the built-in Opera/SurfEasy reserve section. The
+// region whitelist (EU/AS/AM; RU never participates — design red line) and
+// the control target shape are validated even when disabled so a typo
+// cannot hide until enable day.
+func (c *Config) validateOpera(v *validator) {
+	o := c.System.Opera
+	if o.Region != "" {
+		if _, err := operaNormalizeRegion(o.Region); err != nil {
+			v.add("system.opera.region", "invalid_value", err.Error(), nil)
+		}
+	}
+	if o.ControlTarget != "" {
+		if !operaValidControlTarget(o.ControlTarget) {
+			v.addf("system.opera.control_target", "invalid_value", map[string]any{"target": o.ControlTarget},
+				"control_target must be host:port (got: %q)", o.ControlTarget)
+		}
+	}
+	if !o.Enabled {
+		return
+	}
+	if o.IdentityPath == "" {
+		v.add("system.opera.identity_path", "required", "identity_path must be set when opera is enabled", nil)
+		return
+	}
+	if !filepath.IsAbs(o.IdentityPath) {
+		v.addf("system.opera.identity_path", "must_be_absolute", map[string]any{"path": o.IdentityPath}, "opera identity_path must be an absolute path (got: %q)", o.IdentityPath)
+	}
+}
+
+// operaNormalizeRegion mirrors the engine whitelist without importing the
+// engine from config (dependency direction: engine -> config).
+func operaNormalizeRegion(region string) (string, error) {
+	r := strings.ToUpper(strings.TrimSpace(region))
+	switch r {
+	case "EU", "AS", "AM":
+		return r, nil
+	default:
+		return "", fmt.Errorf("region %q outside megaregion whitelist (EU/AS/AM)", region)
+	}
+}
+
+func operaValidControlTarget(target string) bool {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil || host == "" || port == "" {
+		return false
+	}
+	p, err := strconv.Atoi(port)
+	return err == nil && p > 0 && p < 65536
 }
 
 func (c *Config) validateClassifierConfig(v *validator) {
