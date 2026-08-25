@@ -39,6 +39,10 @@ src/b4
 
 out/
 vendor/
+# E-H3 (owner mandate: dependencies stored in the project): keep src/vendor
+# tracked despite the blanket vendor/ rule above.
+!src/vendor/
+!src/vendor/**
 
 #Ignore vscode AI rules
 .github/instructions/codacy.instructions.md

@@ -144,3 +144,44 @@ func cmdRun(args []string) error {
 	})
 	return nil
 }
+
+const usage = `warpenroll — WARP identity lifecycle from outside the SNI-filtered network
+
+Usage:
+  warpenroll enroll --config <cfg.json>
+  warpenroll run    --config <cfg.json> [--wait 45s]
+  warpenroll status --config <cfg.json>
+
+enroll: register a new WARP identity (api.cloudflareclient.com) and store it
+        at System.Warp.IdentityPath.
+run:    start the supervisor, wait for the connected state (engine trust gate
+        passed: data-plane probe round trips over the live tunnel), dump
+        status + the event stream, then stop.
+status: offline summary of the stored identity; no network activity.
+`
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Fprint(os.Stderr, usage)
+		os.Exit(2)
+	}
+	var err error
+	switch os.Args[1] {
+	case "enroll":
+		err = cmdEnroll(os.Args[2:])
+	case "run":
+		err = cmdRun(os.Args[2:])
+	case "status":
+		err = cmdStatus(os.Args[2:])
+	case "-h", "--help", "help":
+		fmt.Print(usage)
+		return
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", os.Args[1], usage)
+		os.Exit(2)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warpenroll %s: %v\n", os.Args[1], err)
+		os.Exit(1)
+	}
+}
