@@ -43,6 +43,12 @@ func (api *API) getPrometheusMetrics(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(&b, "# TYPE %s counter\n", name)
 		fmt.Fprintf(&b, "%s%s %d\n", name, prometheusLabels(counter.Labels), counter.Value)
 	}
+	for _, g := range snap.Gauges {
+		name := g.Name
+		fmt.Fprintf(&b, "# HELP %s %s\n", name, name)
+		fmt.Fprintf(&b, "# TYPE %s gauge\n", name)
+		fmt.Fprintf(&b, "%s%s %d\n", name, prometheusLabels(g.Labels), g.Value)
+	}
 	for _, h := range snap.Histograms {
 		name := h.Name
 		fmt.Fprintf(&b, "# HELP %s %s\n", name, name)

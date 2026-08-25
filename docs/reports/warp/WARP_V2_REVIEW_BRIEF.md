@@ -1,4 +1,4 @@
-﻿# REVIEW BRIEF — WARP MASQUE Tunnel v2 (архитектура + код)
+# REVIEW BRIEF — WARP MASQUE Tunnel v2 (архитектура + код)
 
 **Кому:** ревьювер (сильная модель). **От:** владелец проекта b4x + агент-исполнитель.
 **Дата компиляции:** 2026-08-23 (карта сдачи — по факту завершения этапов). **Фаза 1 из 3**
@@ -291,6 +291,62 @@ docker run --rm --dns 8.8.8.8 \
 Ожидание: vet clean; все тесты ok; race ok. Полный суит репозитория — зелёный на маунте корня
 (`artifacts/` нужен тестам b4-validate/validation). Diff go.mod/go.sum относительно HEAD:
 только `golang.org/x/text` indirect — новых прямых зависимостей нет.
+
+## E-FXVPN — Firefox VPN reserve transport (выполнено 2026-08-25, FX1–FX5)
+
+Третий независимый резервный вендор (R-reserve, ≠Cloudflare ≠SurfEasy): встроенный
+Firefox VPN = secure-proxy Mozilla поверх Fastly MASQUE. Идентичность — реальный FxA
+(email+refresh token), квота 50 ГБ/мес/аккаунт, TCP-scope only. Серия коммитов:
+f9f3eadc (FX1+FX2) → cccc974e (FX3) → 76d76dd5 (FX4) → FX5 (метрики/CLI/доки).
+Дизайн: .ag/research/fxvpn-reserve-design.md (Части I+II+Дополнения 1–3).
+
+| Файл | Обязанности |
+|---|---|
+| `transport/fxvpn/controlplane.go` | контрольная плоскость: UA MozillaVPN/2.35.0, jar, timeout 30s, Endpoints override; DialTLSContext с TOFU-сверкой ДО отдачи коннекта (fail-closed); шов SetBaseDial для bootstrap-through-carrier (SPKI-пиннинг сохраняется на дальнем конце); SetTransport/SetRootCAs для стендов |
+| `pin.go` | TOFU SPKI pins.json 0600: первый контакт пишет, mismatch = ErrPinMismatch = fxvpn-api-pin-mismatch |
+| `fxa.go` | FxA login (PBKDF2/HKDF authPW, Hawk), email-2fa + errno107 fallback ровно ×2, VerifySession, OAuth (client_id официального клиента), refresh БЕЗ нового RT сохраняет старый |
+| `guardian.go` | /fpn/token\|status\|activate; JWT RawURLEncoding без проверки подписи (пиннинг вместо неё); claim-time offset детект (TZ+сетка 15 мин); X-Quota-* ; Retry-After сек/HTTP-date |
+| `fastly.go` | Fastly anti-bot: PoW 62² мгновенный, PAT 401/400 ⇒ пустой auth ⇒ PoW-fallback, clientmetrics benign; cookie привязан к exit IP ⇒ solver шарит transport+jar с контрольным клиентом (challenge и API с одного выхода), сериализация per-client |
+| `serverlist.go` | Remote Settings кэш ETag/TTL: bare-записи = default connect port 2499, protocols[].name==connect override, masque игнорируется (=задел), quarantined исключены; stale-fallback при мёртвой сети, corrupt→карантин |
+| `store.go` + `privatefile.go` | accounts.json v1 0600 атомарно (tmp+fsync+rename) + карантин *.corrupt; Redacted() никогда не печатает секреты |
+| `tunnel.go` + `h2tunnel.go` | TunnelOpener{OpenTunnel/UpdateToken/IsAlive/Close}; H2: ALPN h2 → http2.ClientConn, PING keepalive 10s/budget 15s, CONNECT req.Host=authority + Bearer, ring-buffer тело, in-place UpdateToken lead 2 мин; failureTracker ≥3 РАЗНЫХ authority timeout/502 ⇒ unhealthy |
+| `h3tunnel.go` (+varint/h3qpack/h3wire/dialpolicy*/dialudp) | рукописный H3 поверх сырого quic-go (x/net/http3 в vendor ОТСУТСТВОВАЛ — решение владельца, вариант «а»): InitialPacketSize=1200, ALPN h3 строгая проверка, QPACK-кодек из E-H1, classifyH3HandshakeFailure по vendor-типам (udp-egress-blocked / h3-negotiation-failed); DialPolicy SO_MARK/BINDTODEVICE до bind, RequireMark fail-closed |
+| `ladder.go` | лестница H3→H2 на сессию: switch ТОЛЬКО по подтверждённым классам, один эпизод = один switch, тики внутри cooldown 300s молча, возврат после истечения; account-level 407/429/502 НЕ переключают |
+| `exitprobe.go` | verified exit: CONNECT www.cloudflare.com:443 → TLS внутри релея → /cdn-cgi/trace → ip=/loc=; mismatch = fxvpn_exit_mismatch (fail-closed класс) |
+| `pool.go` | пул аккаунтов II.2.1: provisioning→verifying→active→standby→cooling_down(5m)→exhausted(resetAt)→banned(3 strike)/refused; pre-emptive ротация <15% ИЛИ reset-lead 24h с прогревом следующего ДО атомарного swap (стримы доживают); reset-aware recycling; BLOCKED ровно одно событие на эпизод |
+| `fxvpservice/service.go` | сборка+супервизор: Build без I/O (disabled тоже собирается), tick 30s = recycle→renew→ensureSession→exportMetrics; restartGuard ≤6/час sliding + cooldown 300s; антипетля BypassSuffixes (4 хоста Mozilla/Fastly) + refus активной ноды; DialStream = warp StreamDialer контракт, SupportsUDP=false честно; running/listening раздельно; TestAccount без дата-плейна |
+| `http/handler/fxvpn.go` | API Дополнения 3: GET status (честный minimal shape при disabled/unwired), GET locations (503 без кэша), PUT location (validate→apply→kick; persist вне — общий config-API), POST restart (капы действуют), POST accounts/test (порядок decode-vs-runtime зафиксирован тестом); seam SetFxvpnRuntime |
+| `config/fxvpn.go` | system.fxvpn {enabled=false, accounts_path=/opt/etc/b4/fxvpn/accounts.json, location{mode auto\|country\|host}, prefer_h3=false, rotate_threshold_pct=15, bootstrap_through_carrier, control_target} |
+| `observability/fxvpn.go` + `fxvpservice/metrics.go` | метрики таксономии: fxvpn_dial_total{result=ok\|fail} (из атомиков dialOK/dialFail), fxvpn_quota_remaining_bytes (gauge активного аккаунта; absent пока неизвестна), fxvpn_pool_state{state=<AccountState>} (стабильный вектор всех 8 состояний, нули экспортируются); минимальная gauge-поддержка реестра (Set + Gauges в снапшоте + # TYPE gauge в /metrics) добавлена по решению владельца |
+| `cmd/fxvpnctl` | L0-онбординг CLI: login (FxA→OAuth→Guardian полный цикл, --code для email-2fa, exit 3 = needs_code), import (RT offline), list (redacted), test (креды без записи и без дата-плейна); пароль через env B4_FXVPN_PASSWORD; секреты не печатаются |
+
+Красные линии этапа: TCP-only connect-диалект (masque/RFC 9298 = задел до появления
+protocols[] в продакшн serverlist — прод-записи сегодня bare connect); L0 onboarding
+вручную (CLI выше); L1 auto-reg навсегда opt-in с тройным ключом (enabled + домен +
+кап ≤3/неделю); TOFU-пиннинг обязателен; ноль новых зависимостей (stdlib + vendored
+quic-go); секреты никогда не в логах.
+
+Верификация при сдаче (docker golang:1.25.3-alpine, изолированное дерево git archive HEAD
++ файлы FX5 + gitignored http/ui/dist):
+
+```text
+go build ./... OK; go vet ./... чисто;
+go test ./... -count=1            = 0 FAIL (базовая линия A0 на чистом HEAD — тоже 0 FAIL);
+CGO_ENABLED=1 go test -race ./transport/fxvpn/... ./fxvpservice/... = ok;
+gofmt -l по своим пакетам         = пусто.
+```
+
+Полный `-race ./...`: ровно три pre-existing пакета (A/B доказан прогоном тех же команд
+на чистом HEAD: capture/ppe auto-enable rollback, lab session-controller,
+transport/wg seek-vanilla/timers.go — bd b4x-1v2). Известный флейк handler-пакета
+TestTestSessionLifecycleRequiresHeadersAndIsIdempotent проявляется только при
+-count≥2 в одном процессе — воспроизведён на чистом HEAD, к FX5 отношения не имеет.
+gofmt-замечание observability/warp.go — pre-existing на HEAD (файл не трогался).
+
+Ограничения: живого контакта с Mozilla/Fastly НЕ БЫЛО (consent rule — вся верификация
+против фейковых FxA/Guardian/RemoteSettings/fake-H2/H3-edge стендов); проводка runtime в
+main.go демона НЕ входит в этап (follow-up по прецеденту b4x-6da opera-wiring); квота в
+gauge обновляется на супервизорных тиках/событиях пула, не на каждый байт.
 
 ### Известные ограничения после E0–E6 (НЕ считать находками)
 

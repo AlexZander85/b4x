@@ -190,6 +190,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	}
 	poolCfg.Events = func(ev fxvpn.PoolEvent) {
 		r.appendEvent(ev)
+		r.exportPoolMetrics()
 		if opts.ExtraEvents != nil {
 			opts.ExtraEvents(ev)
 		}
@@ -287,7 +288,8 @@ func (r *Runtime) loop(ctx context.Context) {
 	}
 }
 
-// tick is one deterministic supervision cycle: recycle -> renew -> rebuild.
+// tick is one deterministic supervision cycle: recycle -> renew -> rebuild,
+// then refresh the /metrics gauges from the resulting pool state.
 func (r *Runtime) tick(ctx context.Context) {
 	r.pool.RecycleDue()
 	if _, err := r.pool.RenewActivePassIfNeeded(ctx); err != nil {
@@ -296,6 +298,7 @@ func (r *Runtime) tick(ctx context.Context) {
 	if err := r.ensureSession(ctx); err != nil {
 		r.noteFailure(classifyServiceErr(err))
 	}
+	r.exportPoolMetrics()
 }
 
 // ensureSession rebuilds the data-plane session when absent/dead. Pool
@@ -435,11 +438,11 @@ func (r *Runtime) verifyExit(ctx context.Context, sess fxvpn.TunnelOpener) {
 func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
 	host := addr.Addr().String()
 	if IsBypassDomain(host) {
-		r.atomicFail()
+		r.recordDial(false)
 		return nil, ErrFxvpnSelfLoop
 	}
 	if err := r.ensureSession(ctx); err != nil {
-		r.atomicFail()
+		r.recordDial(false)
 		r.noteFailure(classifyServiceErr(err))
 		return nil, err
 	}
@@ -448,20 +451,20 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 	nodeHost := hostOf(r.sessionHost)
 	r.mu.Unlock()
 	if sess == nil {
-		r.atomicFail()
+		r.recordDial(false)
 		return nil, ErrNotListening
 	}
 	if nodeHost != "" && strings.EqualFold(host, nodeHost) {
-		r.atomicFail()
+		r.recordDial(false)
 		return nil, ErrFxvpnSelfLoop
 	}
 	conn, err := sess.OpenTunnel(ctx, net.JoinHostPort(host, strconv.Itoa(int(addr.Port()))))
 	if err != nil {
-		r.atomicFail()
+		r.recordDial(false)
 		r.noteFailure(classifyServiceErr(err))
 		return nil, err
 	}
-	atomic.AddUint64(&r.dialOK, 1)
+	r.atomicOK()
 	return conn, nil
 }
 
@@ -759,8 +762,8 @@ func (r *Runtime) noteFailure(class string) {
 	r.lastFailure = class
 }
 
-func (r *Runtime) atomicOK()   { atomic.AddUint64(&r.dialOK, 1) }
-func (r *Runtime) atomicFail() { atomic.AddUint64(&r.dialFail, 1) }
+func (r *Runtime) atomicOK()   { r.recordDial(true) }
+func (r *Runtime) atomicFail() { r.recordDial(false) }
 
 // ---- small helpers ---------------------------------------------------------------
 

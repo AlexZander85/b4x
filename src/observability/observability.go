@@ -121,6 +121,7 @@ type HistogramSample struct {
 type MetricsSnapshot struct {
 	GeneratedAt time.Time         `json:"generated_at"`
 	Counters    []MetricSample    `json:"counters"`
+	Gauges      []MetricSample    `json:"gauges,omitempty"`
 	Histograms  []HistogramSample `json:"histograms"`
 }
 
@@ -142,6 +143,7 @@ type MetricsRegistry struct {
 	mu              sync.Mutex
 	maxSeries       int
 	counters        map[metricKey]MetricSample
+	gauges          map[metricKey]MetricSample
 	histograms      map[metricKey]*histogramState
 	defaultHistCaps []float64
 }
@@ -153,6 +155,7 @@ func NewMetricsRegistry(maxSeries int) *MetricsRegistry {
 	return &MetricsRegistry{
 		maxSeries:       maxSeries,
 		counters:        make(map[metricKey]MetricSample, maxSeries),
+		gauges:          make(map[metricKey]MetricSample, 8),
 		histograms:      make(map[metricKey]*histogramState, maxSeries),
 		defaultHistCaps: []float64{1, 5, 10, 25, 50, 100, 250, 500, 1000, 5000, 10000},
 	}
@@ -170,10 +173,29 @@ func (r *MetricsRegistry) Inc(name string, labels map[string]string, value uint6
 		r.counters[key] = sample
 		return
 	}
-	if len(r.counters)+len(r.histograms) >= r.maxSeries {
+	if len(r.counters)+len(r.gauges)+len(r.histograms) >= r.maxSeries {
 		return
 	}
 	r.counters[key] = MetricSample{Name: name, Labels: copyLabels(labels), Value: value}
+}
+
+// Set writes an absolute gauge value (current-state metrics such as a quota
+// remainder or a pool state vector). Unlike Inc it REPLACES any previous
+// value for the same name+labels series; repeated Sets never accumulate.
+// Gauges share the registry's maxSeries bound with counters/histograms.
+func (r *MetricsRegistry) Set(name string, labels map[string]string, value uint64) {
+	if r == nil || strings.TrimSpace(name) == "" {
+		return
+	}
+	key := makeMetricKey(name, labels)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.gauges[key]; !ok {
+		if len(r.counters)+len(r.gauges)+len(r.histograms) >= r.maxSeries {
+			return
+		}
+	}
+	r.gauges[key] = MetricSample{Name: name, Labels: copyLabels(labels), Value: value}
 }
 
 func (r *MetricsRegistry) Observe(name string, labels map[string]string, value float64) {
@@ -206,10 +228,14 @@ func (r *MetricsRegistry) Snapshot(now time.Time) MetricsSnapshot {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := MetricsSnapshot{GeneratedAt: now, Counters: make([]MetricSample, 0, len(r.counters)), Histograms: make([]HistogramSample, 0, len(r.histograms))}
+	out := MetricsSnapshot{GeneratedAt: now, Counters: make([]MetricSample, 0, len(r.counters)), Gauges: make([]MetricSample, 0, len(r.gauges)), Histograms: make([]HistogramSample, 0, len(r.histograms))}
 	for _, sample := range r.counters {
 		sample.Labels = copyLabels(sample.Labels)
 		out.Counters = append(out.Counters, sample)
+	}
+	for _, sample := range r.gauges {
+		sample.Labels = copyLabels(sample.Labels)
+		out.Gauges = append(out.Gauges, sample)
 	}
 	for _, state := range r.histograms {
 		buckets := make([]HistogramBucket, len(state.bounds))
@@ -220,6 +246,9 @@ func (r *MetricsRegistry) Snapshot(now time.Time) MetricsSnapshot {
 	}
 	sort.Slice(out.Counters, func(i, j int) bool {
 		return metricSampleKey(out.Counters[i].Name, out.Counters[i].Labels) < metricSampleKey(out.Counters[j].Name, out.Counters[j].Labels)
+	})
+	sort.Slice(out.Gauges, func(i, j int) bool {
+		return metricSampleKey(out.Gauges[i].Name, out.Gauges[i].Labels) < metricSampleKey(out.Gauges[j].Name, out.Gauges[j].Labels)
 	})
 	sort.Slice(out.Histograms, func(i, j int) bool {
 		return metricSampleKey(out.Histograms[i].Name, out.Histograms[i].Labels) < metricSampleKey(out.Histograms[j].Name, out.Histograms[j].Labels)
@@ -234,6 +263,7 @@ func (r *MetricsRegistry) Reset() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.counters = make(map[metricKey]MetricSample, r.maxSeries)
+	r.gauges = make(map[metricKey]MetricSample, 8)
 	r.histograms = make(map[metricKey]*histogramState, r.maxSeries)
 }
 

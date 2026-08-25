@@ -1,0 +1,113 @@
+package fxvpservice
+
+import (
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/observability"
+	fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
+)
+
+func fxGaugeValue(t *testing.T, name, labelKey, labelVal string) (uint64, bool) {
+	t.Helper()
+	for _, g := range observability.Default().Metrics.Snapshot(time.Now()).Gauges {
+		if g.Name != name {
+			continue
+		}
+		if v, ok := g.Labels[labelKey]; ok && v == labelVal {
+			return g.Value, true
+		}
+	}
+	return 0, false
+}
+
+func fxDialCounter(t *testing.T, result string) uint64 {
+	t.Helper()
+	for _, c := range observability.Default().Metrics.Snapshot(time.Now()).Counters {
+		if c.Name == observability.MetricFxvpnDialTotal && c.Labels["result"] == result {
+			return c.Value
+		}
+	}
+	return 0
+}
+
+// The pool state vector exports EVERY lifecycle state (zeros included for a
+// stable vector); the quota gauge stays ABSENT while the quota is unknown;
+// dial counters track recordDial outcomes 1:1.
+func TestFxvpnMetricsExport(t *testing.T) {
+	dir := t.TempDir()
+	storePath := filepath.Join(dir, "accounts.json")
+	store := fxvpn.NewAccountStore(storePath)
+	if err := store.Save(&fxvpn.AccountsFile{Accounts: []fxvpn.Account{
+		{Email: "a@example.com", RefreshToken: "rt-a", Label: "acc-a"},
+		{Email: "b@example.com", Password: "pw-b"},
+	}}); err != nil {
+		t.Fatalf("save store: %v", err)
+	}
+
+	cfg := &config.Config{}
+	rt, err := Build(cfg, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	pool, err := fxvpn.NewPool(store, &fxvpn.FXA{}, &fxvpn.Guardian{}, fxvpn.PoolConfig{})
+	if err != nil {
+		t.Fatalf("pool: %v", err)
+	}
+	rt.pool = pool
+
+	rt.exportPoolMetrics()
+
+	got, ok := fxGaugeValue(t, observability.MetricFxvpnPoolState, "state", string(fxvpn.StateProvisioning))
+	if !ok || got != 2 {
+		t.Fatalf("pool_state provisioning = %d (present=%t), want 2", got, ok)
+	}
+	got, ok = fxGaugeValue(t, observability.MetricFxvpnPoolState, "state", string(fxvpn.StateActive))
+	if !ok || got != 0 {
+		t.Fatalf("pool_state active = %d (present=%t), want explicit zero", got, ok)
+	}
+	if _, present := fxGaugeValue(t, observability.MetricFxvpnQuotaRemainingBytes, "account", "active"); present {
+		t.Fatal("quota gauge must stay absent while quota is unknown")
+	}
+
+	// Dial counters mirror the runtime atomics.
+	beforeOK, beforeFail := fxDialCounter(t, "ok"), fxDialCounter(t, "fail")
+	rt.recordDial(true)
+	rt.recordDial(false)
+	rt.recordDial(false)
+	if got := fxDialCounter(t, "ok") - beforeOK; got != 1 {
+		t.Fatalf("dial ok delta = %d, want 1", got)
+	}
+	if got := fxDialCounter(t, "fail") - beforeFail; got != 2 {
+		t.Fatalf("dial fail delta = %d, want 2", got)
+	}
+	if rt.Status().DialFail != 2 { // fresh runtime: atomics were 0 before deltas
+		t.Fatalf("status dial_fail out of sync: %d", rt.Status().DialFail)
+	}
+}
+
+// poolStateCounts is pure: per-state counts plus the ACTIVE account quota.
+func TestPoolStateCountsReduction(t *testing.T) {
+	st := fxvpn.PoolStatus{Views: []fxvpn.AccountView{
+		{Label: "a", State: fxvpn.StateStandby, QuotaLeft: 1, Active: false},
+		{Label: "b", State: fxvpn.StateActive, QuotaLeft: 42_000_000_000, Active: true},
+		{Label: "c", State: fxvpn.StateExhausted, QuotaLeft: 0, Active: false},
+	}}
+	counts, activeLeft := poolStateCounts(st)
+	if counts[fxvpn.StateStandby] != 1 || counts[fxvpn.StateActive] != 1 || counts[fxvpn.StateExhausted] != 1 {
+		t.Fatalf("counts = %+v", counts)
+	}
+	if counts[fxvpn.StateBanned] != 0 {
+		t.Fatalf("missing states must read as zero, got %+v", counts)
+	}
+	if activeLeft != 42_000_000_000 {
+		t.Fatalf("activeLeft = %d", activeLeft)
+	}
+
+	counts, activeLeft = poolStateCounts(fxvpn.PoolStatus{})
+	if len(counts) != 0 || activeLeft != -1 {
+		t.Fatalf("empty pool reduction = %+v, %d", counts, activeLeft)
+	}
+}
