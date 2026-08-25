@@ -1,4 +1,4 @@
-# REVIEW BRIEF — WARP MASQUE Tunnel v2 (архитектура + код)
+﻿# REVIEW BRIEF — WARP MASQUE Tunnel v2 (архитектура + код)
 
 **Кому:** ревьювер (сильная модель). **От:** владелец проекта b4x + агент-исполнитель.
 **Дата компиляции:** 2026-08-23 (карта сдачи — по факту завершения этапов). **Фаза 1 из 3**
@@ -238,10 +238,44 @@ Wire-протокол Cloudflare MASQUE H2 (наш primary транспорт):
 |---|---|
 | `nonru.go` | ≥2 независимых geo-provider'а, пробы ТОЛЬКО через inner path с counter-delta proof (route/path proof, §43 аддендума); кворум поверх готового `warp.BuildGeoAttestation` (≥2 same non-RU AND any-RU=0 AND unknown=0 → PASS; любая RU → revoke; disagreement → revoke; TTL 120 s БЕЗ grace; refresh_interval 60 s; public-ip change → немедленный refresh); gate state machine с reason-кодами закрытия §62.5 (provider-ru/disagreement/stale/public-ip-changed/parent-reconnected/direct-wan-observed/manual-disable/config-change); fail-closed-scoped: gate closed ⇒ inner route снят немедленно (замер revocation latency в метрику); IPv6 disabled для scope до отдельной валидации; DNS-path proof обязателен; телеметрия `cf-warp-colo` base vs inner = эксперимент H-NONRU-1 |
 
+## E-H3 — QUIC/H3 transport и лестница H3→H2 (выполнено 2026-08-25, EH1–EH5)
+
+Режимы носителя инстанса: **h2** (E1, прежний default) и **h3** (диалект usque-H3:
+CID20 обязателен, SETTINGS {0x276:1}, extended CONNECT `:protocol cf-connect-ip`,
+authority IP:port по мандату владельца — переключение на домен шаблона остаётся
+открытым решением владельца перед полем, реализовано одной строкой в dialH3Once).
+**Лестница на уровне инстанса** (`ladder.go`): предпочтение H3; переход на H2 того
+же endpoint-профиля ТОЛЬКО по подтверждённым классам (udp-egress-blocked / tls-alert
+из classifyH3HandshakeError + validation-timeout = дизайн §6 «handshake-ok-but-silent»;
+tls-pin-mismatch ИСКЛЮЧЁН — fail-closed индикатор, маскирование запрещено); ровно один
+event `warp_transport_switched{from,to,reason}` + анти-осцилляционный гейт
+(H3ReturnCooldown 300 s): тики в окне cooldown идут в H2 без контакта с H3 и без
+событий; приёмочный критерий выполнен тестом (N тиков при живом H2 и мёртвом H3 →
+ровно один switch). Успех H3 закрепляется (`warp_h3_negotiated`); возврат на H3 —
+только после истечения cooldown в очередном cooldown-цикле супервизора.
+
+| Файл | Обязанности |
+|---|---|
+| `h3qpack.go` | QPACK RFC 9204: static table 74 (App A), RIC=0, dynamic-ref → typed ErrQPACKDynamic fail-closed; Huffman через x/net/http2/hpack (ноль новых deps); вектор warp-socks colo `24ab781d95ac43d07f` PASS |
+| `h3frame.go` | Фреймы RFC 9114: skip unknown ≤8, cap 64 KiB, control-stream lifecycle, qpack uni-streams drain |
+| `h3datagram.go` | wrap/unwrap quarter-stream-id + ctx=0 (path B владеет проводом) |
+| `dialudp.go` + `_linux/_other` | DialPolicy.ListenUDP: SO_MARK/SO_BINDTODEVICE через Control ДО bind, RequireMark fail-closed |
+| `h3tls.go` | PrepareH3TLSConfig: ALPN h3, TLS 1.3 only, Curves P256/P384 (без HelloRetryRequest) |
+| `h3session.go` | DialH3Session: dual-bind UDP carrier → QUIC (CID20/datagrams/PMTUD auto/keepalive 15s/idle 90s) → control+SETTINGS{0x276:1} → extended CONNECT (точный верифицированный набор заголовков usque) → ответ под общим HandshakeBudget; retry ровно ×2 на retriable-семье; классы quic-protocol-violation / udp-egress-blocked / quic-stream-quota-hang / h3-negotiation-failed / session-aborted; API зеркалит Session; cf-warp-colo парсится с H3-ответа |
+| `fakeh3_test.go` / `h3stand_test.go` | фейковый H3-MASQUE edge (quic-go server side) + матрица поведения: happy echo / reject 403 / silent-drop / teardown mid-stream / hang-connect / quota-hang / clean-kill(retry×2) / wrong-pin fail-closed / blackhole |
+| `ladder.go` | контракт packetTransport (*Session/*H3Session); TransportDialer{Dial, ObserveValidation} — trust gate остаётся в супервизоре, исход возвращается лестнице; H3FirstDialer с гейтом h3BlockedUntil; ProbeUDPReachability: три различимых класса reachable / udp-refused / udp-blackhole (= egress-block verdict); LadderMetrics: h3_dial_total{result}, h3_fallback_to_h2_total, switches, blocked-flag |
+| `catalog.go` (+E-H3) | QuicCatalogCandidates(): 6 адресов × 7 портов каталога (42, v4-first), turbo = 1 seed; версия карты НЕ менялась (CatalogVersion=1), SeedEndpoints не тронут |
+| `discovery.go` (+E-H3) | H3VerifyConfig: QUIC-ветка скана (reachability probe → DialH3Session+trust gate → durability burst), EndpointScore.Transport ("h2"/"h3"), QUIC-first порядок кандидатов, maxTargets общий |
+| `supervisor.go` (+E-H3) | SupervisorConfig.Dialer (nil = прежнее поведение байт-в-байт); события warp_h3_negotiated / warp_transport_switched эмитит супервизор на едином пути; Status.LastTransport; masque_connected несёт Detail transport=h2|h3 |
+| `nfqwiring.go` (+E-H3, EH5) | FakeQUICCover: профиль Nova (ipset CF-v4+v6 из версии карты, порты 7, fake-bin repeats×6, autottl — Validate() отвергает дрейф); Arm строго перед H3-диалом, Release на каждом терминальном исходе, при успехе — ТОЛЬКО после trust gate (§C.4); CoverApplier-дисциплина: движок без netfilter, отказ Arm = fail-closed к H2 на генерацию БЕЗ отравления гейта |
+
+Наблюдаемость EH4: события идут существующим Sink→warpwire (priority P1),
+payload failure_class/detail/colo — путь colo H3→EvMasqueConnected→trace-payload
+проверен тестом (TestSupervisorH3ColoFlowsToTraceEvent).
 Тесты по этапам: `catalog_test.go`, `varint_test.go`, `tlsconf_test.go`, `probe_test.go`,
 `session_test.go`, `enrollment_test.go`, `identity_test.go`, `supervisor_test.go`,
 `discovery_test.go`, `nested_test.go`, `nonru_test.go`, общий фейковый стенд
-(`fakeserver_test.go`, `fakeapi_test.go`). Названия файлов могут отличаться на уровне
+(`fakeserver_test.go`, `fakeapi_test.go`, `fakeh3_test.go`), юниты H3 (`h3qpack_test.go`, `h3stand_test.go`, `h3session_test.go`) и E-H3 (`ladder_test.go`, `discovery_h3_test.go`, `cover_test.go`). Названия файлов могут отличаться на уровне
 мелкой рефакторации — обязательна именно ПОКРЫВАЕМОСТЬ обязанностей этапа.
 
 Верификация при сдаче (выполнено агентом, воспроизводится командой):
@@ -265,7 +299,7 @@ docker run --rm --dns 8.8.8.8 \
    применение = отдельная полевая сессия.
 2. **Полевой слой**: создание TUN-устройства, NDM, PBR/NAT/MSS apply — вне движка (дизайн §11.3);
    движок экспортирует io-адаптеры устройства (ReadPacket/WritePacket).
-3. **H3/QUIC transport** не реализован (capability reserved; константы каталога и QUIC-числа задокументированы).
+3. **H3/QUIC transport** — РЕАЛИЗОВАН в рамках E-H3 (2026-08-25, EH1–EH5): режим h3 + лестница H3→H2 + fake-QUIC cover; снято с учёта. Остатки: полевая валидация не проводилась (consent rule); authority-режим extended CONNECT (IP:port vs домен шаблона) — открытое решение владельца; live-CF трафик из тестов по-прежнему запрещён.
 4. **Живой Cloudflare end-to-end не прогонялся ни разу** (consent rule): вся проверка протокола — против
    запинненного usque-референса и фейковых серверов. Статус полевой валидации: BLOCKED_TARGET_VALIDATION.
 5. Android forwarded-flow correlation proof (§62.3) — требует поля.

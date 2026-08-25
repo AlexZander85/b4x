@@ -30,6 +30,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/netip"
 	"sort"
 	"strings"
@@ -358,4 +359,230 @@ func hashAddrs(addrs []netip.Addr) string {
 	}
 	sum := sha256.Sum256([]byte(strings.Join(parts, ",")))
 	return hex.EncodeToString(sum[:8])
+}
+
+// ---- fake-QUIC bootstrap cover (E-H3 continuation, EH5) ----
+//
+// While an H3 establishment is IN FLIGHT, QUIC traffic to the WARP ranges
+// must receive the fake-QUIC NFQ profile (Nova warp.json pattern: CF ipset
+// v4+v6, the 7 catalog ports, fake-bin repeats×6, AutoTTL). The cover is
+// armed by the transport ladder right before the H3 dial and released on
+// every terminal outcome — STRICTLY after the trust gate when the session
+// establishes (established ⇒ camouflage off, §C.4 semantics; the ladder's
+// ObserveValidation(success) path owns that release).
+//
+// Engine-side discipline mirrors ControlFlowGuard: this package never
+// touches netfilter. The field layer binds CoverApplier to `ipset add/del
+// -exist` (or nft set updates) against the sets its fake-QUIC rules already
+// reference; ports/repeats/autottl are RULE-SIDE parameters whose values are
+// pinned here by the profile contract so hook and engine cannot drift.
+
+// Cover lifecycle event names (§62.7 family).
+const (
+	EvFakeQUICCoverArmed    = "warp_fake_quic_cover_armed"
+	EvFakeQUICCoverReleased = "warp_fake_quic_cover_released"
+)
+
+// DefaultFakeQUICCoverSetV4/V6 are the kernel set names the fake-QUIC rules
+// reference (Nova naming, b4- prefixed to avoid collisions).
+const (
+	DefaultFakeQUICCoverSetV4 = "b4_cf_fakequic_v4"
+	DefaultFakeQUICCoverSetV6 = "b4_cf_fakequic_v6"
+)
+
+// DefaultFakeBinRepeats is the Nova fake-bin repetition count.
+const DefaultFakeBinRepeats = 6
+
+// FakeQUICProfile pins the establishment-cover parameters.
+type FakeQUICProfile struct {
+	SetNameV4      string   `json:"set_v4"`
+	SetNameV6      string   `json:"set_v6"`
+	Ports          []uint16 `json:"ports"`
+	FakeBinRepeats int      `json:"fake_bin_repeats"`
+	AutoTTL        bool     `json:"autottl"`
+}
+
+// DefaultFakeQUICCoverProfile returns the Nova-conformant profile: distinct
+// v4/v6 set names, EXACTLY the versioned catalog port set, repeats×6,
+// AutoTTL enabled.
+func DefaultFakeQUICCoverProfile() FakeQUICProfile {
+	return FakeQUICProfile{
+		SetNameV4:      DefaultFakeQUICCoverSetV4,
+		SetNameV6:      DefaultFakeQUICCoverSetV6,
+		Ports:          append([]uint16(nil), Ports...),
+		FakeBinRepeats: DefaultFakeBinRepeats,
+		AutoTTL:        true,
+	}
+}
+
+// Validate enforces the Nova pattern. A drifted profile is a hard error:
+// half-applied camouflage is worse than none (z2k lesson #16 discipline).
+func (p FakeQUICProfile) Validate() error {
+	switch {
+	case p.SetNameV4 == "" || p.SetNameV6 == "":
+		return fmt.Errorf("%w: cover set names must be non-empty", ErrGuardConfig)
+	case p.SetNameV4 == p.SetNameV6:
+		return fmt.Errorf("%w: cover set names must differ (v4 vs v6)", ErrGuardConfig)
+	case p.FakeBinRepeats != DefaultFakeBinRepeats:
+		return fmt.Errorf("%w: fake-bin repeats = %d, want %d", ErrGuardConfig, p.FakeBinRepeats, DefaultFakeBinRepeats)
+	case !p.AutoTTL:
+		return fmt.Errorf("%w: autottl disabled breaks the Nova pattern", ErrGuardConfig)
+	}
+	if len(p.Ports) != len(Ports) {
+		return fmt.Errorf("%w: cover ports = %d entries, want the %d-port catalog set", ErrGuardConfig, len(p.Ports), len(Ports))
+	}
+	for i, port := range p.Ports {
+		if port != Ports[i] || !KnownPort(port) {
+			return fmt.Errorf("%w: cover port [%d]=%d drifts from the catalog set", ErrGuardConfig, i, port)
+		}
+	}
+	return nil
+}
+
+// CoverApplier activates/deactivates the coverage sets. Activate MUST ensure
+// every prefix of each family is present in the named set (partial applies
+// are forbidden — warp_destination_set_partial_apply_total discipline);
+// Deactivate releases coverage entirely.
+type CoverApplier interface {
+	Activate(setV4, setV6 string, v4 []netip.Prefix, v6 []netip.Prefix) error
+	Deactivate(setV4, setV6 string) error
+}
+
+// FakeQUICCoverConfig wires the cover.
+type FakeQUICCoverConfig struct {
+	Profile FakeQUICProfile
+	Apply   CoverApplier
+	Sink    func(GuardEvent)
+	Now     func() time.Time
+}
+
+// FakeQUICCover owns the arm/release lifecycle around H3 establishments.
+// It implements BootstrapCover and is safe for concurrent use.
+type FakeQUICCover struct {
+	cfg FakeQUICCoverConfig
+
+	mu          sync.Mutex
+	armed       bool
+	arms        uint64
+	releases    uint64
+	applyErrors uint64
+	lastErr     string
+}
+
+// NewFakeQUICCover validates the profile shape.
+func NewFakeQUICCover(cfg FakeQUICCoverConfig) (*FakeQUICCover, error) {
+	if err := cfg.Profile.Validate(); err != nil {
+		return nil, err
+	}
+	if cfg.Apply == nil {
+		return nil, fmt.Errorf("%w: cover requires an applier", ErrGuardConfig)
+	}
+	return &FakeQUICCover{cfg: cfg}, nil
+}
+
+// Arm activates the fake-QUIC coverage. Idempotent within one window;
+// errors are structural — the ladder fails closed to H2 for the generation.
+func (c *FakeQUICCover) Arm() error {
+	c.mu.Lock()
+	if c.armed {
+		c.mu.Unlock()
+		return nil
+	}
+	profile, applier := c.cfg.Profile, c.cfg.Apply
+	c.mu.Unlock()
+
+	v4, v6 := cfCoverPrefixes()
+	if err := applier.Activate(profile.SetNameV4, profile.SetNameV6, v4, v6); err != nil {
+		c.mu.Lock()
+		c.applyErrors++
+		c.lastErr = err.Error()
+		c.mu.Unlock()
+		return err
+	}
+
+	c.mu.Lock()
+	wasArmed := c.armed
+	c.armed = true
+	if !wasArmed {
+		c.arms++
+	}
+	c.mu.Unlock()
+	c.emit(GuardEvent{
+		Name:   EvFakeQUICCoverArmed,
+		Detail: "profile=nova sets=" + profile.SetNameV4 + "+" + profile.SetNameV6 + " ports=7 fake_bin_repeats=6 autottl=on",
+	})
+	return nil
+}
+
+// Release deactivates the coverage. Safe to call from every terminal path;
+// no-op when nothing is armed.
+func (c *FakeQUICCover) Release(reason string) {
+	c.mu.Lock()
+	if !c.armed {
+		c.mu.Unlock()
+		return
+	}
+	profile, applier := c.cfg.Profile, c.cfg.Apply
+	c.armed = false
+	c.releases++
+	c.mu.Unlock()
+
+	if err := applier.Deactivate(profile.SetNameV4, profile.SetNameV6); err != nil {
+		c.mu.Lock()
+		c.applyErrors++
+		c.lastErr = err.Error()
+		c.mu.Unlock()
+		// Deactivate failure leaves rules referencing empty/absent sets in
+		// the worst case; surfaced via Status for the field layer to heal.
+	}
+	c.emit(GuardEvent{Name: EvFakeQUICCoverReleased, Detail: "reason=" + reason})
+}
+
+// Status snapshots the cover counters.
+type FakeQUICCoverStatus struct {
+	Armed       bool
+	Arms        uint64
+	Releases    uint64
+	ApplyErrors uint64
+	LastError   string
+}
+
+func (c *FakeQUICCover) Status() FakeQUICCoverStatus {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return FakeQUICCoverStatus{
+		Armed:       c.armed,
+		Arms:        c.arms,
+		Releases:    c.releases,
+		ApplyErrors: c.applyErrors,
+		LastError:   c.lastErr,
+	}
+}
+
+// cfCoverPrefixes splits the versioned WARP gateway map into the v4/v6
+// families for the coverage sets (the QUIC gateways live inside the same
+// blocks, so one range set covers both carriers' bootstrap traffic).
+func cfCoverPrefixes() (v4, v6 []netip.Prefix) {
+	for _, p := range h2GatewayCIDRs {
+		if p.Addr().Is4() {
+			v4 = append(v4, p)
+		} else {
+			v6 = append(v6, p)
+		}
+	}
+	return v4, v6
+}
+
+func (c *FakeQUICCover) emit(ev GuardEvent) {
+	ev.ObservedAt = c.now()
+	if c.cfg.Sink != nil {
+		c.cfg.Sink(ev)
+	}
+}
+
+func (c *FakeQUICCover) now() time.Time {
+	if c.cfg.Now != nil {
+		return c.cfg.Now()
+	}
+	return time.Now()
 }

@@ -123,6 +123,27 @@ func KnownPort(port uint16) bool {
 	return false
 }
 
+// QuicCatalogCandidates builds the bounded QUIC-branch candidate list for
+// the H3-enabled discovery scan (E-H3 continuation, EH3): every catalog
+// QUIC gateway address × the full known port set, v4 anycast pair first,
+// then the v6 pairs — all inside the SAME versioned map (no new ranges,
+// CatalogVersion unchanged; §34 gate holds because both factors of the
+// product are catalog-listed). Turbo stays a single bootstrap seed.
+// The two-address :443 SeedEndpoints(KindMasqueQUIC) list remains the
+// registration/bootstrap seed and is untouched (its shape is pinned by test).
+func QuicCatalogCandidates(s ScanStrategy) []netip.AddrPort {
+	if s == StrategyTurbo {
+		return []netip.AddrPort{netip.AddrPortFrom(quicGatewayAddrs[0], Ports[0])}
+	}
+	out := make([]netip.AddrPort, 0, len(quicGatewayAddrs)*len(Ports))
+	for _, a := range quicGatewayAddrs {
+		for _, p := range Ports {
+			out = append(out, netip.AddrPortFrom(a, p))
+		}
+	}
+	return out
+}
+
 // CatalogCandidates builds the bounded candidate list for a scan strategy
 // from the versioned map ONLY (addendum §34: discovery may test catalog
 // entries, never arbitrary internet addresses). H2 scanning stays

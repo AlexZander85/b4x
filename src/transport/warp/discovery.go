@@ -131,6 +131,9 @@ type EndpointScore struct {
 	TailRun  int           // final consecutive unanswered probes
 	Sent     int
 	Answered int
+	// Transport names the carrier the score was measured with
+	// ("h2"/"h3"; "" on pre-H3 producers).
+	Transport string
 }
 
 // DiscoveryResult summarizes one Discover() run.
@@ -141,6 +144,20 @@ type DiscoveryResult struct {
 }
 
 var ErrNoCandidates = errors.New("transportwarp: discovery produced no verified endpoint")
+
+// H3VerifyConfig enables the QUIC branch of the scan (E-H3 continuation,
+// EH3). When non-nil, QUIC-kind candidates are verified with the H3 carrier
+// after a fast UDP-reachability probe whose outcome distinguishes an edge
+// that SPOKE from a fast network refusal from egress-block silence.
+type H3VerifyConfig struct {
+	// ProbeBudget bounds the reachability pre-probe per candidate.
+	ProbeBudget time.Duration // DefaultReachabilityProbeBudget when zero
+
+	// QuicCandidatesOverride replaces the catalog-built QUIC list. TESTS
+	// ONLY (same discipline as CandidatesOverride): production MUST leave
+	// it nil so every QUIC candidate comes from the versioned map.
+	QuicCandidatesOverride []netip.AddrPort
+}
 
 // DiscovererConfig configures Discoverer. Zero fields fall back to defaults.
 type DiscovererConfig struct {
@@ -159,6 +176,9 @@ type DiscovererConfig struct {
 	// ONLY: production MUST leave nil so every candidate comes from the
 	// versioned map (addendum §34 gate).
 	CandidatesOverride []netip.AddrPort
+
+	// H3 enables the QUIC branch; nil keeps pure-H2 discovery.
+	H3 *H3VerifyConfig
 
 	Now func() time.Time
 	// Sleep paces the durability burst; tests make it instant/fast.
@@ -229,7 +249,7 @@ func (d *Discoverer) Discover(ctx context.Context) (DiscoveryResult, error) {
 	// --- fast last-good re-verify (5s budget) ---
 	if ep, ok := d.loadLastGood(); ok {
 		fastCtx, cancel := context.WithTimeout(ctx, FastReverifyBudget)
-		score := d.verifyCandidate(fastCtx, ep, verifyParams{fastMode: true})
+		score := d.verifyCandidate(fastCtx, scanCandidate{ep: ep}, verifyParams{fastMode: true})
 		cancel()
 		if score.Class == VerifiedHealthy || score.Class == VerifiedLossy {
 			d.clearStrikes(ep)
@@ -288,27 +308,54 @@ func better(a, b EndpointScore) bool {
 	return a.RTT < b.RTT
 }
 
-// selectCandidates builds the strategy list: catalog order (or test
-// override), minus cooldown-excluded, capped at maxTargets.
-func (d *Discoverer) selectCandidates(maxTargets int) []netip.AddrPort {
-	var list []netip.AddrPort
+// scanCandidate is one unit of scan work: an endpoint plus its catalog kind.
+type scanCandidate struct {
+	ep   netip.AddrPort
+	quic bool
+}
+
+// selectCandidates builds the strategy list: QUIC candidates first (H3 is
+// the preferred carrier; ties in ranking keep this insertion order via the
+// stable sort), then H2 — catalog order or test overrides, minus
+// cooldown-excluded, capped at maxTargets.
+func (d *Discoverer) selectCandidates(maxTargets int) []scanCandidate {
+	var h2 []netip.AddrPort
+	var quic []netip.AddrPort
 	if len(d.cfg.CandidatesOverride) > 0 {
-		list = append([]netip.AddrPort(nil), d.cfg.CandidatesOverride...)
+		h2 = append([]netip.AddrPort(nil), d.cfg.CandidatesOverride...)
 	} else {
-		list = CatalogCandidates(KindMasqueH2, d.cfg.Strategy)
+		h2 = CatalogCandidates(KindMasqueH2, d.cfg.Strategy)
+	}
+	if d.cfg.H3 != nil {
+		if len(d.cfg.H3.QuicCandidatesOverride) > 0 {
+			quic = append([]netip.AddrPort(nil), d.cfg.H3.QuicCandidatesOverride...)
+		} else {
+			quic = QuicCatalogCandidates(d.cfg.Strategy)
+		}
 	}
 	now := d.cfg.now()
-	out := make([]netip.AddrPort, 0, len(list))
+	out := make([]scanCandidate, 0, len(h2)+len(quic))
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	for _, ep := range list {
+	appendOK := func(ep netip.AddrPort, quicKind bool) bool {
 		if len(out) >= maxTargets {
-			break
+			return false
 		}
 		if until, bad := d.excluded[ep]; bad && until.After(now) {
-			continue
+			return true // skip but keep filling remaining slots
 		}
-		out = append(out, ep)
+		out = append(out, scanCandidate{ep: ep, quic: quicKind})
+		return true
+	}
+	for _, ep := range quic {
+		if !appendOK(ep, true) {
+			return out
+		}
+	}
+	for _, ep := range h2 {
+		if !appendOK(ep, false) {
+			break
+		}
 	}
 	return out
 }
@@ -317,7 +364,7 @@ func (d *Discoverer) selectCandidates(maxTargets int) []netip.AddrPort {
 // everything at the first verified result and runs SEQUENTIALLY so no dial
 // budget is wasted on candidates that would be abandoned mid-flight.
 // All goroutines are joined before return (no leaks).
-func (d *Discoverer) scan(ctx context.Context, cands []netip.AddrPort, earlyExit bool) []EndpointScore {
+func (d *Discoverer) scan(ctx context.Context, cands []scanCandidate, earlyExit bool) []EndpointScore {
 	conc := tierConcurrency(d.cfg.Tier)
 	if earlyExit {
 		conc = 1
@@ -325,7 +372,7 @@ func (d *Discoverer) scan(ctx context.Context, cands []netip.AddrPort, earlyExit
 	if conc > len(cands) {
 		conc = len(cands)
 	}
-	jobs := make(chan netip.AddrPort)
+	jobs := make(chan scanCandidate)
 	results := make(chan EndpointScore, len(cands))
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 
@@ -338,12 +385,12 @@ func (d *Discoverer) scan(ctx context.Context, cands []netip.AddrPort, earlyExit
 				select {
 				case <-workerCtx.Done():
 					return
-				case ep, ok := <-jobs:
+				case cand, ok := <-jobs:
 					if !ok {
 						return
 					}
 					select {
-					case results <- d.verifyCandidate(workerCtx, ep, verifyParams{}):
+					case results <- d.verifyCandidate(workerCtx, cand, verifyParams{}):
 					case <-workerCtx.Done():
 						return
 					}
@@ -353,9 +400,9 @@ func (d *Discoverer) scan(ctx context.Context, cands []netip.AddrPort, earlyExit
 	}
 	go func() {
 		defer close(jobs)
-		for _, ep := range cands {
+		for _, cand := range cands {
 			select {
-			case jobs <- ep:
+			case jobs <- cand:
 			case <-workerCtx.Done():
 				return
 			}
@@ -429,21 +476,103 @@ type verifyParams struct {
 }
 
 // verifyCandidate runs connect/validate flap-tolerant rounds plus the
-// durability burst, returning the measured score.
-func (d *Discoverer) verifyCandidate(ctx context.Context, ep netip.AddrPort, p verifyParams) EndpointScore {
+// durability burst, returning the measured score. QUIC-kind candidates go
+// through the H3 carrier (probe → dial → validate → burst); the rest keep
+// the H2 path unchanged.
+func (d *Discoverer) verifyCandidate(ctx context.Context, cand scanCandidate, p verifyParams) EndpointScore {
+	if cand.quic {
+		return d.verifyQuicCandidate(ctx, cand.ep, p)
+	}
+	return d.verifyH2Candidate(ctx, cand.ep, p)
+}
+
+// probeUDPClass runs the fast reachability pre-probe for one QUIC candidate.
+func (d *Discoverer) probeUDPClass(ctx context.Context, ep netip.AddrPort) ReachabilityClass {
+	budget := DefaultReachabilityProbeBudget
+	if d.cfg.H3 != nil && d.cfg.H3.ProbeBudget > 0 {
+		budget = d.cfg.H3.ProbeBudget
+	}
+	scfg := d.sessionFor(ep)
+	class, err := ProbeUDPReachability(ctx, scfg, budget)
+	if err != nil && class == "" {
+		// Config-level failure (key/cert build): treat as dead-candidate
+		// silence — verification cannot proceed on this candidate.
+		return ReachBlackhole
+	}
+	return class
+}
+
+// verifyQuicCandidate mirrors the H2 flap-tolerant shape over the H3
+// carrier. The reachability probe is PART of verification: blackhole/refused
+// verdicts mark the candidate dead without burning full session budgets.
+func (d *Discoverer) verifyQuicCandidate(ctx context.Context, ep netip.AddrPort, p verifyParams) EndpointScore {
+	score := EndpointScore{Endpoint: ep, Transport: TransportH3}
+
+	switch d.probeUDPClass(ctx, ep) {
+	case ReachBlackhole:
+		// udp-egress-blocked verdict at probe speed; distinct from a
+		// handshake failure by construction.
+		score.Class = VerifiedDead
+		return score
+	case ReachRefused:
+		score.Class = VerifiedDead
+		return score
+	case ReachReachable:
+		// fall through to full H3 verification
+	default:
+		score.Class = VerifiedDead
+		return score
+	}
+
 	scfg := d.sessionFor(ep)
 	attemptsAllowed := MinAttempts
-	burstCount := BurstCount
 	if p.fastMode {
 		attemptsAllowed = 1
-		burstCount = 5 // research minimum meaningful burst
 	}
 	echoWait := PerProbeTimeoutLimit
 	if w := scfg.ValidateWindow; w > 0 && w < echoWait {
 		echoWait = w
 	}
 
-	score := EndpointScore{Endpoint: ep}
+	var sess packetTransport
+	var cres ConnectResult
+	for score.Attempts < attemptsAllowed {
+		score.Attempts++ // every round counts, including the successful one
+		s, c, err := DialH3Session(ctx, h3ConfigFromSession(scfg))
+		if err != nil {
+			continue
+		}
+		if verr := s.ValidateDataPlane(ctx); verr != nil {
+			s.Close()
+			continue
+		}
+		sess, cres = s, c.connectResult()
+		break
+	}
+	if sess == nil {
+		score.Class = VerifiedDead
+		return score
+	}
+	defer sess.Close()
+	score.Colo = cres.Colo
+
+	d.runBurst(ctx, sess, &score, echoWait, p)
+	return score
+}
+
+// verifyH2Candidate is the pre-EH3 verification path, byte-for-byte.
+func (d *Discoverer) verifyH2Candidate(ctx context.Context, ep netip.AddrPort, p verifyParams) EndpointScore {
+	scfg := d.sessionFor(ep)
+	attemptsAllowed := MinAttempts
+	if p.fastMode {
+		attemptsAllowed = 1
+	}
+	echoWait := PerProbeTimeoutLimit
+	if w := scfg.ValidateWindow; w > 0 && w < echoWait {
+		echoWait = w
+	}
+
+	score := EndpointScore{Endpoint: ep, Transport: TransportH2}
 	var sess *Session
 	var cres ConnectResult
 	for score.Attempts < attemptsAllowed {
@@ -466,7 +595,18 @@ func (d *Discoverer) verifyCandidate(ctx context.Context, ep netip.AddrPort, p v
 	defer sess.Close()
 	score.Colo = cres.Colo
 
-	probe, _ := NewDNSProbe(scfg.LocalV4, [4]byte{8, 8, 8, 8}, "cloudflare.com")
+	d.runBurst(ctx, sess, &score, echoWait, p)
+	return score
+}
+
+// runBurst executes the durability burst against an established session and
+// fills class/loss/RTT fields (shared by both carriers).
+func (d *Discoverer) runBurst(ctx context.Context, sess packetTransport, score *EndpointScore, echoWait time.Duration, p verifyParams) {
+	burstCount := BurstCount
+	if p.fastMode {
+		burstCount = 5 // research minimum meaningful burst
+	}
+	probe, _ := NewDNSProbe(d.cfg.Template.LocalV4, [4]byte{8, 8, 8, 8}, "cloudflare.com")
 	reader := newBurstReader(ctx, sess)
 	defer reader.close()
 
@@ -510,7 +650,6 @@ func (d *Discoverer) verifyCandidate(ctx context.Context, ep netip.AddrPort, p v
 			score.Class = VerifiedLossy
 		}
 	}
-	return score
 }
 
 // sessionFor builds a verification SessionConfig for one endpoint.
@@ -536,7 +675,7 @@ type burstReader struct {
 	done   chan struct{}
 }
 
-func newBurstReader(parent context.Context, sess *Session) *burstReader {
+func newBurstReader(parent context.Context, sess packetTransport) *burstReader {
 	rctx, cancel := context.WithCancel(parent)
 	b := &burstReader{ch: make(chan packetMsg, 8), cancel: cancel, done: make(chan struct{})}
 	go func() {
