@@ -65,7 +65,7 @@ func TestParseListFileFormats(t *testing.T) {
 }
 
 func TestReloadFailOpenOnMissingLists(t *testing.T) {
-	cfg := config.AdBlockConfig{Enabled: true, Lists: []string{filepath.Join(t.TempDir(), "absent.txt")}}
+	cfg := config.AdBlockConfig{Enabled: true, Lists: []config.AdBlockList{{Source: filepath.Join(t.TempDir(), "absent.txt"), Enabled: true}}}
 	Reload(cfg)
 	s := GetStats()
 	if s.Enabled {
@@ -84,7 +84,7 @@ func TestReloadAllowlistWins(t *testing.T) {
 	allowP := writeFile(t, "ok.example.com\n")
 	Reload(config.AdBlockConfig{
 		Enabled:   true,
-		Lists:     []string{blockP},
+		Lists:     []config.AdBlockList{{Source: blockP, Enabled: true}},
 		Allowlist: []string{allowP},
 	})
 	if d, _ := Decide("example.com"); d != DecisionBlock {
@@ -100,7 +100,7 @@ func TestReloadAllowlistWins(t *testing.T) {
 
 func TestReloadDisabledIgnoresLists(t *testing.T) {
 	blockP := writeFile(t, "example.com\n")
-	Reload(config.AdBlockConfig{Enabled: false, Lists: []string{blockP}})
+	Reload(config.AdBlockConfig{Enabled: false, Lists: []config.AdBlockList{{Source: blockP, Enabled: true}}})
 	if GetStats().Enabled {
 		t.Fatal("disabled config must not activate layer")
 	}

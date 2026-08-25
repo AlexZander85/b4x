@@ -96,16 +96,16 @@ var (
 	reloadFailures atomic.Int64
 )
 
-// fileFingerprint fingerprints path set + size+mtime of each existing file so
-// UpdateConfig can call Reload repeatedly without re-reading unchanged files.
+// fileFingerprint fingerprints path set + enabled flags + size+mtime of each
+// existing file so UpdateConfig can call Reload repeatedly without re-reading
+// unchanged files.
 func fileFingerprint(cfg config.AdBlockConfig) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("e=%v;a=%v;m=%d;", cfg.Enabled, cfg.Action, cfg.MaxEntries))
-	appendPaths := func(paths []string) {
-		for _, p := range paths {
-			sb.WriteString(p)
-			sb.WriteByte('|')
-			if st, err := os.Stat(p); err == nil {
+	appendPaths := func(lists []config.AdBlockList) {
+		for _, l := range lists {
+			fmt.Fprintf(&sb, "%s:%v|", l.Source, l.Enabled)
+			if st, err := os.Stat(l.Source); err == nil {
 				fmt.Fprintf(&sb, "%d:%d;", st.Size(), st.ModTime().UnixNano())
 			} else {
 				sb.WriteString("missing;")
@@ -114,8 +114,16 @@ func fileFingerprint(cfg config.AdBlockConfig) string {
 	}
 	appendPaths(cfg.Lists)
 	sb.WriteByte('>')
-	appendPaths(cfg.Allowlist)
+	appendPaths(allowOf(cfg.Allowlist))
 	return sb.String()
+}
+
+func allowOf(paths []string) []config.AdBlockList {
+	out := make([]config.AdBlockList, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, config.AdBlockList{Source: p, Enabled: true})
+	}
+	return out
 }
 
 // normalizeListLine converts one raw list line into a lowercase domain
@@ -238,16 +246,16 @@ func Reload(cfg config.AdBlockConfig) {
 
 	block := newMatcher("block")
 	loadedAny := false
-	for _, p := range cfg.Lists {
-		m, n, err := parseListFile(p, cfg.MaxEntries)
+	for _, src := range cfg.ActiveSources() {
+		m, n, err := parseListFile(src, cfg.MaxEntries)
 		if err != nil {
 			listInvalid.Add(1)
-			log.Warnf("adblock: list %s invalid: %v", p, err)
+			log.Warnf("adblock: list %s invalid: %v", src, err)
 			continue
 		}
 		block.domains = mergeInto(block.domains, m)
 		loadedAny = true
-		log.Infof("adblock: loaded %s (%d entries)", p, n)
+		log.Infof("adblock: loaded %s (%d entries)", src, n)
 	}
 	allow := newMatcher("allow")
 	for _, p := range cfg.Allowlist {

@@ -38,7 +38,7 @@ func TestSubscriptionFirstRunAndRefresh(t *testing.T) {
 	cacheDir := t.TempDir()
 	cfg := config.AdBlockConfig{
 		Enabled: true,
-		Lists:   []string{srv.URL + "/list.domains"},
+		Lists:   []config.AdBlockList{{Source: srv.URL + "/list.domains", Enabled: true}},
 	}
 
 	ApplyConfig(cfg, cacheDir, "")
@@ -50,11 +50,11 @@ func TestSubscriptionFirstRunAndRefresh(t *testing.T) {
 	// Refresh cycle: swap server body and drop the cache so the next pass
 	// re-downloads; the NEW domain must activate, the OLD must deactivate.
 	body = "fresh.example.com\n"
-	dest := cachePathFor(cacheDir, srv.URL+"/list.domains")
+	dest := CachePathFor(cacheDir, srv.URL+"/list.domains")
 	if err := os.Remove(dest); err != nil {
 		t.Fatal(err)
 	}
-	refreshSubscriptions(srv.Client(), cfg, cacheDir, 0) // direct deterministic pass
+	refreshSubscriptions(srv.Client(), cfg, cacheDir, 0, true) // direct deterministic forced pass
 	if d, _ := Decide("fresh.example.com"); d != DecisionBlock {
 		t.Fatal("refreshed subscription did not activate new domain")
 	}
@@ -79,19 +79,19 @@ func TestSubscriptionFailureKeepsPrevious(t *testing.T) {
 	cacheDir := t.TempDir()
 	cfg := config.AdBlockConfig{
 		Enabled:      true,
-		Lists:        []string{srv.URL + "/list.domains"},
+		Lists:        []config.AdBlockList{{Source: srv.URL + "/list.domains", Enabled: true}},
 		RefreshHours: 1,
 	}
 	ApplyConfig(cfg, cacheDir, "")
 	waitForBlock(t, "stable.example.com")
 
 	failNow = true
-	if err := os.Remove(cachePathFor(cacheDir, srv.URL+"/list.domains")); err != nil {
+	if err := os.Remove(CachePathFor(cacheDir, srv.URL+"/list.domains")); err != nil {
 		t.Fatal(err)
 	}
 	// Force a refresh pass against the failing server with no cached copy:
 	// the layer must stay functional for what it had, never block-all.
-	refreshSubscriptions(srv.Client(), cfg, cacheDir, time.Hour)
+	refreshSubscriptions(srv.Client(), cfg, cacheDir, time.Hour, true)
 	st := GetStats()
 	if st.FetchFail == 0 {
 		t.Fatal("expected a recorded fetch failure")
@@ -119,7 +119,7 @@ func TestSubscriptionSizeLimit(t *testing.T) {
 	cacheDir := t.TempDir()
 	cfg := config.AdBlockConfig{
 		Enabled:    true,
-		Lists:      []string{srv.URL + "/huge.domains"},
+		Lists:      []config.AdBlockList{{Source: srv.URL + "/huge.domains", Enabled: true}},
 		MaxEntries: 5,
 	}
 	client := srv.Client()

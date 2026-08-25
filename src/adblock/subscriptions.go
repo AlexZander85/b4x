@@ -37,10 +37,13 @@ func isURL(entry string) bool {
 	return strings.HasPrefix(entry, "http://") || strings.HasPrefix(entry, "https://")
 }
 
-// splitLists separates subscription URLs from plain local file paths.
-func splitLists(lists []string) (urls, locals []string) {
+// splitLists separates enabled subscription URLs from enabled local files.
+func splitLists(lists []config.AdBlockList) (urls, locals []config.AdBlockList) {
 	for _, l := range lists {
-		if isURL(l) {
+		if !l.Enabled || strings.TrimSpace(l.Source) == "" {
+			continue
+		}
+		if isURL(l.Source) {
 			urls = append(urls, l)
 		} else {
 			locals = append(locals, l)
@@ -49,13 +52,13 @@ func splitLists(lists []string) (urls, locals []string) {
 	return urls, locals
 }
 
-func cachePathFor(cacheDir, url string) string {
+func CachePathFor(cacheDir, url string) string {
 	sum := sha256.Sum256([]byte(url))
 	return filepath.Join(cacheDir, "sub-"+hex.EncodeToString(sum[:12])+".domains")
 }
 
 // resolveCacheDir returns the effective cache directory for the config path.
-func resolveCacheDir(cfg config.AdBlockConfig, configPath string) string {
+func ResolveCacheDir(cfg config.AdBlockConfig, configPath string) string {
 	if cfg.CacheDir != "" {
 		return cfg.CacheDir
 	}
@@ -168,10 +171,12 @@ var DefaultSubscriptions = []string{
 
 // resolveLists applies the default subscriptions when the layer is enabled
 // with an empty list set. Explicit user lists always win.
-func resolveLists(cfg config.AdBlockConfig) []string {
+func resolveLists(cfg config.AdBlockConfig) []config.AdBlockList {
 	if len(cfg.Lists) == 0 {
-		out := make([]string, len(DefaultSubscriptions))
-		copy(out, DefaultSubscriptions)
+		out := make([]config.AdBlockList, 0, len(DefaultSubscriptions))
+		for _, u := range DefaultSubscriptions {
+			out = append(out, config.AdBlockList{Source: u, Enabled: true})
+		}
 		return out
 	}
 	return cfg.Lists
@@ -184,12 +189,16 @@ func ApplyConfig(cfg config.AdBlockConfig, cacheDir, configPath string) {
 	cfg.FillDefaults()
 	cfg.Lists = resolveLists(cfg)
 	if cacheDir == "" {
-		cacheDir = resolveCacheDir(cfg, configPath)
+		cacheDir = ResolveCacheDir(cfg, configPath)
 	}
 	interval := time.Duration(cfg.RefreshHours) * time.Hour
 	urls, _ := splitLists(cfg.Lists)
+	sources := make([]string, 0, len(urls))
+	for _, u := range urls {
+		sources = append(sources, u.Source)
+	}
 	wantRefresher := cfg.Enabled && len(urls) > 0
-	fp := fmt.Sprintf("%v|%s|%d|%s", cfg.Enabled, cacheDir, cfg.RefreshHours, strings.Join(urls, ">"))
+	fp := fmt.Sprintf("%v|%s|%d|%s", cfg.Enabled, cacheDir, cfg.RefreshHours, strings.Join(sources, ">"))
 
 	refState.mu.Lock()
 	switch {
@@ -215,17 +224,23 @@ func ApplyConfig(cfg config.AdBlockConfig, cacheDir, configPath string) {
 	log.Infof("adblock: subscription refresher started (%d URL(s), interval %s)", len(urls), interval)
 }
 
-// effectiveConfig substitutes every URL entry with its cache-file path so
-// Reload only ever touches local files.
+// effectiveConfig substitutes every enabled URL entry with its cache-file
+// path (disabled entries dropped) so Reload only ever touches local files.
 func effectiveConfig(cfg config.AdBlockConfig, cacheDir string) config.AdBlockConfig {
 	urls, locals := splitLists(cfg.Lists)
-	if len(urls) == 0 {
+	if len(urls) == 0 && len(locals) == len(cfg.Lists) {
 		return cfg
 	}
 	out := cfg
-	out.Lists = append([]string(nil), locals...)
+	out.Lists = make([]config.AdBlockList, 0, len(locals)+len(urls))
+	for _, l := range locals {
+		out.Lists = append(out.Lists, config.AdBlockList{Source: l.Source, Enabled: true})
+	}
 	for _, u := range urls {
-		out.Lists = append(out.Lists, cachePathFor(cacheDir, u))
+		out.Lists = append(out.Lists, config.AdBlockList{
+			Source:  CachePathFor(cacheDir, u.Source),
+			Enabled: true,
+		})
 	}
 	return out
 }
@@ -247,7 +262,7 @@ func StopRefresher() {
 func subscriptionLoop(ctx context.Context, cfg config.AdBlockConfig, cacheDir string, interval time.Duration) {
 	client := &http.Client{Timeout: fetchTimeout}
 	for {
-		refreshSubscriptions(client, cfg, cacheDir, interval)
+		refreshSubscriptions(client, cfg, cacheDir, interval, false)
 		if interval <= 0 {
 			<-ctx.Done()
 			return
@@ -260,17 +275,21 @@ func subscriptionLoop(ctx context.Context, cfg config.AdBlockConfig, cacheDir st
 	}
 }
 
-// refreshSubscriptions fetches every missing/stale subscription, then
-// reloads against the effective set. Failures keep previous files.
-func refreshSubscriptions(client *http.Client, cfg config.AdBlockConfig, cacheDir string, interval time.Duration) {
+// refreshSubscriptions fetches every missing/stale subscription (or ALL of
+// them when force is set), then reloads against the effective set. Failures
+// keep previous files.
+func refreshSubscriptions(client *http.Client, cfg config.AdBlockConfig, cacheDir string, interval time.Duration, force bool) {
 	urls, _ := splitLists(cfg.Lists)
-	for _, u := range urls {
-		dest := cachePathFor(cacheDir, u)
-		need := false
-		if st, err := os.Stat(dest); err != nil {
-			need = true // first run: no cached copy yet
-		} else if interval > 0 && time.Since(st.ModTime()) > interval {
-			need = true
+	for _, sub := range urls {
+		u := sub.Source
+		dest := CachePathFor(cacheDir, u)
+		need := force
+		if !need {
+			if st, err := os.Stat(dest); err != nil {
+				need = true // first run: no cached copy yet
+			} else if interval > 0 && time.Since(st.ModTime()) > interval {
+				need = true
+			}
 		}
 		if !need {
 			continue
@@ -284,4 +303,13 @@ func refreshSubscriptions(client *http.Client, cfg config.AdBlockConfig, cacheDi
 		log.Infof("adblock: subscription %s updated", nameOf(u))
 	}
 	Reload(effectiveConfig(cfg, cacheDir))
+}
+
+// ForceRefresh synchronously re-downloads every enabled subscription,
+// ignoring freshness, then reloads. Intended for the manual "refresh lists"
+// UI action — call from a goroutine, never the hot path.
+func ForceRefresh(cfg config.AdBlockConfig, cacheDir string) {
+	cfg.FillDefaults()
+	cfg.Lists = resolveLists(cfg)
+	refreshSubscriptions(&http.Client{Timeout: fetchTimeout}, cfg, ResolveCacheDir(cfg, cacheDir), time.Hour, true)
 }
