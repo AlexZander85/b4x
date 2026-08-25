@@ -24,18 +24,18 @@ type classifierHardeningStatusResponse struct {
 }
 
 type classifierGSOStatus struct {
-	RequestedMode        string                  `json:"requested_mode"`
-	ExecutionPolicy      string                  `json:"execution_policy"`
-	MaxGSOBytes          int                     `json:"max_gso_bytes"`
-	NormalizeForMutation bool                    `json:"normalize_for_mutation"`
-	TCPOnly              bool                    `json:"tcp_only"`
-	Capability           nfq.GSOCapabilityStatus `json:"capability"`
+	RequestedMode        string                   `json:"requested_mode"`
+	ExecutionPolicy      string                   `json:"execution_policy"`
+	MaxGSOBytes          int                      `json:"max_gso_bytes"`
+	NormalizeForMutation bool                     `json:"normalize_for_mutation"`
+	TCPOnly              bool                     `json:"tcp_only"`
+	Capability           nfq.GSOCapabilityStatus  `json:"capability"`
 	Readiness            nfq.GSOReadinessSnapshot `json:"readiness"`
-	Workers              int                     `json:"workers"`
-	Topology             capture.GSOTopologyPlan `json:"topology"`
-	TopologySource       string                  `json:"topology_source"`
-	TokenStats           nfq.GSOPassTokenStats   `json:"token_stats"`
-	ActiveTokens         int                     `json:"active_tokens"`
+	Workers              int                      `json:"workers"`
+	Topology             capture.GSOTopologyPlan  `json:"topology"`
+	TopologySource       string                   `json:"topology_source"`
+	TokenStats           nfq.GSOPassTokenStats    `json:"token_stats"`
+	ActiveTokens         int                      `json:"active_tokens"`
 }
 
 type classifierPassiveRSTStatus struct {

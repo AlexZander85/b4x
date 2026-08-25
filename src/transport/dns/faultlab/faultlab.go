@@ -24,16 +24,16 @@ import (
 type Mode string
 
 const (
-	ModeValid            Mode = "valid"              // valid resolver
-	ModeEarlyInjection   Mode = "early_injection"    // forged early response + later valid
-	ModeUDPDrop          Mode = "udp_drop"           // UDP silence
-	ModeTruncation       Mode = "truncation"         // UDP TC=1, TCP complete
-	ModeFakeNXDOMAIN     Mode = "fake_nxdomain"      // positive name → NXDOMAIN
-	ModeStubIP           Mode = "stub_ip"            // block-page/stub IP answer
-	ModeCNAMEAltered     Mode = "cname_altered"      // altered CNAME chain
-	ModeAAAAOnly         Mode = "aaaa_only"          // only AAAA answers
-	ModeDNSSECInvalid    Mode = "dnssec_invalid"     // bogus DNSSEC fixture
-	ModeDuplicate        Mode = "duplicate"          // two identical valid responses
+	ModeValid          Mode = "valid"           // valid resolver
+	ModeEarlyInjection Mode = "early_injection" // forged early response + later valid
+	ModeUDPDrop        Mode = "udp_drop"        // UDP silence
+	ModeTruncation     Mode = "truncation"      // UDP TC=1, TCP complete
+	ModeFakeNXDOMAIN   Mode = "fake_nxdomain"   // positive name → NXDOMAIN
+	ModeStubIP         Mode = "stub_ip"         // block-page/stub IP answer
+	ModeCNAMEAltered   Mode = "cname_altered"   // altered CNAME chain
+	ModeAAAAOnly       Mode = "aaaa_only"       // only AAAA answers
+	ModeDNSSECInvalid  Mode = "dnssec_invalid"  // bogus DNSSEC fixture
+	ModeDuplicate      Mode = "duplicate"       // two identical valid responses
 )
 
 // Fixture is one controlled DNS server instance.
@@ -241,7 +241,7 @@ func aRecord(question []byte, ip net.IP) []byte {
 		ip = net.ParseIP("93.184.216.34")
 	}
 	r := namePtr()
-	r = append(r, 0, 1, 0, 1) // type A class IN
+	r = append(r, 0, 1, 0, 1)  // type A class IN
 	r = append(r, 0, 0, 0, 60) // TTL
 	r = append(r, 0, 4)
 	return append(r, ip.To4()...)

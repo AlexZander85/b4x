@@ -16,9 +16,9 @@ import (
 // are rendered from the same manager snapshot — parity is enforced by tests
 // (zero-tolerance: report different primary in API and /metrics).
 var (
-	dnsPathManager  *dnspath.Manager
-	dnsManagerMu    sync.RWMutex
-	dnsIdempotency  = map[string]time.Time{}
+	dnsPathManager   *dnspath.Manager
+	dnsManagerMu     sync.RWMutex
+	dnsIdempotency   = map[string]time.Time{}
 	dnsIdempotencyMu sync.Mutex
 )
 
@@ -70,11 +70,12 @@ func (api *API) RegisterAdaptiveDNSApi() {
 	api.mux.HandleFunc("/api/dns/v1/rollback", api.handleDNSRollback)
 	api.mux.HandleFunc("/api/dns/v1/providers", api.handleDNSProviders)
 	api.mux.HandleFunc("/api/dns/v1/metrics", api.handleDNSMetrics)
+	api.mux.HandleFunc("/api/dns/v1/artifacts/{run_id}", api.handleDNSArtifact)
 }
 
 // dnsConfigPayload is the registered write schema for PUT /api/dns/v1/config.
 type dnsConfigPayload struct {
-	Mode   string                 `json:"mode"`
+	Mode   string                  `json:"mode"`
 	Policy *dnspath.AdaptivePolicy `json:"policy,omitempty"`
 }
 
@@ -168,9 +169,9 @@ func dnsStatusPayload(m *dnspath.Manager) map[string]any {
 	}
 	if b := m.ActiveBinding(); b != nil {
 		payload["primary"] = map[string]any{
-			"family":         b.Primary.Family,
+			"family":           b.Primary.Family,
 			"resolver_id_hash": b.Primary.ResolverID,
-			"health":         "healthy",
+			"health":           "healthy",
 		}
 		var fbs []map[string]any
 		for _, fb := range b.Fallbacks {
@@ -229,7 +230,15 @@ func (api *API) handleDNSDiagnose(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
-	writeDNSJSON(w, result)
+	runID := newDNSRunID()
+	storeDNSArtifact(DNSRunArtifact{
+		RunID:     runID,
+		StartedAt: time.Now(),
+		Result:    result,
+		Status:    dnsStatusPayload(m),
+		Trace:     m.Events(),
+	})
+	writeDNSJSON(w, map[string]any{"run_id": runID, "result": result})
 }
 
 func (api *API) handleDNSRevalidate(w http.ResponseWriter, r *http.Request) {
@@ -309,10 +318,10 @@ func (api *API) handleDNSProviders(w http.ResponseWriter, r *http.Request) {
 	ids := m.ProviderIDs()
 	caps := m.ProvidersSnapshot()
 	type providerView struct {
-		Family  dnspath.DNSPathFamily   `json:"family"`
-		Hash    string                  `json:"hash"`
-		State   dnspath.CapabilityState `json:"state"`
-		Reason  string                  `json:"reason,omitempty"`
+		Family dnspath.DNSPathFamily   `json:"family"`
+		Hash   string                  `json:"hash"`
+		State  dnspath.CapabilityState `json:"state"`
+		Reason string                  `json:"reason,omitempty"`
 	}
 	out := make([]providerView, 0, len(ids))
 	for i, id := range ids {

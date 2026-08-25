@@ -24,7 +24,7 @@ func testManager(t *testing.T) *dnspath.Manager {
 		ProfileID: "dnsprof-api", Status: dnspath.ProfileStatusReady,
 		NetworkContextID: "wan-1", ConfigGeneration: 11, RuntimeEpoch: "epoch-1",
 		QuerySuiteVersion: "adns-suite-v1",
-		Primary: primary, Fallbacks: []dnspath.DNSPathID{fallback},
+		Primary:           primary, Fallbacks: []dnspath.DNSPathID{fallback},
 		CandidateOutcomes: []dnspath.DNSPathProbeOutcome{
 			{PathID: primary, Class: dnspath.OutcomePassCorrect},
 			{PathID: fallback, Class: dnspath.OutcomePassCorrect},
@@ -175,5 +175,67 @@ func TestDNSRollbackEndpoint(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &payload)
 	if payload["rolled_back"] != false {
 		t.Fatal("rollback without last-good must report false, not fake success")
+	}
+}
+
+func TestDNSDiagnoseStoresArtifact(t *testing.T) {
+	m := testManager(t)
+	SetDNSPathManager(m)
+	defer SetDNSPathManager(nil)
+	SetDNSDiagnoser(func(ctx context.Context) (*DNSDiagnoseResult, error) {
+		return &DNSDiagnoseResult{
+			ProfileID:     "dnsprof-api",
+			PrimaryFamily: "doh",
+			Confidence:    0.9,
+			Explanation:   []string{"controls passed"},
+		}, nil
+	})
+	defer SetDNSDiagnoser(nil)
+
+	api := &API{mux: http.NewServeMux()}
+	api.RegisterAdaptiveDNSApi()
+	req := httptest.NewRequest(http.MethodPost, "/api/dns/v1/diagnose", nil)
+	req.Header.Set("X-Config-Generation", "11")
+	req.Header.Set("X-Idempotency-Key", "diag1")
+	rec := httptest.NewRecorder()
+	api.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("diagnose must succeed, got %d", rec.Code)
+	}
+	var diag map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &diag); err != nil {
+		t.Fatal(err)
+	}
+	runID, _ := diag["run_id"].(string)
+	if runID == "" {
+		t.Fatal("diagnose must return run_id")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/dns/v1/artifacts/"+runID, nil)
+	rec = httptest.NewRecorder()
+	api.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("artifact must be retrievable, got %d", rec.Code)
+	}
+	var art DNSRunArtifact
+	if err := json.Unmarshal(rec.Body.Bytes(), &art); err != nil {
+		t.Fatal(err)
+	}
+	if art.RunID != runID || art.Result == nil || art.Result.PrimaryFamily != "doh" {
+		t.Fatal("artifact must contain the diagnosis result")
+	}
+	if art.Status["profile_id"] != "dnsprof-api" {
+		t.Fatal("artifact status must come from the same manager snapshot")
+	}
+	if len(art.Trace) == 0 {
+		t.Fatal("artifact must include causal trace")
+	}
+
+	// unknown run id → honest 404
+	req = httptest.NewRequest(http.MethodGet, "/api/dns/v1/artifacts/nope", nil)
+	rec = httptest.NewRecorder()
+	api.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unknown run id must 404, got %d", rec.Code)
 	}
 }

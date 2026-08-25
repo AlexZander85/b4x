@@ -67,7 +67,8 @@
       "logs": "Logs",
       "settings": "Settings",
       "watchdog": "Watchdog",
-      "adblock": "Ad-Block"
+      "adblock": "Ad-Block",
+      "dns": "DNS"
     },
     "failed": "Failed",
     "filtered": "{{count}} filtered",
@@ -1987,5 +1988,82 @@
     "socks5_loop": "Set \"{{set}}\": upstream proxy points to b4's own SOCKS5 server (loop)",
     "doh_url_must_be_https": "Set \"{{set}}\": DNS-over-HTTPS URL must start with https://",
     "mark_conflict": "Mark value {{mark}} conflicts with reserved bits"
+  },
+  "dns": {
+    "title": "Adaptive DNS",
+    "description": "DNS path selection, diagnosis and managed resolvers.",
+    "refresh": "Refresh",
+    "mode": "DNS mode",
+    "modes": {
+      "current": "Current (as-is)",
+      "manual": "Manual",
+      "adaptive": "Adaptive",
+      "diagnostic": "Diagnostic only"
+    },
+    "verdict": {
+      "healthy": "Healthy",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable"
+    },
+    "rollbackReady": "Rollback ready",
+    "reasonTitle": "Reason",
+    "reason": {
+      "udpInjection": "ISP UDP DNS returned a conflicting early answer",
+      "poisoning": "Cache poisoning indicators detected",
+      "port53Blocked": "Port 53 appears blocked",
+      "controlsPassed": "Controls passed on current paths"
+    },
+    "confidence": "Confidence: {{value}}%",
+    "lastDiagnosis": "Last diagnosis",
+    "diagnoseDone": "Diagnosis complete",
+    "revalidateOk": "Profile revalidated",
+    "revalidateFail": "Revalidation failed",
+    "rollbackDone": "Rolled back to last-good path",
+    "rollbackFail": "Rollback failed",
+    "policySaved": "Policy applied",
+    "applyPolicy": "Apply policy",
+    "advancedTitle": "Advanced policy",
+    "advancedAccordion": "Selection policy",
+    "providersTitle": "Providers",
+    "table": {
+      "role": "Role",
+      "family": "Family",
+      "health": "Health",
+      "state": "State",
+      "reason": "Reason",
+      "primary": "Primary",
+      "fallback": "Fallback {{index}}"
+    },
+    "actions": {
+      "diagnose": "Run diagnosis",
+      "revalidate": "Revalidate",
+      "rollback": "Rollback"
+    },
+    "pref": {
+      "lowestLatency": "Lowest latency",
+      "balanced": "Balanced",
+      "privacy": "Privacy",
+      "minDependency": "Minimum dependency"
+    },
+    "policy": {
+      "enabled": "Adaptive selection enabled",
+      "allow_native_classic": "Allow native classic (UDP/TCP)",
+      "allow_native_encrypted": "Allow native encrypted (DoT/DoH/DoQ)",
+      "allow_managed_dnscrypt_backend": "Allow managed DNSCrypt backend",
+      "allow_anonymized_dnscrypt": "Allow anonymized DNSCrypt",
+      "allow_odoh": "Allow ODoH",
+      "allow_pqdnscrypt": "Allow post-quantum DNSCrypt",
+      "require_dnssec_capable": "Require DNSSEC capable",
+      "require_nolog_claim": "Require no-log claim",
+      "require_nofilter_claim": "Require no-filter claim",
+      "preference": "Preference",
+      "max_quick_candidates": "Max quick candidates",
+      "max_deep_candidates": "Max deep candidates",
+      "max_parallel_probes": "Max parallel probes",
+      "cooldown": "Cooldown",
+      "failed_search_cooldown": "Failed search cooldown",
+      "recovery_hysteresis": "Recovery hysteresis",
+      "profile_ttl": "Profile TTL"
+    }
   }
 }

@@ -67,7 +67,8 @@
       "logs": "Логи",
       "settings": "Настройки",
       "watchdog": "Мониторинг",
-      "adblock": "Ad-Block"
+      "adblock": "Ad-Block",
+      "dns": "DNS"
     },
     "failed": "Ошибка",
     "filtered": "{{count}} отфильтровано",
@@ -1985,5 +1986,82 @@
     "socks5_loop": "Сет \"{{set}}\": upstream-прокси указывает на собственный SOCKS5-сервер b4 (петля)",
     "doh_url_must_be_https": "Сет \"{{set}}\": URL DNS-over-HTTPS должен начинаться с https://",
     "mark_conflict": "Значение mark {{mark}} конфликтует с зарезервированными битами"
+  },
+  "dns": {
+    "title": "Адаптивный DNS",
+    "description": "Выбор DNS-пути, диагностика и управляемые резолверы.",
+    "refresh": "Обновить",
+    "mode": "Режим DNS",
+    "modes": {
+      "current": "Текущий (как есть)",
+      "manual": "Ручной",
+      "adaptive": "Адаптивный",
+      "diagnostic": "Только диагностика"
+    },
+    "verdict": {
+      "healthy": "Здоров",
+      "degraded": "Деградирован",
+      "unavailable": "Недоступен"
+    },
+    "rollbackReady": "Откат готов",
+    "reasonTitle": "Причина",
+    "reason": {
+      "udpInjection": "UDP DNS провайдера вернул конфликтующий ранний ответ",
+      "poisoning": "Обнаружены признаки отравления кэша",
+      "port53Blocked": "Порт 53, похоже, заблокирован",
+      "controlsPassed": "Контрольные проверки пройдены на текущих путях"
+    },
+    "confidence": "Уверенность: {{value}}%",
+    "lastDiagnosis": "Последняя диагностика",
+    "diagnoseDone": "Диагностика завершена",
+    "revalidateOk": "Профиль перепроверен",
+    "revalidateFail": "Перепроверка не удалась",
+    "rollbackDone": "Откат на последний рабочий путь",
+    "rollbackFail": "Откат не удался",
+    "policySaved": "Политика применена",
+    "applyPolicy": "Применить политику",
+    "advancedTitle": "Расширенная политика",
+    "advancedAccordion": "Политика выбора",
+    "providersTitle": "Провайдеры",
+    "table": {
+      "role": "Роль",
+      "family": "Семейство",
+      "health": "Здоровье",
+      "state": "Состояние",
+      "reason": "Причина",
+      "primary": "Основной",
+      "fallback": "Резерв {{index}}"
+    },
+    "actions": {
+      "diagnose": "Запустить диагностику",
+      "revalidate": "Перепроверить",
+      "rollback": "Откатить"
+    },
+    "pref": {
+      "lowestLatency": "Минимальная задержка",
+      "balanced": "Сбалансированный",
+      "privacy": "Приватность",
+      "minDependency": "Минимум зависимостей"
+    },
+    "policy": {
+      "enabled": "Адаптивный выбор включён",
+      "allow_native_classic": "Разрешить классические (UDP/TCP)",
+      "allow_native_encrypted": "Разрешить шифрованные (DoT/DoH/DoQ)",
+      "allow_managed_dnscrypt_backend": "Разрешить управляемый DNSCrypt backend",
+      "allow_anonymized_dnscrypt": "Разрешить анонимизированный DNSCrypt",
+      "allow_odoh": "Разрешить ODoH",
+      "allow_pqdnscrypt": "Разрешить постквантовый DNSCrypt",
+      "require_dnssec_capable": "Требовать поддержку DNSSEC",
+      "require_nolog_claim": "Требовать заявление no-log",
+      "require_nofilter_claim": "Требовать заявление no-filter",
+      "preference": "Предпочтение",
+      "max_quick_candidates": "Макс. быстрых кандидатов",
+      "max_deep_candidates": "Макс. глубоких кандидатов",
+      "max_parallel_probes": "Макс. параллельных проб",
+      "cooldown": "Перерыв (cooldown)",
+      "failed_search_cooldown": "Перерыв после неудачного поиска",
+      "recovery_hysteresis": "Гистерезис восстановления",
+      "profile_ttl": "TTL профиля"
+    }
   }
 }

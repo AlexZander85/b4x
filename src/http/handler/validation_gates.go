@@ -38,12 +38,12 @@ func (api *API) RegisterValidationAPI() {
 // executed coverage) for the validation API surface. It is read-only: the
 // suite is executed on request from the canonical requirements.
 type iv18Snapshot struct {
-	APIVersion  string               `json:"api_version"`
-	Suite       string               `json:"suite"`
+	APIVersion   string                   `json:"api_version"`
+	Suite        string                   `json:"suite"`
 	Requirements []validation.Requirement `json:"requirements,omitempty"`
-	Coverage    []validation.Coverage    `json:"coverage,omitempty"`
-	Result      validation.IV18Result    `json:"result"`
-	CheckedAt   time.Time               `json:"checked_at"`
+	Coverage     []validation.Coverage    `json:"coverage,omitempty"`
+	Result       validation.IV18Result    `json:"result"`
+	CheckedAt    time.Time                `json:"checked_at"`
 }
 
 func (api *API) handleValidationIV18(w http.ResponseWriter, r *http.Request) {
