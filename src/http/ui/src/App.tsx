@@ -36,6 +36,7 @@ import {
   SetsIcon,
   WatchdogIcon,
   FingerprintIcon,
+  BlockIcon,
 } from "@b4.icons";
 import { colors, theme } from "@design";
 import { useAuth } from "@context/AuthProvider";
@@ -55,6 +56,7 @@ import { LogsPage } from "@b4.logs";
 import { SetsPage } from "@b4.sets";
 import { SettingsPage } from "@b4.settings";
 import { WatchdogPage } from "@b4.watchdog";
+import { AdBlockPage } from "@b4.adblock";
 import { SnackbarProvider } from "@context/SnackbarProvider";
 
 const DRAWER_WIDTH = 240;
@@ -71,6 +73,7 @@ const navItems: NavItem[] = [
   { path: "/discovery", labelKey: "core.nav.discovery", icon: <DiscoveryIcon /> },
   { path: "/classifier", labelKey: "core.nav.classifier", icon: <FingerprintIcon /> },
   { path: "/watchdog", labelKey: "core.nav.watchdog", icon: <WatchdogIcon /> },
+  { path: "/adblock", labelKey: "core.nav.adblock", icon: <BlockIcon /> },
   { path: "/detector", labelKey: "core.nav.detector", icon: <SecurityIcon /> },
   { path: "/traffic", labelKey: "core.nav.connections", icon: <ConnectionIcon /> },
   { path: "/logs", labelKey: "core.nav.logs", icon: <LogsIcon /> },
@@ -105,6 +108,7 @@ export default function App() {
     if (path.startsWith("/traffic")) return t("core.nav.connections");
     if (path.startsWith("/discovery")) return t("core.nav.discovery");
     if (path.startsWith("/watchdog")) return t("core.nav.watchdog");
+    if (path.startsWith("/adblock")) return t("core.nav.adblock");
     if (path.startsWith("/classifier")) return t("core.nav.classifier");
     if (path.startsWith("/logs")) return t("core.nav.logs");
     if (path.startsWith("/detector")) return t("core.nav.detector");
@@ -265,6 +269,7 @@ export default function App() {
               <Route path="/discovery" element={<DiscoveryPage />} />
               <Route path="/classifier" element={<ClassifierPage />} />
               <Route path="/watchdog" element={<WatchdogPage />} />
+              <Route path="/adblock" element={<AdBlockPage />} />
               <Route path="/detector" element={<DetectorPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/settings/*" element={<SettingsPage />} />

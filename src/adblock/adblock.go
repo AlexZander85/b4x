@@ -328,16 +328,16 @@ func CountECHSkip() { echSkipped.Add(1) }
 
 // Stats returns current counters (metrics export).
 type Stats struct {
-	BlockedTotal int64
-	PassTotal    int64
-	ECHSkipped   int64
-	Allowlisted  int64
-	ListMissing  int64
-	ListInvalid  int64
-	ReloadFailed int64
-	FetchOK      int64
-	FetchFail    int64
-	Enabled      bool
+	BlockedTotal int64 `json:"blocked_total"`
+	PassTotal    int64 `json:"pass_total"`
+	ECHSkipped   int64 `json:"ech_skipped"`
+	Allowlisted  int64 `json:"allowlisted"`
+	ListMissing  int64 `json:"list_missing"`
+	ListInvalid  int64 `json:"list_invalid"`
+	ReloadFailed int64 `json:"reload_failed"`
+	FetchOK      int64 `json:"fetch_ok"`
+	FetchFail    int64 `json:"fetch_fail"`
+	Enabled      bool  `json:"enabled"`
 }
 
 func GetStats() Stats {
