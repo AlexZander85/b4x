@@ -87,6 +87,8 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	c.validateAdaptiveDNS(v)
+
 	c.checkPortCollisions(v)
 	if v.hasErrors() {
 		return v.result()
@@ -531,5 +533,50 @@ func (c *Config) checkPortCollisions(v *validator) {
 				v.addf(refs[j].path, "port_in_use", map[string]any{"port": refs[j].port, "conflict": refs[i].path}, "port %d is already used by %s", refs[j].port, refs[i].path)
 			}
 		}
+	}
+}
+
+// validateAdaptiveDNS enforces the adaptive DNS config schema (addendum
+// §88/§89). Defaults are safe; invalid modes fail validation instead of
+// silently guessing.
+func (c *Config) validateAdaptiveDNS(v *validator) {
+	mode := c.DNSMode
+	if mode == "" {
+		mode = "current"
+	}
+	switch mode {
+	case "current", "manual", "adaptive", "diagnostic":
+	default:
+		v.add("dns_mode", "invalid_value", "dns_mode must be current|manual|adaptive|diagnostic", nil)
+		return
+	}
+	p := c.DNSAdaptive
+	if p == nil {
+		return
+	}
+	// Adaptive policy is meaningful only outside current mode; enabling it
+	// without switching mode is a config error, not silent no-op.
+	if p.Enabled && mode == "current" {
+		v.add("dns_adaptive.enabled", "invalid_value", "adaptive policy requires dns_mode=manual|adaptive|diagnostic", nil)
+	}
+	if p.MaxQuickCandidates <= 0 || p.MaxQuickCandidates > 64 {
+		v.add("dns_adaptive.max_quick_candidates", "invalid_value", "must be in [1,64]", nil)
+	}
+	if p.MaxDeepCandidates <= 0 || p.MaxDeepCandidates > 64 {
+		v.add("dns_adaptive.max_deep_candidates", "invalid_value", "must be in [1,64]", nil)
+	}
+	if p.MaxParallelProbes <= 0 || p.MaxParallelProbes > 16 {
+		v.add("dns_adaptive.max_parallel_probes", "invalid_value", "must be in [1,16]", nil)
+	}
+	if p.Cooldown <= 0 || p.FailedSearchCooldown <= 0 {
+		v.add("dns_adaptive.cooldown", "invalid_value", "cooldowns must be positive", nil)
+	}
+	if p.ProfileTTL <= 0 {
+		v.add("dns_adaptive.profile_ttl", "invalid_value", "profile ttl must be positive", nil)
+	}
+	switch p.Preference {
+	case "lowest-latency", "balanced", "privacy", "minimum-dependency", "":
+	default:
+		v.add("dns_adaptive.preference", "invalid_value", "unknown preference", nil)
 	}
 }

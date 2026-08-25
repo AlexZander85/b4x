@@ -91,3 +91,6 @@ B4X_FIELD_VALIDATION_AGENT_PACK/
 # Project-local Go module cache (WG layer: amneziawg-go lives here, not on C:)
 /.go-modcache/
 /.go-buildcache/
+
+# UI build artifact (produced by pnpm build in CI)
+src/http/ui/dist/

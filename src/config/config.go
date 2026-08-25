@@ -21,6 +21,14 @@ type Config struct {
 	// (B4X_POST_V23_SNI_ADBLOCK_LAYER_ADDENDUM_v1.0.md); DNS is untouched.
 	AdBlock AdBlockConfig `json:"adblock"`
 
+	// DNSMode is the global adaptive DNS operating mode (addendum §19):
+	// current | manual | adaptive | diagnostic. Default "current" —
+	// adaptive selection never runs implicitly on existing installs.
+	DNSMode string `json:"dns_mode"`
+
+	// DNSAdaptive holds the global adaptive DNS policy (§88). Nil = defaults.
+	DNSAdaptive *DNSAdaptiveConfig `json:"dns_adaptive,omitempty"`
+
 	tcpPortMap map[uint16]bool // pre-computed TCP port set for fast lookup in packet handler
 }
 

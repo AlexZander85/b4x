@@ -345,6 +345,8 @@ func runB4(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("logging initialization failed: %w", err)
 	}
 
+	initAdaptiveDNS(&cfg)
+
 	if clearTables {
 		log.Infof("Clearing iptables rules as requested (--clear-iptables)")
 		clearErr := tables.ClearRules(&cfg)

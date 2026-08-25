@@ -3,6 +3,7 @@ package config
 import (
 	"math/rand"
 	"path/filepath"
+	"time"
 
 	"github.com/daniellavrushin/b4/geodat"
 	"github.com/daniellavrushin/b4/log"
@@ -557,6 +558,33 @@ type DNSConfig struct {
 	TargetDNS     string `json:"target_dns"`
 	DoHURL        string `json:"doh_url"`
 	FragmentQuery bool   `json:"fragment_query"`
+}
+
+// DNSAdaptiveConfig is the config-schema mirror of dnspath.AdaptivePolicy
+// (addendum §88). It lives here to keep config free of runtime package
+// imports; main converts it to the runtime policy.
+type DNSAdaptiveConfig struct {
+	Enabled                 bool          `json:"enabled"`
+	AllowNativeClassic      bool          `json:"allow_native_classic"`
+	AllowNativeEncrypted    bool          `json:"allow_native_encrypted"`
+	AllowManagedDNSCrypt    bool          `json:"allow_managed_dnscrypt_backend"`
+	AllowAnonymizedDNSCrypt bool          `json:"allow_anonymized_dnscrypt"`
+	AllowODoH               bool          `json:"allow_odoh"`
+	AllowPQDNSCrypt         bool          `json:"allow_pqdnscrypt"`
+	Preference              string        `json:"preference"`
+	RequireDNSSECCapable    bool          `json:"require_dnssec_capable"`
+	RequireNoLogClaim       bool          `json:"require_nolog_claim"`
+	RequireNoFilterClaim    bool          `json:"require_nofilter_claim"`
+	MaxQuickCandidates      int           `json:"max_quick_candidates"`
+	MaxDeepCandidates       int           `json:"max_deep_candidates"`
+	MaxParallelProbes       int           `json:"max_parallel_probes"`
+	Cooldown                time.Duration `json:"cooldown"`
+	FailedSearchCooldown    time.Duration `json:"failed_search_cooldown"`
+	RecoveryHysteresis      time.Duration `json:"recovery_hysteresis"`
+	ProfileTTL              time.Duration `json:"profile_ttl"`
+	ManualExclusions        []string      `json:"manual_exclusions"`
+	PinnedPrimary           string        `json:"pinned_primary"`
+	PinnedFallbacks         []string      `json:"pinned_fallbacks"`
 }
 
 type DuplicateConfig struct {
