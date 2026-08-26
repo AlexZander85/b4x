@@ -406,6 +406,11 @@ func (w *Worker) dropAndInjectHandshake(vc *verdictCtx, pkt *pktInfo, set *confi
 	if quicSynRstEnabled {
 		w.maybeArmQuicSynRst(pkt, set, raw)
 	}
+	// b4x-693 fast-fail: record that masking fired for this flow so the stall
+	// detector can later RST the client if the server freezes (byte-clamp).
+	if fastFailEnabled {
+		w.fastFailArm(pkt, set)
+	}
 	packetCopy := append([]byte(nil), raw...)
 	if set.TCP.DropSACK {
 		if pkt.ver == IPv4 {

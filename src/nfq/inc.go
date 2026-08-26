@@ -16,6 +16,11 @@ import (
 var corruptionStrategies = []string{"badsum", "badseq", "badack", "all"}
 
 func (w *Worker) HandleIncoming(vc *verdictCtx, v byte, raw []byte, ihl int, src net.IP, dstStr string, dport uint16, srcStr string, sport uint16, payload []byte) int {
+	// b4x-693 fast-fail: inbound server->client ACKs advance the cum-ack
+	// clock of armed flows; a frozen ack is the byte-clamp stall signature.
+	if fastFailEnabled {
+		w.fastFailObserveIncoming(raw, ihl, dstStr, dport, srcStr, sport)
+	}
 	incomingSet := w.connTracker.GetSetForIncoming(dstStr, dport, srcStr, sport)
 
 	if incomingSet != nil && len(raw) > ihl+13 {

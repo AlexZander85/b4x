@@ -86,6 +86,7 @@ type Worker struct {
 	actionMark         uint32         // processed provenance mark used for action plans
 	clientInjector     packetInjector // optional override for forged client-bound packets (tests only; nil in production)
 	passiveRST         *PassiveRSTStore
+	fastFail           *fastFailStore
 	normalizerQueue    uint16
 	normalizer         bool
 	gsoReadinessMu     sync.Mutex

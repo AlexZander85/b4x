@@ -389,6 +389,7 @@ type runtimeState struct {
 	gsoPassTokens  *GSOPassTokenStore
 	actionTokens   *action.ActionTokenStore
 	passiveRST     *PassiveRSTStore
+	fastFail       *fastFailStore
 }
 
 func newRuntimeState(cfg *config.Config) *runtimeState {
@@ -435,6 +436,9 @@ func newRuntimeState(cfg *config.Config) *runtimeState {
 	}
 	if ja4Enabled {
 		rt.ja4 = newJA4Store()
+	}
+	if fastFailEnabled {
+		rt.fastFail = newFastFailStore()
 	}
 	return rt
 }

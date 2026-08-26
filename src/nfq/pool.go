@@ -146,6 +146,7 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 		w.gsoPassTokens = state.gsoPassTokens
 		w.actionTokens = state.actionTokens
 		w.passiveRST = state.passiveRST
+		w.fastFail = state.fastFail
 		w.dnsHints = hintStore
 		w.qbp = state.qbp
 		w.ja4 = state.ja4
@@ -197,6 +198,9 @@ func newPoolWithState(cfg *config.Config, candidate bool, shared *runtimeState, 
 					}
 					if pool.state.passiveRST != nil {
 						pool.state.passiveRST.GC(time.Now())
+					}
+					if pool.state.fastFail != nil {
+						pool.state.fastFail.GC(time.Now())
 					}
 					for _, worker := range pool.Workers {
 						if worker.tcpReassembly != nil {

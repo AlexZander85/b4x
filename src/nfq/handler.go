@@ -483,6 +483,8 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 		if w.chHold != nil {
 			w.chHold.discard(fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport))
 		}
+		// b4x-693 fast-fail: flow is over — drop stall-guard state.
+		w.fastFailRelease(fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport))
 	}
 	if cfg.IsTCPPort(dport) && shouldPassCleanSYN(tcpFlags, len(payload), set) {
 		log.Tracef("clean TCP SYN to %s:%d accepted before generic TLS action", pkt.dstStr, dport)
@@ -591,6 +593,13 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 				int(payload[3])<<8|int(payload[4]))
 		}
 		connKey := fmt.Sprintf(connKeyFormat, pkt.srcStr, sport, pkt.dstStr, dport)
+
+		// b4x-693 fast-fail: accumulate post-arm client payload and fire the
+		// forged RST-to-client when the server cum-ack has frozen for T ms
+		// (TSPU byte-clamp signature). Packet itself stays accepted.
+		if fastFailEnabled {
+			w.fastFailObserveOutbound(pkt, tcpFlags, len(payload))
+		}
 
 		if host != "" && tlsVersion != 0 {
 			w.tlsCache.Store(connKey, host, tlsVersion)
