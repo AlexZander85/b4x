@@ -13,17 +13,17 @@ import (
 // family, one IP family preference, one generated config digest, one
 // loopback listener, one B4X DNSPathID.
 type InstanceSpec struct {
-	Family       string // dnscrypt | pqdnscrypt | anonymized-dnscrypt | odoh | doh | doh3
-	ServerName   string // explicit reviewed server name from signed catalog
-	RelayName    string // required for anonymized-dnscrypt and odoh
-	ListenAddr   string // loopback only, e.g. 127.0.0.1:55331
-	IPv4         bool
-	IPv6         bool
-	ForceTCP     bool
-	HTTP3        bool // only for doh3 candidate
-	Cache        bool
-	CacheSize    int
-	Diagnostic   bool // diagnostic instance: cache off, ephemeral
+	Family          string // dnscrypt | pqdnscrypt | anonymized-dnscrypt | odoh | doh | doh3
+	ServerName      string // explicit reviewed server name from signed catalog
+	RelayName       string // required for anonymized-dnscrypt and odoh
+	ListenAddr      string // loopback only, e.g. 127.0.0.1:55331
+	IPv4            bool
+	IPv6            bool
+	ForceTCP        bool
+	HTTP3           bool // only for doh3 candidate
+	Cache           bool
+	CacheSize       int
+	Diagnostic      bool // diagnostic instance: cache off, ephemeral
 	RequireNoLog    bool
 	RequireNoFilter bool
 }

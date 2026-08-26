@@ -14,19 +14,19 @@ import (
 // (addendum §28). A differing CDN answer set does not mean poisoning without
 // control/reference/context analysis.
 type ResponseFingerprint struct {
-	QuestionName  string   `json:"question_name"`
-	QuestionType  uint16   `json:"question_type"`
-	RCode         int      `json:"rcode"`
-	AnswerSet     []string `json:"answer_set"`   // order-independent A/AAAA set
-	CNAMEChain    []string `json:"cname_chain"`  // order significant
-	HTTPSParams   []string `json:"https_params"` // normalized SVCB/HTTPS params
-	TTLMin        uint32   `json:"ttl_min"`
-	TTLMax        uint32   `json:"ttl_max"`
-	Truncated     bool     `json:"truncated"`
-	HasECH        bool     `json:"has_ech"`
-	AnswerDigest  string   `json:"answer_digest"`
-	CNAMEDigest   string   `json:"cname_digest"`
-	HTTPSDigest   string   `json:"https_digest"`
+	QuestionName string   `json:"question_name"`
+	QuestionType uint16   `json:"question_type"`
+	RCode        int      `json:"rcode"`
+	AnswerSet    []string `json:"answer_set"`   // order-independent A/AAAA set
+	CNAMEChain   []string `json:"cname_chain"`  // order significant
+	HTTPSParams  []string `json:"https_params"` // normalized SVCB/HTTPS params
+	TTLMin       uint32   `json:"ttl_min"`
+	TTLMax       uint32   `json:"ttl_max"`
+	Truncated    bool     `json:"truncated"`
+	HasECH       bool     `json:"has_ech"`
+	AnswerDigest string   `json:"answer_digest"`
+	CNAMEDigest  string   `json:"cname_digest"`
+	HTTPSDigest  string   `json:"https_digest"`
 }
 
 // FingerprintObservation normalizes a parsed structured response.
@@ -94,10 +94,10 @@ func digestStrings(items []string) string {
 type AnswerRelation string
 
 const (
-	RelationIdentical   AnswerRelation = "identical"
-	RelationSubset      AnswerRelation = "subset"       // CDN rotation candidate
-	RelationDisjoint    AnswerRelation = "disjoint"     // conflict candidate
-	RelationRCodeDiff   AnswerRelation = "rcode_diff"
+	RelationIdentical    AnswerRelation = "identical"
+	RelationSubset       AnswerRelation = "subset"   // CDN rotation candidate
+	RelationDisjoint     AnswerRelation = "disjoint" // conflict candidate
+	RelationRCodeDiff    AnswerRelation = "rcode_diff"
 	RelationCNAMEAltered AnswerRelation = "cname_altered"
 )
 

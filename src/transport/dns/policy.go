@@ -28,27 +28,27 @@ func (p Preference) Valid() bool {
 
 // AdaptivePolicy is the advanced policy model (addendum §21).
 type AdaptivePolicy struct {
-	Enabled                    bool       `json:"enabled"`
-	AllowNativeClassic         bool       `json:"allow_native_classic"`
-	AllowNativeEncrypted       bool       `json:"allow_native_encrypted"`
-	AllowManagedDNSCrypt       bool       `json:"allow_managed_dnscrypt_backend"`
-	AllowAnonymizedDNSCrypt    bool       `json:"allow_anonymized_dnscrypt"`
-	AllowODoH                  bool       `json:"allow_odoh"`
-	AllowPQDNSCrypt            bool       `json:"allow_pqdnscrypt"`
-	Preference                 Preference `json:"preference"`
-	RequireDNSSECCapable       bool       `json:"require_dnssec_capable"`
-	RequireNoLogClaim          bool       `json:"require_nolog_claim"`
-	RequireNoFilterClaim       bool       `json:"require_nofilter_claim"`
-	MaxQuickCandidates         int        `json:"max_quick_candidates"`
-	MaxDeepCandidates          int        `json:"max_deep_candidates"`
-	MaxParallelProbes          int        `json:"max_parallel_probes"`
-	Cooldown                   time.Duration `json:"cooldown"`
-	FailedSearchCooldown       time.Duration `json:"failed_search_cooldown"`
-	RecoveryHysteresis         time.Duration `json:"recovery_hysteresis"`
-	ProfileTTL                 time.Duration `json:"profile_ttl"`
-	ManualExclusions           []string   `json:"manual_exclusions"` // canonical path hashes
-	PinnedPrimary              string     `json:"pinned_primary"`    // canonical path hash, manual mode
-	PinnedFallbacks            []string   `json:"pinned_fallbacks"`
+	Enabled                 bool          `json:"enabled"`
+	AllowNativeClassic      bool          `json:"allow_native_classic"`
+	AllowNativeEncrypted    bool          `json:"allow_native_encrypted"`
+	AllowManagedDNSCrypt    bool          `json:"allow_managed_dnscrypt_backend"`
+	AllowAnonymizedDNSCrypt bool          `json:"allow_anonymized_dnscrypt"`
+	AllowODoH               bool          `json:"allow_odoh"`
+	AllowPQDNSCrypt         bool          `json:"allow_pqdnscrypt"`
+	Preference              Preference    `json:"preference"`
+	RequireDNSSECCapable    bool          `json:"require_dnssec_capable"`
+	RequireNoLogClaim       bool          `json:"require_nolog_claim"`
+	RequireNoFilterClaim    bool          `json:"require_nofilter_claim"`
+	MaxQuickCandidates      int           `json:"max_quick_candidates"`
+	MaxDeepCandidates       int           `json:"max_deep_candidates"`
+	MaxParallelProbes       int           `json:"max_parallel_probes"`
+	Cooldown                time.Duration `json:"cooldown"`
+	FailedSearchCooldown    time.Duration `json:"failed_search_cooldown"`
+	RecoveryHysteresis      time.Duration `json:"recovery_hysteresis"`
+	ProfileTTL              time.Duration `json:"profile_ttl"`
+	ManualExclusions        []string      `json:"manual_exclusions"` // canonical path hashes
+	PinnedPrimary           string        `json:"pinned_primary"`    // canonical path hash, manual mode
+	PinnedFallbacks         []string      `json:"pinned_fallbacks"`
 }
 
 // DefaultAdaptivePolicy returns the default-safe policy: adaptive disabled,

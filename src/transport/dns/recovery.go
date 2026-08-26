@@ -11,21 +11,21 @@ import (
 type FailoverDecision string
 
 const (
-	DecisionNone            FailoverDecision = "none"
-	DecisionFastFailover    FailoverDecision = "fast_failover"
-	DecisionDeepDiagnosis   FailoverDecision = "deep_diagnosis"
-	DecisionHoldLastSafe    FailoverDecision = "hold_last_safe"
-	DecisionRecoveryCanary  FailoverDecision = "recovery_canary"
-	DecisionCooldownWait    FailoverDecision = "cooldown_wait"
+	DecisionNone           FailoverDecision = "none"
+	DecisionFastFailover   FailoverDecision = "fast_failover"
+	DecisionDeepDiagnosis  FailoverDecision = "deep_diagnosis"
+	DecisionHoldLastSafe   FailoverDecision = "hold_last_safe"
+	DecisionRecoveryCanary FailoverDecision = "recovery_canary"
+	DecisionCooldownWait   FailoverDecision = "cooldown_wait"
 )
 
 // FailoverController implements fast failover vs deep diagnosis (§81),
 // cooldown/hysteresis (§77) and recovery-to-simpler-path scheduling.
 type FailoverController struct {
-	Cooldown           time.Duration
+	Cooldown             time.Duration
 	FailedSearchCooldown time.Duration
-	RecoveryHysteresis time.Duration
-	MinRecoveryProofs  int
+	RecoveryHysteresis   time.Duration
+	MinRecoveryProofs    int
 
 	lastSwitch       time.Time
 	lastFailedSearch time.Time

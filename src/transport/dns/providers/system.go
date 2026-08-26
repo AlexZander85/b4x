@@ -171,4 +171,6 @@ func (p *SystemForwardProvider) Health(ctx context.Context, prepared dnspath.Pre
 	return dnspath.DNSPathHealth{State: dnspath.CapAvailable}
 }
 
-func (p *SystemForwardProvider) Retire(_ context.Context, _ dnspath.PreparedDNSPath) error { return nil }
+func (p *SystemForwardProvider) Retire(_ context.Context, _ dnspath.PreparedDNSPath) error {
+	return nil
+}

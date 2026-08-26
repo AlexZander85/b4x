@@ -64,6 +64,11 @@ type ADNSDiagnosis struct {
 	UDPDropDetected      bool
 	Port53Blocked        bool
 	EncryptedPathBlocked bool
+	// EncryptedFamiliesFiltered lists encrypted families cut mid-handshake
+	// (RST/EOF after ClientHello — the 2026-08 DoH/DoT DPI signature). The
+	// path controller uses this to quarantine those families while plaintext
+	// UDP fallback to the same resolver IPs stays eligible.
+	EncryptedFamiliesFiltered []dnspath.DNSPathFamily
 }
 
 // RunADNSDiagnosis executes the bounded quick/deep matrix and compiles a
@@ -95,14 +100,15 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 
 	diag := &ADNSDiagnosis{}
 	type pathStats struct {
-		pass      int
-		fail      int
-		latency   time.Duration
-		latencyN  int
-		timeouts  int
-		conflicts int
-		injection bool
-		outcomes  []dnspath.DNSPathProbeOutcome
+		pass         int
+		fail         int
+		latency      time.Duration
+		latencyN     int
+		timeouts     int
+		conflicts    int
+		injection    bool
+		midHandshake bool
+		outcomes     []dnspath.DNSPathProbeOutcome
 	}
 	stats := map[string]*pathStats{}
 	paths := map[string]dnspath.DNSPathID{}
@@ -156,6 +162,9 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 				case out.Class == dnspath.OutcomeEarlyInjectionSuspected:
 					st.injection = true
 					st.fail++
+				case out.Class == dnspath.OutcomeTLSMidHandshakeReset:
+					st.midHandshake = true
+					st.fail++
 				default:
 					st.fail++
 				}
@@ -182,6 +191,15 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	diag.PoisoningDetected = poisonVotes > 0
 	diag.InjectionDetected = injectionVotes > 0
 	diag.UDPDropDetected = udpDropVotes > 0
+
+	// Mid-handshake DPI cut is a family-level filter: one observation marks
+	// the family (fast recurrence — retries against a stable DPI rule are
+	// useless), and plaintext families are never listed here.
+	for hash, st := range stats {
+		if st.midHandshake {
+			diag.EncryptedFamiliesFiltered = append(diag.EncryptedFamiliesFiltered, paths[hash].Family)
+		}
+	}
 
 	// Build candidate evidence and rank deterministically.
 	var candidates []dnspath.CandidateEvidence
@@ -247,23 +265,23 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	diag.Outcomes = outcomes
 
 	profile := &dnspath.DNSPathProfile{
-		Status:                dnspath.ProfileStatusReady,
-		NetworkContextID:      in.NetworkContext,
-		ConfigGeneration:      in.Generation,
-		RuntimeEpoch:          in.RuntimeEpoch,
+		Status:                  dnspath.ProfileStatusReady,
+		NetworkContextID:        in.NetworkContext,
+		ConfigGeneration:        in.Generation,
+		RuntimeEpoch:            in.RuntimeEpoch,
 		SourceBlockingProfileID: in.SourceProfile,
-		QuerySuiteVersion:     ADNSQuerySuiteVersion,
-		ResolverCatalogVersion: in.CatalogVersion,
-		PolicyDigest:          in.PolicyDigest,
-		CandidateOutcomes:     outcomes,
-		PoisoningDetected:     diag.PoisoningDetected,
-		InjectionDetected:     diag.InjectionDetected,
-		UDPDropDetected:       diag.UDPDropDetected,
-		Port53Blocked:         diag.Port53Blocked,
-		EncryptedPathBlocked:  diag.EncryptedPathBlocked,
-		CreatedAt:             in.Now(),
-		ValidatedAt:           in.Now(),
-		ValidUntil:            in.Now().Add(in.TTL),
+		QuerySuiteVersion:       ADNSQuerySuiteVersion,
+		ResolverCatalogVersion:  in.CatalogVersion,
+		PolicyDigest:            in.PolicyDigest,
+		CandidateOutcomes:       outcomes,
+		PoisoningDetected:       diag.PoisoningDetected,
+		InjectionDetected:       diag.InjectionDetected,
+		UDPDropDetected:         diag.UDPDropDetected,
+		Port53Blocked:           diag.Port53Blocked,
+		EncryptedPathBlocked:    diag.EncryptedPathBlocked,
+		CreatedAt:               in.Now(),
+		ValidatedAt:             in.Now(),
+		ValidUntil:              in.Now().Add(in.TTL),
 	}
 	if primary == nil {
 		profile.Status = dnspath.ProfileStatusInvalid

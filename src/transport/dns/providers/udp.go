@@ -17,15 +17,15 @@ import (
 // resolver endpoint, transaction/source tuple validation, bounded
 // retransmission, optional multi-response observation in diagnostic mode.
 type UDPProvider struct {
-	ResolverIP   netip.Addr
-	Port         int
-	Mark         int
-	Timeout      time.Duration
-	Retries      int
-	ObserveRace  bool // diagnostic multi-response window
-	RaceWindow   time.Duration
-	CatalogVer   string
-	id           dnspath.DNSPathID
+	ResolverIP  netip.Addr
+	Port        int
+	Mark        int
+	Timeout     time.Duration
+	Retries     int
+	ObserveRace bool // diagnostic multi-response window
+	RaceWindow  time.Duration
+	CatalogVer  string
+	id          dnspath.DNSPathID
 }
 
 func NewUDPProvider(resolver netip.Addr, port int, mark int, catalogVer string) *UDPProvider {

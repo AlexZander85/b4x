@@ -7,11 +7,11 @@ import (
 
 // CacheEntry is one cached DNS answer inside a partition.
 type CacheEntry struct {
-	Payload   []byte
+	Payload     []byte
 	Fingerprint ResponseFingerprint
-	StoredAt  time.Time
-	ExpiresAt time.Time
-	Negative  bool
+	StoredAt    time.Time
+	ExpiresAt   time.Time
+	Negative    bool
 }
 
 // GenerationCache is the partition-keyed DNS cache (addendum §29/§49).

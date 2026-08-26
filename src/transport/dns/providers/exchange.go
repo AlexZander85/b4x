@@ -8,7 +8,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 	"syscall"
 	"time"
 
@@ -140,6 +142,8 @@ func outcomeFromError(err error) dnspath.OutcomeClass {
 		return dnspath.OutcomeTimeout
 	case isRefused(err):
 		return dnspath.OutcomeConnectionRefused
+	case isMidHandshakeReset(err):
+		return dnspath.OutcomeTLSMidHandshakeReset
 	default:
 		return dnspath.OutcomeInconclusive
 	}
@@ -155,4 +159,15 @@ func isTimeout(err error) bool {
 
 func isRefused(err error) bool {
 	return errors.Is(err, syscall.ECONNREFUSED)
+}
+
+// isMidHandshakeReset matches the DPI family-filter signature: connection
+// reset (ECONNRESET) or TLS-layer truncation (unexpected EOF) after
+// ClientHello. crypto/tls surfaces the latter as "unexpected EOF" /
+// io.ErrUnexpectedEOF; both mean the encrypted path was cut mid-handshake.
+func isMidHandshakeReset(err error) bool {
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	return strings.Contains(err.Error(), "unexpected EOF")
 }

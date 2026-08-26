@@ -17,20 +17,20 @@ var ErrUnsignedCatalog = errors.New("resolver catalog signature verification fai
 
 // CatalogEntry is one validated resolver entry.
 type CatalogEntry struct {
-	Name      string `json:"name"`
-	Family    string `json:"family"` // dnscrypt | doh | odoh | relay
-	NoLog     bool   `json:"nolog"`
-	NoFilter  bool   `json:"nofilter"`
-	DNSSEC    bool   `json:"dnssec"`
+	Name        string `json:"name"`
+	Family      string `json:"family"` // dnscrypt | doh | odoh | relay
+	NoLog       bool   `json:"nolog"`
+	NoFilter    bool   `json:"nofilter"`
+	DNSSEC      bool   `json:"dnssec"`
 	Description string `json:"description,omitempty"`
 }
 
 // Catalog is a bounded, signed resolver list.
 type Catalog struct {
-	Version   string         `json:"version"`
-	Entries   []CatalogEntry `json:"entries"`
-	MaxSize   int            `json:"-"`
-	LoadedAt  time.Time      `json:"loaded_at"`
+	Version  string         `json:"version"`
+	Entries  []CatalogEntry `json:"entries"`
+	MaxSize  int            `json:"-"`
+	LoadedAt time.Time      `json:"loaded_at"`
 }
 
 // ParseCatalog parses and bounds a catalog payload. Payload format (v1):

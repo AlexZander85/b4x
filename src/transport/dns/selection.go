@@ -195,7 +195,7 @@ func newFailurePrior() *FailurePrior {
 	}
 }
 
-func (p *FailurePrior) boost(f DNSPathFamily, w float64)   { p.Boost[f] += w }
+func (p *FailurePrior) boost(f DNSPathFamily, w float64)    { p.Boost[f] += w }
 func (p *FailurePrior) penalize(f DNSPathFamily, w float64) { p.Penalize[f] += w }
 
 // PriorFromEvidence maps detector evidence flags to family priors

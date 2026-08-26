@@ -6,14 +6,14 @@ import "time"
 type HealthAxis string
 
 const (
-	AxisTransport  HealthAxis = "transport_health"
+	AxisTransport   HealthAxis = "transport_health"
 	AxisCorrectness HealthAxis = "correctness_health"
-	AxisControl    HealthAxis = "control_health"
-	AxisLatency    HealthAxis = "latency_health"
-	AxisResource   HealthAxis = "resource_health"
-	AxisBackend    HealthAxis = "backend_health"
-	AxisFreshness  HealthAxis = "profile_freshness"
-	AxisFallback   HealthAxis = "fallback_readiness"
+	AxisControl     HealthAxis = "control_health"
+	AxisLatency     HealthAxis = "latency_health"
+	AxisResource    HealthAxis = "resource_health"
+	AxisBackend     HealthAxis = "backend_health"
+	AxisFreshness   HealthAxis = "profile_freshness"
+	AxisFallback    HealthAxis = "fallback_readiness"
 )
 
 // AxisState is the per-axis verdict.
@@ -61,11 +61,11 @@ func ComposeHealth(axes map[HealthAxis]AxisState) HealthReport {
 
 // FailureRecord is one aggregated monitoring failure signal (§80).
 type FailureRecord struct {
-	PathFamily   DNSPathFamily
-	Kind         string // timeout | contradiction | crash | cache_anomaly | control_failure
-	Count        int
-	FirstSeen    time.Time
-	LastSeen     time.Time
+	PathFamily DNSPathFamily
+	Kind       string // timeout | contradiction | crash | cache_anomaly | control_failure
+	Count      int
+	FirstSeen  time.Time
+	LastSeen   time.Time
 }
 
 // RecurrenceTracker aggregates passive failure recurrence. It initiates
@@ -75,17 +75,33 @@ type RecurrenceTracker struct {
 	// Threshold is the persistent-failure count that justifies a bounded
 	// diagnosis request; a single transient timeout never triggers (§53).
 	Threshold int
+	// FastThreshold applies to kinds in FastKinds: DPI family filters are
+	// stable and retries are useless, so the family is quarantined after far
+	// fewer recurrences than a generic timeout.
+	FastThreshold int
+	FastKinds     map[string]bool
 }
+
+// KindMidHandshakeReset is the recurrence kind for OutcomeTLSMidHandshakeReset
+// (DPI family-filter signature: RST/EOF after TLS ClientHello).
+const KindMidHandshakeReset = "mid_handshake_reset"
 
 func NewRecurrenceTracker(threshold int) *RecurrenceTracker {
 	if threshold <= 0 {
 		threshold = 3
 	}
-	return &RecurrenceTracker{records: map[string]*FailureRecord{}, Threshold: threshold}
+	return &RecurrenceTracker{
+		records:       map[string]*FailureRecord{},
+		Threshold:     threshold,
+		FastThreshold: 1,
+		FastKinds:     map[string]bool{KindMidHandshakeReset: true},
+	}
 }
 
 // Record adds one failure observation and reports whether the persistent
-// threshold has been reached for this path/kind.
+// threshold has been reached for this path/kind. Fast kinds (mid-handshake
+// DPI cuts) reach their threshold immediately — one observed RST-after-CH on
+// an otherwise healthy control path is already actionable.
 func (t *RecurrenceTracker) Record(family DNSPathFamily, kind string, now time.Time) bool {
 	key := string(family) + "/" + kind
 	rec, ok := t.records[key]
@@ -95,7 +111,11 @@ func (t *RecurrenceTracker) Record(family DNSPathFamily, kind string, now time.T
 	}
 	rec.Count++
 	rec.LastSeen = now
-	return rec.Count >= t.Threshold
+	threshold := t.Threshold
+	if t.FastKinds[kind] {
+		threshold = t.FastThreshold
+	}
+	return rec.Count >= threshold
 }
 
 // Reset clears recurrence after successful revalidation.

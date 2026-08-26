@@ -17,7 +17,7 @@ type stubProvider struct {
 	prepared bool
 }
 
-func (s *stubProvider) ID() DNSPathID               { return s.id }
+func (s *stubProvider) ID() DNSPathID                     { return s.id }
 func (s *stubProvider) Capabilities() DNSPathCapabilities { return s.caps }
 func (s *stubProvider) Prepare(_ context.Context, req DNSPrepareRequest) (PreparedDNSPath, error) {
 	s.prepared = true

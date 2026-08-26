@@ -24,10 +24,10 @@ type Manager struct {
 	lastGood *DNSPathBinding
 	profile  *DNSPathProfile
 
-	cache     *GenerationCache
-	health    map[string]*DNSPathHealth
-	axes      map[HealthAxis]AxisState
-	recovery  *RecoveryState
+	cache    *GenerationCache
+	health   map[string]*DNSPathHealth
+	axes     map[HealthAxis]AxisState
+	recovery *RecoveryState
 
 	generation uint64
 	epoch      string
@@ -42,15 +42,15 @@ type Manager struct {
 
 // ManagerCounters are the parity-checked telemetry counters (§91).
 type ManagerCounters struct {
-	QueriesTotal       uint64 `json:"dns_path_query_total"`
-	QueryFailures      uint64 `json:"-"`
-	FallbackTotal      uint64 `json:"dns_path_fallback_total"`
-	SwitchTotal        uint64 `json:"dns_path_switch_total"`
-	RollbackTotal      uint64 `json:"-"`
-	CacheHits          uint64 `json:"dns_cache_hit_total"`
-	CacheMisses        uint64 `json:"dns_cache_miss_total"`
-	ProfileCompiles    uint64 `json:"dns_profile_compile_total"`
-	Revalidations      uint64 `json:"dns_profile_revalidation_total"`
+	QueriesTotal    uint64 `json:"dns_path_query_total"`
+	QueryFailures   uint64 `json:"-"`
+	FallbackTotal   uint64 `json:"dns_path_fallback_total"`
+	SwitchTotal     uint64 `json:"dns_path_switch_total"`
+	RollbackTotal   uint64 `json:"-"`
+	CacheHits       uint64 `json:"dns_cache_hit_total"`
+	CacheMisses     uint64 `json:"dns_cache_miss_total"`
+	ProfileCompiles uint64 `json:"dns_profile_compile_total"`
+	Revalidations   uint64 `json:"dns_profile_revalidation_total"`
 }
 
 // TraceEvent is one causal trace step (§86).
@@ -373,7 +373,7 @@ func (m *Manager) NewBinding(scope string, ttl time.Duration) (*DNSPathBinding, 
 	now := time.Now()
 	return &DNSPathBinding{
 		BindingID: fmt.Sprintf("bind-%s", p.Primary.Hash()),
-		Scope: scope, ProfileID: p.ProfileID,
+		Scope:     scope, ProfileID: p.ProfileID,
 		Primary: p.Primary, Fallbacks: append([]DNSPathID(nil), p.Fallbacks...),
 		ConfigGeneration: m.generation, RuntimeEpoch: m.epoch,
 		PreparedAt: now, ValidUntil: now.Add(ttl),

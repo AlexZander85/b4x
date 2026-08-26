@@ -17,20 +17,20 @@ import (
 // plain DNS to the instance's loopback listener; causal identity (one
 // resolver, optional one relay, one family) comes from the InstanceSpec.
 type ManagedProvider struct {
-	Spec       managed.InstanceSpec
+	Spec          managed.InstanceSpec
 	NewSupervisor func(spec managed.InstanceSpec, listenAddr string) *managed.Supervisor
-	CatalogVer string
-	id         dnspath.DNSPathID
+	CatalogVer    string
+	id            dnspath.DNSPathID
 }
 
 func NewManagedProvider(spec managed.InstanceSpec, catalogVer string, factory func(managed.InstanceSpec, string) *managed.Supervisor) *ManagedProvider {
 	familyMap := map[string]dnspath.DNSPathFamily{
-		"dnscrypt":             dnspath.DNSPathDNSCrypt,
-		"pqdnscrypt":           dnspath.DNSPathPQDNSCrypt,
-		"anonymized-dnscrypt":  dnspath.DNSPathAnonymizedDNSCrypt,
-		"odoh":                 dnspath.DNSPathODoH,
-		"doh":                  dnspath.DNSPathDoH,
-		"doh3":                 dnspath.DNSPathDoH3,
+		"dnscrypt":            dnspath.DNSPathDNSCrypt,
+		"pqdnscrypt":          dnspath.DNSPathPQDNSCrypt,
+		"anonymized-dnscrypt": dnspath.DNSPathAnonymizedDNSCrypt,
+		"odoh":                dnspath.DNSPathODoH,
+		"doh":                 dnspath.DNSPathDoH,
+		"doh3":                dnspath.DNSPathDoH3,
 	}
 	fam, ok := familyMap[spec.Family]
 	if !ok {

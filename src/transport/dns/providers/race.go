@@ -17,12 +17,12 @@ import (
 type RaceVerdict string
 
 const (
-	RaceNormal              RaceVerdict = "normal"
-	RaceEarlyInjection      RaceVerdict = "early_injection_suspected"
-	RaceDuplicate           RaceVerdict = "duplicate"
-	RaceConflicting         RaceVerdict = "conflicting"
-	RaceInconclusive        RaceVerdict = "inconclusive"
-	RaceMalformedRejected   RaceVerdict = "malformed_rejected"
+	RaceNormal            RaceVerdict = "normal"
+	RaceEarlyInjection    RaceVerdict = "early_injection_suspected"
+	RaceDuplicate         RaceVerdict = "duplicate"
+	RaceConflicting       RaceVerdict = "conflicting"
+	RaceInconclusive      RaceVerdict = "inconclusive"
+	RaceMalformedRejected RaceVerdict = "malformed_rejected"
 )
 
 // RaceResponse is one validated candidate response in arrival order.

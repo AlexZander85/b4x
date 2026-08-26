@@ -39,9 +39,9 @@ func TestADNSDiagnosisPrefersTCPWhenUDPInjected(t *testing.T) {
 	tcp.Timeout = time.Second
 
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-		Providers: []dnspath.DNSPathProvider{udp, tcp},
-		Policy:    diagnosisPolicy(),
-		Suite:     CanonicalSuite("example.com", "control.example.net"),
+		Providers:     []dnspath.DNSPathProvider{udp, tcp},
+		Policy:        diagnosisPolicy(),
+		Suite:         CanonicalSuite("example.com", "control.example.net"),
 		AttemptsQuick: 2, AttemptsValid: 5,
 		NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
 		CatalogVersion: "catalog-test", TTL: time.Hour,
@@ -80,10 +80,10 @@ func TestADNSDiagnosisDeterministic(t *testing.T) {
 		tcp := providers.NewTCPProvider(ip, faultlab.PortOf(addr), 0, "catalog-test")
 		tcp.Timeout = time.Second
 		diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-			Providers: []dnspath.DNSPathProvider{tcp},
-			Policy:    diagnosisPolicy(),
-			Suite:     CanonicalSuite("example.com", "control.example.net"),
-			AttemptsQuick: 2,
+			Providers:      []dnspath.DNSPathProvider{tcp},
+			Policy:         diagnosisPolicy(),
+			Suite:          CanonicalSuite("example.com", "control.example.net"),
+			AttemptsQuick:  2,
 			NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
 			CatalogVersion: "catalog-test", TTL: time.Hour,
 		})
@@ -110,10 +110,10 @@ func TestADNSDiagnosisNoBlindFirstSuccess(t *testing.T) {
 	tcp := providers.NewTCPProvider(ip, faultlab.PortOf(addr), 0, "catalog-test")
 	tcp.Timeout = time.Second
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-		Providers: []dnspath.DNSPathProvider{tcp},
-		Policy:    diagnosisPolicy(),
-		Suite:     CanonicalSuite("example.com", "control.example.net"),
-		AttemptsQuick: 2,
+		Providers:      []dnspath.DNSPathProvider{tcp},
+		Policy:         diagnosisPolicy(),
+		Suite:          CanonicalSuite("example.com", "control.example.net"),
+		AttemptsQuick:  2,
 		NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
 		CatalogVersion: "catalog-test", TTL: time.Hour,
 	})
@@ -137,13 +137,13 @@ func TestADNSPriorFromProfile(t *testing.T) {
 		ProfileID: "dnsprof-prior", Status: dnspath.ProfileStatusReady,
 		NetworkContextID: "wan-1", ConfigGeneration: 5, RuntimeEpoch: "e1",
 		QuerySuiteVersion: "adns-suite-v1",
-		Primary: primary, Fallbacks: []dnspath.DNSPathID{fallback},
+		Primary:           primary, Fallbacks: []dnspath.DNSPathID{fallback},
 		CandidateOutcomes: []dnspath.DNSPathProbeOutcome{
 			{PathID: primary, Class: dnspath.OutcomePassCorrect},
 			{PathID: fallback, Class: dnspath.OutcomePassCorrect},
 		},
 		InjectionDetected: true,
-		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+		CreatedAt:         now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := profile.Seal(); err != nil {
 		t.Fatal(err)
@@ -183,13 +183,13 @@ func TestADNSPriorRejectsStaleProfile(t *testing.T) {
 		ProfileID: "dnsprof-stale", Status: dnspath.ProfileStatusStale,
 		NetworkContextID: "wan-1", ConfigGeneration: 5, RuntimeEpoch: "e1",
 		QuerySuiteVersion: "adns-suite-v1",
-		Primary: dnspath.DNSPathID{Family: dnspath.DNSPathUDP, ResolverID: "r", IPFamily: "ipv4"},
-		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+		Primary:           dnspath.DNSPathID{Family: dnspath.DNSPathUDP, ResolverID: "r", IPFamily: "ipv4"},
+		CreatedAt:         now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	profile.Seal()
 	scope := monitor.MonitorScopeKey{
 		ClientScope: monitor.ClientScopeKey{ID: "c1", Role: "forwarded"},
-		TargetRole: "target", NetworkContextID: "wan-1", ConfigGeneration: 5,
+		TargetRole:  "target", NetworkContextID: "wan-1", ConfigGeneration: 5,
 	}
 	if _, err := BuildDNSDiscoveryPrior(profile, scope, []string{"b"}, now); err == nil {
 		t.Fatal("stale profile must not feed Discovery")

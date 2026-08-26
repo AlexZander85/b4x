@@ -41,12 +41,12 @@ type Supervisor struct {
 	MaxRestarts int
 	BackoffBase time.Duration
 
-	mu        sync.Mutex
-	state     BackendState
-	cmd       *exec.Cmd
-	restarts  int
+	mu         sync.Mutex
+	state      BackendState
+	cmd        *exec.Cmd
+	restarts   int
 	configPath string
-	lastErr   error
+	lastErr    error
 }
 
 func NewSupervisor(manifest BinaryManifest, binaryPath, workDir string, spec InstanceSpec, readiness QueryFunc) *Supervisor {

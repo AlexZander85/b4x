@@ -174,17 +174,17 @@ func (p DNSPathID) SamePathAlias(o DNSPathID) bool {
 type CapabilityState string
 
 const (
-	CapUnknown              CapabilityState = "UNKNOWN"
-	CapUnsupported          CapabilityState = "UNSUPPORTED"
-	CapAvailable            CapabilityState = "AVAILABLE"
-	CapReady                CapabilityState = "READY"
-	CapDegraded             CapabilityState = "DEGRADED"
-	CapStale                CapabilityState = "STALE"
-	CapFailed               CapabilityState = "FAILED"
-	CapBlockedByPolicy      CapabilityState = "BLOCKED_BY_POLICY"
-	CapBlockedByDependency  CapabilityState = "BLOCKED_BY_DEPENDENCY"
-	CapBlockedByCapability  CapabilityState = "BLOCKED_BY_CAPABILITY"
-	CapBlockedByBootstrap   CapabilityState = "BLOCKED_BOOTSTRAP"
+	CapUnknown               CapabilityState = "UNKNOWN"
+	CapUnsupported           CapabilityState = "UNSUPPORTED"
+	CapAvailable             CapabilityState = "AVAILABLE"
+	CapReady                 CapabilityState = "READY"
+	CapDegraded              CapabilityState = "DEGRADED"
+	CapStale                 CapabilityState = "STALE"
+	CapFailed                CapabilityState = "FAILED"
+	CapBlockedByPolicy       CapabilityState = "BLOCKED_BY_POLICY"
+	CapBlockedByDependency   CapabilityState = "BLOCKED_BY_DEPENDENCY"
+	CapBlockedByCapability   CapabilityState = "BLOCKED_BY_CAPABILITY"
+	CapBlockedByBootstrap    CapabilityState = "BLOCKED_BOOTSTRAP"
 	CapRepresentationUnknown CapabilityState = "BLOCKED_REPRESENTATION_UNKNOWN"
 )
 
@@ -203,25 +203,33 @@ func (s CapabilityState) Terminal() bool {
 type OutcomeClass string
 
 const (
-	OutcomePassCorrect            OutcomeClass = "PASS_CORRECT"
-	OutcomePassDifferentButValid  OutcomeClass = "PASS_DIFFERENT_BUT_VALID"
-	OutcomeTimeout                OutcomeClass = "TIMEOUT"
-	OutcomeConnectionRefused      OutcomeClass = "CONNECTION_REFUSED"
-	OutcomeTLSCertFailure         OutcomeClass = "TLS_CERT_FAILURE"
-	OutcomeTLSAlert               OutcomeClass = "TLS_ALERT"
-	OutcomeHTTPStatusFailure      OutcomeClass = "HTTP_STATUS_FAILURE"
-	OutcomeQUICUnavailable        OutcomeClass = "QUIC_UNAVAILABLE"
-	OutcomeMalformedDNS           OutcomeClass = "MALFORMED_DNS"
-	OutcomeQuestionMismatch       OutcomeClass = "QUESTION_MISMATCH"
-	OutcomeRCodeMismatch          OutcomeClass = "RCODE_MISMATCH"
-	OutcomeAnswerConflict         OutcomeClass = "ANSWER_CONFLICT"
+	OutcomePassCorrect           OutcomeClass = "PASS_CORRECT"
+	OutcomePassDifferentButValid OutcomeClass = "PASS_DIFFERENT_BUT_VALID"
+	OutcomeTimeout               OutcomeClass = "TIMEOUT"
+	OutcomeConnectionRefused     OutcomeClass = "CONNECTION_REFUSED"
+	OutcomeTLSCertFailure        OutcomeClass = "TLS_CERT_FAILURE"
+	OutcomeTLSAlert              OutcomeClass = "TLS_ALERT"
+	// OutcomeTLSMidHandshakeReset is the DPI family-filter signature from the
+	// 2026-08 DoH/DoT blocking wave: TCP connects, then the connection is
+	// reset (ECONNRESET) or truncated (unexpected EOF) after TLS ClientHello,
+	// before the handshake completes. Distinct from CONNECTION_REFUSED (server
+	// not listening) and TIMEOUT (generic loss): the path family itself is
+	// filtered, so the family is quarantined fast and plaintext fallback to
+	// the same resolver IPs remains a valid candidate.
+	OutcomeTLSMidHandshakeReset    OutcomeClass = "TLS_MID_HANDSHAKE_RESET"
+	OutcomeHTTPStatusFailure       OutcomeClass = "HTTP_STATUS_FAILURE"
+	OutcomeQUICUnavailable         OutcomeClass = "QUIC_UNAVAILABLE"
+	OutcomeMalformedDNS            OutcomeClass = "MALFORMED_DNS"
+	OutcomeQuestionMismatch        OutcomeClass = "QUESTION_MISMATCH"
+	OutcomeRCodeMismatch           OutcomeClass = "RCODE_MISMATCH"
+	OutcomeAnswerConflict          OutcomeClass = "ANSWER_CONFLICT"
 	OutcomeEarlyInjectionSuspected OutcomeClass = "EARLY_INJECTION_SUSPECTED"
-	OutcomeTruncatedRequiresTCP   OutcomeClass = "TRUNCATED_REQUIRES_TCP"
-	OutcomeDNSSECInvalid          OutcomeClass = "DNSSEC_INVALID"
-	OutcomeResolverPolicyFiltered OutcomeClass = "RESOLVER_POLICY_FILTERED"
-	OutcomeCacheStale             OutcomeClass = "CACHE_STALE"
-	OutcomeInconclusive           OutcomeClass = "INCONCLUSIVE"
-	OutcomeObserverUnavailable    OutcomeClass = "OBSERVER_UNAVAILABLE"
+	OutcomeTruncatedRequiresTCP    OutcomeClass = "TRUNCATED_REQUIRES_TCP"
+	OutcomeDNSSECInvalid           OutcomeClass = "DNSSEC_INVALID"
+	OutcomeResolverPolicyFiltered  OutcomeClass = "RESOLVER_POLICY_FILTERED"
+	OutcomeCacheStale              OutcomeClass = "CACHE_STALE"
+	OutcomeInconclusive            OutcomeClass = "INCONCLUSIVE"
+	OutcomeObserverUnavailable     OutcomeClass = "OBSERVER_UNAVAILABLE"
 )
 
 // Pass reports whether the outcome carries usable correctness evidence.
@@ -250,11 +258,11 @@ type DNSPathProbeOutcome struct {
 	QuerySuiteID string    `json:"query_suite_id"`
 	Attempt      uint16    `json:"attempt"`
 
-	Stage      TransportStage `json:"transport_stage"`
-	Class      OutcomeClass   `json:"response_class"`
-	RCode      int            `json:"rcode"`
-	Truncated  bool           `json:"truncated"`
-	DNSSECState string        `json:"dnssec_state,omitempty"`
+	Stage       TransportStage `json:"transport_stage"`
+	Class       OutcomeClass   `json:"response_class"`
+	RCode       int            `json:"rcode"`
+	Truncated   bool           `json:"truncated"`
+	DNSSECState string         `json:"dnssec_state,omitempty"`
 
 	AnswerFingerprint string `json:"answer_fingerprint,omitempty"`
 	CNAMEFingerprint  string `json:"cname_fingerprint,omitempty"`
@@ -264,9 +272,9 @@ type DNSPathProbeOutcome struct {
 	ResponseCount      uint16        `json:"response_count"`
 	ArrivalOrderDigest string        `json:"arrival_order_digest,omitempty"`
 
-	FailureCode  string   `json:"failure_code,omitempty"`
-	Attribution  string   `json:"attribution,omitempty"`
-	EvidenceRefs []string `json:"evidence_refs,omitempty"`
+	FailureCode  string    `json:"failure_code,omitempty"`
+	Attribution  string    `json:"attribution,omitempty"`
+	EvidenceRefs []string  `json:"evidence_refs,omitempty"`
 	ObservedAt   time.Time `json:"observed_at"`
 }
 
@@ -286,11 +294,11 @@ type ConfidenceSummary struct {
 
 // Profile status values.
 const (
-	ProfileStatusDraft     = "draft"
-	ProfileStatusReady     = "ready"
-	ProfileStatusStale     = "stale"
-	ProfileStatusExpired   = "expired"
-	ProfileStatusInvalid   = "invalid"
+	ProfileStatusDraft   = "draft"
+	ProfileStatusReady   = "ready"
+	ProfileStatusStale   = "stale"
+	ProfileStatusExpired = "expired"
+	ProfileStatusInvalid = "invalid"
 )
 
 // DNSPathProfile is the single new persisted diagnostic/runtime profile
@@ -451,12 +459,12 @@ func (p *DNSPathProfile) MarkStale() error {
 // never fresh proof for a new one.
 type DNSCachePartitionKey struct {
 	NetworkContextID string `json:"network_context_id"`
-	ConfigGeneration uint64  `json:"config_generation"`
-	PathHash         string  `json:"path_hash"`
-	QueryNameHash    string  `json:"query_name_hash"`
-	QType            uint16  `json:"qtype"`
-	DNSSECPolicy     string  `json:"dnssec_policy"`
-	ClientScopeClass string  `json:"client_scope_class"`
+	ConfigGeneration uint64 `json:"config_generation"`
+	PathHash         string `json:"path_hash"`
+	QueryNameHash    string `json:"query_name_hash"`
+	QType            uint16 `json:"qtype"`
+	DNSSECPolicy     string `json:"dnssec_policy"`
+	ClientScopeClass string `json:"client_scope_class"`
 }
 
 // String returns the canonical partition key string.

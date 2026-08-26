@@ -34,6 +34,10 @@ const (
 	ModeAAAAOnly       Mode = "aaaa_only"       // only AAAA answers
 	ModeDNSSECInvalid  Mode = "dnssec_invalid"  // bogus DNSSEC fixture
 	ModeDuplicate      Mode = "duplicate"       // two identical valid responses
+	// ModeTCPResetAfterAccept emulates the 2026-08 DPI family filter:
+	// TCP handshake completes, then the connection is reset mid-TLS-handshake
+	// (RST after ClientHello), matching the DoT/853 and DoH/443 cuts.
+	ModeTCPResetAfterAccept Mode = "tcp_reset_after_accept"
 )
 
 // Fixture is one controlled DNS server instance.
@@ -124,6 +128,17 @@ func (f *Fixture) serveTCP() {
 		}
 		go func(c net.Conn) {
 			defer c.Close()
+			if f.Mode == ModeTCPResetAfterAccept {
+				// Read whatever the client sends (TLS ClientHello), then
+				// force RST via SO_LINGER=0 — the mid-handshake cut.
+				_ = c.SetReadDeadline(time.Now().Add(time.Second))
+				buf := make([]byte, 4096)
+				_, _ = c.Read(buf)
+				if tc, ok := c.(*net.TCPConn); ok {
+					_ = tc.SetLinger(0)
+				}
+				return
+			}
 			var lenBuf [2]byte
 			if _, err := readFull(c, lenBuf[:]); err != nil {
 				return
