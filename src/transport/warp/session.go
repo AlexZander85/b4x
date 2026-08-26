@@ -53,6 +53,9 @@ const (
 	maxCapsuleLen = 64 << 10
 	// tlsHandshakeTimeout bounds the pinned handshake phase.
 	tlsHandshakeTimeout = 5 * time.Second
+	// writeBlockWarnMS: a request-body write slower than this is traced even
+	// when the frame trace is off (H2 backpressure evidence, bd b4x-46z).
+	writeBlockWarnMS = 50
 )
 
 // Session lifecycle errors mapped to §62.1 failure classes by Classify.
@@ -290,6 +293,7 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 	}
 
 	sess.resp = rsp.Body
+	sess.traceEv(fmt.Sprintf("connect-200 colo=%s", res.Colo))
 	res.DurationMS = msSince(start)
 	go sess.readerLoop()
 	return sess, res, nil
@@ -313,8 +317,14 @@ func (s *Session) WritePacket(pkt []byte) error {
 	frame = append(frame, pkt...)
 
 	s.writeMu.Lock()
-	defer s.writeMu.Unlock()
-	if _, err := s.pw.Write(frame); err != nil {
+	writeStart := time.Now()
+	_, err := s.pw.Write(frame)
+	wrMS := time.Since(writeStart).Milliseconds()
+	s.writeMu.Unlock()
+	if traceEnabled() || wrMS >= writeBlockWarnMS {
+		s.traceTx(pkt, wrMS, err)
+	}
+	if err != nil {
 		return err
 	}
 	s.txPkts.Add(1)
@@ -429,6 +439,7 @@ func (s *Session) readerLoop() {
 	br := bufio.NewReaderSize(s.resp, 16<<10)
 	defer close(s.packets)
 	terminal := func(err error) {
+		s.traceEv("reader-terminal: " + normalizeReadErr(err).Error())
 		s.Close() // unblock emit via done-case even when the queue is full
 		s.emit(packetMsg{err: normalizeReadErr(err)})
 	}
@@ -452,6 +463,7 @@ func (s *Session) readerLoop() {
 			terminal(err)
 			return
 		}
+		s.traceRx(typ, payload)
 		if typ != 0 {
 			continue // foreign control capsule: skip inbound (usque semantics)
 		}
@@ -471,6 +483,7 @@ func (s *Session) emit(m packetMsg) {
 	default:
 		if m.err == nil { // error messages matter more than data frames
 			s.droppedPrimary.Add(1)
+			s.traceDropPrimary(m.data)
 		} else {
 			select {
 			case s.packets <- m:
@@ -491,6 +504,7 @@ func (s *Session) fanOut(pkt []byte) {
 		case ch <- pkt:
 		default:
 			s.droppedTaps++
+			s.traceDropTap(pkt)
 		}
 	}
 }

@@ -107,6 +107,8 @@ func cmdRun(args []string) error {
 	path := fs.String("config", "", "path to config json (required)")
 	wait := fs.Duration("wait", 45*time.Second, "max wait for connected state")
 	trace := fs.Bool("trace", false, "after connect: mount netstack carrier and GET https://1.1.1.1/cdn-cgi/trace through the tunnel")
+	urlFlag := fs.String("url", "https://1.1.1.1/cdn-cgi/trace", "trace mode: URL to fetch through the tunnel (set B4_WARP_FRAMETRACE for byte-level capsule evidence, bd b4x-46z)")
+	repeat := fs.Int("repeat", 1, "trace mode: sequential fetch count")
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
@@ -145,16 +147,20 @@ func cmdRun(args []string) error {
 			traceBody = "attach failed: " + aerr.Error()
 		} else {
 			defer closer()
-			tctx, tcancel := context.WithTimeout(ctx, 20*time.Second)
-			defer tcancel()
-			req, _ := http.NewRequestWithContext(tctx, http.MethodGet, "https://1.1.1.1/cdn-cgi/trace", nil)
-			resp, rerr := carrier.HTTPClient(15 * time.Second).Do(req)
-			if rerr != nil {
-				traceBody = "trace failed: " + rerr.Error()
-			} else {
+			for i := 1; i <= *repeat; i++ {
+				tctx, tcancel := context.WithTimeout(ctx, 20*time.Second)
+				req, _ := http.NewRequestWithContext(tctx, http.MethodGet, *urlFlag, nil)
+				resp, rerr := carrier.HTTPClient(15 * time.Second).Do(req)
+				if rerr != nil {
+					traceBody = fmt.Sprintf("fetch %d/%d failed: %v", i, *repeat, rerr.Error())
+					tcancel()
+					break
+				}
 				body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 				resp.Body.Close()
+				tcancel()
 				traceBody = string(body)
+				fmt.Printf("--- fetch %d/%d %s -> status %d ---\n", i, *repeat, *urlFlag, resp.StatusCode)
 			}
 		}
 		fmt.Println("--- cdn-cgi/trace through tunnel ---")
