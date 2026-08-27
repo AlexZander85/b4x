@@ -66,12 +66,16 @@ const (
 
 // Verification constants (research consolidated numbers).
 const (
-	MinAttempts          = 3  // flap tolerance per candidate
-	BurstCount           = 10 // durability-burst probes
-	TailRunLimit         = 3  // >=3 unanswered tail => torn-down
-	FastReverifyBudget   = 5 * time.Second
-	Cooldown             = 300 * time.Second // after CooldownStrikes consecutive fails
-	CooldownStrikes      = 2
+	MinAttempts        = 3  // flap tolerance per candidate
+	BurstCount         = 10 // durability-burst probes
+	TailRunLimit       = 3  // >=3 unanswered tail => torn-down
+	FastReverifyBudget = 5 * time.Second
+	Cooldown           = 300 * time.Second // after CooldownStrikes consecutive fails
+	CooldownStrikes    = 2
+	// H2ReserveRatio keeps H2 from being starved by a QUIC-heavy
+	// catalog: at least 1/H2ReserveRatio of the scan targets are
+	// reserved for H2 carriers (M3-09).
+	H2ReserveRatio       = 3
 	PerProbeTimeoutLimit = 2 * time.Second // design v2 global per-probe ceiling
 	DefaultLossBudget    = 0.2             // <=20% loss still ranks healthy
 )
@@ -335,10 +339,22 @@ func (d *Discoverer) selectCandidates(maxTargets int) []scanCandidate {
 	}
 	now := d.cfg.now()
 	out := make([]scanCandidate, 0, len(h2)+len(quic))
+	// M3-09: reserve a floor for H2 so a QUIC-heavy catalog (e.g. 42 QUIC
+	// candidates) can never consume the whole scan budget and starve the H2
+	// scan. QUIC may fill at most quicFloor's complement of the targets.
+	h2Floor := maxTargets / H2ReserveRatio
+	if h2Floor < 1 {
+		h2Floor = 1
+	}
+	quicCap := maxTargets - h2Floor
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	appendOK := func(ep netip.AddrPort, quicKind bool) bool {
-		if len(out) >= maxTargets {
+		limit := maxTargets
+		if quicKind {
+			limit = quicCap
+		}
+		if len(out) >= limit {
 			return false
 		}
 		if until, bad := d.excluded[ep]; bad && until.After(now) {
@@ -349,7 +365,7 @@ func (d *Discoverer) selectCandidates(maxTargets int) []scanCandidate {
 	}
 	for _, ep := range quic {
 		if !appendOK(ep, true) {
-			return out
+			break // QUIC exhausted its reserved share; let H2 fill the floor
 		}
 	}
 	for _, ep := range h2 {
