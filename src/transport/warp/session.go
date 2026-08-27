@@ -622,6 +622,12 @@ func readVarintStream(r *bufio.Reader) (uint64, error) {
 }
 
 func classifyDialError(err error) string {
+	// Pin family is fail-closed on the H2 path too (M3-04): a pin incident
+	// (rotation / bad cert) is reported as FailureTLSPin, never as a generic
+	// FailureTCPConnect that could be mistaken for a purely network verdict.
+	if errors.Is(err, ErrPinMismatch) || errors.Is(err, ErrPinNotECDSA) || errors.Is(err, ErrBadEndpointCert) {
+		return FailureTLSPin
+	}
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "dial policy"), strings.Contains(msg, "SO_MARK"), strings.Contains(msg, "bind device"):

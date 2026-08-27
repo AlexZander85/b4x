@@ -639,7 +639,11 @@ func classifyH3HandshakeError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if errors.Is(err, ErrPinMismatch) {
+	// Pin family is fail-closed (E-H3 red line: tls-pin-mismatch is EXCLUDED
+	// from the transport-switch reasons). M3-04 widens the family from
+	// ErrPinMismatch alone to the full rotation/bad-cert set so a pin incident
+	// never masquerades as a FailureUDPEgressBlocked (a ladder switch-class).
+	if errors.Is(err, ErrPinMismatch) || errors.Is(err, ErrPinNotECDSA) || errors.Is(err, ErrBadEndpointCert) {
 		return FailureTLSPin
 	}
 	msg := err.Error()
