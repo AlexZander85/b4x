@@ -578,8 +578,13 @@ func (s *Session) fanOut(pkt []byte) {
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
 	for ch := range s.subs {
+		// M-30: each tap receives a private copy. pumpInbound hands the raw
+		// payload to gVisor (buffer.MakeWithData, sliveless); a future
+		// mutating/NAT-rewrite subscriber must not corrupt other taps or the
+		// payload already queued on the primary packets channel.
+		cp := append([]byte(nil), pkt...)
 		select {
-		case ch <- pkt:
+		case ch <- cp:
 		default:
 			s.droppedTaps++
 			s.traceDropTap(pkt)
@@ -591,6 +596,10 @@ func (s *Session) fanOut(pkt []byte) {
 // payloads. The returned channel is buffered; overflow drops frames
 // (counted in DroppedFrames). The cancel function unsubscribes and closes
 // the channel exactly once; Session.Close closes all remaining taps.
+//
+// Contract (M-30): every payload delivered here is a private copy; a
+// subscriber may mutate the slice without affecting the primary consumer,
+// other taps, or gVisor.
 func (s *Session) SubscribePackets() (<-chan []byte, func()) {
 	select {
 	case <-s.done:
