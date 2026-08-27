@@ -510,6 +510,21 @@ func (s *Supervisor) run(ctx context.Context) {
 			// over the generic error path.
 			switch {
 			case res.Action == ActionBlockedThrottle || res.Action == ActionBlockedCooldown:
+				// M3-05: throttle = "never re-enroll", NOT "stop tunnelling".
+				// When the reconciler kept a LIVE identity through the throttle
+				// (res.Identity != nil), adopt it and proceed to connect (the
+				// keep-old dial) instead of idling until the throttle lifts —
+				// liveness is proven by the data plane, not account state. Only
+				// a missing identity (cold start / refused / revoked) pauses.
+				if res.Identity != nil {
+					ident = res.Identity
+					// Do not revalidate before the throttle ends (kept identity
+					// is already valid; the reconciler refused to reprovision).
+					ensuredAt = res.ThrottleUntil
+					s.setLastIdent(ident)
+					s.emit(SupervisorEvent{Name: EvIdentityBlocked, FailureClass: res.FailureClass, Detail: string(res.Action)})
+					continue // straight into the connect phase with keep-old identity
+				}
 				s.setState(StateBackoff)
 				until := res.ThrottleUntil
 				if !until.After(s.cfg.now()) {
