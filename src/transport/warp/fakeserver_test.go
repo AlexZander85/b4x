@@ -28,15 +28,17 @@ type fakeServer struct {
 	status          int  // CONNECT response status (default 200)
 	dropData        bool // accept control, never echo back (silent-DPI class)
 	echoForeignCaps bool
-	teardownAfter   int           // echo N packets then hard-close the stream
-	dropEvery  int  // lossy fixture: drop every Nth capsule (0 = off)
-	rejectNext int  // refuse the next N CONNECT requests with 500 (flap fixture)
-	echoDelay  time.Duration // artificial per-capsule echo delay (RTT fixture)
-	respond    func(payload []byte) []byte // replaces echo when set
-	colo       string // cf-warp-colo telemetry value served on success
+	teardownAfter   int                         // echo N packets then hard-close the stream
+	dropEvery       int                         // lossy fixture: drop every Nth capsule (0 = off)
+	rejectNext      int                         // refuse the next N CONNECT requests with 500 (flap fixture)
+	echoDelay       time.Duration               // artificial per-capsule echo delay (RTT fixture)
+	connectDelay    time.Duration               // artificial delay before the CONNECT response headers
+	respond         func(payload []byte) []byte // replaces echo when set
+	colo            string                      // cf-warp-colo telemetry value served on success
 	echoed          int
 	capsulesSeen    int
 	connects        int
+	active          int      // live accepted conns; drives M-01's leak assertion
 	payloads        [][]byte // every DATAGRAM payload received, in order
 }
 
@@ -59,6 +61,24 @@ func (f *fakeServer) setEchoDelay(d time.Duration) {
 	f.mu.Lock()
 	f.echoDelay = d
 	f.mu.Unlock()
+}
+
+// setConnectDelay installs an artificial delay before the CONNECT response
+// headers are written (M-01 fixture: lets the client abort a pause that the
+// server is still holding open).
+func (f *fakeServer) setConnectDelay(d time.Duration) {
+	f.mu.Lock()
+	f.connectDelay = d
+	f.mu.Unlock()
+}
+
+// activeConns reports the number of CONNECT handlers currently running.
+// A connection leaks (M-01) when the client never closes its h2 conn and the
+// handler never returns, keeping this > 0.
+func (f *fakeServer) activeConns() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.active
 }
 
 // setResponder replaces the echo with a computed reply per payload
@@ -148,7 +168,14 @@ func (f *fakeServer) serve() {
 func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	f.connects++
+	f.active++
 	status, teardownAfter := f.status, f.teardownAfter
+	defer func() {
+		f.mu.Lock()
+		f.active--
+		f.mu.Unlock()
+	}()
+	connectDelay := f.connectDelay
 	if f.rejectNext > 0 {
 		f.rejectNext--
 		f.mu.Unlock()
@@ -160,6 +187,15 @@ func (f *fakeServer) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodConnect {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
+	}
+	if connectDelay > 0 {
+		// Hold the CONNECT response open so a quick-aborting client can
+		// outrace it; the raw conn is still alive at the server side.
+		select {
+		case <-time.After(connectDelay):
+		case <-r.Context().Done():
+			return
+		}
 	}
 	f.mu.Lock()
 	colo := f.colo

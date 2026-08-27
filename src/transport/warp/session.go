@@ -276,7 +276,30 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 		err = parent.Err()
 	}
 	if err != nil {
+		// M-01: an abort (handshake-budget or parent) racing a successful Do
+		// leaves rsp sitting in the buffered dialed channel unread, so the
+		// round-trip's response body is never closed and the h2 connection can
+		// be held in the x/net/http2 idle pool (no idle-scavenger). Reap the
+		// response as soon as the background Do lands (it finishes because the
+		// request context is the *parent*, which is still alive on a budget
+		// abort), then give the transport a second CloseIdleConnections so the
+		// conn leaves the pool.
+		reapDone := make(chan struct{})
+		go func() {
+			defer func() { _ = recover() }() // M3-07: gate the goroutine frame
+			defer close(reapDone)
+			out, ok := <-dialed
+			if ok && out.rsp != nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(out.rsp.Body, 4096))
+				_ = out.rsp.Body.Close()
+			}
+		}()
 		sess.closeQuietly()
+		go func() {
+			defer func() { _ = recover() }() // M3-07
+			<-reapDone                       // conn is idle again once the body is closed
+			sess.tr.CloseIdleConnections()
+		}()
 		switch {
 		case errors.Is(err, ErrPinMismatch):
 			return fail(FailureTLSPin, err)
