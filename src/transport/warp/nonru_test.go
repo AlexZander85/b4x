@@ -88,7 +88,9 @@ type stubGeoProvider struct {
 
 func newStubProvider(id string, res GeoResult) *stubGeoProvider {
 	res.ProviderID = id
-	return &stubGeoProvider{id: id, class: "stub-class", res: res}
+	// Default class is dns-resolver-authority so a stub votes in the quorum
+	// and satisfies the config "at least one dns-authority" floor (M3-12).
+	return &stubGeoProvider{id: id, class: ProviderClassDNSResolverAuthority, res: res}
 }
 
 func (p *stubGeoProvider) ID() string            { return p.id }

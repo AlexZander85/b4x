@@ -119,6 +119,17 @@ func (c *NonRUConfig) validate() error {
 		}
 		seen[p.ID()] = true
 	}
+	hasDNS := false
+	for _, p := range c.Providers {
+		if p.ProviderClass() == ProviderClassDNSResolverAuthority {
+			hasDNS = true
+			break
+		}
+	}
+	if !hasDNS {
+		return fmt.Errorf("%w: need at least one %q-class provider; a config of only a correlated cf-trace class cannot form a DNS-path-proven quorum",
+			ErrGeoConfig, ProviderClassDNSResolverAuthority)
+	}
 	return nil
 }
 
@@ -421,7 +432,7 @@ func (g *NonRUGate) refresh(ctx context.Context, tr GeoProbeTransport, gen uint6
 			Country:           res.Country,
 			PathID:            tr.PathID(),
 			Class:             g.classify(res.Country),
-			DNSProof:          true, // resolved through the inner resolver by construction
+			DNSProof:          p.ProviderClass() == ProviderClassDNSResolverAuthority, // §62.6 DNS path proof only for dns-authority probes
 			ObservedAt:        now,
 			ExpiresAt:         now.Add(g.cfg.AttestationTTL),
 			CounterDelta:      delta,

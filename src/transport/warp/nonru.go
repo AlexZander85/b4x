@@ -289,12 +289,22 @@ type WhoamiDNSProvider struct {
 	classify func(netip.Addr) string
 }
 
+const (
+	// ProviderClassDNSResolverAuthority is a provider whose geo truth is a DNS
+	// resolution through the INNER resolver (§62.6). Only this class may stamp
+	// DNSProof, so only it contributes a DNS-path-proven vote to the quorum.
+	ProviderClassDNSResolverAuthority = "dns-resolver-authority"
+	// ProviderClassCloudflareTrace is a single-vendor, single-observation-point
+	// class (§43): a valid corroborating source, never a quorum on its own.
+	ProviderClassCloudflareTrace = "cloudflare-trace"
+)
+
 func NewWhoamiDNSProvider(id, qname string, classify func(netip.Addr) string) *WhoamiDNSProvider {
 	return &WhoamiDNSProvider{id: id, qname: qname, classify: classify}
 }
 
 func (p *WhoamiDNSProvider) ID() string            { return p.id }
-func (p *WhoamiDNSProvider) ProviderClass() string { return "dns-resolver-authority" }
+func (p *WhoamiDNSProvider) ProviderClass() string { return ProviderClassDNSResolverAuthority }
 
 func (p *WhoamiDNSProvider) Probe(ctx context.Context, tr GeoProbeTransport) (GeoResult, error) {
 	addrs, _, err := tr.ResolveA(ctx, p.qname)
@@ -329,7 +339,7 @@ func NewCFTraceProvider(id string) *CFTraceProvider {
 }
 
 func (p *CFTraceProvider) ID() string            { return p.id }
-func (p *CFTraceProvider) ProviderClass() string { return "cloudflare-trace" }
+func (p *CFTraceProvider) ProviderClass() string { return ProviderClassCloudflareTrace }
 
 func (p *CFTraceProvider) Probe(ctx context.Context, tr GeoProbeTransport) (GeoResult, error) {
 	body, err := tr.HTTPSExchange(ctx, p.url)
