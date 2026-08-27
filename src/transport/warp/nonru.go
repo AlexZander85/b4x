@@ -243,12 +243,17 @@ func (t *TunnelGeoTransport) ResolveA(ctx context.Context, name string) ([]netip
 	if sport == 0 {
 		return nil, 0, errors.New("transportwarp: geo resolve: bad query sport")
 	}
-	before := t.sess.Counters()
-
 	started := time.Now()
 	if err := t.sess.WritePacket(q.Packet); err != nil {
 		return nil, 0, err
 	}
+	// M3-13: snapshot AFTER the query write so the proof tracks matched-Rx
+	// (the reply attributable to THIS probe), not the query's own tx
+	// increment - the old spot made delta>=1 tautological and left
+	// ErrNoCounterDelta unreachable. A matched reply that never moved this
+	// session's counters (short-circuited with no real inner transit) now
+	// yields a reachable ErrNoCounterDelta.
+	before := t.sess.Counters()
 	deadline := time.NewTimer(t.resolveTimeout)
 	defer deadline.Stop()
 	for {
