@@ -155,9 +155,28 @@ func (c *NestedConfig) Validate() error {
 	if mtuOr(c.InnerTemplate.MTU, DefaultNestedInnerMTU) > mtuOr(c.BaseTemplate.MTU, DefaultMTU)-NestedMTUMargin {
 		return ErrMTUGradient
 	}
-	if c.Backend == BackendANetns && !c.AllowUnconstrainedInner &&
-		c.BaseInterface == "" && c.InnerFwMark == 0 {
-		return ErrUnconstrainedInner
+	if c.Backend == BackendANetns {
+		// M3-10: the "inner control must not egress direct-WAN" rule (red
+		// line 5) is enforced on the ACTUAL inner dial policy, not on dead
+		// declarative fields. BaseInterface/InnerFwMark were never wired into
+		// InnerTemplate.Policy, so a config could "pass" Validate yet its inner
+		// control socket dialed direct-WAN (no SO_MARK/SO_BINDTODEVICE).
+		// Translate the declarations into the policy that session.go:204 uses;
+		// a user-provided Policy in conflict is rejected, never overridden.
+		if c.BaseInterface != "" || c.InnerFwMark != 0 {
+			if c.InnerTemplate.Policy.Constrained() {
+				return fmt.Errorf("%w: both declarative BaseInterface/InnerFwMark and InnerTemplate.Policy set",
+					ErrUnconstrainedInner)
+			}
+			c.InnerTemplate.Policy.BindDevice = c.BaseInterface
+			c.InnerTemplate.Policy.FwMark = c.InnerFwMark
+			if c.BaseInterface == "" && c.InnerFwMark != 0 {
+				c.InnerTemplate.Policy.RequireMark = true
+			}
+		}
+		if !c.AllowUnconstrainedInner && !c.InnerTemplate.Policy.Constrained() {
+			return ErrUnconstrainedInner
+		}
 	}
 	// Backend B has no kernel policy to constrain the inner socket, so the
 	// ONLY proof the inner control stream will traverse the base is an
