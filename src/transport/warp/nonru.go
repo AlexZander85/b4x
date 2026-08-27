@@ -79,8 +79,12 @@ const (
 	EvNonRURoutePromoted          = "warp_nonru_route_promoted"
 	EvNonRURouteRevocationStarted = "warp_nonru_route_revocation_started"
 	EvNonRURouteRevoked           = "warp_nonru_route_revoked"
-	EvNonRUFailClosed             = "warp_nonru_fail_closed_activated"
-	EvNonRUFallbackBase           = "warp_nonru_fallback_to_base_activated"
+	// EvRouteRevokeTimeout reports a revoke hook that exceeded RouteRevokeTimeout
+	// (M3-14): the gate keeps running and the route is still revoked, but the
+	// external hook stalled past its budget and Status carries RevokeDegraded.
+	EvRouteRevokeTimeout = "warp_route_revoke_timeout"
+	EvNonRUFailClosed    = "warp_nonru_fail_closed_activated"
+	EvNonRUFallbackBase  = "warp_nonru_fallback_to_base_activated"
 
 	EvDNSPathProven = "warp_dns_path_proven" // §62.6
 	EvDNSPathFailed = "warp_dns_path_failed"
@@ -110,7 +114,8 @@ var (
 	// diagnostics must classify these as "carrier absent" — a different
 	// failure layer from network failures; never report them as
 	// connectivity errors.
-	ErrBlockedCarrier = errors.New("transportwarp: BLOCKED_CARRIER base-tunnel tcp carrier absent")
+	ErrBlockedCarrier     = errors.New("transportwarp: BLOCKED_CARRIER base-tunnel tcp carrier absent")
+	ErrRouteRevokeTimeout = errors.New("transportwarp: revoke hook exceeded its budget")
 	// ErrHTTPSNotWired: HTTPS-in-tunnel needs the userspace carrier above;
 	// wraps ErrBlockedCarrier so callers can classify by layer.
 	ErrHTTPSNotWired = fmt.Errorf("transportwarp: geo https probe %w", ErrBlockedCarrier)

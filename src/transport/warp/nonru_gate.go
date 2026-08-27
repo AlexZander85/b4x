@@ -147,10 +147,16 @@ type NonRUStatus struct {
 	Observations          []GeoObservation // last refresh round (fresh evidence)
 	Revocations           uint64
 	LastRevocationLatency time.Duration
+	RevokeDegraded        bool // M3-14: last revoke hook exceeded its budget
 	SessionGen            uint64
 	BaseColo              string // H-NONRU-1 telemetry passthrough
 	InnerColo             string
 }
+
+// RouteRevokeTimeout is the wall-clock budget a single OnRouteRevoke hook call
+// gets (M3-14). A hung hook cannot freeze the gate loop beyond
+// 2*RouteRevokeTimeout (one bounded retry). Named constant per spec.
+const RouteRevokeTimeout = 2 * time.Second
 
 const nonruEventRing = 64
 
@@ -166,6 +172,7 @@ type NonRUGate struct {
 	att            GeoAttestation
 	lastObs        []GeoObservation
 	revocations    uint64
+	degradedRevoke bool
 	lastRevLatency time.Duration
 	nextRefresh    time.Time
 	configGenLast  uint64
@@ -246,6 +253,7 @@ func (g *NonRUGate) Status() NonRUStatus {
 		Attestation:           g.att,
 		Revocations:           g.revocations,
 		LastRevocationLatency: g.lastRevLatency,
+		RevokeDegraded:        g.degradedRevoke,
 		SessionGen:            g.att.SessionGeneration,
 	}
 	if g.lastObs != nil {
@@ -523,6 +531,41 @@ func (g *NonRUGate) applyPass(tr GeoProbeTransport, q GeoQuorum, gen uint64) {
 // doRevoke performs the IMMEDIATE revocation: hook first (its wall time is
 // part of the §63 latency), then the state flip and events. No-op when the
 // route is already inactive (revocation is edge-triggered, not level).
+// revokeHook runs the external OnRouteRevoke hook under RouteRevokeTimeout
+// (M3-14): the gate's IMMEDIATE revocation must not be forfeited to a hung
+// field hook. On budget exhaustion the hook gets ONE bounded retry (<=2 total
+// calls per revocation), after which revocation proceeds regardless and the
+// caller escalates EvRouteRevokeTimeout. Channels are buffered so a hook that
+// overshoots can never block the gate loop or leak a caller-waiting goroutine.
+func (g *NonRUGate) revokeHook(reason string) (detail string, degraded bool) {
+	if g.cfg.OnRouteRevoke == nil {
+		return "", false
+	}
+	run := func() error {
+		done := make(chan error, 1)
+		go func() { done <- g.cfg.OnRouteRevoke(reason) }()
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(RouteRevokeTimeout):
+			return ErrRouteRevokeTimeout
+		}
+	}
+	if err := run(); err == nil {
+		return "", false
+	} else if errors.Is(err, ErrRouteRevokeTimeout) {
+		// Bounded retry: a second budget window, then we give up on the hook.
+		if err2 := run(); errors.Is(err2, ErrRouteRevokeTimeout) {
+			return "revoke hook hung past " + RouteRevokeTimeout.String() + " (retried once)", true
+		} else if err2 != nil {
+			return "revoke hook timed out then failed: " + truncate(err2.Error(), 80), true
+		}
+		return "revoke hook exceeded " + RouteRevokeTimeout.String() + " (recovered on retry)", true
+	} else {
+		return "revoke hook failed: " + truncate(err.Error(), 80), false
+	}
+}
+
 func (g *NonRUGate) doRevoke(reason string) {
 	g.mu.Lock()
 	if !g.open {
@@ -534,12 +577,7 @@ func (g *NonRUGate) doRevoke(reason string) {
 	start := g.now()
 	g.emit(NonRUEvent{Name: EvNonRURouteRevocationStarted, Reason: reason})
 
-	hookDetail := ""
-	if g.cfg.OnRouteRevoke != nil {
-		if err := g.cfg.OnRouteRevoke(reason); err != nil {
-			hookDetail = "revoke hook failed: " + truncate(err.Error(), 80)
-		}
-	}
+	hookDetail, degraded := g.revokeHook(reason)
 
 	latency := g.now().Sub(start)
 	g.mu.Lock()
@@ -556,6 +594,7 @@ func (g *NonRUGate) doRevoke(reason string) {
 	}
 	g.revocations++
 	g.lastRevLatency = latency
+	g.degradedRevoke = degraded
 	failClosed := reason == CloseProviderRU || reason == CloseDisagreement ||
 		reason == CloseDirectWANObserved || reason == CloseDNSPathFailed ||
 		reason == CloseTargetServiceGeo
@@ -566,6 +605,9 @@ func (g *NonRUGate) doRevoke(reason string) {
 		g.emit(NonRUEvent{Name: EvNonRUFailClosed, Reason: reason, DurationMS: msDur(latency)})
 	}
 	g.emit(NonRUEvent{Name: EvNonRURouteRevoked, Reason: reason, DurationMS: msDur(latency), Detail: hookDetail})
+	if degraded {
+		g.emit(NonRUEvent{Name: EvRouteRevokeTimeout, Reason: reason, DurationMS: msDur(latency), Detail: hookDetail})
+	}
 	g.emit(NonRUEvent{Name: EvNonRUGateClosed, Reason: reason})
 	if fallback {
 		g.emit(NonRUEvent{Name: EvNonRUFallbackBase, Reason: reason})
