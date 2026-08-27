@@ -51,19 +51,24 @@ const (
 	requiredProbeSuccesses = 2
 	// maxCapsuleLen rejects absurd allocations on malformed input.
 	maxCapsuleLen = 64 << 10
-	// tlsHandshakeTimeout bounds the pinned handshake phase.
-	tlsHandshakeTimeout = 5 * time.Second
 	// writeBlockWarnMS: a request-body write slower than this is traced even
 	// when the frame trace is off (H2 backpressure evidence, bd b4x-46z).
 	writeBlockWarnMS = 50
 )
 
+var (
+	// tlsHandshakeTimeout bounds the pinned handshake phase. A var (not
+	// const) so M-02 tests can shrink it to a deterministic short window.
+	tlsHandshakeTimeout = 5 * time.Second
+)
+
 // Session lifecycle errors mapped to §62.1 failure classes by Classify.
 var (
-	ErrValidationTimeout = errors.New("transportwarp: data-plane validation timeout (control ok, traffic dropped)")
-	ErrPacketTooBig      = errors.New("transportwarp: packet exceeds tunnel MTU")
-	ErrSessionClosed     = errors.New("transportwarp: session closed")
-	ErrMalformedCapsule  = errors.New("transportwarp: malformed capsule framing")
+	ErrValidationTimeout   = errors.New("transportwarp: data-plane validation timeout (control ok, traffic dropped)")
+	ErrTLSHandshakeTimeout = errors.New("transportwarp: TLS handshake timed out")
+	ErrPacketTooBig        = errors.New("transportwarp: packet exceeds tunnel MTU")
+	ErrSessionClosed       = errors.New("transportwarp: session closed")
+	ErrMalformedCapsule    = errors.New("transportwarp: malformed capsule framing")
 )
 
 // Failure classes (addendum §62.1 minimum set, structural not textual).
@@ -211,6 +216,12 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 			tc := tls.Client(rawConn, tlsCfg)
 			if err := tc.HandshakeContext(hsCtx); err != nil {
 				_ = rawConn.Close()
+				// M-02: a handshake deadline is a TLS-layer timeout, not a TCP
+				// connect timeout. crypto/tls surfaces context.DeadlineExceeded; the
+				// sentinel names the layer before the generic DeadlineExceeded catch.
+				if errors.Is(err, context.DeadlineExceeded) {
+					return nil, fmt.Errorf("%w: %v", ErrTLSHandshakeTimeout, err)
+				}
 				return nil, err
 			}
 			// ALPN: "h2" is the expected negotiation; "" is ACCEPTED by
@@ -303,6 +314,8 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 		switch {
 		case errors.Is(err, ErrPinMismatch):
 			return fail(FailureTLSPin, err)
+		case errors.Is(err, ErrTLSHandshakeTimeout):
+			return fail(FailureTLSTimeout, err)
 		case errors.Is(err, context.DeadlineExceeded):
 			return fail(FailureConnectTimeo, err)
 		default:
@@ -651,12 +664,16 @@ func classifyDialError(err error) string {
 	if errors.Is(err, ErrPinMismatch) || errors.Is(err, ErrPinNotECDSA) || errors.Is(err, ErrBadEndpointCert) {
 		return FailureTLSPin
 	}
+	// M-02: a TLS-handshake deadline is classified structurally (sentinel),
+	// never by the string branch crypto/tls did not produce (it surfaces
+	// context.DeadlineExceeded on a handshake timeout).
+	if errors.Is(err, ErrTLSHandshakeTimeout) {
+		return FailureTLSTimeout
+	}
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "dial policy"), strings.Contains(msg, "SO_MARK"), strings.Contains(msg, "bind device"):
 		return FailureDialPolicy
-	case strings.Contains(msg, "handshake timeout"):
-		return FailureTLSTimeout
 	default:
 		return FailureTCPConnect
 	}
