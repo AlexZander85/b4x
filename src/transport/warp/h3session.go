@@ -229,14 +229,14 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	sess.tr = tr
 	remote := net.UDPAddrFromAddrPort(cfg.Endpoint)
 	conf := &quic.Config{
-		EnableDatagrams:             true,
-		KeepAlivePeriod:             h3KeepAlivePeriod,
-		MaxIdleTimeout:              h3MaxIdleTimeout,
-		MaxConnectionReceiveWindow:  h3ConnWindow,
-		MaxStreamReceiveWindow:      h3StreamWindow,
-		MaxIncomingStreams:          h3MaxStreams,
-		HandshakeIdleTimeout:        cfg.HandshakeBudget,
-		DisablePathMTUDiscovery:     false, // PMTUD auto per design §1
+		EnableDatagrams:            true,
+		KeepAlivePeriod:            h3KeepAlivePeriod,
+		MaxIdleTimeout:             h3MaxIdleTimeout,
+		MaxConnectionReceiveWindow: h3ConnWindow,
+		MaxStreamReceiveWindow:     h3StreamWindow,
+		MaxIncomingStreams:         h3MaxStreams,
+		HandshakeIdleTimeout:       cfg.HandshakeBudget,
+		DisablePathMTUDiscovery:    false, // PMTUD auto per design §1
 	}
 	hsCtx, hsCancel := context.WithTimeout(ctx, cfg.HandshakeBudget)
 	defer hsCancel()
@@ -273,8 +273,8 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	// Extended CONNECT request — exact verified header set (see package doc).
 	authority := AuthorityForEndpoint(cfg.Endpoint.Addr().String(), cfg.Endpoint.Port())
 	wr := &qpackWriter{}
-	wr.b = appendQPACKInt(wr.b, 0x00, 8, 0) // RIC=0
-	wr.b = appendQPACKInt(wr.b, 0x00, 7, 0) // Base delta 0
+	wr.b = appendQPACKInt(wr.b, 0x00, 8, 0)        // RIC=0
+	wr.b = appendQPACKInt(wr.b, 0x00, 7, 0)        // Base delta 0
 	wr.b = append(wr.b, 0xC0|qpackIdxMethodConnct) // :method CONNECT -> 0xCF
 	wr.encodeLiteralNameLine(":protocol", "cf-connect-ip")
 	wr.encodeLiteralNameLine(":scheme", "https")
@@ -364,19 +364,29 @@ func (s *H3Session) WritePacket(pkt []byte) error {
 }
 
 // ReadPacket blocks for the next inbound IP packet (skipping foreign
-// quarters/context ids — Aether tolerance semantics).
+// quarters/context ids — Aether tolerance semantics). A closed packets
+// channel reports ErrSessionClosed (never a zero-value `(nil, nil)` — M3-01).
 func (s *H3Session) ReadPacket(ctx context.Context) ([]byte, error) {
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, ErrSessionClosed
+		}
 		return m.data, m.err
 	default:
 	}
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, ErrSessionClosed
+		}
 		return m.data, m.err
 	case <-s.done:
 		select {
-		case m := <-s.packets:
+		case m, ok := <-s.packets:
+			if !ok {
+				return nil, ErrSessionClosed
+			}
 			return m.data, m.err
 		case <-time.After(250 * time.Millisecond):
 			return nil, ErrSessionClosed
@@ -389,7 +399,10 @@ func (s *H3Session) ReadPacket(ctx context.Context) ([]byte, error) {
 // TryRead drains the pump queue without blocking.
 func (s *H3Session) TryRead() ([]byte, bool, error) {
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, true, ErrSessionClosed
+		}
 		return m.data, true, m.err
 	default:
 		return nil, false, nil
@@ -414,11 +427,16 @@ func (s *H3Session) ValidateDataPlane(ctx context.Context) error {
 	successes := 0
 	for successes < requiredProbeSuccesses {
 		select {
-		case m := <-s.packets:
+		case m, ok := <-s.packets:
+			if !ok {
+				return fmt.Errorf("%s: %w", FailureValidation, ErrSessionClosed)
+			}
 			if m.err != nil {
 				return fmt.Errorf("data plane lost during validation: %w", m.err)
 			}
 			successes++
+		case <-s.done:
+			return fmt.Errorf("%s: %w", FailureValidation, ErrSessionClosed)
 		case <-ticker.C:
 			if err := s.WritePacket(probe.Packet); err != nil {
 				return fmt.Errorf("data plane lost during validation: %w", err)
@@ -463,6 +481,9 @@ func (s *H3Session) emit(m packetMsg) {
 		if m.err == nil {
 			s.droppedPrimary.Add(1)
 		} else {
+			// prefer-send (M3-01): never drop a terminal error while the queue
+			// has room; the inner select interleaves the honest blocking send
+			// with done so a full queue + closure loses it consciously.
 			select {
 			case s.packets <- m:
 			case <-s.done:
@@ -488,6 +509,15 @@ func (s *H3Session) fanOut(pkt []byte) {
 
 // SubscribePackets registers a secondary tap consumer (parity with Session).
 func (s *H3Session) SubscribePackets() (<-chan []byte, func()) {
+	select {
+	case <-s.done:
+		// Closed session (M3-03): no ghost subscription may be registered. Return
+		// a closed channel + no-op cancel instead.
+		ch := make(chan []byte)
+		close(ch)
+		return ch, func() {}
+	default:
+	}
 	ch := make(chan []byte, 64)
 	s.subMu.Lock()
 	if s.subs == nil {
@@ -532,11 +562,24 @@ func (s *H3Session) DroppedFrames() (primary, taps uint64) {
 
 // Close releases everything exactly once (control stream is NEVER closed
 // alone — the whole connection goes, per H3_CLOSED_CRITICAL_STREAM rule).
+// Parity with Session.Close: remaining taps are closed so their consumers
+// (e.g. the supervisor tapPump) unblock — M3-03.
 func (s *H3Session) Close() error {
 	s.closeOnce.Do(func() {
 		close(s.done)
 		s.cancel()
 		s.closeResources()
+		// Unblock tap receivers: closed channels end their select loops.
+		s.subMu.Lock()
+		taps := make([]chan []byte, 0, len(s.subs))
+		for ch := range s.subs {
+			taps = append(taps, ch)
+		}
+		s.subs = nil
+		s.subMu.Unlock()
+		for _, ch := range taps {
+			close(ch)
+		}
 	})
 	return nil
 }

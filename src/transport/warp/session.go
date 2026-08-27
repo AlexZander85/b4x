@@ -334,20 +334,31 @@ func (s *Session) WritePacket(pkt []byte) error {
 
 // ReadPacket returns the next inbound IP packet, transparently skipping
 // non-DATAGRAM capsule types. It blocks until data, error, or ctx cancel.
+// A closed packets channel reports ErrSessionClosed (never a zero-value
+// `(nil, nil)` — M3-01).
 func (s *Session) ReadPacket(ctx context.Context) ([]byte, error) {
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, ErrSessionClosed
+		}
 		return m.data, m.err
 	default:
 	}
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, ErrSessionClosed
+		}
 		return m.data, m.err
 	case <-s.done:
 		// readerLoop drains remaining buffered frames into the channel and
 		// closes it; give it a short window before reporting closure.
 		select {
-		case m := <-s.packets:
+		case m, ok := <-s.packets:
+			if !ok {
+				return nil, ErrSessionClosed
+			}
 			return m.data, m.err
 		case <-time.After(250 * time.Millisecond):
 			return nil, ErrSessionClosed
@@ -360,7 +371,10 @@ func (s *Session) ReadPacket(ctx context.Context) ([]byte, error) {
 // TryRead returns the next packet without blocking (drains the pump queue).
 func (s *Session) TryRead() ([]byte, bool, error) {
 	select {
-	case m := <-s.packets:
+	case m, ok := <-s.packets:
+		if !ok {
+			return nil, true, ErrSessionClosed
+		}
 		return m.data, true, m.err
 	default:
 		return nil, false, nil
@@ -387,11 +401,18 @@ func (s *Session) ValidateDataPlane(ctx context.Context) error {
 	successes := 0
 	for successes < requiredProbeSuccesses {
 		select {
-		case m := <-s.packets:
+		case m, ok := <-s.packets:
+			if !ok {
+				// readerLoop closed the channel: the session is dead —
+				// validation must FAIL, never pass on a dead tunnel (KPI-4).
+				return fmt.Errorf("%s: %w", FailureValidation, ErrSessionClosed)
+			}
 			if m.err != nil {
 				return fmt.Errorf("data plane lost during validation: %w", m.err)
 			}
 			successes++
+		case <-s.done:
+			return fmt.Errorf("%s: %w", FailureValidation, ErrSessionClosed)
 		case <-ticker.C:
 			if err := s.WritePacket(probe.Packet); err != nil {
 				return fmt.Errorf("data plane lost during validation: %w", err)
@@ -485,6 +506,11 @@ func (s *Session) emit(m packetMsg) {
 			s.droppedPrimary.Add(1)
 			s.traceDropPrimary(m.data)
 		} else {
+			// prefer-send: never drop a terminal error while the queue has room
+			// (M3-01). The outer select already tried one non-blocking send; this
+			// inner select does the honest blocking attempt, interleaved with
+			// done — so a full queue combined with closure loses the error
+			// consciously, but a free slot always wins.
 			select {
 			case s.packets <- m:
 			case <-s.done:
@@ -514,6 +540,15 @@ func (s *Session) fanOut(pkt []byte) {
 // (counted in DroppedFrames). The cancel function unsubscribes and closes
 // the channel exactly once; Session.Close closes all remaining taps.
 func (s *Session) SubscribePackets() (<-chan []byte, func()) {
+	select {
+	case <-s.done:
+		// Closed session (M3-03): no ghost subscription may be registered on a
+		// re-created subs map. Return a closed channel + no-op cancel instead.
+		ch := make(chan []byte)
+		close(ch)
+		return ch, func() {}
+	default:
+	}
 	ch := make(chan []byte, 64)
 	s.subMu.Lock()
 	if s.subs == nil {

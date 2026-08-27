@@ -683,19 +683,37 @@ func (s *Supervisor) healthLoop(ctx context.Context, sess packetTransport, local
 	pktCh := make(chan packetMsg, 16)
 	readerDone := make(chan struct{})
 	go func() {
+		// readerDone is owned by the reader and closed exactly once (M3-02);
+		// tests trace reader termination through this channel.
 		defer close(pktCh)
+		defer close(readerDone)
 		for {
 			pkt, err := sess.ReadPacket(ctx)
 			if err != nil {
-				close(readerDone)
 				return
 			}
 			select {
 			case pktCh <- packetMsg{data: pkt}:
-			case <-readerDone:
+			case <-sess.Done():
 				return
 			case <-ctx.Done():
-				close(readerDone)
+				return
+			}
+		}
+	}()
+	// On ANY exit, drain pktCh so a reader blocked in `pktCh <-` is released
+	// and never leaks. M3-01's ok-semantics makes ReadPacket return
+	// ErrSessionClosed immediately afterwards, so the reader terminates.
+	// The drain MUST be bounded: a `select { case <-pktCh: default: return }`
+	// against a CLOSED channel spins forever (a closed channel is always
+	// ready, starving `default`). A hard cap of cap+1 covers the buffered
+	// packets plus the one in-flight send the reader releases; after that the
+	// reader has exited, so nothing more can arrive.
+	defer func() {
+		for i := 0; i < cap(pktCh)+1; i++ {
+			select {
+			case <-pktCh:
+			default:
 				return
 			}
 		}
