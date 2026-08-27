@@ -24,6 +24,9 @@ func applyControlPlatform(p DialPolicy, _ string, _ string, c syscall.RawConn) e
 		if p.FwMark != 0 {
 			ctrlErr = unix.SetsockoptInt(raw, unix.SOL_SOCKET, unix.SO_MARK, int(p.FwMark))
 			if ctrlErr != nil {
+				// M-04: a raw errno (EPERM, e.g. lacking CAP_NET_ADMIN) didn't match the
+				// classifier's text branches; tag the SO_MARK layer so it yields FailureDialPolicy.
+				ctrlErr = fmt.Errorf("transportwarp: SO_MARK: %w", ctrlErr)
 				return
 			}
 		}
@@ -35,6 +38,7 @@ func applyControlPlatform(p DialPolicy, _ string, _ string, c syscall.RawConn) e
 			}
 			ctrlErr = unix.BindToDevice(raw, iface.Name)
 			if ctrlErr != nil {
+				ctrlErr = fmt.Errorf("transportwarp: bind device %q: %w", iface.Name, ctrlErr)
 				return
 			}
 		}

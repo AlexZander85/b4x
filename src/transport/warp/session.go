@@ -34,6 +34,7 @@ import (
 	"net/netip"
 
 	"golang.org/x/net/http2"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -684,6 +685,13 @@ func classifyDialError(err error) string {
 	// FailureTCPConnect (structured sentinel, same rationale as M-02).
 	if errors.Is(err, ErrH2ALPN) {
 		return FailureH2Negotiation
+	}
+	// M-04: a bare privilege/socket errno (EPERM/EACCES — e.g. Keenetic
+	// without CAP_NET_ADMIN on SO_MARK, or a forbidden source bind) must be a
+	// dial-policy verdict, not FailureTCPConnect, even when no *_text* branch
+	// matched a wrapped message.
+	if errors.Is(err, unix.EPERM) || errors.Is(err, unix.EACCES) {
+		return FailureDialPolicy
 	}
 	msg := err.Error()
 	switch {
