@@ -76,6 +76,9 @@ type EnsureResult struct {
 type Reconciler struct {
 	API   *EnrollClient
 	Store *IdentityStore
+	// Pending persists the POST-minted device token between POST and PATCH/GET
+	// (M3-06 partial-save). Default Store.Path + ".pending".
+	Pending *PendingStore
 	// StatePath persists cooldown stamps; default Store.Path + ".state".
 	StatePath string
 
@@ -112,6 +115,13 @@ func (r *Reconciler) statePath() string {
 		return r.StatePath
 	}
 	return r.Store.Path + ".state"
+}
+
+func (r *Reconciler) pending() *PendingStore {
+	if r.Pending != nil {
+		return r.Pending
+	}
+	return &PendingStore{Path: r.Store.Path + ".pending"}
 }
 
 // enrollState is the persisted cooldown stamp set.
@@ -217,9 +227,9 @@ func (r *Reconciler) enroll(ctx context.Context, prev *Identity, now time.Time, 
 		return res, fmt.Errorf("intent stamp unwritable: %w", err)
 	}
 
-	cand, outcome, ferr := r.API.Enroll(ctx)
+	cand, outcome, ferr := r.enrollCandidate(ctx, now)
 	if cand == nil {
-		if ferr == nil { // defensive: Enroll always reports one of the two
+		if ferr == nil { // defensive: the candidate helpers always report one of the two
 			ferr = errors.New("enrollment failed without diagnostic")
 		}
 		var hf *HTTPFailure
@@ -235,6 +245,11 @@ func (r *Reconciler) enroll(ctx context.Context, prev *Identity, now time.Time, 
 		res.ThrottleUntil = st.NextAllowed
 		res.FailureClass = classFor(outcome)
 		return res, ferr
+	}
+	// The candidate committed below only if its PATCH+GET completed; an interim
+	// pending token now has no reason to survive.
+	if err := r.pending().Clear(); err != nil {
+		return res, fmt.Errorf("clear pending: %w", err)
 	}
 
 	if err := r.Store.Save(cand); err != nil {
@@ -258,6 +273,58 @@ func (r *Reconciler) enroll(ctx context.Context, prev *Identity, now time.Time, 
 	}
 	res.Identity = cand
 	return res, nil
+}
+
+// PendingExpiry is how old a pending registration must be before the
+// reconciler stops resuming it and falls back to a fresh POST. A token minted
+// long enough ago has almost certainly been released by the CF side.
+const PendingExpiry = 24 * time.Hour
+
+// enrollCandidate produces a validated candidate Identity, either by resuming
+// a persisted pending registration (M3-06 partial-save) or by minting a fresh
+// one. In order:
+//
+//  1. If a pending registration exists and is fresh (<= PendingExpiry),
+//     Resume it: PATCH the key + GET the config. Success returns immediately —
+//     zero new devices were minted (POST count unchanged).
+//  2. If Resume fails permanently, the pending device is orphaned: best-effort
+//     DELETE it, then clear the pending record so a fresh POST can happen.
+//  3. Otherwise draft a new registration: POST -> persist the pending token
+//     atomically (Save MUST succeed before any further network step) -> Resume
+//     the newly-drafted token to complete PATCH+GET.
+//
+// The caller (enroll) clears the pending record after a successful commit.
+// A nil candidate means a failure whose Outcome/FailureClass the caller should
+// surface via the blocked/backoff path.
+func (r *Reconciler) enrollCandidate(ctx context.Context, now time.Time) (*Identity, Outcome, error) {
+	pend := r.pending()
+	if p, err := pend.Load(); err == nil && p != nil {
+		if age, ok := pend.PendingAge(now); ok && age <= PendingExpiry {
+			if cand, _, _ := r.API.Resume(ctx, p); cand != nil {
+				return cand, OutcomeOK, nil
+			}
+			// Resume failed permanently. The pending device can never be
+			// recovered locally; delete it best-effort (slot hygiene on the CF
+			// side) and drop the pending record so a fresh draft can be minted.
+			_ = r.API.Delete(ctx, p.ID, p.Token)
+			_ = pend.Clear()
+		} else if err == nil {
+			// Stale pending: clear it and mint afresh.
+			_ = pend.Clear()
+		}
+	}
+
+	draft, outcome, ferr := r.API.EnrollDraft(ctx)
+	if draft == nil {
+		return nil, outcome, ferr
+	}
+	// Persist the one-shot token BEFORE any further network step. If this write
+	// fails we stop here: the token is unrecoverable and the device must not
+	// be half-created.
+	if err := pend.Save(draft); err != nil {
+		return nil, OutcomeNetwork, fmt.Errorf("persist pending draft: %w", err)
+	}
+	return r.API.Resume(ctx, draft)
 }
 
 func classFor(o Outcome) string {

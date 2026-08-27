@@ -314,9 +314,40 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, Outcome, error) {
 	if err != nil {
 		return nil, OutcomeNetwork, fmt.Errorf("placeholder key: %w", err)
 	}
-	privB64, pubPKIX, err := GenerateClientKey()
+
+	postBody, err := json.Marshal(postRegistrationBody{
+		Key:          placeholder,
+		TOS:          c.now().UTC().Format(tosLayout),
+		Model:        fp.Model,
+		SerialNumber: fp.SerialNumber,
+		Locale:       fp.Locale,
+	})
 	if err != nil {
-		return nil, OutcomeNetwork, fmt.Errorf("client key: %w", err)
+		return nil, OutcomeNetwork, err
+	}
+	var reg registrationResponse
+	if out := c.do(ctx, http.MethodPost, "/reg", "", postBody, &reg); out.err != nil {
+		return nil, out.outcome, out.err
+	}
+	if reg.ID == "" || reg.Token == "" {
+		return nil, OutcomeRequestError, fmt.Errorf("%w: registration response missing id/token (wrapper-object API?)", ErrIdentityInvalid)
+	}
+	return c.completeRegistration(ctx, reg.ID, reg.Token)
+}
+
+// EnrollDraft runs ONLY the POST /reg step: it mints the one-shot device
+// token and returns it as a PendingRegistration. The caller is expected to
+// persist the pending token (M3-06 partial-save) before running the PATCH+GET
+// tail via Resume. Splitting POST from the rest makes a crash between POST and
+// PATCH recoverable instead of infinitely losing the token / orphaning a device.
+func (c *EnrollClient) EnrollDraft(ctx context.Context) (*PendingRegistration, Outcome, error) {
+	fp, err := newFingerprint()
+	if err != nil {
+		return nil, OutcomeNetwork, fmt.Errorf("fingerprint: %w", err)
+	}
+	placeholder, err := placeholderKey()
+	if err != nil {
+		return nil, OutcomeNetwork, fmt.Errorf("placeholder key: %w", err)
 	}
 
 	postBody, err := json.Marshal(postRegistrationBody{
@@ -336,6 +367,40 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, Outcome, error) {
 	if reg.ID == "" || reg.Token == "" {
 		return nil, OutcomeRequestError, fmt.Errorf("%w: registration response missing id/token (wrapper-object API?)", ErrIdentityInvalid)
 	}
+	return &PendingRegistration{ID: reg.ID, Token: reg.Token, CreatedAt: c.now()}, OutcomeOK, nil
+}
+
+// Resume finishes a previously-persisted pending registration: PATCH the
+// device key + GET the config. PATCH is idempotent on the token, so a resume
+// that itself crashes can be retried safely.
+func (c *EnrollClient) Resume(ctx context.Context, p *PendingRegistration) (*Identity, Outcome, error) {
+	if p == nil || p.ID == "" || p.Token == "" {
+		return nil, OutcomeRequestError, fmt.Errorf("%w: empty pending registration", ErrIdentityInvalid)
+	}
+	return c.completeRegistration(ctx, p.ID, p.Token)
+}
+
+// PendingRegistration is the durable token minted by POST /reg BEFORE the
+// device key is pinned (PATCH) and the config fetched (GET). Persisting it
+// immediately after POST is the M3-06 partial-save guarantee: a crash or
+// network cut between POST and PATCH can no longer lose the token forever
+// (the single-build-moment credential Cloudflare emits exactly once).
+type PendingRegistration struct {
+	ID        string    `json:"id"`
+	Token     string    `json:"token"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// completeRegistration runs the PATCH (pin the device key) + GET (fetch
+// config) tail of enrollment for an already-created registration. It is used
+// both by Enroll (immediately after POST) and by Resume (to finish a pending
+// registration persisted across a previous crash). A fresh client key is bound
+// each time; PATCH is idempotent on the token so re-pinning is safe.
+func (c *EnrollClient) completeRegistration(ctx context.Context, id, token string) (*Identity, Outcome, error) {
+	privB64, pubPKIX, err := GenerateClientKey()
+	if err != nil {
+		return nil, OutcomeNetwork, fmt.Errorf("client key: %w", err)
+	}
 
 	patchBody, err := json.Marshal(patchKeyBody{
 		Key:        base64.StdEncoding.EncodeToString(pubPKIX),
@@ -345,13 +410,13 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, Outcome, error) {
 	if err != nil {
 		return nil, OutcomeNetwork, err
 	}
-	if out := c.do(ctx, http.MethodPatch, "/reg/"+reg.ID, reg.Token, patchBody, nil); out.err != nil {
-		return nil, out.outcome, fmt.Errorf("patch %s: %w", redactID(reg.ID), out.err)
+	if out := c.do(ctx, http.MethodPatch, "/reg/"+id, token, patchBody, nil); out.err != nil {
+		return nil, out.outcome, fmt.Errorf("patch %s: %w", redactID(id), out.err)
 	}
 
 	var dev deviceResponse
-	if out := c.do(ctx, http.MethodGet, "/reg/"+reg.ID, reg.Token, nil, &dev); out.err != nil {
-		return nil, out.outcome, fmt.Errorf("get %s: %w", redactID(reg.ID), out.err)
+	if out := c.do(ctx, http.MethodGet, "/reg/"+id, token, nil, &dev); out.err != nil {
+		return nil, out.outcome, fmt.Errorf("get %s: %w", redactID(id), out.err)
 	}
 	if len(dev.Config.Peers) == 0 || dev.Config.Peers[0].PublicKey == "" {
 		return nil, OutcomeRequestError, fmt.Errorf("%w: device config without peers[0].public_key", ErrIdentityInvalid)
@@ -366,10 +431,10 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, Outcome, error) {
 
 	ident := &Identity{
 		Format:       IdentityFormatVersion,
-		ID:           reg.ID,
-		Token:        reg.Token,
-		AccountType:  firstNonEmpty(dev.Account.AccountType, reg.Account.AccountType),
-		License:      firstNonEmpty(dev.Account.License, reg.Account.License),
+		ID:           id,
+		Token:        token,
+		AccountType:  dev.Account.AccountType,
+		License:      dev.Account.License,
 		PrivateKey:   privB64,
 		PinPEM:       dev.Config.Peers[0].PublicKey,
 		AssignedV4:   dev.Config.Interface.Addresses.V4,
