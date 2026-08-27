@@ -16,7 +16,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/ecdsa"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -158,6 +157,10 @@ type Session struct {
 	done      chan struct{}
 	cancel    context.CancelFunc
 
+	// framePool reuses outbound frame buffers (M-09: KPI-3 zero-copy uplink,
+	// sized MTU+headroom). Pool is never nil for a live session.
+	framePool *sync.Pool
+
 	// Packet accounting (addendum §43 counter-delta proof: a geo probe is
 	// only valid when the inner counters moved) plus packet taps for
 	// secondary in-tunnel consumers (geo gate). Counters are atomic; the
@@ -268,12 +271,13 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 	req.Header.Set("User-Agent", "")
 
 	sess := &Session{
-		cfg:     cfg,
-		pw:      pw,
-		tr:      tr,
-		packets: make(chan packetMsg, 16),
-		done:    make(chan struct{}),
-		cancel:  cancel,
+		cfg:       cfg,
+		pw:        pw,
+		tr:        tr,
+		packets:   make(chan packetMsg, 16),
+		done:      make(chan struct{}),
+		cancel:    cancel,
+		framePool: newFramePool(cfg.MTU),
 	}
 
 	handshakeCtx, hsAbort := context.WithTimeout(ctx, cfg.HandshakeBudget)
@@ -363,16 +367,20 @@ func (s *Session) WritePacket(pkt []byte) error {
 	if len(pkt) == 0 || len(pkt) > s.cfg.MTU {
 		return fmt.Errorf("%w: %d bytes (mtu %d)", ErrPacketTooBig, len(pkt), s.cfg.MTU)
 	}
-	frame := make([]byte, 0, 2*binary.MaxVarintLen64+len(pkt))
-	frame = AppendVarint(frame, 0)
-	frame = AppendVarint(frame, uint64(len(pkt)))
-	frame = append(frame, pkt...)
+	// M-09: reuse a pooled frame sized MTU+headroom instead of allocating a
+	// fresh slice + copying the payload on every packet. The buffer is only
+	// returned after pw.Write has copied the bytes out.
+	frame := getFrame(s.framePool)
+	*frame = AppendVarint(*frame, 0)
+	*frame = AppendVarint(*frame, uint64(len(pkt)))
+	*frame = append(*frame, pkt...)
 
 	s.writeMu.Lock()
 	writeStart := time.Now()
-	_, err := s.pw.Write(frame)
+	_, err := s.pw.Write(*frame)
 	wrMS := time.Since(writeStart).Milliseconds()
 	s.writeMu.Unlock()
+	putFrame(s.framePool, frame)
 	if traceEnabled() || wrMS >= writeBlockWarnMS {
 		s.traceTx(pkt, wrMS, err)
 	}

@@ -145,6 +145,10 @@ type H3Session struct {
 	done      chan struct{}
 	cancel    context.CancelFunc
 
+	// framePool reuses outbound datagram buffers (M-09, KPI-3). Never nil for
+	// a live session.
+	framePool *sync.Pool
+
 	txPkts, txBytes atomic.Uint64
 	rxPkts, rxBytes atomic.Uint64
 	droppedPrimary  atomic.Uint64
@@ -190,10 +194,11 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 
 	ctx, cancel := context.WithCancel(parent)
 	sess := &H3Session{
-		cfg:     cfg,
-		packets: make(chan packetMsg, 16),
-		done:    make(chan struct{}),
-		cancel:  cancel,
+		cfg:       cfg,
+		packets:   make(chan packetMsg, 16),
+		done:      make(chan struct{}),
+		cancel:    cancel,
+		framePool: newFramePool(cfg.MTU),
 	}
 	abandon := func(class string, err error) (*H3Session, H3ConnectResult, error) {
 		sess.closeResources()
@@ -348,10 +353,19 @@ func (s *H3Session) WritePacket(pkt []byte) error {
 	if len(pkt) == 0 || len(pkt) > s.cfg.MTU {
 		return fmt.Errorf("%w: %d bytes (mtu %d)", ErrPacketTooBig, len(pkt), s.cfg.MTU)
 	}
-	frame := WrapH3Datagram(uint64(s.stream.StreamID()), 0, pkt)
+	// M-09: build the datagram in a pooled buffer (MTU+headroom) instead of a
+	// fresh allocation per packet; SendDatagram copies the payload out before
+	// returning, so the frame can be returned to the pool immediately.
+	frame := getFrame(s.framePool)
+	*frame = AppendVarint(*frame, uint64(s.stream.StreamID())/4)
+	*frame = AppendVarint(*frame, 0)
+	*frame = append(*frame, pkt...)
+
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if err := s.conn.SendDatagram(frame); err != nil {
+	err := s.conn.SendDatagram(*frame)
+	putFrame(s.framePool, frame)
+	if err != nil {
 		var tooBig *quic.DatagramTooLargeError
 		if errors.As(err, &tooBig) {
 			return fmt.Errorf("%w: datagram payload cap %d", ErrPacketTooBig, tooBig.MaxDatagramPayloadSize)
