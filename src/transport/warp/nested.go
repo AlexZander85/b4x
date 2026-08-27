@@ -42,6 +42,10 @@ import (
 const (
 	// DefaultNestedInnerMTU is gool's inner MTU (1200 < outer 1280).
 	DefaultNestedInnerMTU = 1200
+	// NestedMTUMargin is the minimum headroom an inner MTU must leave under the
+	// outer MTU so inner packets survive the outer headers without being
+	// dropped by the outbound-MTU guard (M3-11). inner <= outer-80 is allowed.
+	NestedMTUMargin = 80
 	// NestedOuterProbeInterval / NestedInnerProbeInterval are the intended
 	// health-probe cadences for outer/inner supervisors (kept apart so
 	// layer reconnects never synchronize).
@@ -70,7 +74,7 @@ var (
 	ErrIdenticalIdentity  = errors.New("transportwarp: nested layers must use two independent identities")
 	ErrAddressConflict    = errors.New("transportwarp: nested layers assign the same tunnel address")
 	ErrSameEdge           = errors.New("transportwarp: nested layers must terminate on different edge IPs (gool hard rule)")
-	ErrMTUGradient        = errors.New("transportwarp: inner MTU must be strictly below outer MTU")
+	ErrMTUGradient        = errors.New("transportwarp: inner MTU must leave a margin under outer MTU")
 	ErrUnconstrainedInner = errors.New("transportwarp: backend-a inner policy must be constrained (mark/bind-device)")
 	ErrNestedNotRunning   = errors.New("transportwarp: nested runtime is not running")
 )
@@ -145,7 +149,10 @@ func (c *NestedConfig) Validate() error {
 	if c.BaseEndpoint().Addr() == c.InnerEndpoint().Addr() && c.BaseEndpoint().IsValid() && c.InnerEndpoint().IsValid() {
 		return ErrSameEdge
 	}
-	if mtuOr(c.InnerTemplate.MTU, DefaultNestedInnerMTU) >= mtuOr(c.BaseTemplate.MTU, DefaultMTU) {
+	// M3-11: the inner MTU must leave at least NestedMTUMargin headroom under the
+	// outer MTU, otherwise inner packets exceed the outer budget and are dropped by
+	// the outbound-MTU guard (ErrPacketTooBig). inner == outer-margin is allowed.
+	if mtuOr(c.InnerTemplate.MTU, DefaultNestedInnerMTU) > mtuOr(c.BaseTemplate.MTU, DefaultMTU)-NestedMTUMargin {
 		return ErrMTUGradient
 	}
 	if c.Backend == BackendANetns && !c.AllowUnconstrainedInner &&
