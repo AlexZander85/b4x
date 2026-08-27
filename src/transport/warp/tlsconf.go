@@ -114,10 +114,14 @@ func PinDigest(pub *ecdsa.PublicKey) string {
 // 24-hour validity; Cloudflare pins our enrollment key out-of-band and never
 // validates the chain.
 func ClientCertificate(priv *ecdsa.PrivateKey) (tls.Certificate, error) {
+	// M-11: backdate NotBefore by an hour so a slightly fast router clock
+	// (common on ARM SoCs with no RTC battery) doesn't make the client cert
+	// "not yet valid" on the server.
+	now := time.Now()
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(0),
-		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(24 * time.Hour),
+		NotBefore:    now.Add(-time.Hour),
+		NotAfter:     now.Add(24 * time.Hour),
 		Subject:      pkix.Name{},
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &priv.PublicKey, priv)
