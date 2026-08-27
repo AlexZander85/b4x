@@ -77,6 +77,11 @@ const (
 	FailureConnectReject = "connect-ip-rejected"
 	FailureConnectTimeo  = "connect-ip-timeout"
 	FailureValidation    = "data-plane-validation-timeout"
+	// FailureInternalPanic classifies an engine-goroutine panic that a recover
+	// frame contained (M3-07). It is an anomaly signal, not a transport fault:
+	// the tunnel remains process-alive and the supervisor backs off, but a run
+	// of three consecutive panics pauses the operator.
+	FailureInternalPanic = "internal-panic"
 )
 
 // SessionConfig is one connection attempt's parameters.

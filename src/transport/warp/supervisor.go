@@ -48,6 +48,12 @@ const (
 	// E-H3 ladder taxonomy (EH3/EH4): transport changes are NEVER silent.
 	EvH3Negotiated      = "warp_h3_negotiated"
 	EvTransportSwitched = "warp_transport_switched"
+
+	// Panic isolation (M3-07): engine-goroutine panics are recovered, never
+	// fatal to the process. Every caught panic emits EvEnginePanic; a streak of
+	// PanicLimit consecutive panics escalates to a StateOperatorPause.
+	EvEnginePanic   = "warp_engine_panic"
+	EvOperatorPause = "warp_operator_pause"
 )
 
 // Disconnect reasons (structural enums, not free text).
@@ -61,13 +67,18 @@ const (
 type SupervisorState string
 
 const (
-	StateIdle       SupervisorState = "idle"
-	StateIdentity   SupervisorState = "identity"
-	StateConnecting SupervisorState = "connecting"
-	StateConnected  SupervisorState = "connected"
-	StateBackoff    SupervisorState = "backoff"
-	StateStopped    SupervisorState = "stopped"
+	StateIdle          SupervisorState = "idle"
+	StateIdentity      SupervisorState = "identity"
+	StateConnecting    SupervisorState = "connecting"
+	StateConnected     SupervisorState = "connected"
+	StateBackoff       SupervisorState = "backoff"
+	StateStopped       SupervisorState = "stopped"
+	StateOperatorPause SupervisorState = "operator-paused"
 )
+
+// PanicLimit is the number of consecutive recovered engine panics that escalate
+// a session from "live with anomaly" to an operator pause.
+const PanicLimit = 3
 
 const recentEventRing = 64
 
@@ -98,6 +109,10 @@ type SupervisorConfig struct {
 	Now   func() time.Time
 	Sleep func(ctx context.Context, d time.Duration) error
 	Sink  func(SupervisorEvent)
+	// PanicHook observes a recovered engine-goroutine panic (M3-07). Nil in
+	// production; tests use it to deterministically inject/observe panics that
+	// would otherwise race the event sink.
+	PanicHook func(any)
 
 	// DeferRevalidation trusts a locally valid stored identity for the
 	// FIRST connect without contacting the registration API. Field finding
@@ -183,6 +198,8 @@ type Supervisor struct {
 	routeHeld     bool
 	backoffUntil  time.Time
 	lastClass     string
+	panicStreak   int
+	pausedByPanic bool
 	lastColo      string
 	lastTransport string
 	pending       []byte
@@ -332,6 +349,55 @@ func (s *Supervisor) SubscribePackets() (<-chan []byte, func()) {
 		s.mu.Unlock()
 	}
 	return ch, cancel
+}
+
+// guardTapPump runs tapPump inside a recover frame: a panic in a tap-forwarding
+// goroutine must never take the process down (M3-07). The caught panic is
+// surfaced through failSafePanic, which emits an engine-panic event and, at a
+// streak of PanicLimit, escalates to an operator pause.
+func (s *Supervisor) guardTapPump(ctx context.Context, sess packetTransport) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.failSafePanic(r)
+		}
+	}()
+	s.tapPump(ctx, sess)
+}
+
+// failSafePanic handles a recovered engine-goroutine panic. It records the
+// streak, emits EvEnginePanic, and — once the streak hits PanicLimit — emits
+// EvOperatorPause and pauses the tunnel. The panic does not crash the process:
+// the supervisor (and any other engine goroutine) stays alive.
+func (s *Supervisor) failSafePanic(r any) {
+	if s.cfg.PanicHook != nil {
+		s.cfg.PanicHook(r)
+	}
+	s.mu.Lock()
+	s.panicStreak++
+	streak := s.panicStreak
+	alreadyPaused := s.pausedByPanic
+	s.lastClass = FailureInternalPanic
+	s.state = StateBackoff
+	s.mu.Unlock()
+
+	s.emit(SupervisorEvent{Name: EvEnginePanic, FailureClass: FailureInternalPanic, Detail: fmt.Sprintf("recovered: %v", r)})
+	if streak >= PanicLimit && !alreadyPaused {
+		s.mu.Lock()
+		s.pausedByPanic = true
+		s.state = StateOperatorPause
+		s.mu.Unlock()
+		s.emit(SupervisorEvent{Name: EvOperatorPause, FailureClass: FailureInternalPanic, Detail: fmt.Sprintf("panic limit reached (%d)", streak)})
+	}
+}
+
+// clearPanicStreak resets the consecutive-panic counter once the tunnel reaches
+// a healthy (connected) state: an operator pause requires a contiguous run, not
+// panics spread across otherwise-healthy sessions.
+func (s *Supervisor) clearPanicStreak() {
+	s.mu.Lock()
+	s.panicStreak = 0
+	s.pausedByPanic = false
+	s.mu.Unlock()
 }
 
 // tapPump forwards one live session's tap stream to supervisor-level
@@ -637,6 +703,7 @@ func (s *Supervisor) run(ctx context.Context) {
 		s.lastColo = att.Result.Colo
 		s.lastTransport = att.Transport
 		s.mu.Unlock()
+		s.clearPanicStreak()
 		attempt = 0
 		sessStart := s.cfg.now()
 		s.emit(SupervisorEvent{Name: EvMasqueConnected, DurationMS: msDur(sessStart.Sub(started)), Colo: att.Result.Colo, Detail: "transport=" + att.Transport})
@@ -644,7 +711,7 @@ func (s *Supervisor) run(ctx context.Context) {
 		// Packet taps for secondary in-tunnel consumers (nested carriers):
 		// one pump per generation; it dies together with the session while
 		// the subscriber channels survive across reconnects.
-		go s.tapPump(ctx, sess)
+		go s.guardTapPump(ctx, sess)
 
 		// First-packet fix: flush the buffered wake-up packet, if any.
 		if pkt := s.takePending(); pkt != nil {
@@ -702,6 +769,11 @@ func (s *Supervisor) healthLoop(ctx context.Context, sess packetTransport, local
 		// tests trace reader termination through this channel.
 		defer close(pktCh)
 		defer close(readerDone)
+		defer func() {
+			if r := recover(); r != nil {
+				s.failSafePanic(r)
+			}
+		}()
 		for {
 			pkt, err := sess.ReadPacket(ctx)
 			if err != nil {
