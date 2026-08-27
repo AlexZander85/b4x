@@ -379,6 +379,13 @@ func (g *NonRUGate) refresh(ctx context.Context, tr GeoProbeTransport, gen uint6
 		cancel()
 
 		if err != nil {
+			// BLOCKER B-1: an observation without an IPv4 address is not a
+			// provider failure — it counts as an «unknown» observation (neither
+			// RU nor non-RU) and is skipped, never a panic.
+			if errors.Is(err, ErrNotIPv4) {
+				g.emit(NonRUEvent{Name: EvGeoProviderResult, Provider: p.ID(), Gen: gen, Detail: "observation without IPv4 (unknown)"})
+				continue
+			}
 			if errors.Is(err, ErrDNSNoAnswer) {
 				resolveFails++
 			}

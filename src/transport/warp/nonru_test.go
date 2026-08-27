@@ -230,8 +230,18 @@ var (
 	testIP2 = netip.AddrFrom4([4]byte{81, 2, 3, 5})
 )
 
-func deResult(ip netip.Addr) GeoResult {
-	return GeoResult{Country: "DE", PublicIPHash: HashPublicIP(ip)}
+func deResult(t *testing.T, ip netip.Addr) GeoResult {
+	return GeoResult{Country: "DE", PublicIPHash: mustHash(t, ip)}
+}
+
+// mustHash unwraps HashPublicIP for fixtures that only ever pass IPv4.
+func mustHash(t *testing.T, ip netip.Addr) string {
+	t.Helper()
+	h, err := HashPublicIP(ip)
+	if err != nil {
+		t.Fatalf("HashPublicIP(%v): %v", ip, err)
+	}
+	return h
 }
 
 // ---- §69-3: two same-country non-RU providers open the gate ----
@@ -242,8 +252,8 @@ func TestNonRUGateOpensOnQuorumPass(t *testing.T) {
 	gen := &atomic.Uint64{}
 	gen.Store(7)
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -273,7 +283,7 @@ func TestNonRUGateOpensOnQuorumPass(t *testing.T) {
 	if att.Country != "DE" || att.Providers != 2 || att.Quorum != 2 {
 		t.Fatalf("attestation = %+v", att)
 	}
-	if att.PublicIPHash != HashPublicIP(testIP1) {
+	if att.PublicIPHash != mustHash(t, testIP1) {
 		t.Fatalf("public ip hash mismatch")
 	}
 	if att.PathID != h.tr.PathID() {
@@ -333,8 +343,8 @@ func TestNonRUGateAllProvidersRU(t *testing.T) {
 	gen := &atomic.Uint64{}
 	gen.Store(1)
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -351,7 +361,7 @@ func TestNonRUGateAllProvidersRU(t *testing.T) {
 
 	waitUntil(t, "gate opens", func() bool { return g.Status().Open })
 
-	ru := GeoResult{Country: "RU", PublicIPHash: HashPublicIP(testIP1)}
+	ru := GeoResult{Country: "RU", PublicIPHash: mustHash(t, testIP1)}
 	pa.set(ru, nil)
 	pb.set(ru, nil)
 
@@ -385,8 +395,8 @@ func TestNonRUGateMixedRUDisagrees(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", GeoResult{Country: "RU", PublicIPHash: HashPublicIP(testIP1)})
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", GeoResult{Country: "RU", PublicIPHash: mustHash(t, testIP1)})
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -426,8 +436,8 @@ func TestNonRUGateHoldsClosedWithoutInner(t *testing.T) {
 	gen := &atomic.Uint64{}
 	h.down.Store(true) // inner path never becomes available
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 
 	cfg := geoTestConfig(h, log, []GeoProvider{pa, pb}, gen)
 	g, _ := NewNonRUGate(cfg)
@@ -456,8 +466,8 @@ func TestNonRUGateStalesWhenQuorumLost(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -505,8 +515,8 @@ func TestNonRUGateRevokesOnPublicIPChange(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -523,7 +533,7 @@ func TestNonRUGateRevokesOnPublicIPChange(t *testing.T) {
 
 	waitUntil(t, "gate opens", func() bool { return g.Status().Open })
 
-	newRes := deResult(testIP2) // same country, different egress IP
+	newRes := deResult(t, testIP2) // same country, different egress IP
 	pa.set(newRes, nil)
 	pb.set(newRes, nil)
 
@@ -532,7 +542,7 @@ func TestNonRUGateRevokesOnPublicIPChange(t *testing.T) {
 	})
 	waitUntil(t, "reopen on stable new ip", func() bool { return g.Status().Open })
 	st := g.Status()
-	if st.Attestation.PublicIPHash != HashPublicIP(testIP2) {
+	if st.Attestation.PublicIPHash != mustHash(t, testIP2) {
 		t.Fatalf("attestation ip hash = %s", st.Attestation.PublicIPHash)
 	}
 	if log.count(EvGeoPublicIPChanged) == 0 {
@@ -554,8 +564,8 @@ func TestNonRUGateInnerPathLost(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -593,8 +603,8 @@ func TestNonRUGateParentReconnectInvalidatesAttestation(t *testing.T) {
 	gen := &atomic.Uint64{}
 	gen.Store(3)
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -640,8 +650,8 @@ func TestNonRUGateRejectsDirectWANEscape(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -683,9 +693,9 @@ func TestNonRUGateRejectsDirectWANEscape(t *testing.T) {
 func TestNewNonRUGateRejectsBadConfigs(t *testing.T) {
 	h := newGeoHarness(t)
 	gen := &atomic.Uint64{}
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pdup := newStubProvider("prov-a", deResult(testIP1)) // same id as pa
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pdup := newStubProvider("prov-a", deResult(t, testIP1)) // same id as pa
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 
 	cases := []struct {
 		name string
@@ -695,7 +705,7 @@ func TestNewNonRUGateRejectsBadConfigs(t *testing.T) {
 		{"single provider", func(c *NonRUConfig) { c.Providers = []GeoProvider{pa} }},
 		{"duplicate ids", func(c *NonRUConfig) { c.Providers = []GeoProvider{pa, pdup} }},
 		{"empty provider id", func(c *NonRUConfig) {
-			c.Providers = []GeoProvider{pa, newStubProvider("", deResult(testIP1))}
+			c.Providers = []GeoProvider{pa, newStubProvider("", deResult(t, testIP1))}
 		}},
 	}
 	for _, tc := range cases {
@@ -774,8 +784,8 @@ func TestNonRUGateManualDisable(t *testing.T) {
 	log := &eventLog{}
 	gen := &atomic.Uint64{}
 
-	pa := newStubProvider("prov-a", deResult(testIP1))
-	pb := newStubProvider("prov-b", deResult(testIP1))
+	pa := newStubProvider("prov-a", deResult(t, testIP1))
+	pb := newStubProvider("prov-b", deResult(t, testIP1))
 	pa.setExchange(true)
 	pb.setExchange(true)
 
@@ -842,7 +852,7 @@ func TestNonRUGateDNSProvidersEndToEnd(t *testing.T) {
 	if st.Attestation.Country != "DE" {
 		t.Fatalf("country = %q", st.Attestation.Country)
 	}
-	if st.Attestation.PublicIPHash != HashPublicIP(netip.AddrFrom4(answer)) {
+	if st.Attestation.PublicIPHash != mustHash(t, netip.AddrFrom4(answer)) {
 		t.Fatal("public ip hash mismatch")
 	}
 	obs := st.Observations
@@ -929,3 +939,78 @@ var (
 	_ GeoProvider       = (*CFTraceProvider)(nil)
 	_ GeoProbeTransport = (*TunnelGeoTransport)(nil)
 )
+
+// BLOCKER B-1: a provider reporting ErrNotIPv4 must be treated as an
+// «unknown» observation (neither RU nor non-RU) — never as a provider failure
+// and never a panic. With one unknown + one valid DE probe the quorum stays
+// insufficient (1 valid < 2 required) and the gate stays closed; the DE
+// provider is not implicated in the failure.
+func TestNonRUGateUnknownIPv4Observation(t *testing.T) {
+	h := newGeoHarness(t)
+	log := &eventLog{}
+	gen := &atomic.Uint64{}
+
+	pa := newStubProvider("prov-a", deResult(t, testIP1)) // valid non-RU DE
+	pb := newStubProvider("prov-b", GeoResult{})          // no usable IPv4
+	pb.set(GeoResult{}, ErrNotIPv4)
+	pa.setExchange(true)
+	pb.setExchange(true)
+
+	rec := &hookRecorder{}
+	cfg := geoTestConfig(h, log, []GeoProvider{pa, pb}, gen)
+	cfg.OnRouteOpen = rec.open
+	cfg.OnRouteRevoke = rec.revoke
+
+	g, err := NewNonRUGate(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := g.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer g.Stop()
+
+	// Give the gate time to collect observations and evaluate a quorum.
+	waitUntil(t, "gate evaluates a quorum", func() bool {
+		return log.count(EvGeoQuorumEvaluated) > 0
+	})
+	if g.Status().Open {
+		t.Fatal("gate must not open on 1 valid + 1 unknown observation")
+	}
+	// The unknown-observation path is surfaced, not a provider failure.
+	if log.count(EvGeoProviderFailed) > 0 {
+		t.Fatal("ErrNotIPv4 must not count as a provider failure")
+	}
+	// The gate did not revoke anything on this quorum.
+	_, revokes := rec.snapshot()
+	if len(revokes) > 0 {
+		t.Fatalf("unexpected revokes = %v", revokes)
+	}
+}
+
+// BLOCKER B-1: HashPublicIP is family-safe. Pure v6 / invalid inputs yield
+// ErrNotIPv4 (never a panic / empty hash); 4-in-6 normalizes to the bare IPv4
+// hash.
+func TestHashPublicIPFamilySafe(t *testing.T) {
+	v4 := mustHash(t, netip.MustParseAddr("203.0.113.7"))
+	if len(v4) != 16 {
+		t.Fatalf("hash length = %d, want 16", len(v4))
+	}
+	if got, err := HashPublicIP(netip.MustParseAddr("203.0.113.7")); err != nil || got != v4 {
+		t.Fatalf("bare v4 hash mismatch: %q %v", got, err)
+	}
+	if got, err := HashPublicIP(netip.MustParseAddr("::ffff:203.0.113.7")); err != nil || got != v4 {
+		t.Fatalf("4-in-6 not normalized: %q %v", got, err)
+	}
+	for _, ip := range []netip.Addr{
+		netip.MustParseAddr("2606:4700::1"),
+		netip.MustParseAddr("::1"),
+		netip.Addr{},
+	} {
+		if got, err := HashPublicIP(ip); !errors.Is(err, ErrNotIPv4) {
+			t.Fatalf("HashPublicIP(%v) = %q, err=%v; want ErrNotIPv4", ip, got, err)
+		}
+	}
+}

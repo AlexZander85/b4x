@@ -49,6 +49,11 @@ type fakeAPI struct {
 
 	postCount, patchCount, getCount, accountCount, deleteCount int
 
+	// assignedV4Override, when non-empty, replaces the fixed 172.16.0.2
+	// interface v4 in the GET /reg/{id} response. Used by the BLOCKER B-1
+	// v6-intake test to prove a malformed family yields OutcomeInvalidResponse.
+	assignedV4Override string
+
 	violations []string
 }
 
@@ -274,7 +279,11 @@ func (f *fakeAPI) handleGet(w http.ResponseWriter, r *http.Request, id string) {
 		PublicKey: f.pinPEM,
 	}}
 	out.Config.Peers[0].Endpoint.V4 = "engage.cloudflareclient.com:2408"
-	out.Config.Interface.Addresses.V4 = "172.16.0.2"
+	v4 := "172.16.0.2"
+	if f.assignedV4Override != "" {
+		v4 = f.assignedV4Override
+	}
+	out.Config.Interface.Addresses.V4 = v4
 	out.Config.Interface.Addresses.V6 = "2606:4700:110:8b41::1"
 	writeJSON(w, http.StatusOK, out)
 }

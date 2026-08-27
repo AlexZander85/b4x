@@ -63,9 +63,9 @@ func NewDNSProbe(localV4 [4]byte, dnsServer [4]byte, name string) (*Probe, error
 		}
 		start += dot + 1
 	}
-	dns = append(dns, 0x00)             // root label
-	dns = append(dns, 0x00, 0x01)       // QTYPE=A
-	dns = append(dns, 0x00, 0x01)       // QCLASS=IN
+	dns = append(dns, 0x00)       // root label
+	dns = append(dns, 0x00, 0x01) // QTYPE=A
+	dns = append(dns, 0x00, 0x01) // QCLASS=IN
 
 	// --- UDP header ---
 	sport := uint16(probeSrcPortBase + binary.BigEndian.Uint16(txid[:])%probeSrcPortSpan)
@@ -95,8 +95,13 @@ func NewDNSProbe(localV4 [4]byte, dnsServer [4]byte, name string) (*Probe, error
 	copy(ip[16:20], dnsServer[:])
 
 	// UDP checksum over pseudo-header (src, dst, zero, proto, udplen).
+	// RFC 768: the pseudo-header carries the 2-byte UDP Length (udp[4:6])
+	// between the protocol octet and the start of the UDP datagram
+	// (PATCH B-2). Omitting it produced invalid checksums on strict
+	// middleboxes.
 	sum := checksum32(append([]byte{localV4[0], localV4[1], localV4[2], localV4[3],
-		dnsServer[0], dnsServer[1], dnsServer[2], dnsServer[3], 0x00, 0x11},
+		dnsServer[0], dnsServer[1], dnsServer[2], dnsServer[3], 0x00, 0x11,
+		udp[4], udp[5]},
 		udp...))
 	udpSum := ^fold(sum)
 	if udpSum == 0 {

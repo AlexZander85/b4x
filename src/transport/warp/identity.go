@@ -97,8 +97,13 @@ func (id *Identity) Validate() error {
 	if digest != id.PinDigest || PinDigest(pin) != id.PinDigest {
 		return fmt.Errorf("%w: pin digest mismatch", ErrIdentityInvalid)
 	}
+	// Family-safe check (BLOCKER B-1, decision D1). The CF API contract for
+	// config.interface.addresses.v4 is dotted-quad. Any other string — a v6
+	// literal ("::1"/"2606:4700::1"), a 4-in-6 form ("::ffff:203.0.113.7") or
+	// garbage — is an anomaly and must be rejected fail-closed BEFORE any path
+	// reaches netip.Addr.As4() (which panics on non-IPv4).
 	v4, err := netip.ParseAddr(id.AssignedV4)
-	if err != nil || !v4.IsValid() {
+	if err != nil || !v4.IsValid() || !v4.Is4() {
 		return fmt.Errorf("%w: assigned_v4 %q", ErrIdentityInvalid, id.AssignedV4)
 	}
 	return nil

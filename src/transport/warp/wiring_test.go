@@ -110,7 +110,11 @@ func TestTunnelGeoTransportHTTPSExchangeSlot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Country != "DE" || res.PublicIPHash != HashPublicIP(netip.AddrFrom4([4]byte{81, 2, 3, 4})) {
+	wanted, herr := HashPublicIP(netip.AddrFrom4([4]byte{81, 2, 3, 4}))
+	if herr != nil {
+		t.Fatal(herr)
+	}
+	if res.Country != "DE" || res.PublicIPHash != wanted {
 		t.Fatalf("trace provider result %+v", res)
 	}
 	// Fail-closed posture on non-WARP trace bodies.

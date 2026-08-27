@@ -463,3 +463,42 @@ func TestIdentityNeedsRenewalBoundaries(t *testing.T) {
 		t.Fatal("outside window must not renew")
 	}
 }
+
+// BLOCKER B-1: the CF API answering a v6 literal in interface.addresses.v4 is
+// an anomalous response — intake must reject it with OutcomeInvalidResponse and
+// roll the transaction back (no identity written, no silent normalization).
+func TestEnrollV6InAssignedV4Rejected(t *testing.T) {
+	h := newHarness(t, time.Millisecond)
+	h.fake.assignedV4Override = "2606:4700:110:8b41::1"
+
+	_, outcome, err := h.cli.Enroll(context.Background())
+	if outcome != OutcomeInvalidResponse {
+		t.Fatalf("outcome = %v, want OutcomeInvalidResponse (err=%v)", outcome, err)
+	}
+	if err == nil {
+		t.Fatal("expected error for v6-in-v4 response")
+	}
+	if _, lerr := h.store.Load(); !errors.Is(lerr, ErrIdentityAbsent) {
+		t.Fatalf("identity must not be committed on invalid response: %v", lerr)
+	}
+	if _, err := os.Stat(h.store.Path); !os.IsNotExist(err) {
+		t.Fatalf("identity file must not exist, got %v", err)
+	}
+}
+
+// 4-in-6 in AssignedV4 is also rejected on the trusted boundary (decision D1).
+func TestEnroll4In6InAssignedV4Rejected(t *testing.T) {
+	h := newHarness(t, time.Millisecond)
+	h.fake.assignedV4Override = "::ffff:203.0.113.7"
+
+	_, outcome, err := h.cli.Enroll(context.Background())
+	if outcome != OutcomeInvalidResponse {
+		t.Fatalf("outcome = %v, want OutcomeInvalidResponse (err=%v)", outcome, err)
+	}
+	if err == nil {
+		t.Fatal("expected error for 4-in-6 in assigned_v4")
+	}
+	if _, lerr := h.store.Load(); !errors.Is(lerr, ErrIdentityAbsent) {
+		t.Fatalf("identity must not be committed: %v", lerr)
+	}
+}

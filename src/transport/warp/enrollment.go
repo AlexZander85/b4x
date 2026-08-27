@@ -45,6 +45,7 @@ import (
 	"math"
 	mrand "math/rand/v2"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
 )
@@ -77,6 +78,10 @@ const (
 	OutcomeInvalidKey
 	// OutcomeRequestError: any other 4xx — permanent request defect.
 	OutcomeRequestError
+	// OutcomeInvalidResponse: the API answered 2xx but the body is malformed
+	// (BLOCKER B-1): e.g. a v6/4-in-6 string in interface.addresses.v4 that
+	// fails family validation. Registration is rolled back, never committed.
+	OutcomeInvalidResponse
 )
 
 // ClassifyHTTPStatus implements the refuse-vs-throttle table.
@@ -351,8 +356,12 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, Outcome, error) {
 	if len(dev.Config.Peers) == 0 || dev.Config.Peers[0].PublicKey == "" {
 		return nil, OutcomeRequestError, fmt.Errorf("%w: device config without peers[0].public_key", ErrIdentityInvalid)
 	}
-	if dev.Config.Interface.Addresses.V4 == "" {
-		return nil, OutcomeRequestError, fmt.Errorf("%w: device config without interface v4", ErrIdentityInvalid)
+	// BLOCKER B-1 intake (decision D1): same family-safe check as
+	// Identity.Validate, applied to the raw CF API string BEFORE it is written
+	// into an Identity. A v6 literal or 4-in-6 form is an anomalous response —
+	// fail-closed with OutcomeInvalidResponse, the registration is rolled back.
+	if v4, err := netip.ParseAddr(dev.Config.Interface.Addresses.V4); err != nil || !v4.IsValid() || !v4.Is4() {
+		return nil, OutcomeInvalidResponse, fmt.Errorf("%w: device config interface v4 %q", ErrIdentityInvalid, dev.Config.Interface.Addresses.V4)
 	}
 
 	ident := &Identity{

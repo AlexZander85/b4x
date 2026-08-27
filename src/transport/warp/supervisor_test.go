@@ -2,6 +2,7 @@ package transportwarp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -578,4 +579,84 @@ func TestBackoffSeriesAndStableReset(t *testing.T) {
 	if b.next() != 8*time.Second {
 		t.Fatalf("short lifetime must keep the series advancing, got %v", b.next())
 	}
+}
+
+// BLOCKER B-1 (defense-in-depth): buildSessionConfig must refuse a tampered /
+// v6 / 4-in-6 AssignedV4 with ErrIdentityInvalid BEFORE the panicking As4(),
+// and accept a valid dotted-quad IPv4.
+func TestBuildSessionConfigRejectsV6AssignedV4(t *testing.T) {
+	good := validIdentity(t)
+	_, err := buildSessionConfig(SessionConfig{}, good)
+	if err != nil {
+		t.Fatalf("valid identity rejected: %v", err)
+	}
+	for _, bad := range []string{"2606:4700::1", "::ffff:203.0.113.7", "::1", ""} {
+		id := validIdentity(t)
+		id.AssignedV4 = bad
+		if _, err := buildSessionConfig(SessionConfig{}, id); !errors.Is(err, ErrIdentityInvalid) {
+			t.Fatalf("AssignedV4 %q: err = %v, want ErrIdentityInvalid", bad, err)
+		}
+	}
+}
+
+// BLOCKER B-1 (quarantine): an on-disk identity carrying a v6 in assigned_v4
+// must validate-fail and be quarantined (reprovision allowed), never loaded
+// as usable / never reaching the dialer.
+func TestLoadQuarantinesV6AssignedV4(t *testing.T) {
+	h := newSupHarness(t)
+	id := validIdentity(t)
+	id.AssignedV4 = "2606:4700::1"
+	if err := h.rec.Store.Save(id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.rec.Store.Load(); !errors.Is(err, ErrIdentityCorrupt) {
+		t.Fatalf("Load err = %v, want ErrIdentityCorrupt", err)
+	}
+	if fi, err := os.Stat(h.rec.Store.Path + ".corrupt"); err != nil || fi.Size() == 0 {
+		t.Fatalf("identity must be quarantined to .corrupt: %v", err)
+	}
+}
+
+// BLOCKER B-1 (supervisor boundary): a stored identity carrying a v6 in
+// assigned_v4 (tamper) must be quarantined on load and the supervisor must
+// KEEP BREATHING — no panic, no deadlock — reaching the identity-blocked
+// state repeatedly. The panic boundary (netip.Addr.As4() on a non-IPv4) is
+// never crossed.
+func TestSupervisorSurvivesTamperedIdentity(t *testing.T) {
+	h := newSupHarness(t)
+	h.api.postStatusDef = 429 // ensure() blocks: identical to blocked-no-dial path
+	h.api.retryAfter = "0.001"
+
+	// Seed a tampered store: valid shell but AssignedV4 is a v6 literal.
+	tampered := validIdentity(t)
+	tampered.AssignedV4 = "2606:4700::1"
+	if err := h.rec.Store.Save(tampered); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.rec.Store.Load(); !errors.Is(err, ErrIdentityCorrupt) {
+		t.Fatalf("pre-seed: Load err = %v, want ErrIdentityCorrupt (tamper must be rejected)", err)
+	}
+
+	sup := h.newSupervisor(t, func(c *SupervisorConfig) {
+		c.HealthInterval = time.Hour
+		c.DeferRevalidation = true
+	})
+	ctx := context.Background()
+	if err := sup.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer sup.Stop()
+
+	waitFor(t, 3*time.Second, "tampered identity blocked event", func() bool {
+		return countName(h.eventNames(), EvIdentityBlocked) > 0
+	})
+	if conns, _ := h.mq.counters(); conns != 0 {
+		t.Fatalf("no dialing allowed while identity tampered, connects=%d", conns)
+	}
+	if fi, err := os.Stat(h.rec.Store.Path + ".corrupt"); err != nil || fi.Size() == 0 {
+		t.Fatalf("tampered identity not quarantined: %v", err)
+	}
+	waitFor(t, 3*time.Second, "more identity events after tamper", func() bool {
+		return countName(h.eventNames(), EvIdentityBlocked) >= 2
+	})
 }

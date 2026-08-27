@@ -803,8 +803,10 @@ func buildSessionConfig(t SessionConfig, ident *Identity) (SessionConfig, error)
 	if err != nil {
 		return SessionConfig{}, err
 	}
+	// defense-in-depth (BLOCKER B-1): guard before As4() — a tampered identity
+	// or a v6/4-in-6 string in AssignedV4 must never reach the panicking As4().
 	v4, err := netip.ParseAddr(ident.AssignedV4)
-	if err != nil {
+	if err != nil || !v4.Is4() {
 		return SessionConfig{}, fmt.Errorf("%w: assigned_v4 %q", ErrIdentityInvalid, ident.AssignedV4)
 	}
 	out := t

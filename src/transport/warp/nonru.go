@@ -129,15 +129,28 @@ func DeltaPackets(a, b PacketCounters) uint64 {
 	return (b.TxPackets - a.TxPackets) + (b.RxPackets - a.RxPackets)
 }
 
+// ErrNotIPv4 reports a geo observation that carries no usable IPv4 address
+// (BLOCKER B-1, decision D1). Unlike the trusted identity paths (Validate /
+// intake) which reject such input fail-closed, the observation boundary is
+// tolerant: callers treat ErrNotIPv4 as «observation without an IPv4 address»
+// (neither RU nor non-RU — counted as unknown), never as a panic.
+var ErrNotIPv4 = errors.New("transportwarp: geo observation without an IPv4 address")
+
 // HashPublicIP returns the redacted-safe identity of an observed public IP
-// (§71: geo probes store only country + IP hash by default).
-func HashPublicIP(ip netip.Addr) string {
+// (§71: geo probes store only country + IP hash by default). Only IPv4 and
+// 4-in-6 addresses are hashable; a pure v6 or invalid address yields
+// ErrNotIPv4. 4-in-6 is normalized with Unmap() so the hash equals the bare
+// IPv4 form (source format the observer does not control).
+func HashPublicIP(ip netip.Addr) (string, error) {
 	if !ip.IsValid() {
-		return ""
+		return "", ErrNotIPv4
 	}
-	a4 := ip.As4()
+	if !ip.Is4() && !ip.Is4In6() {
+		return "", ErrNotIPv4
+	}
+	a4 := ip.Unmap().As4()
 	sum := sha256.Sum256(a4[:])
-	return hex.EncodeToString(sum[:8])
+	return hex.EncodeToString(sum[:8]), nil
 }
 
 // GeoResult is one provider outcome before gate stamping.
@@ -283,7 +296,13 @@ func (p *WhoamiDNSProvider) Probe(ctx context.Context, tr GeoProbeTransport) (Ge
 	if err != nil {
 		return GeoResult{}, err
 	}
-	res := GeoResult{ProviderID: p.id, PublicIPHash: HashPublicIP(addrs[0])}
+	// BLOCKER B-1: an observation without a usable IPv4 address is not a
+	// provider failure nor a panic — it is an «unknown» observation.
+	hash, err := HashPublicIP(addrs[0])
+	if err != nil {
+		return GeoResult{ProviderID: p.id}, err
+	}
+	res := GeoResult{ProviderID: p.id, PublicIPHash: hash}
 	if p.classify != nil {
 		res.Country = p.classify(addrs[0])
 	}
@@ -334,7 +353,12 @@ func (p *CFTraceProvider) Probe(ctx context.Context, tr GeoProbeTransport) (GeoR
 	if err != nil {
 		return GeoResult{}, err
 	}
-	return GeoResult{ProviderID: p.id, Country: loc, PublicIPHash: HashPublicIP(addr)}, nil
+	// BLOCKER B-1: a pure-v6 observation is «unknown», not a panic.
+	hash, herr := HashPublicIP(addr)
+	if herr != nil {
+		return GeoResult{ProviderID: p.id, Country: loc}, herr
+	}
+	return GeoResult{ProviderID: p.id, Country: loc, PublicIPHash: hash}, nil
 }
 
 // GeoObservation mirrors src/warp.GeoObservation (same field semantics:
