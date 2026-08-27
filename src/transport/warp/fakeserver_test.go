@@ -107,6 +107,19 @@ func newFakeServer(t *testing.T) *fakeServer {
 // pass endpoint pin verification.
 func newFakeServerWithKey(t *testing.T, key *ecdsa.PrivateKey) *fakeServer {
 	t.Helper()
+	return newFakeServerTLS(t, key, []string{"h2"})
+}
+
+// newFakeServerALPN builds an endpoint that negotiates the given TLS ALPN
+// values (M-03): offering e.g. http/1.1 makes DialSession's ALPN check fire
+// and yields an H2-negotiation failure class.
+func newFakeServerALPN(t *testing.T, key *ecdsa.PrivateKey, alpn []string) *fakeServer {
+	t.Helper()
+	return newFakeServerTLS(t, key, alpn)
+}
+
+func newFakeServerTLS(t *testing.T, key *ecdsa.PrivateKey, nextProtos []string) *fakeServer {
+	t.Helper()
 	fs := &fakeServer{t: t, status: 200, key: key, colo: "TEST"}
 	certDER := selfSignedDERForTest(t, fs.key)
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
@@ -114,7 +127,7 @@ func newFakeServerWithKey(t *testing.T, key *ecdsa.PrivateKey) *fakeServer {
 			Certificate: [][]byte{certDER},
 			PrivateKey:  fs.key,
 		}},
-		NextProtos: []string{"h2"},
+		NextProtos: nextProtos,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -69,6 +69,7 @@ var (
 	ErrPacketTooBig        = errors.New("transportwarp: packet exceeds tunnel MTU")
 	ErrSessionClosed       = errors.New("transportwarp: session closed")
 	ErrMalformedCapsule    = errors.New("transportwarp: malformed capsule framing")
+	ErrH2ALPN              = errors.New("transportwarp: ALPN negotiation failed")
 )
 
 // Failure classes (addendum §62.1 minimum set, structural not textual).
@@ -222,6 +223,12 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 				if errors.Is(err, context.DeadlineExceeded) {
 					return nil, fmt.Errorf("%w: %v", ErrTLSHandshakeTimeout, err)
 				}
+				// M-03: no overlapping ALPN (client offers only h2) surfaces as
+				// "no application protocol" from crypto/tls; this is an H2-negotiation
+				// failure, not a generic connect failure.
+				if strings.Contains(err.Error(), "no application protocol") {
+					return nil, fmt.Errorf("%w: %v", ErrH2ALPN, err)
+				}
 				return nil, err
 			}
 			// ALPN: "h2" is the expected negotiation; "" is ACCEPTED by
@@ -232,7 +239,10 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 			// connection. Any OTHER protocol (e.g. http/1.1) stays fatal.
 			if proto := tc.ConnectionState().NegotiatedProtocol; proto != "h2" && proto != "" {
 				_ = rawConn.Close()
-				return nil, fmt.Errorf("%w: negotiated %q", ErrMalformedCapsule, proto)
+				// M-03: ALPN mismatch is an H2-negotiation failure, not a malformed
+				// capsule (which defaulted to FailureTCPConnect). Sentinel so the
+				// classifier names the real layer.
+				return nil, fmt.Errorf("%w: negotiated %q", ErrH2ALPN, proto)
 			}
 			return tc, nil
 		},
@@ -669,6 +679,11 @@ func classifyDialError(err error) string {
 	// context.DeadlineExceeded on a handshake timeout).
 	if errors.Is(err, ErrTLSHandshakeTimeout) {
 		return FailureTLSTimeout
+	}
+	// M-03: ALPN mismatch is an H2-negotiation failure, never a generic
+	// FailureTCPConnect (structured sentinel, same rationale as M-02).
+	if errors.Is(err, ErrH2ALPN) {
+		return FailureH2Negotiation
 	}
 	msg := err.Error()
 	switch {
