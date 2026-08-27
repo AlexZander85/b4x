@@ -202,6 +202,11 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	}
 	abandon := func(class string, err error) (*H3Session, H3ConnectResult, error) {
 		sess.closeResources()
+		// M-05: this session is discarded on failure, so its context must be
+		// released here; otherwise every failed H3 dial leaks a child context
+		// (and any goroutine/callback pinned to it) onto the parent ctx of the
+		// supervisor for the life of that parent.
+		sess.cancel()
 		res.FailureClass = class
 		res.DurationMS = msSince(start)
 		return nil, res, fmt.Errorf("%s: %w", class, err)
