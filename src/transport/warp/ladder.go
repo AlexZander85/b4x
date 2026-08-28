@@ -326,11 +326,15 @@ func (d *H3FirstDialer) ObserveValidation(transport string, validationErr error)
 
 // isLadderSwitchClass reports whether a dial-phase failure class confirms
 // the transport verdict strongly enough to degrade to H2. Exactly the
-// handshake-fail family of classifyH3HandshakeError minus the pin verdict
-// (fail-closed, never masked).
+// confirmed network-verdict family: UDP silence at dial time (blackhole),
+// TLS alert (edge refused the handshake), and the response-silence class
+// (PATCH-01: handshake ok but extended CONNECT never answered — design §6
+// "handshake-ok-but-silent"). FailureSessionAborted stays OUT by design:
+// a parent cancellation is not a network verdict and must never close the
+// gate; tls-pin verdicts stay OUT (fail-closed, never masked).
 func isLadderSwitchClass(class string) bool {
 	switch class {
-	case FailureUDPEgressBlocked, FailureTLSAlert:
+	case FailureUDPEgressBlocked, FailureTLSAlert, FailureConnectTimeo:
 		return true
 	default:
 		return false

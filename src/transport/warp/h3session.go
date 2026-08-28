@@ -283,8 +283,16 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	stream, err := conn.OpenStreamSync(osCtx)
 	osCancel()
 	if err != nil {
+		// PATCH-01 guard: FailureConnectTimeo is a network-silence verdict AND
+		// a ladder switch class — it must only arise from network silence
+		// (budget expiry), never from a cancelled PARENT context, or a
+		// supervisor teardown race would falsely close the H3 gate for the
+		// full cooldown.
 		class := FailureQUICStreamQuotaHang
-		if ctx.Err() != nil || hsCtx.Err() != nil {
+		switch {
+		case ctx.Err() != nil: // parent cancelled — never a network verdict
+			class = FailureSessionAborted
+		case hsCtx.Err() != nil:
 			class = FailureConnectTimeo
 		}
 		return abandon(class, err)

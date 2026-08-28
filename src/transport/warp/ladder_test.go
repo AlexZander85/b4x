@@ -406,6 +406,115 @@ func TestSupervisorLadderNoOscillationAcrossTicks(t *testing.T) {
 	sup.Stop()
 }
 
+// PATCH-01: silent-after-handshake (handshake ok, extended CONNECT never
+// answered) is a CONFIRMED network verdict — the ladder must switch to H2
+// exactly once, close the H3 gate for the cooldown, and stop contacting H3.
+func TestLadderSwitchesToH2OnHangConnectAfterHandshake(t *testing.T) {
+	h := newSupHarness(t)
+	scfg := ladderKeyMaterial(t, h)
+	e := newFakeH3EdgeWithKey(t, h.api.key)
+	e.setBehavior(200, false, 0, true) // accept CONNECT stream, never answer
+
+	var ctr h3AttemptCounter
+	d, _ := newTestLadder(t, func(c *LadderConfig) {
+		c.DialH3 = func(_ context.Context, hcfg H3SessionConfig) (*H3Session, H3ConnectResult, error) {
+			ctr.n.Add(1)
+			// Fixture wiring: the real carrier dials the loopback edge; the
+			// response window is shortened so the hang fires fast.
+			hcfg.Endpoint = netipMustAddrPort(e.addr)
+			hcfg.HandshakeBudget = 3 * time.Second
+			hcfg.ResponseBudget = 700 * time.Millisecond
+			return DialH3Session(context.Background(), hcfg)
+		}
+	})
+
+	ctx := context.Background()
+
+	// Generation 1: H3 handshake ok but response silent ⇒ one switch event,
+	// H2 fallback lives.
+	sess, att, err := d.Dial(ctx, scfg)
+	if err != nil {
+		t.Fatalf("H2 fallback dial: %v", err)
+	}
+	defer sess.Close()
+	if att.Transport != TransportH2 {
+		t.Fatalf("transport = %q, want h2", att.Transport)
+	}
+	if n := len(att.Events); n != 1 || att.Events[0].Name != EvTransportSwitched {
+		t.Fatalf("events = %+v, want exactly one %s", att.Events, EvTransportSwitched)
+	}
+	ev := att.Events[0]
+	if ev.FailureClass != FailureConnectTimeo || ev.Detail != "from=h3 to=h2 reason=connect-ip-timeout" {
+		t.Fatalf("switch event payload wrong: %+v", ev)
+	}
+	if ev.DurationMS == 0 {
+		t.Fatalf("switch event must carry DurationMS: %+v", ev)
+	}
+	if m := d.Metrics(); !m.H3Blocked || m.Switches != 1 || m.FallbackToH2 != 1 ||
+		m.H3DialTotal[FailureConnectTimeo] != 1 {
+		t.Fatalf("metrics = %+v", m)
+	}
+
+	// Generations 2..N within the cooldown: straight to H2, ZERO H3 contact,
+	// ZERO events — the anti-oscillation core.
+	for tick := 2; tick <= 3; tick++ {
+		s2, att2, err := d.Dial(ctx, scfg)
+		if err != nil {
+			t.Fatalf("tick %d: %v", tick, err)
+		}
+		s2.Close()
+		if att2.Transport != TransportH2 || len(att2.Events) != 0 {
+			t.Fatalf("tick %d: transport=%q events=%v", tick, att2.Transport, att2.Events)
+		}
+	}
+	if got := ctr.n.Load(); got != 1 {
+		t.Fatalf("H3 contacted %d times, want exactly 1", got)
+	}
+}
+
+// PATCH-01 guard: a parent cancellation during open_bi must NOT yield the
+// FailureConnectTimeo switch verdict — the gate stays open, no switch events,
+// and the class is session-aborted.
+func TestLadderNoSwitchOnParentCancelDuringOpenBI(t *testing.T) {
+	h := newSupHarness(t)
+	scfg := ladderKeyMaterial(t, h)
+	// quotaZeroStreams: open_bi HANGS (flow-control trap) until the parent
+	// cancel lands — the exact teardown-race shape the guard covers.
+	e := newFakeH3EdgeWithKeyOpts(t, h.api.key, func(f *fakeH3Edge) { f.quotaZeroStreams = true })
+
+	d, _ := newTestLadder(t, func(c *LadderConfig) {
+		c.DialH3 = func(_ context.Context, hcfg H3SessionConfig) (*H3Session, H3ConnectResult, error) {
+			hcfg.Endpoint = netipMustAddrPort(e.addr)
+			hcfg.HandshakeBudget = 5 * time.Second
+			hcfg.OpenStreamBudet = 5 * time.Second
+			dctx, cancel := context.WithCancel(context.Background())
+			go func() {
+				time.Sleep(300 * time.Millisecond)
+				cancel()
+			}()
+			s, r, err := DialH3Session(dctx, hcfg)
+			cancel()
+			return s, r, err
+		}
+	})
+
+	ctx := context.Background()
+	_, att, err := d.Dial(ctx, scfg)
+	if err == nil {
+		t.Fatal("cancelled attempt must fail")
+	}
+	if att.Result.FailureClass != FailureSessionAborted {
+		t.Fatalf("class=%s want session-aborted", att.Result.FailureClass)
+	}
+	if len(att.Events) != 0 {
+		t.Fatalf("switch events on parent cancel: %+v", att.Events)
+	}
+	if m := d.Metrics(); m.H3Blocked || m.Switches != 0 || m.FallbackToH2 != 0 ||
+		m.H3DialTotal[FailureSessionAborted] != 1 {
+		t.Fatalf("gate must stay open on parent cancel, metrics = %+v", m)
+	}
+}
+
 // EH4: cf-warp-colo parsed on the H3 CONNECT response reaches the trace
 // payload exactly like the H2 path — EvMasqueConnected carries it and the
 // unified result keeps one shape per phase.
