@@ -259,6 +259,46 @@ func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
 	rt.Stop()
 }
 
+// PATCH-05 (M-12): watch must wait on the RUNTIME-derived context, not the
+// caller's parent — Stop closes done even when the parent lives on, and the
+// goroutine never outlives the runtime.
+func TestWgMasqueStopClosesWatchWithoutParentCancel(t *testing.T) {
+	cfg := WgMasqueConfig{
+		Pair:          validWMPair(),
+		OuterIdent:    &twg.Identity{},
+		InnerEnroll:   &twarp.EnrollClient{},
+		InnerSlotPath: t.TempDir() + "/secondary.json",
+	}
+	rt, err := NewWgMasqueRuntime(cfg)
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+
+	parent, parentCancel := context.WithCancel(context.Background())
+	defer parentCancel()
+	// Start bookkeeping exactly as Start does (unit CI has no live outer
+	// edge; the watch contract is what is pinned here).
+	ctx, cancel := context.WithCancel(parent)
+	rt.cancel = cancel
+	rt.mu.Lock()
+	rt.cancelCtx = ctx
+	rt.mu.Unlock()
+	go rt.watch()
+
+	rt.Stop() // cancels the runtime context, bounded-waits for done
+	select {
+	case <-rt.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("done not closed by Stop: watch goroutine leaked")
+	}
+	select {
+	case <-parent.Done():
+		t.Fatal("parent context must stay alive across Stop")
+	default:
+	}
+	rt.Stop() // idempotent
+}
+
 func TestMetricsSnapshotAndExportLoop(t *testing.T) {
 	m := &Metrics{}
 	m.RouteLostTotal.Add(2)

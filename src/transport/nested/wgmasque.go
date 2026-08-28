@@ -168,7 +168,7 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 			r.startErr = fmt.Errorf("outer start: %w", serr)
 			return
 		}
-		go r.watch(parent)
+		go r.watch()
 	})
 	select {
 	case <-r.done:
@@ -211,6 +211,14 @@ func (r *WgMasqueRuntime) Stop() {
 		if outer != nil {
 			outer.Stop()
 		}
+		// PATCH-05: bounded wait for the watch goroutine — Stop must never
+		// hang on it, and done MUST close even when the parent context
+		// outlives the runtime. Early Start error paths close done manually
+		// (watch is not launched there); the close is idempotent-safe.
+		select {
+		case <-r.done:
+		case <-time.After(2 * time.Second):
+		}
 	})
 }
 
@@ -224,9 +232,18 @@ func (r *WgMasqueRuntime) outerMTU() int {
 	return mtu
 }
 
-func (r *WgMasqueRuntime) watch(parent context.Context) {
+func (r *WgMasqueRuntime) watch() {
 	defer close(r.done)
-	<-parent.Done()
+	// PATCH-05 (M-12): wait on the RUNTIME-derived context, not the caller's
+	// parent — Stop() cancels this one, so done always closes on teardown
+	// and the goroutine never outlives the runtime.
+	r.mu.Lock()
+	ctx := r.cancelCtx
+	r.mu.Unlock()
+	if ctx == nil {
+		return
+	}
+	<-ctx.Done()
 }
 
 // onParentUp builds a FRESH carrier for THIS generation and starts a FRESH
