@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -118,6 +119,144 @@ func TestDialerWithMSSPreservesBase(t *testing.T) {
 	if fresh == nil || fresh.Timeout != 5*time.Second {
 		t.Fatal("nil base with mss<=0 must yield the default dialer")
 	}
+}
+
+// ---- PATCH-04: single live carrier across outer reconnects ----
+
+// wmEventLog collects runtime events (mutex-guarded: assertion loops emit
+// from goroutines).
+type wmEventLog struct {
+	mu sync.Mutex
+	ev []Event
+}
+
+func (l *wmEventLog) add(ev Event) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.ev = append(l.ev, ev)
+}
+
+func (l *wmEventLog) count(class string) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	n := 0
+	for _, e := range l.ev {
+		if e.Class == class {
+			n++
+		}
+	}
+	return n
+}
+
+// newWMKernelRuntime builds a kernel-mode W+M runtime over a fake route
+// table. The inner enrollment points at a dead loopback port so the inner
+// start fails fast WITHOUT any external traffic; the carrier lifecycle under
+// test is independent of the inner outcome.
+func newWMKernelRuntime(t *testing.T, fr *fakeRoutes, log *wmEventLog) *WgMasqueRuntime {
+	t.Helper()
+	cfg := WgMasqueConfig{
+		Pair:           validWMPair(),
+		OuterIdent:     &twg.Identity{},
+		InnerEnroll:    &twarp.EnrollClient{BaseURL: "http://127.0.0.1:1"},
+		InnerSlotPath:  t.TempDir() + "/secondary.json",
+		OuterKernelTUN: true,
+		KernelDevice:   "wgout",
+		KernelRunner:   fr.run,
+		OnEvent:        log.add,
+	}
+	rt, err := NewWgMasqueRuntime(cfg)
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	rt.assertInterval = 50 * time.Millisecond
+	return rt
+}
+
+func TestWgMasqueCarrierTornDownAcrossGenerations(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := validWMPair().Inner.Endpoint.Addr().String() // the pin target the runtime actually owns
+	// Foreign route present BEFORE the first pin: the final Stop must
+	// restore it verbatim (first-generation prev survives reconnects).
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+
+	log := &wmEventLog{}
+	rt := newWMKernelRuntime(t, fr, log)
+
+	// Generation 1: fresh carrier pins the route on the outer device.
+	rt.onParentUp()
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("gen1: route not pinned on the outer device")
+	}
+
+	// Generation 2 (outer reconnect): the old carrier must be torn down
+	// (terminal record) before the new one builds.
+	rt.onParentUp()
+	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
+		t.Fatalf("carrier_replaced events = %d, want exactly 1", n)
+	}
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("gen2: route not re-pinned by the new carrier")
+	}
+
+	// Old assertion loop must be DEAD: after the gen2 teardown its journal
+	// freezes. Wait several ticks and confirm no foreign-restore churn from
+	// the dead carrier (its Restore already ran exactly once: the pin
+	// stays ours and no extra route-lost can come from the dead side).
+	lostBefore := log.count(ClassCarrierRouteLost)
+	time.Sleep(200 * time.Millisecond)
+	if got := log.count(ClassCarrierRouteLost); got != lostBefore {
+		t.Fatalf("dead carrier still asserting: route-lost %d -> %d", lostBefore, got)
+	}
+
+	// Final Stop: the ORIGINAL foreign route comes back, not our pin.
+	rt.Stop()
+	if !fr.has("-4", dst, "wan0") {
+		t.Fatalf("final restore must return the foreign route, table=%v", fr.lines)
+	}
+	if fr.has("-4", dst, "wgout") {
+		t.Fatal("our pin survived Stop: ownership leak")
+	}
+}
+
+func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := validWMPair().Inner.Endpoint.Addr().String()
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+
+	log := &wmEventLog{}
+	rt := newWMKernelRuntime(t, fr, log)
+
+	rt.onParentUp()
+	rt.onParentUp() // reconnect: gen2 carrier is the only live one
+	lostBase := log.count(ClassCarrierRouteLost)
+	if lostBase != 0 {
+		t.Fatalf("pre-wipe route-lost events = %d, want 0", lostBase)
+	}
+
+	// Wipe the pin (steal the route to a foreign device): exactly ONE
+	// route-lost from the live gen2 carrier, then pin-restored.
+	fr.mu.Lock()
+	fr.lines[key("-4", dst)] = dst + " dev wan0"
+	fr.mu.Unlock()
+
+	deadline := time.After(3 * time.Second)
+	for log.count(ClassPinRestored) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("pin-restored never arrived after wipe")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	// Settle window: a duplicate emitter (dead gen1 carrier) would add more
+	// route-lost events within a couple of ticks.
+	time.Sleep(200 * time.Millisecond)
+	if n := log.count(ClassCarrierRouteLost); n != 1 {
+		t.Fatalf("route-lost events after wipe = %d, want exactly 1", n)
+	}
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("route not repaired back onto the outer device")
+	}
+	rt.Stop()
 }
 
 func TestMetricsSnapshotAndExportLoop(t *testing.T) {

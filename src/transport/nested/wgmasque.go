@@ -92,6 +92,9 @@ type WgMasqueRuntime struct {
 	parentGen    uint64
 	carrier      NestedCarrier
 	kernel       *KernelRouteCarrier // non-nil iff kernel mode
+	// assertInterval is the kernel assertion-loop cadence (test seam: unit
+	// tests shrink it; production keeps the 30s discipline).
+	assertInterval time.Duration
 	inner        *twarp.Supervisor
 	innerCancel  context.CancelFunc
 	cancelCtx    context.Context
@@ -232,6 +235,23 @@ func (r *WgMasqueRuntime) watch(parent context.Context) {
 func (r *WgMasqueRuntime) onParentUp() {
 	gen := r.bumpGen()
 
+	// Carrier lifecycle (B-N2/N6): exactly one kernel carrier may be
+	// alive per runtime. Teardown the previous generation BEFORE building
+	// the next one: Restore() returns the foreign prev-route, so the new
+	// Setup() snapshots the TRUE foreign state and the final Stop()
+	// restores it (first-generation prev survives across generations).
+	r.mu.Lock()
+	oldKernel := r.kernel
+	r.carrier, r.kernel = nil, nil
+	r.mu.Unlock()
+	if oldKernel != nil {
+		oldKernel.StopAssertionLoop()
+		oldKernel.Restore(context.Background())
+		oldKernel.Close()
+		r.emit(Event{Class: "wg_nested_carrier_replaced",
+			Reason: fmt.Sprintf("gen=%d carrier torn down before rebuild", gen)})
+	}
+
 	carrier, krc, cerr := r.buildCarrier(gen)
 	if cerr != nil {
 		r.setInvalidated(gen, cerr.Error())
@@ -297,7 +317,11 @@ func (r *WgMasqueRuntime) buildCarrier(gen uint64) (NestedCarrier, *KernelRouteC
 		if err := krc.Setup(context.Background()); err != nil {
 			return nil, nil, err
 		}
-		krc.RunAssertionLoop(context.Background(), 30*time.Second)
+		interval := r.assertInterval
+		if interval <= 0 {
+			interval = 30 * time.Second
+		}
+		krc.RunAssertionLoop(context.Background(), interval)
 		return krc, krc, nil
 	}
 	r.mu.Lock()
