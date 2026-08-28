@@ -207,12 +207,12 @@ func (d *H3FirstDialer) Dial(ctx context.Context, scfg SessionConfig) (packetTra
 	if err == nil {
 		d.countH3("ok")
 		ev := SupervisorEvent{
-			Name:       EvH3Negotiated,
+			Name:         EvH3Negotiated,
 			FailureClass: "",
-			Status:     res.Status,
-			DurationMS: res.DurationMS,
-			Colo:       res.Colo,
-			Detail:     "transport=h3",
+			Status:       res.Status,
+			DurationMS:   res.DurationMS,
+			Colo:         res.Colo,
+			Detail:       "transport=h3",
 		}
 		return sess, TransportAttempt{
 			Transport: TransportH3,
@@ -309,6 +309,11 @@ func (d *H3FirstDialer) ObserveValidation(transport string, validationErr error)
 	case validationErr == nil:
 		d.releaseCover("validated")
 		return nil
+	case errors.Is(validationErr, context.Canceled):
+		// M-06: validation aborted by shutdown/rebalance is NOT a "handshake-ok-
+		// but-silent" verdict. Ignore it: no switch event, no blockH3 cooldown.
+		d.releaseCover("validation-aborted")
+		return nil
 	default:
 		d.releaseCover("validation-failed")
 	}
@@ -379,8 +384,8 @@ func (r H3ConnectResult) connectResult() ConnectResult {
 type ReachabilityClass string
 
 const (
-	ReachReachable ReachabilityClass = "reachable" // edge spoke (TLS/VN/reset)
-	ReachRefused   ReachabilityClass = "udp-refused" // fast ICMP-class refusal
+	ReachReachable ReachabilityClass = "reachable"     // edge spoke (TLS/VN/reset)
+	ReachRefused   ReachabilityClass = "udp-refused"   // fast ICMP-class refusal
 	ReachBlackhole ReachabilityClass = "udp-blackhole" // budget silence ⇒ udp-egress-blocked
 )
 

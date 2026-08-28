@@ -658,6 +658,13 @@ func classifyH3HandshakeError(err error) string {
 	if err == nil {
 		return ""
 	}
+	// M-06: a parent-context cancel mid-dial is a shutdown/abort, never a
+	// network verdict — without this it fell into the udp-egress-blocked
+	// default and poisoned the ladder gate (switch event + blockH3) on a plain
+	// stop/rebalance.
+	if errors.Is(err, context.Canceled) {
+		return FailureSessionAborted
+	}
 	// Pin family is fail-closed (E-H3 red line: tls-pin-mismatch is EXCLUDED
 	// from the transport-switch reasons). M3-04 widens the family from
 	// ErrPinMismatch alone to the full rotation/bad-cert set so a pin incident
