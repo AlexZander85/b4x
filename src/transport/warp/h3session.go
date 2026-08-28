@@ -49,6 +49,9 @@ const (
 	// creation on flow-control exhaustion instead of erroring (design §4;
 	// prompt EH2: обёртка таймаута 10 с).
 	DefaultH3OpenStreamBudget = 10 * time.Second
+	// DefaultH3ResponseBudget bounds the wait for the first extended-CONNECT
+	// response (PATCH-02 / design B-H4: two independent stall timers).
+	DefaultH3ResponseBudget = 10 * time.Second
 	// h3KeepAlivePeriod holds NAT mappings alive (design: 15–20s band).
 	h3KeepAlivePeriod = 15 * time.Second
 	// h3MaxIdleTimeout explicit — never the library default (design §1).
@@ -96,6 +99,11 @@ type H3SessionConfig struct {
 	ValidateWindow  time.Duration // DefaultValidateWindow when zero
 	ProbeInterval   time.Duration // DefaultProbeInterval when zero
 	HandshakeBudget time.Duration // dial+handshake+CONNECT budget, default 20s
+	// ResponseBudget bounds the wait for the first extended-CONNECT response
+	// after the request is written. It is measured from the moment the CONNECT
+	// is sent and never inherits the handshake budget remainder (design B-H4:
+	// two independent stall timers).
+	ResponseBudget time.Duration // default DefaultH3ResponseBudget
 	OpenStreamBudet time.Duration // open_bi wrap, DefaultH3OpenStreamBudget
 }
 
@@ -114,6 +122,9 @@ func (c *H3SessionConfig) fillDefaults() {
 	}
 	if c.HandshakeBudget == 0 {
 		c.HandshakeBudget = 20 * time.Second
+	}
+	if c.ResponseBudget == 0 {
+		c.ResponseBudget = DefaultH3ResponseBudget
 	}
 	if c.OpenStreamBudet == 0 {
 		c.OpenStreamBudet = DefaultH3OpenStreamBudget
@@ -296,9 +307,16 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 		return abandon(classifyH3RequestError(err), err)
 	}
 
-	// Response under the remaining handshake budget: silence here is the
-	// blocked-endpoint signature (handshake completes, CONNECT never answers
-	// — design §4 second timer).
+	// Response under its OWN budget, independent of the handshake budget
+	// remainder (PATCH-02, design B-H4: two independent stall timers): a
+	// slow handshake must not shrink the silence-detection window. The
+	// handshake timer ends at the request-write boundary; from here the
+	// wait is bounded only by ResponseBudget (and the parent). Silence
+	// here is the blocked-endpoint signature (handshake completes, CONNECT
+	// never answers — design §4 second timer).
+	hsCancel() // handshake budget no longer bounds the response phase
+	rspCtx, rspCancel := context.WithTimeout(parent, cfg.ResponseBudget)
+	defer rspCancel()
 	fr := newH3Framer(stream)
 	type rspOut struct {
 		typ     uint64
@@ -313,9 +331,9 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	var rsp rspOut
 	select {
 	case rsp = <-rspCh:
-	case <-hsCtx.Done():
+	case <-rspCtx.Done():
 		stream.CancelRead(quic.StreamErrorCode(0))
-		return abandon(FailureConnectTimeo, hsCtx.Err())
+		return abandon(FailureConnectTimeo, fmt.Errorf("response window: %w", rspCtx.Err()))
 	case <-parent.Done():
 		return abandon(FailureSessionAborted, parent.Err())
 	}
@@ -621,6 +639,10 @@ func (s *H3Session) closeResources() {
 // closed cleanly (AppError 0 / TransportError NoError / ErrClosed), idle
 // timeout, stateless reset, PROTOCOL_VIOLATION-once, and the
 // "failed to read response" class (connect-ip-go client.go:61 wording).
+//
+// FailureConnectTimeo (response-window silence) is deliberately NOT here:
+// silence after the CONNECT is a switch verdict for the ladder (PATCH-01),
+// not a same-transport retry.
 func isRetriableH3Failure(err error) bool {
 	if err == nil {
 		return false

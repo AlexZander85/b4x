@@ -151,10 +151,59 @@ func TestH3SessionSilentDropValidationTimeout(t *testing.T) {
 func TestH3SessionHangConnectBudgetFires(t *testing.T) {
 	e := newFakeH3Edge(t)
 	e.setBehavior(200, false, 0, true)
-	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) { c.HandshakeBudget = 700 * time.Millisecond })
+	// PATCH-02: silence detection is driven by ResponseBudget — the
+	// independent stall timer (B-H4) — not by the attempt budget remainder.
+	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) {
+		c.HandshakeBudget = 5 * time.Second
+		c.ResponseBudget = 700 * time.Millisecond
+	})
 	_, res, err := DialH3Session(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("hang must fail on budget")
+	}
+	if res.FailureClass != FailureConnectTimeo {
+		t.Fatalf("class=%s want connect-ip-timeout", res.FailureClass)
+	}
+}
+
+// PATCH-02 (design B-H4): the response window must NOT inherit the handshake
+// budget remainder — a fast handshake followed by silence gets the FULL
+// ResponseBudget, not whatever is left of HandshakeBudget.
+func TestH3ResponseBudgetNotInheritedFromHandshakeRemainder(t *testing.T) {
+	e := newFakeH3Edge(t)
+	e.setBehavior(200, false, 0, true)
+	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) {
+		c.HandshakeBudget = 2 * time.Second
+		c.ResponseBudget = 5 * time.Second
+	})
+	_, res, err := DialH3Session(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("hang must fail on response budget")
+	}
+	if res.FailureClass != FailureConnectTimeo {
+		t.Fatalf("class=%s want connect-ip-timeout", res.FailureClass)
+	}
+	// Pre-fix behavior: the 2s attempt budget fired the timeout (≈2000ms).
+	// The window now runs its full length from the CONNECT write.
+	if res.DurationMS < 4500 {
+		t.Fatalf("duration=%dms, want the full ~5s response window (not the handshake remainder)", res.DurationMS)
+	}
+}
+
+// PATCH-02: a late (but valid) answer beyond the response window is a
+// FailureConnectTimeo — the handshake completed, so the class must not
+// slide into the handshake failure family.
+func TestH3ResponseBudgetDeadlineThenLateAnswer(t *testing.T) {
+	e := newFakeH3Edge(t)
+	e.setBehavior(200, false, 0, false)
+	e.setDelayResponse(1200 * time.Millisecond)
+	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) {
+		c.HandshakeBudget = 5 * time.Second
+		c.ResponseBudget = 400 * time.Millisecond
+	})
+	_, res, err := DialH3Session(context.Background(), cfg)
+	if err == nil {
+		t.Fatal("late answer must miss the response window")
 	}
 	if res.FailureClass != FailureConnectTimeo {
 		t.Fatalf("class=%s want connect-ip-timeout", res.FailureClass)

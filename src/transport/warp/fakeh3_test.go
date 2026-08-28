@@ -30,6 +30,9 @@ type fakeH3Edge struct {
 	dropDatagrams     bool // accept control, never echo (silent-DPI class)
 	teardownAfterEcho int  // echo N datagrams then hard-close the connection
 	hangConnect       bool // accept the CONNECT stream but never answer it
+	// delayResponse sleeps before answering CONNECT (late-answer fixture:
+	// the answer arrives after the client response window expired).
+	delayResponse time.Duration
 	quotaZeroStreams  bool // advertise MAX_STREAMS=0: client open_bi hangs (quota trap)
 	killImmediately   bool // close conn with AppError 0 right after control stream (retry fixture)
 	colo              string
@@ -128,6 +131,12 @@ func (e *fakeH3Edge) acceptCount() int {
 	return e.connAccepts
 }
 
+func (e *fakeH3Edge) setDelayResponse(d time.Duration) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.delayResponse = d
+}
+
 func (e *fakeH3Edge) handleConn(conn *quic.Conn) {
 	e.mu.Lock()
 	e.connAccepts++
@@ -181,6 +190,17 @@ func (e *fakeH3Edge) handleConnect(conn *quic.Conn, stream *quic.Stream, ctx con
 	if hang {
 		<-ctx.Done() // never answer: the client budget must fire first
 		return false
+	}
+	if delay := func() time.Duration {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		return e.delayResponse
+	}(); delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			return false
+		}
 	}
 
 	wr := &qpackWriter{}
