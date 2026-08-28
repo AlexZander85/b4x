@@ -6,7 +6,13 @@ This package (`src/transport/wg`) embeds the following third-party Go module:
 - Pinned version (go.mod): `v3.1.20260814`
 - Pinned commit: `1b86b2ae0e493e7ea93f8c1a0f0cb6735b1551f1` (tag `v3.1.20260814`)
 - License: MIT (SPDX verified via GitHub API at design time, 2026-08-24)
-- Modifications to upstream files: **none**
+
+## Modifications
+
+- `device/timers.go` (`NewTimer`): move the `timer.duration = 0` reset under
+  `modifyingLock` inside the timer callback — fixes a data race between the
+  callback (reset after unlock) and `Timer.Del` (reset under lock). Upstream
+  report: pending — draft in `docs/upstream/amneziawg-timers-race-issue.md`.
 
 ## Rule
 
