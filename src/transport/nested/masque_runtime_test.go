@@ -33,6 +33,7 @@ func TestMasqueAwgRuntimeRequiresPlaneAndIdentity(t *testing.T) {
 
 func TestMasqueAwgRuntimeWaitingParentAndCleanStop(t *testing.T) {
 	plane := newFakePlane()
+	setPlaneHeld(plane, false) // the fixture default is held=true; this test pins the waiting-parent posture
 	cfg := MasqueAwgConfig{
 		Pair:       validPair(),
 		Plane:      plane,

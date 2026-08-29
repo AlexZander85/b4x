@@ -155,6 +155,13 @@ func (c *MasqueDatagramCarrier) writeDatagram(dst netip.AddrPort, sport uint16, 
 	if c.closed.Load() {
 		return ErrCarrierClosed
 	}
+	// PATCH-16 (M-11): fail-closed parity with the kernel/netstack carriers —
+	// no datagram leaves through an unproven plane (red line #1/#2). The
+	// supervisor's fail-open release on a stall (RouteHeld=false) previously
+	// left this carrier silently injecting into a dead/foreign plane.
+	if _, ok := c.ProofSnapshot(); !ok {
+		return fmt.Errorf("%w: masque plane route not held", ErrCarrierUnproven)
+	}
 	if len(payload)+UDPDatagramOverhead > c.cfg.OuterMTU {
 		return fmt.Errorf("nested: datagram %d exceeds outer mtu %d",
 			len(payload)+UDPDatagramOverhead, c.cfg.OuterMTU)

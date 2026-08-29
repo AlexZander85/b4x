@@ -21,7 +21,9 @@ type fakePlane struct {
 }
 
 func newFakePlane() *fakePlane {
-	return &fakePlane{subs: map[chan []byte]struct{}{}}
+	// routeHeld defaults to true: writes are expected to flow in the tests
+	// that do not exercise the proof gate (PATCH-16 flips it explicitly).
+	return &fakePlane{subs: map[chan []byte]struct{}{}, routeHeld: true}
 }
 
 func (f *fakePlane) WritePacket(pkt []byte) error {
@@ -201,6 +203,9 @@ func TestMasqueCarrierForeignPacketsDoNotBlockPump(t *testing.T) {
 
 func TestMasqueCarrierProofTracksRoute(t *testing.T) {
 	fp := newFakePlane()
+	fp.mu.Lock()
+	fp.routeHeld = false // explicit: the fixture default is held=true
+	fp.mu.Unlock()
 	c, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{Plane: fp, LocalV4: localV4()})
 	if err != nil {
 		t.Fatalf("carrier: %v", err)
@@ -226,3 +231,50 @@ func TestMasqueCarrierTCPStructurallyBlocked(t *testing.T) {
 }
 
 var _ UDPSession = (*flowConn)(nil)
+
+// ---- PATCH-16 (M-11): fail-closed writes on an unproven plane ----
+
+// TestMasqueCarrierWriteFailsClosedWithoutProof pins the red-line parity:
+// with RouteHeld released (supervisor fail-open), InjectUDPDatagram and
+// flow writes must refuse with ErrCarrierUnproven instead of silently
+// injecting datagrams into a dead/foreign plane.
+func TestMasqueCarrierWriteFailsClosedWithoutProof(t *testing.T) {
+	fp := newFakePlane()
+	fp.mu.Lock()
+	fp.routeHeld = false
+	fp.mu.Unlock()
+
+	c, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
+		Plane:   fp,
+		LocalV4: [4]byte{198, 51, 100, 7},
+	})
+	if err != nil {
+		t.Fatalf("carrier: %v", err)
+	}
+	dst := netip.MustParseAddrPort("10.66.66.1:51820")
+
+	if err := c.InjectUDPDatagram(dst, []byte("payload")); !errors.Is(err, ErrCarrierUnproven) {
+		t.Fatalf("inject without proof = %v, want ErrCarrierUnproven", err)
+	}
+	flow, err := c.DialUDPThrough(context.Background(), dst)
+	if err != nil {
+		t.Fatalf("dial (demux registration stays allowed): %v", err)
+	}
+	if _, err := flow.Write([]byte("payload")); !errors.Is(err, ErrCarrierUnproven) {
+		t.Fatalf("flow write without proof = %v, want ErrCarrierUnproven", err)
+	}
+	if _, ok := c.ProofSnapshot(); ok {
+		t.Fatal("proof snapshot must be false while the route is not held")
+	}
+
+	// Proof returns -> writes flow again.
+	fp.mu.Lock()
+	fp.routeHeld = true
+	fp.mu.Unlock()
+	if err := c.InjectUDPDatagram(dst, []byte("payload")); err != nil {
+		t.Fatalf("inject with proof = %v", err)
+	}
+	if n := len(fp.sent()); n != 1 {
+		t.Fatalf("outbound datagrams = %d, want 1", n)
+	}
+}
