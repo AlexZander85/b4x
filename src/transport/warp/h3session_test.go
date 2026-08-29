@@ -8,6 +8,7 @@ import (
 	"net/netip"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -397,5 +398,92 @@ func TestH3Defaults(t *testing.T) {
 	}
 	if cfg.HandshakeBudget != 10*time.Second {
 		t.Fatalf("HandshakeBudget = %v, want the KPI 10s bound", cfg.HandshakeBudget)
+	}
+}
+
+// ---- PATCH-19 (M-8 / B-H3): ironclad-lite E2EProbe slot ----
+
+// TestE2EProbeSlotFailsValidation: a configured probe runs inside the
+// validation window; its failure fails the validation (fail-closed); with a
+// nil probe the behavior is byte-identical to the pre-slot baseline.
+func TestE2EProbeSlotFailsValidation(t *testing.T) {
+	e := newFakeH3Edge(t)
+	probeRan := false
+	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) {
+		c.E2EProbe = func(ctx context.Context, sess *H3Session) error {
+			probeRan = true
+			return errors.New("inner path silent end-to-end")
+		}
+	})
+	sess, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	defer sess.Close()
+	vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	verr := sess.ValidateDataPlane(vctx)
+	if verr == nil {
+		t.Fatal("validation must fail when the e2e probe fails")
+	}
+	if !strings.Contains(verr.Error(), FailureValidation) || !strings.Contains(verr.Error(), "e2e probe") {
+		t.Fatalf("verdict = %v, want the validation-family e2e class", verr)
+	}
+	if !probeRan {
+		t.Fatal("the probe never ran")
+	}
+	select {
+	case <-sess.Done():
+	default:
+		t.Fatal("a failed validation must tear the session down")
+	}
+}
+
+// TestE2EProbeSlotNilIsBaseline: the nil probe is the disabled default.
+func TestE2EProbeSlotNilIsBaseline(t *testing.T) {
+	e := newFakeH3Edge(t)
+	cfg := h3SessionCfg(t, e, nil)
+	sess, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	defer sess.Close()
+	vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := sess.ValidateDataPlane(vctx); err != nil {
+		t.Fatalf("nil probe changed the baseline validation: %v", err)
+	}
+}
+
+// ---- PATCH-21 (M-13): pooled uplink frames are byte-exact and race-free ----
+
+// TestWritePacketPoolRoundTrip hammers the pooled datagram path: 1000
+// ping-pong round trips against the echo edge must deliver every packet
+// byte-for-byte (no use-after-put corruption, no truncation), green under
+// -race as well. Stop-and-wait keeps the primary queue's honest
+// drop-instead-of-block discipline out of the way of the corruption check.
+func TestWritePacketPoolRoundTrip(t *testing.T) {
+	e := newFakeH3Edge(t)
+	cfg := h3SessionCfg(t, e, nil)
+	sess, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	defer sess.Close()
+
+	vctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	for i := 0; i < 1000; i++ {
+		want := testV4Packet(20 + i%600) // varying sizes across the pool
+		if err := sess.WritePacket(want); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+		got, rerr := sess.ReadPacket(vctx)
+		if rerr != nil {
+			t.Fatalf("echo %d: %v", i, rerr)
+		}
+		if string(got) != string(want) {
+			t.Fatalf("packet %d corrupted (pool reuse race?)", i)
+		}
 	}
 }

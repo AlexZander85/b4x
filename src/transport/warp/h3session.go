@@ -118,6 +118,12 @@ type H3SessionConfig struct {
 	// two independent stall timers).
 	ResponseBudget  time.Duration // default DefaultH3ResponseBudget
 	OpenStreamBudet time.Duration // open_bi wrap, DefaultH3OpenStreamBudget
+	// E2EProbe optionally validates the inner path end-to-end right after the
+	// data-plane probes pass (ironclad-lite pattern, design §5; PATCH-19,
+	// B-H3: disabled by default, present as an interface). nil = disabled.
+	// A probe failure fails the validation with the validation-family class —
+	// the session never reports healthy on a silent path.
+	E2EProbe func(ctx context.Context, sess *H3Session) error
 }
 
 func (c *H3SessionConfig) fillDefaults() {
@@ -504,6 +510,15 @@ func (s *H3Session) ValidateDataPlane(ctx context.Context) error {
 			return fmt.Errorf("%s: %w", FailureValidation, ErrValidationTimeout)
 		case <-ctx.Done():
 			return ctx.Err()
+		}
+	}
+	// PATCH-19 (ironclad-lite slot): the configured end-to-end probe runs
+	// INSIDE the validation window, before any healthy verdict is allowed;
+	// its failure keeps the validation-family class (fail-closed).
+	if s.cfg.E2EProbe != nil {
+		if err := s.cfg.E2EProbe(ctx, s); err != nil {
+			s.Close()
+			return fmt.Errorf("%s: e2e probe: %w", FailureValidation, err)
 		}
 	}
 	return nil
