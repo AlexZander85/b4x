@@ -16,6 +16,7 @@ package warpservice
 import (
 	"context"
 	"errors"
+	"net/http"
 	"sync"
 	"time"
 
@@ -66,13 +67,22 @@ type Runtime struct {
 // enrollment can provision an identity BEFORE the transport switch (field
 // session phase B precedes phase C). sink may be nil.
 func Build(cfg *config.Config, sink func(Event)) (*Runtime, error) {
+	return BuildWithHTTP(cfg, sink, nil)
+}
+
+// BuildWithHTTP is Build with an explicit enrollment HTTP client — the
+// escape hatch for SNI-filtered networks, where registration must ride a
+// proxy (field1 finding: api.cloudflareclient.com is filtered network-wide,
+// home ISP and mobile operators alike). Only the registration path uses it;
+// the MASQUE session itself always dials the numeric edge directly.
+func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Client) (*Runtime, error) {
 	wc := cfg.System.Warp
 	endpoint, err := wc.EffectiveEndpoint()
 	if err != nil {
 		return nil, err
 	}
 	rec := &warp.Reconciler{
-		API:   &warp.EnrollClient{},
+		API:   &warp.EnrollClient{HTTP: enrollmentHTTP},
 		Store: &warp.IdentityStore{Path: wc.IdentityPath},
 	}
 	sup, err := warp.NewSupervisor(warp.SupervisorConfig{
