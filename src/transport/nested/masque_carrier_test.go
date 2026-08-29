@@ -3,6 +3,7 @@ package nested
 import (
 	"context"
 	"errors"
+	"io"
 	"net/netip"
 	"sync"
 	"testing"
@@ -276,5 +277,98 @@ func TestMasqueCarrierWriteFailsClosedWithoutProof(t *testing.T) {
 	}
 	if n := len(fp.sent()); n != 1 {
 		t.Fatalf("outbound datagrams = %d, want 1", n)
+	}
+}
+
+// ---- PATCH-25 (N-2): sport collision never orphans a flow ----
+
+// TestDialUDPSportCollisionKeepsFirstFlow: with the port seam pinned to one
+// value, the second dial must shift to a different port — the first flow
+// stays alive and demuxable (no silent map overwrite).
+func TestDialUDPSportCollisionKeepsFirstFlow(t *testing.T) {
+	fp := newFakePlane()
+	c, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
+		Plane:   fp,
+		LocalV4: [4]byte{198, 51, 100, 7},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	orig := randomPortFn
+	randomPortFn = func() uint16 { return 23456 }
+	defer func() { randomPortFn = orig }()
+
+	dst := netip.MustParseAddrPort("10.66.66.1:51820")
+	f1, err := c.DialUDPThrough(context.Background(), dst)
+	if err != nil {
+		t.Fatalf("dial 1: %v", err)
+	}
+	f2, err := c.DialUDPThrough(context.Background(), dst)
+	if err != nil {
+		t.Fatalf("dial 2: %v", err)
+	}
+	fc1, fc2 := f1.(*flowConn), f2.(*flowConn)
+	if fc1.key.localPort == fc2.key.localPort {
+		t.Fatalf("collision overwrote the flow: both on port %d", fc1.key.localPort)
+	}
+	// The first flow is alive and demuxable (a reply on its tuple arrives).
+	if _, err := f1.Write([]byte("ping")); err != nil {
+		t.Fatalf("first flow write: %v", err)
+	}
+	select {
+	case pkt := <-fc1.ch:
+		if string(pkt) != "ping" {
+			t.Fatalf("echo = %q", pkt)
+		}
+	default:
+	}
+	// The demux map holds BOTH flows.
+	c.mu.Lock()
+	n := len(c.flows)
+	c.mu.Unlock()
+	if n != 2 {
+		t.Fatalf("flows = %d, want 2", n)
+	}
+}
+
+// ---- PATCH-26 (N-3): short reader buffer is io.ErrShortBuffer ----
+
+func TestFlowConnReadShortBuffer(t *testing.T) {
+	fp := newFakePlane()
+	c, _ := NewMasqueDatagramCarrier(MasqueCarrierConfig{
+		Plane:   fp,
+		LocalV4: [4]byte{198, 51, 100, 7},
+	})
+	defer c.Close()
+	dst := netip.MustParseAddrPort("10.66.66.1:51820")
+	f, err := c.DialUDPThrough(context.Background(), dst)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte("0123456789abcdef")
+	if _, err := f.Write(payload); err != nil {
+		t.Fatal(err)
+	}
+	// The echo arrives through the pump; feed the flow directly for
+	// determinism instead of relying on the fake plane's passthrough.
+	fc := f.(*flowConn)
+	fc.ch <- []byte("0123456789abcdef")
+
+	short := make([]byte, 4)
+	n, err := fc.Read(short)
+	if !errors.Is(err, io.ErrShortBuffer) {
+		t.Fatalf("short-buffer read err = %v, want io.ErrShortBuffer", err)
+	}
+	if n != 4 || string(short) != "0123" {
+		t.Fatalf("short read = %d bytes %q", n, short)
+	}
+	// A full buffer gets the whole packet.
+	fc.ch <- payload
+	full := make([]byte, len(payload))
+	n, err = fc.Read(full)
+	if err != nil || n != len(payload) || string(full) != string(payload) {
+		t.Fatalf("full read = %d/%q err=%v", n, full, err)
 	}
 }

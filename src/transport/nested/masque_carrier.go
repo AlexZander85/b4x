@@ -19,6 +19,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"sync"
@@ -226,14 +227,34 @@ func (c *MasqueDatagramCarrier) removeFlow(key flowKey) {
 	c.mu.Unlock()
 }
 
+// randomPortFn is the test seam for source-port generation (PATCH-25:
+// tests force collisions deterministically). Production uses randomSport.
+var randomPortFn = randomSport
+
 // randomSport picks a source port in the Aether probe range discipline
-// (20000-60000): collision odds are negligible for single-pair usage and
-// the demux rejects duplicates anyway.
+// (20000-60000). PATCH-25 (N-2): a collision used to silently overwrite the
+// existing flow in the demux map (orphaning its client); DialUDPThrough now
+// regenerates and finally shifts deterministically instead.
 func randomSport() uint16 {
 	var b [2]byte
 	_, _ = rand.Read(b[:])
 	v := binary.BigEndian.Uint16(b[:])
 	return 20000 + v%40000
+}
+
+// nextSport regenerates around a taken port: up to 3 fresh random draws,
+// then a deterministic +1 walk within the discipline range (20000-60000)
+// until a free port is found.
+func nextSport(taken func(uint16) bool) uint16 {
+	const lo, span = 20000, 40000
+	sport := randomPortFn()
+	for i := 0; i < 3 && taken(sport); i++ {
+		sport = randomPortFn()
+	}
+	for taken(sport) {
+		sport = lo + ((sport-lo)+1)%span
+	}
+	return sport
 }
 
 // flowConn is one demuxed virtual UDP session toward its peer.
@@ -265,8 +286,13 @@ func (f *flowConn) Read(b []byte) (int, error) {
 		if !open {
 			return 0, ErrCarrierClosed
 		}
-		n := copy(b, pkt)
-		return n, nil
+		// PATCH-26 (N-3): net.Conn contract — a short reader buffer is an
+		// io.ErrShortBuffer, not a silent truncation; the datagram is
+		// consumed either way (UDP semantics).
+		if len(pkt) > len(b) {
+			return copy(b, pkt), io.ErrShortBuffer
+		}
+		return copy(b, pkt), nil
 	case <-f.done:
 		return 0, ErrCarrierClosed
 	}
