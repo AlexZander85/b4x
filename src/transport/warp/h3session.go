@@ -376,7 +376,10 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 		if kv[0] == ":status" {
 			fmt.Sscanf(kv[1], "%d", &status) //nolint:errcheck // numeric per protocol
 		}
-		if kv[0] == "cf-warp-colo" {
+		// PATCH-24 (N-1): H3 mandates lowercase field names, but a
+		// non-standard edge/proxy may normalize them — compare
+		// case-insensitively so colo telemetry survives.
+		if strings.EqualFold(kv[0], "cf-warp-colo") {
 			res.Colo = kv[1]
 		}
 	}
@@ -427,13 +430,18 @@ func (s *H3Session) WritePacket(pkt []byte) error {
 	return nil
 }
 
+// zeroPacket reports the zero-value packetMsg (PATCH-30, N-7): a receive
+// without the ok-check on a closed channel yields exactly it, and reading it
+// as a "valid empty packet" would hand callers a nil packet with no error.
+func zeroPacket(m packetMsg) bool { return m.data == nil && m.err == nil }
+
 // ReadPacket blocks for the next inbound IP packet (skipping foreign
 // quarters/context ids — Aether tolerance semantics). A closed packets
 // channel reports ErrSessionClosed (never a zero-value `(nil, nil)` — M3-01).
 func (s *H3Session) ReadPacket(ctx context.Context) ([]byte, error) {
 	select {
 	case m, ok := <-s.packets:
-		if !ok {
+		if !ok || zeroPacket(m) {
 			return nil, ErrSessionClosed
 		}
 		return m.data, m.err
@@ -441,14 +449,14 @@ func (s *H3Session) ReadPacket(ctx context.Context) ([]byte, error) {
 	}
 	select {
 	case m, ok := <-s.packets:
-		if !ok {
+		if !ok || zeroPacket(m) {
 			return nil, ErrSessionClosed
 		}
 		return m.data, m.err
 	case <-s.done:
 		select {
 		case m, ok := <-s.packets:
-			if !ok {
+			if !ok || zeroPacket(m) {
 				return nil, ErrSessionClosed
 			}
 			return m.data, m.err
@@ -464,7 +472,7 @@ func (s *H3Session) ReadPacket(ctx context.Context) ([]byte, error) {
 func (s *H3Session) TryRead() ([]byte, bool, error) {
 	select {
 	case m, ok := <-s.packets:
-		if !ok {
+		if !ok || zeroPacket(m) {
 			return nil, true, ErrSessionClosed
 		}
 		return m.data, true, m.err

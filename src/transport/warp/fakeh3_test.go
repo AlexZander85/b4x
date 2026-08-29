@@ -32,13 +32,14 @@ type fakeH3Edge struct {
 	hangConnect       bool // accept the CONNECT stream but never answer it
 	// delayResponse sleeps before answering CONNECT (late-answer fixture:
 	// the answer arrives after the client response window expired).
-	delayResponse time.Duration
-	quotaZeroStreams  bool // advertise MAX_STREAMS=0: client open_bi hangs (quota trap)
-	killImmediately   bool // close conn with AppError 0 right after control stream (retry fixture)
-	colo              string
-	connects          int
-	connAccepts       int
-	payloads          [][]byte
+	delayResponse    time.Duration
+	quotaZeroStreams bool // advertise MAX_STREAMS=0: client open_bi hangs (quota trap)
+	killImmediately  bool // close conn with AppError 0 right after control stream (retry fixture)
+	colo             string
+	coloHeader       string // PATCH-24: field-name override (proxy normalization fixture); default lowercase
+	connects         int
+	connAccepts      int
+	payloads         [][]byte
 }
 
 const (
@@ -149,7 +150,7 @@ func (e *fakeH3Edge) handleConn(conn *quic.Conn) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), fakeH3IdleTimeout)
 	defer cancel()
-	if _, err := acceptControlStreams(ctx, conn); err != nil {
+	if _, err := testAcceptControlStreams(ctx, conn); err != nil {
 		_ = conn.CloseWithError(quic.ApplicationErrorCode(0x01), "control stream failed")
 		return
 	}
@@ -170,6 +171,10 @@ func (e *fakeH3Edge) handleConnect(conn *quic.Conn, stream *quic.Stream, ctx con
 	e.connects++
 	status, drop, teardownAfter, hang := e.status, e.dropDatagrams, e.teardownAfterEcho, e.hangConnect
 	colo := e.colo
+	coloHeader := e.coloHeader
+	if coloHeader == "" {
+		coloHeader = "cf-warp-colo"
+	}
 	e.mu.Unlock()
 
 	fr := newH3Framer(stream)
@@ -212,7 +217,7 @@ func (e *fakeH3Edge) handleConnect(conn *quic.Conn, stream *quic.Stream, ctx con
 	default:
 		wr.encodeLiteralNameLine(":status", fmt.Sprintf("%d", status))
 	}
-	wr.encodeLiteralNameLine("cf-warp-colo", colo)
+	wr.encodeLiteralNameLine(coloHeader, colo)
 	if _, err := stream.Write(appendH3Headers(nil, wr.b)); err != nil {
 		return false
 	}
@@ -563,4 +568,42 @@ func TestFakeH3BlackholeTimesOut(t *testing.T) {
 	if !strings.Contains(strings.ToLower(msg), "timeout") && !strings.Contains(strings.ToLower(msg), "no recent network activity") {
 		t.Fatalf("timeout-class error expected, got: %v", msg)
 	}
+}
+
+// testAcceptControlStreams consumes inbound unidirectional streams until the peer
+// control stream arrives, reading its SETTINGS. qpack encoder/decoder streams
+// from a no-dynamic-table peer carry zero instructions and are left unread;
+// GREASE uni streams are ignored. The returned stream stays open — closing it
+// ourselves would be H3_CLOSED_CRITICAL_STREAM (design §4).
+func testAcceptControlStreams(ctx context.Context, conn *quic.Conn) (*quic.ReceiveStream, error) {
+	for i := 0; i < 8; i++ { // bounded: control must arrive early; dial budget bounds hangs anyway
+		s, err := conn.AcceptUniStream(ctx)
+		if err != nil {
+			return nil, err
+		}
+		typ, err := readStreamType(s)
+		if err != nil {
+			return nil, err
+		}
+		switch typ {
+		case h3StreamControl:
+			fr := newH3Framer(s)
+			t, payload, err := fr.ReadFrame()
+			if err != nil {
+				return nil, err
+			}
+			if t != h3FrameSettings {
+				return nil, fmt.Errorf("transportwarp: first control frame %#x is not SETTINGS", t)
+			}
+			if _, err := ParseSettings(payload); err != nil {
+				return nil, err
+			}
+			return s, nil
+		case h3StreamQpackEncoder, h3StreamQpackDecoder:
+			continue
+		default:
+			continue // unknown/GREASE uni stream: ignore
+		}
+	}
+	return nil, errors.New("transportwarp: h3 control stream did not arrive")
 }

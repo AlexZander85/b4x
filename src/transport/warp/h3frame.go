@@ -7,7 +7,6 @@
 package transportwarp
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -151,44 +150,6 @@ func ParseSettings(payload []byte) (map[uint64]uint64, error) {
 		off += n + n2
 	}
 	return out, nil
-}
-
-// acceptControlStreams consumes inbound unidirectional streams until the peer
-// control stream arrives, reading its SETTINGS. qpack encoder/decoder streams
-// from a no-dynamic-table peer carry zero instructions and are left unread;
-// GREASE uni streams are ignored. The returned stream stays open — closing it
-// ourselves would be H3_CLOSED_CRITICAL_STREAM (design §4).
-func acceptControlStreams(ctx context.Context, conn *quic.Conn) (*quic.ReceiveStream, error) {
-	for i := 0; i < 8; i++ { // bounded: control must arrive early; dial budget bounds hangs anyway
-		s, err := conn.AcceptUniStream(ctx)
-		if err != nil {
-			return nil, err
-		}
-		typ, err := readStreamType(s)
-		if err != nil {
-			return nil, err
-		}
-		switch typ {
-		case h3StreamControl:
-			fr := newH3Framer(s)
-			t, payload, err := fr.ReadFrame()
-			if err != nil {
-				return nil, err
-			}
-			if t != h3FrameSettings {
-				return nil, fmt.Errorf("transportwarp: first control frame %#x is not SETTINGS", t)
-			}
-			if _, err := ParseSettings(payload); err != nil {
-				return nil, err
-			}
-			return s, nil
-		case h3StreamQpackEncoder, h3StreamQpackDecoder:
-			continue
-		default:
-			continue // unknown/GREASE uni stream: ignore
-		}
-	}
-	return nil, errors.New("transportwarp: h3 control stream did not arrive")
 }
 
 // readStreamType reads the leading varint of a unidirectional stream.

@@ -487,3 +487,40 @@ func TestWritePacketPoolRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+// ---- PATCH-24/30: colo header normalization + zero-value guard ----
+
+// TestH3ColoHeaderCaseInsensitive: a proxy-normalized (uppercase) colo
+// field must still populate res.Colo (PATCH-24, N-1 / B-H7).
+func TestH3ColoHeaderCaseInsensitive(t *testing.T) {
+	e := newFakeH3Edge(t)
+	e.mu.Lock()
+	e.coloHeader = "CF-WARP-COLO"
+	e.mu.Unlock()
+	cfg := h3SessionCfg(t, e, nil)
+	_, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	if res.Colo != "TST" {
+		t.Fatalf("colo = %q, want TST from the uppercase field", res.Colo)
+	}
+}
+
+// TestReadPacketClosedDoneZeroGuard: closing the session with an empty
+// packets queue must yield ErrSessionClosed — never a zero-value packet.
+func TestReadPacketClosedDoneZeroGuard(t *testing.T) {
+	e := newFakeH3Edge(t)
+	cfg := h3SessionCfg(t, e, nil)
+	sess, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	sess.Close() // close(done) AND close(packets) via the reader loop
+	vctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	pkt, err := sess.ReadPacket(vctx)
+	if !errors.Is(err, ErrSessionClosed) {
+		t.Fatalf("ReadPacket after close = (%x, %v), want ErrSessionClosed", pkt, err)
+	}
+}
