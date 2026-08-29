@@ -278,6 +278,12 @@ func (r *WgMasqueRuntime) onParentUp() {
         // establishment or a repair after parent loss).
         r.observeOuterGate()
 
+        // PATCH-08 (B-N5): strict child-first on EVERY (re)establishment — stop
+        // the previous inner supervisor BEFORE rebuilding, so a reconnect without
+        // an intervening OnLost (or a failed rebuild of the next generation) can
+        // never leave a stale supervisor dialing through a torn-down carrier.
+        r.stopInner()
+
         // Carrier lifecycle (B-N2/N6): exactly one kernel carrier may be
         // alive per runtime. Teardown the previous generation BEFORE building
         // the next one: Restore() returns the foreign prev-route, so the new

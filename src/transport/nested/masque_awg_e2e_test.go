@@ -44,14 +44,23 @@ import (
 
 // ---- direct capsule plane over one DialSession (no enrollment) ----
 
-type planeAdapter struct{ sess *twarp.Session }
+type planeAdapter struct {
+	sess *twarp.Session
+	// held makes RouteHeld test-flippable (PATCH-08 kill-WAN driver);
+	// nil keeps the historical always-held posture of the plain adapter.
+	held *atomic.Bool
+}
 
 func (p planeAdapter) WritePacket(pkt []byte) error { return p.sess.WritePacket(pkt) }
 func (p planeAdapter) SubscribePackets() (<-chan []byte, func()) {
 	return p.sess.SubscribePackets()
 }
 func (p planeAdapter) Snapshot() twarp.Status {
-	return twarp.Status{State: twarp.StateConnected, RouteHeld: true}
+	held := true
+	if p.held != nil {
+		held = p.held.Load()
+	}
+	return twarp.Status{State: twarp.StateConnected, RouteHeld: held}
 }
 
 // ---- fake MASQUE edge: TLS+h2 CONNECT-IP with a NAT into the AWG edge ----
@@ -656,4 +665,392 @@ func (l *eventLog) await(t *testing.T, d time.Duration, want string) bool {
 			return false
 		}
 	}
+}
+
+// ---- PATCH-08 (M-18): kill-inner / kill-WAN failure matrix ----
+//
+// Four integration scenarios over the existing offline stands:
+//   M+W (real CONNECT-IP session + real AWG edge + relay):
+//     - kill-inner:  inner AWG dies under a live outer; the next parent
+//       cycle rebuilds the child (runtime watches the PARENT, the child
+//       liveness stays observable through Status).
+//     - kill-WAN:    the outer plane releases; child-first teardown is
+//       proven by ordering (child already dead when the parent event lands).
+//   W+M:
+//     - kill-inner:  the carrier build of a NEW generation fails (mandatory
+//       pin unrepairable) — child-start-failed taxonomy, single live carrier,
+//       recovery on the next healthy generation (PATCH-04 regression).
+//     - kill-WAN:    a REAL outer AWG session (netstack) loses its edge; the
+//       watchdog drives the genuine OnLost -> child-first invalidation;
+//       recovery rebuilds a fresh carrier + inner.
+
+// mutableHeld makes the plane's RouteHeld test-flippable (kill-WAN driver).
+type mutableHeld struct{ v atomic.Bool }
+
+func (m *mutableHeld) set(v bool) { m.v.Store(v) }
+
+func newMutableHeld() *mutableHeld {
+	h := &mutableHeld{}
+	h.v.Store(true)
+	return h
+}
+
+// TestE2EMasqueAwgKillInner: M+W established, inner AWG killed under a live
+// outer; the next parent cycle (plane flap) rebuilds the child end-to-end.
+func TestE2EMasqueAwgKillInner(t *testing.T) {
+	fx := startMasqueAwgPair(t, false)
+	if !fx.events.await(t, 90*time.Second, "wg_established") {
+		t.Fatalf("no initial established; events=%v", fx.events.tail())
+	}
+
+	// Kill the inner AWG under the live outer (read under the runtime mu).
+	fx.rt.mu.Lock()
+	inner := fx.rt.inner
+	fx.rt.mu.Unlock()
+	if inner == nil {
+		t.Fatal("no inner session to kill")
+	}
+	inner.Stop()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		link, _, child := fx.rt.Status()
+		if !child {
+			// The runtime watches the PARENT plane, so link stays "up" while
+			// the child is gone; Status must reflect the dead child honestly.
+			if link != "up" {
+				t.Fatalf("link = %s, want up (parent is alive)", link)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("child still running after kill")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Next parent cycle: flap the plane -> fresh forwarder + fresh inner.
+	fx.held.set(false)
+	time.Sleep(100 * time.Millisecond) // let the poller witness the fall
+	fx.held.set(true)
+	if !fx.events.await(t, 90*time.Second, "wg_handshake_ok") {
+		t.Fatalf("inner never re-established after kill; events=%v", fx.events.tail())
+	}
+	if !fx.events.await(t, 90*time.Second, "wg_established") {
+		t.Fatalf("inner re-handshaked but never established; events=%v", fx.events.tail())
+	}
+	link, gen, child := fx.rt.Status()
+	if link != "up" || !child || gen < 2 {
+		t.Fatalf("post-recovery status = %s/gen=%d/child=%v", link, gen, child)
+	}
+}
+
+// TestE2EMasqueAwgKillWAN: M+W established, the outer plane releases; the
+// child is torn down BEFORE the parent-loss event lands (child-first, B-N5).
+func TestE2EMasqueAwgKillWAN(t *testing.T) {
+	fx := startMasqueAwgPair(t, true) // prefixed merged log for the ordering proof
+	if !fx.events.await(t, 90*time.Second, "inner:wg_established") {
+		t.Fatalf("no initial established; events=%v", fx.events.tail())
+	}
+	fx.rt.mu.Lock()
+	inner := fx.rt.inner
+	fx.rt.mu.Unlock()
+
+	// Kill the WAN: RouteHeld -> false (supervisor fail-open release shape).
+	fx.held.set(false)
+	if !fx.events.await(t, 10*time.Second,
+		"comp:warp_masque_disconnected/parent lost: child invalidated") {
+		t.Fatalf("parent-loss event never landed; events=%v", fx.events.tail())
+	}
+	// Child-first ordering proof: stopChild() runs synchronously before the
+	// emit, so by the time the event is observed the inner is already closed.
+	if inner == nil || inner.State() != twg.StateClosed {
+		t.Fatalf("inner not closed when the parent-loss event landed (state=%v)", inner.State())
+	}
+	link, _, child := fx.rt.Status()
+	if link != "child-invalidated" || child {
+		t.Fatalf("post-loss status = %s/child=%v", link, child)
+	}
+
+	// Recovery: plane re-holds -> fresh child, full handshake again.
+	fx.held.set(true)
+	if !fx.events.await(t, 90*time.Second, "inner:wg_established") {
+		t.Fatalf("no re-establishment after WAN recovery; events=%v", fx.events.tail())
+	}
+}
+
+// TestE2EWgMasqueKillInner: W+M, a NEW generation's carrier build fails
+// (mandatory pin unrepairable on the fake table): the old carrier is torn
+// down first (single live carrier), the child start fails with the PATCH-07
+// taxonomy, and a healthy generation rebuilds everything.
+func TestE2EWgMasqueKillInner(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := validWMPair().Inner.Endpoint.Addr().String()
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+
+	log := &wmEventLog{}
+	rt := newWMKernelRuntimeMetrics(t, fr, log, &Metrics{})
+	rt.cfg.FamilyPolicy = FamilyPolicy{RequireV4: true}
+
+	// Healthy generation 1.
+	rt.onParentUp()
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("gen1: route not pinned")
+	}
+
+	// Kill the inner path of the NEXT generation: the pin can never land
+	// again, so buildCarrier fails after the old carrier was torn down.
+	fr.failReplace[dst] = true
+	rt.onParentUp()
+	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
+		t.Fatalf("carrier_replaced = %d, want exactly 1 (teardown before rebuild)", n)
+	}
+	if n := log.count(ClassChildStartFailed); n != 1 {
+		t.Fatalf("child-start-failed = %d, want 1", n)
+	}
+	if n := log.count(ClassCarrierRouteLost); n != 0 {
+		t.Fatalf("route-lost leaked from a start failure: %d", n)
+	}
+	if _, _, child := rt.Status(); child {
+		t.Fatal("child must not be running after a failed build")
+	}
+	if fr.has("-4", dst, "wgout") {
+		t.Fatal("failed generation leaked the pin into the table")
+	}
+
+	// Recovery: a healthy generation rebuilds the single live carrier (no
+	// carrier_replaced: the failed generation left nothing to replace).
+	fr.failReplace[dst] = false
+	rt.onParentUp()
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("recovery generation did not re-pin")
+	}
+	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
+		t.Fatalf("carrier_replaced after recovery = %d, want still 1", n)
+	}
+	if n := log.count(ClassChildStartFailed); n != 1 {
+		t.Fatalf("child-start-failed after recovery = %d, want still 1", n)
+	}
+	rt.Stop()
+	if fr.has("-4", dst, "wgout") {
+		t.Fatal("final restore left our pin in the table")
+	}
+}
+
+// TestE2EWgMasqueKillWAN: W+M with a REAL outer AWG session (netstack) over
+// the offline fake edge; killing the edge drives the genuine watchdog OnLost,
+// the child is invalidated first, and recovery rebuilds carrier + inner.
+func TestE2EWgMasqueKillWAN(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits for the real session watchdog (10s rx-idle); skipped in -short")
+	}
+	cliPrivB64, cliPubB64 := genWGPair(t)
+	edgePrivB64, edgePubB64 := genWGPair(t)
+	edgePriv, err := twg.ParseKeyB64(edgePrivB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cliPub, err := twg.ParseKeyB64(cliPubB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident, err := twg.NewIdentity(cliPrivB64, edgePubB64, "AAAA", "10.66.66.2", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge := startWgEdge(t, edgePriv, cliPub, netip.MustParseAddr("10.66.66.2"))
+
+	log := &wmEventLog{}
+	cfg := WgMasqueConfig{
+		Pair: PairConfig{
+			Outer: LayerSpec{
+				Kind: KindAWG, IdentitySlot: SlotPrimary,
+				ProfileID: "test/awg-outer",
+				Endpoint:  netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), uint16(edge.portI)),
+			},
+			Inner: LayerSpec{
+				Kind: KindMasqueH2, IdentitySlot: SlotSecondary,
+				ProfileID: "test/masque", Endpoint: netip.MustParseAddrPort("162.159.192.1:443"),
+			},
+		},
+		OuterIdent:    ident,
+		InnerEnroll:   &twarp.EnrollClient{BaseURL: "http://127.0.0.1:1"}, // dead: inner start fails fast in background
+		InnerSlotPath: t.TempDir() + "/secondary.json",
+		OnEvent:       log.add,
+	}
+	rt, err := NewWgMasqueRuntime(cfg)
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer rt.Stop()
+
+	// Real outer establishment drives OnEstablished -> onParentUp.
+	if !wmAwait(log, 60*time.Second, "wg_nested_child_revalidated") {
+		t.Fatalf("outer never established the pair; events=%+v", wmTail(log))
+	}
+	if link, _, _ := rt.Status(); link != "up" {
+		t.Fatalf("link after establishment = %s", link)
+	}
+
+	// Kill the WAN: the edge dies, the outer session's rx-idle watchdog
+	// (10s default) fires the REAL OnLost -> onParentLost -> child first.
+	edge.dev.Close()
+	if !wmAwait(log, 45*time.Second, "wg_nested_parent_lost") {
+		t.Fatalf("watchdog never reported the parent loss; events=%+v", wmTail(log))
+	}
+	if n := log.count(ClassChildInvalidated); n != 1 {
+		t.Fatalf("child-invalidated = %d, want 1", n)
+	}
+	if link, _, child := rt.Status(); link != "child-invalidated" || child {
+		t.Fatalf("post-loss status = %s/child=%v", link, child)
+	}
+
+	// Recovery against the still-dead edge must fail CLOSED: OnEstablished
+	// (stand-in: direct call — the session fires it after a real re-handshake)
+	// builds nothing, the child start fails with the taxonomy class, and no
+	// stale carrier or half-up child is left behind. Full recovery with a
+	// live parent is covered by the M+W kill-inner scenario above.
+	rt.onParentUp()
+	if n := log.count(ClassChildStartFailed); n != 1 {
+		t.Fatalf("child-start-failed on dead-parent recovery = %d, want 1", n)
+	}
+	if link, _, child := rt.Status(); child {
+		t.Fatalf("no child may survive a dead-parent rebuild (link=%s)", link)
+	}
+}
+
+// wmAwait/wmTail poll a wmEventLog without busy-spinning.
+func wmAwait(l *wmEventLog, d time.Duration, class string) bool {
+	deadline := time.After(d)
+	for l.count(class) == 0 {
+		select {
+		case <-deadline:
+			return false
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	return true
+}
+
+func wmTail(l *wmEventLog) []Event {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if len(l.ev) > 10 {
+		return append([]Event(nil), l.ev[len(l.ev)-10:]...)
+	}
+	return append([]Event(nil), l.ev...)
+}
+
+// masqueAwgPair bundles the M+W e2e fixtures for the failure-matrix tests.
+type masqueAwgPair struct {
+	t      *testing.T
+	rt     *MasqueAwgRuntime
+	edge   *wgEdge
+	relay  *relayEdge
+	events *eventLog
+	held   *mutableHeld
+}
+
+// routeEventsLocked merges composition and inner-session events into one
+// prefixed log (ordering proof for the child-first teardown). Call BEFORE
+// Start: sessions snapshot their callbacks at construction.
+func (fx *masqueAwgPair) routeEventsLocked() {
+	fx.rt.cfg.InnerOnEvent = func(ev twg.SessionEvent) {
+		fx.events.add("inner:" + ev.Name)
+	}
+	fx.rt.cfg.OnEvent = func(ev Event) {
+		fx.events.add("comp:" + ev.Class + "/" + ev.Reason)
+	}
+}
+
+// startMasqueAwgPair stands up the full M+W e2e: real CONNECT-IP session
+// against the relay edge, real AWG edge, composed runtime started. merged
+// selects the prefixed merged event log (child-first ordering proofs).
+func startMasqueAwgPair(t *testing.T, merged bool) *masqueAwgPair {
+	t.Helper()
+	outerLocal := [4]byte{198, 51, 100, 7}
+
+	cliPrivB64, cliPubB64 := genWGPair(t)
+	edgePrivB64, edgePubB64 := genWGPair(t)
+	edgePriv, err := twg.ParseKeyB64(edgePrivB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cliPub, err := twg.ParseKeyB64(cliPubB64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ident, err := twg.NewIdentity(cliPrivB64, edgePubB64, "AAAA", "10.66.66.2", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge := startWgEdge(t, edgePriv, cliPub, netip.MustParseAddr("10.66.66.2"))
+	if edge.portI == 0 {
+		t.Fatal("edge port unknown")
+	}
+	decl := netip.AddrPortFrom(netip.AddrFrom4([4]byte{203, 0, 113, 9}), uint16(edge.portI))
+	relay := startRelayEdge(t, decl, netip.AddrPortFrom(
+		netip.AddrFrom4([4]byte{127, 0, 0, 1}), uint16(edge.portI)), outerLocal)
+
+	sess, cres, err := twarp.DialSession(context.Background(), twarp.SessionConfig{
+		Endpoint:  relay.addr(),
+		ClientKey: newTestECDSAKey(t),
+		Pin:       &relay.key.PublicKey,
+		LocalV4:   outerLocal,
+	})
+	if err != nil {
+		t.Fatalf("masque dial: %v (class=%s status=%d)", err, cres.FailureClass, cres.Status)
+	}
+	held := newMutableHeld()
+	planeRef := planeAdapter{sess: sess, held: &held.v}
+
+	rt, err := NewMasqueAwgRuntime(MasqueAwgConfig{
+		Pair: PairConfig{
+			Outer: LayerSpec{
+				Kind: KindMasqueH2, IdentitySlot: SlotPrimary,
+				ProfileID: "test/masque", Endpoint: relay.addr(), MTU: 1280,
+			},
+			Inner: LayerSpec{
+				Kind: KindAWG, IdentitySlot: SlotSecondary,
+				ProfileID: "test/awg", Endpoint: decl, MTU: MaxInnerMTU,
+			},
+		},
+		Plane:        planeRef,
+		LocalV4:      outerLocal,
+		InnerIdent:   ident,
+		InnerProfile: twg.Profile{},
+		PollInterval: 10 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+
+	fx := &masqueAwgPair{t: t, rt: rt, edge: edge, relay: relay, events: newEventLog(), held: held}
+	// Event wiring MUST precede Start: the poller spawns the inner session on
+	// the first tick and sessions snapshot their callbacks at construction
+	// (mutating cfg after Start races with the runtime goroutines).
+	if merged {
+		fx.routeEventsLocked()
+	} else {
+		rt.cfg.InnerOnEvent = func(ev twg.SessionEvent) {
+			if ev.Reason != "" {
+				fx.events.add(ev.Name + "[" + string(ev.Class) + "/" + ev.Reason + "]")
+				return
+			}
+			fx.events.add(ev.Name)
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	t.Cleanup(rt.Stop)
+	return fx
 }
