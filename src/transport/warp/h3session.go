@@ -35,9 +35,11 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/quic-go/quic-go"
@@ -45,6 +47,11 @@ import (
 
 // QUIC transport constants (E-H3 design §1; prompt EH2).
 const (
+	// DefaultHandshakeBudget bounds dial+handshake+CONNECT (PATCH-13, M-16):
+	// KPI design §6 wants a candidate handshake budget of 5–8 s; 10 s is the
+	// upper bound with margin. Per-candidate scan timeouts stay tighter in
+	// discovery (echoWait is independent).
+	DefaultHandshakeBudget = 10 * time.Second
 	// DefaultH3OpenStreamBudget bounds open_bi: the edge may HANG stream
 	// creation on flow-control exhaustion instead of erroring (design §4;
 	// prompt EH2: обёртка таймаута 10 с).
@@ -70,6 +77,12 @@ const (
 	FailureQUICStreamQuotaHang   = "quic-stream-quota-hang"
 	FailureH3Negotiation         = "h3-negotiation-failed"
 )
+
+// FailureLocalSocket covers local socket setup failures (bind/mark/addr).
+// Never a network verdict: the ladder must not degrade the transport on it
+// (PATCH-10, M-5) — the generation fails with a local verdict, the
+// supervisor backoff applies, the H3 gate stays untouched.
+const FailureLocalSocket = "local-socket-error"
 
 // settingsH3DatagramDraft00 is SETTINGS_H3_DATAGRAM_00 = 0x276 (usque
 // masque.go:195; deprecated id the official client still emits).
@@ -98,12 +111,12 @@ type H3SessionConfig struct {
 	MTU             int           // DefaultMTU when zero
 	ValidateWindow  time.Duration // DefaultValidateWindow when zero
 	ProbeInterval   time.Duration // DefaultProbeInterval when zero
-	HandshakeBudget time.Duration // dial+handshake+CONNECT budget, default 20s
+	HandshakeBudget time.Duration // dial+handshake+CONNECT budget, default DefaultHandshakeBudget
 	// ResponseBudget bounds the wait for the first extended-CONNECT response
 	// after the request is written. It is measured from the moment the CONNECT
 	// is sent and never inherits the handshake budget remainder (design B-H4:
 	// two independent stall timers).
-	ResponseBudget time.Duration // default DefaultH3ResponseBudget
+	ResponseBudget  time.Duration // default DefaultH3ResponseBudget
 	OpenStreamBudet time.Duration // open_bi wrap, DefaultH3OpenStreamBudget
 }
 
@@ -121,7 +134,7 @@ func (c *H3SessionConfig) fillDefaults() {
 		c.ProbeInterval = DefaultProbeInterval
 	}
 	if c.HandshakeBudget == 0 {
-		c.HandshakeBudget = 20 * time.Second
+		c.HandshakeBudget = DefaultHandshakeBudget
 	}
 	if c.ResponseBudget == 0 {
 		c.ResponseBudget = DefaultH3ResponseBudget
@@ -670,14 +683,37 @@ func isRetriableH3Failure(err error) bool {
 	if errors.As(err, &ae) {
 		return ae.Remote && uint64(ae.ErrorCode) == 0
 	}
-	if errors.Is(err, &quic.IdleTimeoutError{}) || errors.Is(err, &quic.StatelessResetError{}) ||
+	// PATCH-11 (M-6): quic-go error types carry no Is method — pointer
+	// errors.Is comparisons were dead code; errors.As matches the types
+	// directly instead of relying on accidental Unwrap behavior.
+	var idleTO *quic.IdleTimeoutError
+	var hsTO *quic.HandshakeTimeoutError
+	var ssErr *quic.StatelessResetError
+	if errors.As(err, &idleTO) || errors.As(err, &hsTO) || errors.As(err, &ssErr) ||
 		errors.Is(err, net.ErrClosed) {
 		return true
 	}
 	return strings.Contains(err.Error(), FailureQUICProtocolViolation)
 }
 
+// classifyUDPListenError splits the UDP listen failure (PATCH-10, M-5):
+// local socket setup problems (missing mark privilege, address availability)
+// are operator-visible LOCAL faults — masking them as a network verdict made
+// the ladder switch transports while the real fix is local. Everything else
+// (send-side silence shaped as bind failure on exotic stacks) stays the
+// conservative network verdict.
 func classifyUDPListenError(err error) string {
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		var sysErr *os.SyscallError
+		if errors.As(opErr.Err, &sysErr) {
+			switch sysErr.Err {
+			case syscall.EPERM, syscall.EACCES, syscall.EADDRNOTAVAIL,
+				syscall.EADDRINUSE, syscall.EAFNOSUPPORT:
+				return FailureLocalSocket
+			}
+		}
+	}
 	return FailureUDPEgressBlocked
 }
 
@@ -702,11 +738,23 @@ func classifyH3HandshakeError(err error) string {
 	if errors.Is(err, ErrPinMismatch) || errors.Is(err, ErrPinNotECDSA) || errors.Is(err, ErrBadEndpointCert) {
 		return FailureTLSPin
 	}
+	// PATCH-12 (M-17): a remote CRYPTO_ERROR 0x131 is TLS alert 49
+	// (access_denied) — the edge rejected the client identity. Fail-closed
+	// per design §4: pin verdicts never downgrade the transport, so this
+	// must be classified before any network-verdict fallback.
+	var ate *quic.TransportError
+	if errors.As(err, &ate) && ate.Remote && uint64(ate.ErrorCode) == 0x131 {
+		return FailureTLSPin
+	}
 	msg := err.Error()
+	// PATCH-11 (M-6): canonical errors.As targets (dead pointer errors.Is
+	// comparisons removed — see isRetriableH3Failure).
+	var idleTO *quic.IdleTimeoutError
+	var hsTO *quic.HandshakeTimeoutError
 	switch {
 	case strings.Contains(msg, "tls:") || strings.Contains(msg, "crypto"):
 		return FailureTLSAlert
-	case errors.Is(err, &quic.IdleTimeoutError{}), errors.Is(err, &quic.HandshakeTimeoutError{}),
+	case errors.As(err, &idleTO), errors.As(err, &hsTO),
 		strings.Contains(msg, "timeout"):
 		return FailureUDPEgressBlocked
 	case errors.Is(err, net.ErrClosed):
@@ -732,7 +780,9 @@ func classifyH3ResponseError(err error) string {
 	if errors.As(err, &te) && te.ErrorCode == quic.ProtocolViolation {
 		return FailureQUICProtocolViolation
 	}
-	if errors.Is(err, &quic.IdleTimeoutError{}) || errors.Is(err, net.ErrClosed) {
+	// PATCH-11 (M-6): errors.As instead of the dead pointer errors.Is.
+	var idleTO *quic.IdleTimeoutError
+	if errors.As(err, &idleTO) || errors.Is(err, net.ErrClosed) {
 		return FailureQUICProtocolViolation
 	}
 	msg := err.Error()

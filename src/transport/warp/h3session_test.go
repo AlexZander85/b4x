@@ -3,9 +3,12 @@ package transportwarp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"strconv"
+	"syscall"
 	"testing"
 	"time"
 
@@ -134,7 +137,7 @@ func TestH3SessionSilentDropValidationTimeout(t *testing.T) {
 	defer sess.Close()
 	vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
- verr := sess.ValidateDataPlane(vctx)
+	verr := sess.ValidateDataPlane(vctx)
 	if verr == nil {
 		t.Fatal("silent drop must fail validation")
 	}
@@ -276,3 +279,123 @@ func wrapErr(e error) error { return wrapErrT{e} }
 
 // wrapErrT unwrapping for the chain test.
 func (w wrapErrT) Unwrap() error { return w.error }
+
+// ---- PATCH-10 (M-5): local socket errors are never network verdicts ----
+
+func TestClassifyUDPListenError(t *testing.T) {
+	local := []error{
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "socket", Err: syscall.EPERM}},
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EACCES}},
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EADDRNOTAVAIL}},
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EADDRINUSE}},
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "socket", Err: syscall.EAFNOSUPPORT}},
+		// wrapped deeper: OpError -> SyscallError -> syscall via fmt
+		fmt.Errorf("udp listen: %w", &net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "bind", Err: syscall.EPERM}}),
+	}
+	for i, err := range local {
+		if got := classifyUDPListenError(err); got != FailureLocalSocket {
+			t.Fatalf("case %d: class = %s, want %s", i, got, FailureLocalSocket)
+		}
+	}
+	other := []error{
+		errors.New("some exotic failure"),
+		&net.OpError{Op: "listen", Err: &os.SyscallError{Syscall: "socket", Err: errors.New("oom-ish")}},
+		nil,
+	}
+	for i, err := range other {
+		if got := classifyUDPListenError(err); got != FailureUDPEgressBlocked {
+			t.Fatalf("other case %d: class = %s, want %s", i, got, FailureUDPEgressBlocked)
+		}
+	}
+}
+
+// The ladder must treat a local-socket verdict like the pin family: no
+// switch, no H2 masking, no gate poisoning.
+func TestLadderLocalSocketErrorDoesNotSwitch(t *testing.T) {
+	h := newSupHarness(t)
+	scfg := ladderKeyMaterial(t, h)
+	var ctr h3AttemptCounter
+	h2Calls := 0
+	d, _ := newTestLadder(t, func(c *LadderConfig) {
+		c.DialH3 = ctr.fail(FailureLocalSocket)
+		c.DialH2 = func(context.Context, SessionConfig) (*Session, ConnectResult, error) {
+			h2Calls++
+			return nil, ConnectResult{}, errors.New("h2 must not be attempted")
+		}
+	})
+	ctx := context.Background()
+	for gen := 1; gen <= 2; gen++ {
+		_, att, err := d.Dial(ctx, scfg)
+		if err == nil || att.Transport != TransportH3 || len(att.Events) != 0 {
+			t.Fatalf("gen %d: att=%+v err=%v", gen, att, err)
+		}
+	}
+	if h2Calls != 0 {
+		t.Fatalf("H2 attempted on a local fault %d times", h2Calls)
+	}
+	if m := d.Metrics(); m.FallbackToH2 != 0 || m.Switches != 0 || m.H3Blocked {
+		t.Fatalf("metrics = %+v — the gate must stay untouched", m)
+	}
+}
+
+// ---- PATCH-11 (M-6): quic error types classify via errors.As ----
+
+func TestClassifyQuicErrorTypes(t *testing.T) {
+	wrap := func(err error) error { return fmt.Errorf("dial: %w", err) }
+	idle := &quic.IdleTimeoutError{}
+	hsTO := &quic.HandshakeTimeoutError{}
+	ssReset := &quic.StatelessResetError{}
+
+	for name, err := range map[string]error{"idle": idle, "handshake-timeout": hsTO, "stateless-reset": ssReset} {
+		if !isRetriableH3Failure(wrap(err)) {
+			t.Fatalf("%s: must be retriable (was dead-code before PATCH-11)", name)
+		}
+		if got := classifyH3HandshakeError(wrap(err)); got != FailureUDPEgressBlocked {
+			t.Fatalf("%s: handshake class = %s", name, got)
+		}
+	}
+	if got := classifyH3ResponseError(wrap(idle)); got != FailureQUICProtocolViolation {
+		t.Fatalf("response idle class = %s, want %s", got, FailureQUICProtocolViolation)
+	}
+}
+
+// ---- PATCH-12 (M-17): remote CRYPTO_ERROR 0x131 is a pin verdict ----
+
+func TestHandshakeCryptoAccessDeniedIsPinVerdict(t *testing.T) {
+	remote := fmt.Errorf("dial: %w", &quic.TransportError{
+		ErrorCode: quic.TransportErrorCode(0x131), Remote: true,
+	})
+	if got := classifyH3HandshakeError(remote); got != FailureTLSPin {
+		t.Fatalf("remote 0x131 class = %s, want %s", got, FailureTLSPin)
+	}
+	// Never retriable, never a switch class: fail-closed.
+	if isRetriableH3Failure(remote) {
+		t.Fatal("pin verdict must not be retriable")
+	}
+	if isLadderSwitchClass(FailureTLSPin) {
+		t.Fatal("pin verdict must not switch transports")
+	}
+	// Local (non-remote) 0x131 is a local crypto problem, not an identity verdict.
+	local := fmt.Errorf("dial: %w", &quic.TransportError{
+		ErrorCode: quic.TransportErrorCode(0x131), Remote: false,
+	})
+	if got := classifyH3HandshakeError(local); got == FailureTLSPin {
+		t.Fatal("local 0x131 must not be a pin verdict")
+	}
+}
+
+// ---- PATCH-13 (M-16): defaults match the design KPI ----
+
+func TestH3Defaults(t *testing.T) {
+	cfg := H3SessionConfig{}
+	cfg.fillDefaults()
+	if cfg.HandshakeBudget != DefaultHandshakeBudget {
+		t.Fatalf("HandshakeBudget default = %v, want %v", cfg.HandshakeBudget, DefaultHandshakeBudget)
+	}
+	if cfg.ResponseBudget != DefaultH3ResponseBudget {
+		t.Fatalf("ResponseBudget default = %v, want %v", cfg.ResponseBudget, DefaultH3ResponseBudget)
+	}
+	if cfg.HandshakeBudget != 10*time.Second {
+		t.Fatalf("HandshakeBudget = %v, want the KPI 10s bound", cfg.HandshakeBudget)
+	}
+}
