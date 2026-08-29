@@ -1,5 +1,42 @@
 # B4 - Bye Bye Big Bro
 
+## [unreleased] — warp nested/H3 fix cycle (WARP_NESTED_H3_PATCH_PLAN)
+
+- FIXED (PATCH-01): the H3→H2 ladder now treats silent-after-handshake (no CONNECT-IP response) as a switch class, closing the endless H3-backoff-H3 loop on the RF DPI scenario.
+- FIXED (PATCH-02): the CONNECT response wait got its own ResponseBudget so a slow handshake can no longer shrink the silence-detection window (two independent stall timers).
+- FIXED (PATCH-03): data race in the vendored amneziawg-go timer callback (duration reset moved under the modifying lock); NOTICE re-pinned, upstream issue drafted.
+- FIXED (PATCH-04): exactly one live kernel route carrier per W+M runtime — the previous generation is torn down before a rebuild, so assertion loops no longer leak and compete for the pin.
+- FIXED (PATCH-05): the W+M watch goroutine waits on the runtime-derived context and Stop bounded-waits for it, so a stopped runtime no longer leaks the watcher.
+- FIXED (PATCH-06): carrier route-lost events are emitted once per episode, not on every assertion tick.
+- FIXED (PATCH-07): child start failures and parent-loss invalidations carry their own event classes (child-start-failed / child-invalidated) instead of polluting route-lost diagnostics and counters.
+- ADDED (PATCH-08): kill-inner / kill-WAN e2e failure-matrix scenarios for both W+M and M+W compositions.
+- ADDED (PATCH-09): per-layer trust-gate latency is measured in all three nested runtimes (W+M, M+W, W+W) and exported via the pair metrics.
+- FIXED (PATCH-10): local UDP socket faults (bind/mark/addr) no longer masquerade as the udp-egress-blocked network verdict, so a local misconfiguration can't silently switch transports.
+- FIXED (PATCH-11): QUIC error classification uses errors.As — the previous pointer errors.Is checks were dead code.
+- FIXED (PATCH-12): a remote QUIC CRYPTO_ERROR 0x131 (TLS access denied) is a pin verdict now — fail-closed instead of a transport downgrade.
+- CHANGED (PATCH-13): the H3 handshake budget default dropped from 20s to 10s to match the design KPI.
+- FIXED (PATCH-14): kernel route pinning follows the add-first, replace-fallback order; the old del-branch could transiently drop a foreign route.
+- CHANGED (PATCH-15): the dead AttemptV6 policy flag was removed (owner verdict: v4-only scope, unvalidated paths are not shipped).
+- FIXED (PATCH-16): the MASQUE datagram carrier refuses writes while the plane is unproven — fail-closed parity with the other carriers.
+- ADDED (PATCH-17): post-connect edge-collision fact-check compares what the layers actually reached (endpoint IP and colo telemetry), not just the declared config.
+- ADDED (PATCH-18): ICMPv6 Packet Too Big synthesis per the design recipe (v4 path unchanged); oversized v6 packets get a real error message instead of silence.
+- ADDED (PATCH-19): an optional end-to-end probe slot on the H3 session validation (ironclad-lite, disabled by default).
+- CHANGED (PATCH-20): the initial-packet-size deviation (quic-go auto + PMTUD) is documented in code and the implementation report.
+- CHANGED (PATCH-21): the pooled uplink frame path got a byte-exactness contract test (1000 round trips, race-clean).
+- CHANGED (PATCH-22): discovery reserves half the scan slots for H2 candidates so a QUIC-heavy catalog can no longer starve the H2 fallback verification.
+- ADDED (PATCH-23): a failed fake-QUIC cover release now retries in the background and escalates loudly if cleanup keeps failing.
+- FIXED (PATCH-24): the colo response header is matched case-insensitively, so proxy normalization can't silence the telemetry.
+- FIXED (PATCH-25): a source-port collision in the MASQUE carrier no longer silently orphans the first flow — the port is regenerated or shifted.
+- FIXED (PATCH-26): reading a datagram into a short buffer now reports io.ErrShortBuffer instead of silently truncating it.
+- CHANGED (PATCH-27): the dead acceptControlStreams helper moved out of production code into the test harness.
+- ADDED (PATCH-28): a detailed pair status with per-layer handshake age and transfer counters for all three nested runtimes.
+- CHANGED (PATCH-29): the brief shorthand now attributes 700ms probe gap to the warp gate and 600ms to the WG gate.
+- FIXED (PATCH-30): session reads guard against zero-value packets after close — a closed session reports the closed error, never an empty packet.
+- ADDED (PATCH-31): a DisableUDPFragment dial-policy knob (PMTUDISC_DO per family, linux; default off).
+- ADDED (PATCH-32): a signed ADR for the H3 path-B implementation and the cf-connect-proto header verdict.
+- CHANGED (PATCH-33): the delivery map records all structural deviations of the nested/H3 cycle with owner sign-offs.
+- ADDED (PATCH-34): CI runs a serial race gate for the wg transport package.
+
 ## [1.73.0] - 2026-07-05
 
 - FIXED: **A phone that dropped off mobile data could leave a Telegram proxy connection stuck** - when a mobile client backgrounded Telegram or lost signal, its connection frequently died without a clean close, yet b4 held the half-dead session and its link out to Telegram open for many minutes, in some cases until the app was reopened, so returning to Telegram could mean waiting on a dead socket instead of a clean reconnect.
