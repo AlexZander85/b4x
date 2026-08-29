@@ -401,7 +401,15 @@ func (l *classEventLog) snapshot() []SessionEvent {
 // through BOTH devices and the loopback carrier.
 func TestGoolE2ENestedHandshakeThroughBothDevices(t *testing.T) {
 	_, innerEdge, cfg, rec := buildGoolFixture(t)
-	rt, err := NewNestedWgRuntime(cfg, goolOptions(rec))
+	opt := goolOptions(rec)
+	gates := map[string]time.Duration{}
+	var gatesMu sync.Mutex
+	opt.ObserveGate = func(layer string, d time.Duration) {
+		gatesMu.Lock()
+		defer gatesMu.Unlock()
+		gates[layer] = d
+	}
+	rt, err := NewNestedWgRuntime(cfg, opt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -437,6 +445,17 @@ func TestGoolE2ENestedHandshakeThroughBothDevices(t *testing.T) {
 	if !waitFor(func() bool { return countEvents(rec, "wg_established") >= 2 }, 10*time.Second) {
 		t.Fatalf("both layers never reached established: %d; events=%v",
 			countEvents(rec, "wg_established"), rec.names())
+	}
+
+	// PATCH-09: both per-layer gate durations reached the sink.
+	gatesMu.Lock()
+	outerD, innerD := gates["outer"], gates["inner"]
+	gatesMu.Unlock()
+	if outerD <= 0 {
+		t.Fatalf("outer gate never observed: %v", gates)
+	}
+	if innerD <= 0 {
+		t.Fatalf("inner gate never observed: %v", gates)
 	}
 
 	rt.Stop()

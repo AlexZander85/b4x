@@ -104,6 +104,12 @@ type NestedWgOptions struct {
 	// VerboseDiagnostics routes BOTH layers' per-generation device logs to
 	// stdout (debug aid; production keeps the silent logger).
 	VerboseDiagnostics bool
+	// ObserveGate optionally records per-layer trust-gate durations
+	// (PATCH-09, MAJOR-5 / design §1.2: per-layer attribution for all three
+	// runtimes). transportwg cannot import transport/nested (import cycle),
+	// so the composition site wires nested.Metrics.ObserveGate through this
+	// function seam. nil = disabled (no behavior change).
+	ObserveGate func(layer string, d time.Duration)
 }
 
 // NestedWgRuntime owns the outer+inner lifecycles and the Backend-B carrier.
@@ -111,14 +117,15 @@ type NestedWgRuntime struct {
 	cfg NestedWgConfig
 	opt NestedWgOptions
 
-	mu        sync.Mutex
-	link      NestedLinkState
-	parentGen uint64
-	ctx       context.Context
-	cancel    context.CancelFunc
-	outer     *Session
-	fwd       *LoopbackForwarder
-	inner     *Session
+	mu             sync.Mutex
+	link           NestedLinkState
+	parentGen      uint64
+	ctx            context.Context
+	cancel         context.CancelFunc
+	outer          *Session
+	fwd            *LoopbackForwarder
+	inner          *Session
+	outerGateStart time.Time // PATCH-09: armed at Start / on parent loss
 
 	startOnce sync.Once
 	stopOnce  sync.Once
@@ -149,6 +156,7 @@ func (r *NestedWgRuntime) Start(parent context.Context) error {
 		r.mu.Lock()
 		r.ctx, r.cancel, r.outer = ctx, cancel, sess
 		r.link = NestedWaitingParent
+		r.outerGateStart = time.Now() // PATCH-09: arm the outer gate
 		r.mu.Unlock()
 		if err := sess.Start(); err != nil {
 			r.startErr = err
@@ -196,6 +204,15 @@ func (r *NestedWgRuntime) Status() NestedWgStatus {
 // callback bridge. Events are collected under the lock and emitted after
 // unlock so user callbacks may call Status() freely.
 func (r *NestedWgRuntime) onParentEstablished() {
+	// PATCH-09: this callback IS the outer trust gate closing (first
+	// establishment or a repair after parent loss).
+	r.mu.Lock()
+	start := r.outerGateStart
+	r.outerGateStart = time.Time{}
+	r.mu.Unlock()
+	if !start.IsZero() && r.opt.ObserveGate != nil {
+		r.opt.ObserveGate("outer", time.Since(start))
+	}
 	for _, ev := range r.establishChild() {
 		r.emit(ev)
 	}
@@ -209,6 +226,9 @@ func (r *NestedWgRuntime) onParentLost(f Failure) {
 	}
 	r.stopChildLocked()
 	r.link = NestedChildInvalidated
+	// PATCH-09: re-arm the outer gate — the next OnEstablished measures the
+	// REPAIR gate (loss -> re-establishment).
+	r.outerGateStart = time.Now()
 	evs := []SessionEvent{
 		{
 			Name:   "wg_nested_parent_lost",
@@ -247,6 +267,7 @@ func (r *NestedWgRuntime) establishChild() []SessionEvent {
 		}}
 	}
 
+	innerStart := time.Now() // PATCH-09: inner gate starts here
 	// A fresh generation carries a FRESH netstack — the forwarder must be
 	// rebuilt against it, never reused across generations.
 	tun := r.outer.Tunnel()
@@ -270,6 +291,12 @@ func (r *NestedWgRuntime) establishChild() []SessionEvent {
 	if err := sess.Start(); err != nil {
 		_ = fwd.Close()
 		return invalidate(fmt.Sprintf("inner-start: %v", err))
+	}
+	// PATCH-09: the inner gate spans forwarder+session launch -> the
+	// session's own establishment callback; only the launch portion is
+	// attributable here, the handshake age lands in Session telemetry.
+	if r.opt.ObserveGate != nil {
+		r.opt.ObserveGate("inner", time.Since(innerStart))
 	}
 	r.fwd, r.inner = fwd, sess
 	r.link = NestedUp
