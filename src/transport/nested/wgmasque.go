@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	twarp "github.com/daniellavrushin/b4/transport/warp"
@@ -50,6 +51,12 @@ type WgMasqueConfig struct {
 
 	OnEvent   func(Event)
 	InnerSink func(twarp.SupervisorEvent)
+
+	// Metrics optionally receives this pair's counter surface (design 5):
+	// per-layer gate latency (design 62.9 - the price of nesting must be
+	// attributable per layer), the pair-active gauge and the composition
+	// counters. All methods are nil-safe; nil = no-op surface.
+	Metrics *Metrics
 }
 
 // Validate checks every structural rule WITHOUT touching network state.
@@ -87,18 +94,29 @@ type routeRestorer interface {
 type WgMasqueRuntime struct {
 	cfg WgMasqueConfig
 
-	mu           sync.Mutex
-	link         string // waiting-parent | up | child-invalidated
-	parentGen    uint64
-	carrier      NestedCarrier
-	kernel       *KernelRouteCarrier // non-nil iff kernel mode
+	mu        sync.Mutex
+	link      string // waiting-parent | up | child-invalidated
+	parentGen uint64
+	carrier   NestedCarrier
+	kernel    *KernelRouteCarrier // non-nil iff kernel mode
+	// pairUp guards the PairActive gauge transition: repeated parent
+	// losses / stops must not drive the gauge negative.
+	pairUp bool
+
+	// Gate stamps (MAJOR-5, design 62.9): unix nanos, 0 = disarmed.
+	// Atomics because OnEstablished and the inner sink fire on foreign
+	// goroutines; see gateObserve in metrics.go.
+	outerGateStart atomic.Int64
+	innerGateStart atomic.Int64
+
+	metrics *Metrics
 	// assertInterval is the kernel assertion-loop cadence (test seam: unit
 	// tests shrink it; production keeps the 30s discipline).
 	assertInterval time.Duration
-	inner        *twarp.Supervisor
-	innerCancel  context.CancelFunc
-	cancelCtx    context.Context
-	outerSession *twg.Session
+	inner          *twarp.Supervisor
+	innerCancel    context.CancelFunc
+	cancelCtx      context.Context
+	outerSession   *twg.Session
 
 	startErr error
 
@@ -117,7 +135,7 @@ func NewWgMasqueRuntime(cfg WgMasqueConfig) (*WgMasqueRuntime, error) {
 	if !cfg.DNS.IsValid() {
 		cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
 	}
-	return &WgMasqueRuntime{cfg: cfg, link: "waiting-parent", done: make(chan struct{})}, nil
+	return &WgMasqueRuntime{cfg: cfg, metrics: cfg.Metrics, link: "waiting-parent", done: make(chan struct{})}, nil
 }
 
 // Start creates and launches the OUTER session; the inner MASQUE supervisor
@@ -162,6 +180,10 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 		r.mu.Lock()
 		r.outerSession = sess
 		r.mu.Unlock()
+		// MAJOR-5: arm BEFORE the session launches - OnEstablished
+		// fires from the session goroutine and may beat a post-Start
+		// arm on a fast handshake; the gate spans launch -> trust.
+		r.armOuterGate()
 		if serr := sess.Start(); serr != nil {
 			cancel()
 			close(r.done)
@@ -197,6 +219,7 @@ func (r *WgMasqueRuntime) Stop() {
 			r.cancel()
 		}
 		r.stopInner()
+		r.pairDown() // MAJOR-5: teardown drops the pair gauge
 		r.mu.Lock()
 		kernel := r.kernel
 		r.mu.Unlock()
@@ -251,6 +274,9 @@ func (r *WgMasqueRuntime) watch() {
 // the runtime (callbacks run on the outer session's goroutine).
 func (r *WgMasqueRuntime) onParentUp() {
 	gen := r.bumpGen()
+	// MAJOR-5: this callback IS the outer trust gate closing (first
+	// establishment or a repair after parent loss).
+	r.observeOuterGate()
 
 	// Carrier lifecycle (B-N2/N6): exactly one kernel carrier may be
 	// alive per runtime. Teardown the previous generation BEFORE building
@@ -284,15 +310,22 @@ func (r *WgMasqueRuntime) onParentUp() {
 			API:   r.cfg.InnerEnroll,
 			Store: &twarp.IdentityStore{Path: r.cfg.InnerSlotPath},
 		},
-		Sink: r.cfg.InnerSink,
+		// MAJOR-5: the bridge closes the inner gate on this
+		// generation's first warp_masque_connected and forwards every
+		// event to the operator sink verbatim.
+		Sink: r.innerSinkBridge(),
 	})
 	if err != nil {
 		r.setInvalidated(gen, "inner supervisor: "+err.Error())
 		return
 	}
 	ictx, icancel := context.WithCancel(r.ctxOrBackground())
+	// MAJOR-5: the inner gate spans identity + connect phases (the
+	// supervisor's per-attempt DurationMS covers only the final dial).
+	r.armInnerGate()
 	if err := sup.Start(ictx); err != nil {
 		icancel()
+		gateDisarm(&r.innerGateStart) // dead generation owns no gate
 		r.setInvalidated(gen, "inner start: "+err.Error())
 		return
 	}
@@ -301,7 +334,12 @@ func (r *WgMasqueRuntime) onParentUp() {
 	r.innerCancel = icancel
 	r.link = "up"
 	r.parentGen = gen
+	freshUp := !r.pairUp
+	r.pairUp = true
 	r.mu.Unlock()
+	if freshUp {
+		r.metrics.PairGaugeMove(1)
+	}
 	r.emit(Event{Class: "wg_nested_child_revalidated",
 		Reason: fmt.Sprintf("gen=%d proof=%v", gen, proofText(carrier))})
 }
@@ -310,6 +348,10 @@ func (r *WgMasqueRuntime) onParentUp() {
 // dead parent); the next establishment builds everything fresh.
 func (r *WgMasqueRuntime) onParentLost(f twg.Failure) {
 	r.stopInner()
+	r.pairDown()
+	// MAJOR-5: re-arm the outer gate - the next OnEstablished measures
+	// the REPAIR gate (loss -> re-establishment).
+	r.armOuterGate()
 	r.mu.Lock()
 	r.link = "child-invalidated"
 	r.mu.Unlock()
@@ -405,6 +447,41 @@ func (r *WgMasqueRuntime) ctxOrBackground() context.Context {
 	}
 	return context.Background()
 }
+
+// innerSinkBridge wraps the operator sink (MAJOR-5): the first
+// warp_masque_connected of the generation closes the inner gate; every
+// event still reaches the operator verbatim. The user sink is read at
+// bridge-build time so tests can inject it before onParentUp runs.
+func (r *WgMasqueRuntime) innerSinkBridge() func(twarp.SupervisorEvent) {
+	user := r.cfg.InnerSink
+	return func(ev twarp.SupervisorEvent) {
+		if ev.Name == twarp.EvMasqueConnected {
+			r.observeInnerGate()
+		}
+		if user != nil {
+			user(ev)
+		}
+	}
+}
+
+// pairDown drops the pair-active gauge under the up-transition guard
+// (onParentLost and Stop may both arrive; only the first decrement counts).
+func (r *WgMasqueRuntime) pairDown() {
+	r.mu.Lock()
+	up := r.pairUp
+	r.pairUp = false
+	r.mu.Unlock()
+	if up {
+		r.metrics.PairGaugeMove(-1)
+	}
+}
+
+// ---- gate-stamp wrappers (MAJOR-5; shared math in metrics.go) ----
+
+func (r *WgMasqueRuntime) armOuterGate()     { gateArm(&r.outerGateStart) }
+func (r *WgMasqueRuntime) armInnerGate()     { gateArm(&r.innerGateStart) }
+func (r *WgMasqueRuntime) observeOuterGate() { gateObserve(&r.outerGateStart, r.metrics, "outer") }
+func (r *WgMasqueRuntime) observeInnerGate() { gateObserve(&r.innerGateStart, r.metrics, "inner") }
 
 func (r *WgMasqueRuntime) outerEvent(ev twg.SessionEvent) {
 	// engine-native passthrough hook point (kept minimal)

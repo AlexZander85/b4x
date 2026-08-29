@@ -55,6 +55,39 @@ func (m *Metrics) ObserveGate(layer string, d time.Duration) {
 	}
 }
 
+// ---- MAJOR-5: gate-stamp helpers shared by both composition runtimes ----
+//
+// The gate stamps live on the runtimes as atomic unix-nano counters (0 =
+// disarmed) because OnEstablished callbacks and supervisor sinks fire on
+// foreign goroutines; the gate math itself never touches the runtime mutex.
+// Observe is consume-once: a gate closes exactly once per establishment and
+// a repeat (duplicate callback, late generation) cannot overwrite the last
+// observed value.
+
+// gateArm starts a gate measurement (stamp = now).
+func gateArm(stamp *atomic.Int64) { stamp.Store(time.Now().UnixNano()) }
+
+// gateDisarm cancels an in-flight measurement (generation died before its
+// trust gate closed; no attribution is allowed to a dead generation).
+func gateDisarm(stamp *atomic.Int64) { stamp.Store(0) }
+
+// gateObserve closes the gate: the armed stamp converts to a duration and
+// lands on the layer series; disarmed stamps are ignored.
+func gateObserve(stamp *atomic.Int64, m *Metrics, layer string) {
+	if start := stamp.Swap(0); start != 0 {
+		m.ObserveGate(layer, time.Since(time.Unix(0, start)))
+	}
+}
+
+// PairGaugeMove adjusts the pair-active gauge by one guarded transition
+// (nil-safe: runtimes hold a nil surface when Metrics is not wired).
+func (m *Metrics) PairGaugeMove(delta int64) {
+	if m == nil {
+		return
+	}
+	m.PairActive.Add(delta)
+}
+
 // CountingEvents wraps an OnEvent callback with Metrics classification.
 func CountingEvents(m *Metrics, next func(Event)) func(Event) {
 	return func(ev Event) {

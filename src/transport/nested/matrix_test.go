@@ -8,6 +8,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
 func validPair() PairConfig {
@@ -164,3 +167,104 @@ func (f fakeTCPCarrier) DialTCPThrough(_ context.Context, dst netip.AddrPort) (n
 	return c1, nil
 }
 func (f fakeTCPCarrier) ProofSnapshot() (string, bool) { return "test", true }
+
+// ---- PATCH-07 (MAJOR-5): M+W outer gate + pair gauge over the poller ----
+
+// setPlaneHeld flips the fake plane's RouteHeld (test seam for the poller).
+func setPlaneHeld(p *fakePlane, held bool) {
+	p.mu.Lock()
+	p.routeHeld = held
+	p.mu.Unlock()
+}
+
+// testInnerIdentity fabricates a structurally valid AWG identity (throwaway
+// keys; the unit stand never completes a handshake - the poller's gate and
+// gauge transitions are what is pinned here).
+func testInnerIdentity() *twg.Identity {
+	priv := twg.Key{1}
+	peer := twg.Key{200}
+	for i := 1; i < 32; i++ {
+		priv[i] = byte(i)
+		peer[i] = byte(200 - i)
+	}
+	return &twg.Identity{
+		PrivateKey:    priv,
+		PeerPublicKey: peer,
+		ClientID:      "AAA", // decodes to a non-empty <=3-byte client id
+		AssignedV4:    "10.66.66.2",
+		CFWarp:        true,
+	}
+}
+
+// TestMasqueAwgOuterGateAndPairGauge pins the M+W capture points: the outer
+// gate closes on the RouteHeld rising edge witnessed by the poller (armed at
+// Start only when the plane was down), re-arms on loss (repair gate), and
+// the pair gauge tracks the up/down transitions without drift.
+func TestMasqueAwgOuterGateAndPairGauge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts a loopback-forwarded inner session; skipped in -short")
+	}
+	plane := newFakePlane()
+	m := &Metrics{}
+	rt, err := NewMasqueAwgRuntime(MasqueAwgConfig{
+		Pair:         validPair(),
+		Plane:        plane,
+		LocalV4:      localV4(),
+		InnerIdent:   testInnerIdentity(),
+		PollInterval: 5 * time.Millisecond,
+		Metrics:      m,
+	})
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer rt.Stop()
+
+	// Parent not held: nothing gated, nothing active.
+	if got := m.PairActive.Load(); got != 0 {
+		t.Fatalf("pair active before parent = %d, want 0", got)
+	}
+
+	// Parent up: the held edge closes the outer gate (measured from Start,
+	// a few poll ticks) and the pair gauge rises with the started child.
+	setPlaneHeld(plane, true)
+	deadline := time.Now().Add(3 * time.Second)
+	for m.PairActive.Load() != 1 {
+		if time.Now().After(deadline) {
+			t.Fatalf("pair gauge never rose after parent up (outer=%dms)", m.OuterGateMS.Load())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	first := m.OuterGateMS.Load()
+	if first > 10 {
+		t.Fatalf("first outer gate = %dms, want a near-immediate edge (< 10ms)", first)
+	}
+
+	// Parent lost: gauge drops; the outer gate re-arms for the repair.
+	setPlaneHeld(plane, false)
+	deadline = time.Now().Add(3 * time.Second)
+	for m.PairActive.Load() != 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("pair gauge never dropped on parent loss")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond) // inflate the armed repair gate
+
+	// Repair: a NEW outer-gate value lands (re-armed on the loss edge).
+	setPlaneHeld(plane, true)
+	deadline = time.Now().Add(3 * time.Second)
+	for m.PairActive.Load() != 1 {
+		if time.Now().After(deadline) {
+			t.Fatal("pair gauge never rose again after repair")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := m.OuterGateMS.Load(); got < 40 {
+		t.Fatalf("repair outer gate = %dms, want >= 40ms (first was %dms)", got, first)
+	}
+}

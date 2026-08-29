@@ -16,6 +16,7 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	twg "github.com/daniellavrushin/b4/transport/wg"
@@ -200,6 +201,11 @@ type MasqueAwgConfig struct {
 	MaxInnerGenerations int
 	PollInterval        time.Duration // parent-link tick; default 20ms
 
+	// Metrics optionally receives this pair's counter surface (design 5):
+	// per-layer gate latency (design 62.9), the pair-active gauge and the
+	// composition counters. All methods are nil-safe; nil = no-op surface.
+	Metrics *Metrics
+
 	OnEvent      func(Event)
 	InnerOnEvent func(twg.SessionEvent) // engine-native passthrough
 }
@@ -218,6 +224,17 @@ type MasqueAwgRuntime struct {
 	parentGen uint64
 	inner     *twg.Session
 	fwd       *twg.LoopbackForwarder
+	// pairUp guards the PairActive gauge transition (no double-decrement
+	// across repeated lost->held cycles and Stop).
+	pairUp bool
+
+	// Gate stamps (MAJOR-5, design 62.9): unix nanos, 0 = disarmed; see
+	// gateObserve in metrics.go. The inner OnEstablished fires on the
+	// session's goroutine, hence atomics over the runtime mutex.
+	outerGateStart atomic.Int64
+	innerGateStart atomic.Int64
+
+	metrics *Metrics
 
 	cancel   context.CancelFunc
 	done     chan struct{}
@@ -254,6 +271,7 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 		cfg:     cfg,
 		carrier: carrier,
 		link:    "waiting-parent",
+		metrics: cfg.Metrics,
 		done:    make(chan struct{}),
 	}, nil
 }
@@ -263,6 +281,12 @@ func (r *MasqueAwgRuntime) Start(parent context.Context) error {
 	r.startOne.Do(func() {
 		ctx, cancel := context.WithCancel(parent)
 		r.cancel = cancel
+		// MAJOR-5: the outer gate is attributable only when THIS
+		// runtime witnesses the plane's establishment; an already-held
+		// plane predates the runtime (no gate claim is allowed).
+		if !r.cfg.Plane.Snapshot().RouteHeld {
+			r.armOuterGate()
+		}
 		r.carrier.StartPumping()
 		go r.run(ctx)
 	})
@@ -283,6 +307,7 @@ func (r *MasqueAwgRuntime) Stop() {
 		}
 		<-r.done
 		r.stopChild()
+		r.pairGauge(-1) // MAJOR-5: teardown drops the pair gauge
 		r.carrier.Close()
 	})
 }
@@ -320,13 +345,20 @@ func (r *MasqueAwgRuntime) run(ctx context.Context) {
 		switch {
 		case nowHeld && !held:
 			gen := r.parentGen + 1
+			// MAJOR-5: RouteHeld rising edge closes the outer gate.
+			r.observeOuterGate()
 			if err := r.startChild(gen); err != nil {
 				r.setLink("child-invalidated", gen, err.Error())
 				break
 			}
 			r.setLink("up", gen, "")
+			r.pairGauge(1)
 		case !nowHeld && held:
 			r.stopChild()
+			r.pairGauge(-1)
+			// MAJOR-5: re-arm - the next held edge measures the
+			// REPAIR gate (plane loss -> re-establishment).
+			r.armOuterGate()
 			r.mu.Lock()
 			r.link = "child-invalidated"
 			r.mu.Unlock()
@@ -357,15 +389,24 @@ func (r *MasqueAwgRuntime) startChild(gen uint64) error {
 		Tunnel:         r.innerTunnel(),
 		MaxGenerations: r.cfg.MaxInnerGenerations,
 		Health:         twg.HealthConfig{KeepaliveSec: twg.NestedInnerKeepaliveSec},
-		Callbacks:      twg.SessionCallbacks{OnEvent: r.innerEvent},
+		Callbacks: twg.SessionCallbacks{
+			OnEvent: r.innerEvent,
+			// MAJOR-5: the inner session's trust gate closes here
+			// (atomic-only body - safe under the runtime mutex held
+			// by startChild).
+			OnEstablished: r.observeInnerGate,
+		},
 	}
 	sess, err := twg.NewSession(sessCfg)
 	if err != nil {
 		_ = fwd.Close()
 		return fmt.Errorf("inner config: %w", err)
 	}
+	// MAJOR-5: inner gate = forwarder+session launch -> OnEstablished.
+	r.armInnerGate()
 	if err := sess.Start(); err != nil {
 		_ = fwd.Close()
+		gateDisarm(&r.innerGateStart) // dead generation owns no gate
 		return fmt.Errorf("inner start: %w", err)
 	}
 	r.inner, r.fwd = sess, fwd
@@ -388,6 +429,28 @@ func (r *MasqueAwgRuntime) stopChild() {
 		_ = fwd.Close()
 	}
 }
+
+// pairGauge moves the pair-active gauge under the up-transition guard
+// (MAJOR-5): repeated same-direction transitions cannot drift the gauge.
+func (r *MasqueAwgRuntime) pairGauge(delta int64) {
+	r.mu.Lock()
+	up := r.pairUp
+	r.pairUp = delta > 0
+	r.mu.Unlock()
+	if delta > 0 && !up {
+		r.metrics.PairGaugeMove(1)
+	}
+	if delta < 0 && up {
+		r.metrics.PairGaugeMove(-1)
+	}
+}
+
+// ---- gate-stamp wrappers (MAJOR-5; shared math in metrics.go) ----
+
+func (r *MasqueAwgRuntime) armOuterGate()     { gateArm(&r.outerGateStart) }
+func (r *MasqueAwgRuntime) armInnerGate()     { gateArm(&r.innerGateStart) }
+func (r *MasqueAwgRuntime) observeOuterGate() { gateObserve(&r.outerGateStart, r.metrics, "outer") }
+func (r *MasqueAwgRuntime) observeInnerGate() { gateObserve(&r.innerGateStart, r.metrics, "inner") }
 
 func (r *MasqueAwgRuntime) setLink(link string, gen uint64, reason string) {
 	r.mu.Lock()

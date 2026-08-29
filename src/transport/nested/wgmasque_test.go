@@ -336,3 +336,130 @@ func TestMetricsSnapshotAndExportLoop(t *testing.T) {
 	}
 	cancel()
 }
+
+// ---- PATCH-07 (MAJOR-5): per-layer gate latency reaches the Metrics ----
+
+// newWMKernelRuntimeMetrics is newWMKernelRuntime with a Metrics surface.
+func newWMKernelRuntimeMetrics(t *testing.T, fr *fakeRoutes, log *wmEventLog, m *Metrics) *WgMasqueRuntime {
+	t.Helper()
+	cfg := WgMasqueConfig{
+		Pair:           validWMPair(),
+		OuterIdent:     &twg.Identity{},
+		InnerEnroll:    &twarp.EnrollClient{BaseURL: "http://127.0.0.1:1"},
+		InnerSlotPath:  t.TempDir() + "/secondary.json",
+		OuterKernelTUN: true,
+		KernelDevice:   "wgout",
+		KernelRunner:   fr.run,
+		OnEvent:        log.add,
+		Metrics:        m,
+	}
+	rt, err := NewWgMasqueRuntime(cfg)
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	rt.assertInterval = 50 * time.Millisecond
+	return rt
+}
+
+// TestWgMasqueGateLatencyWiring pins the design 62.9 capture points: the
+// outer gate closes in onParentUp (armed at Start, re-armed on parent loss),
+// the inner gate closes on the generation's first warp_masque_connected via
+// the sink bridge, observe is consume-once, and nil Metrics stays a no-op.
+func TestWgMasqueGateLatencyWiring(t *testing.T) {
+	fr := newFakeRoutes()
+	log := &wmEventLog{}
+	m := &Metrics{}
+	rt := newWMKernelRuntimeMetrics(t, fr, log, m)
+
+	// Outer gate: armed -> onParentUp closes it with a real duration.
+	rt.armOuterGate()
+	time.Sleep(25 * time.Millisecond)
+	rt.onParentUp()
+	first := m.OuterGateMS.Load()
+	if first < 20 {
+		t.Fatalf("outer gate = %dms, want >= 20ms", first)
+	}
+
+	// Consume-once: a disarmed observe (duplicate callback, late
+	// generation) must not overwrite the last observed value.
+	time.Sleep(25 * time.Millisecond)
+	rt.onParentUp()
+	if got := m.OuterGateMS.Load(); got != first {
+		t.Fatalf("disarmed observe overwrote the outer gate: %d -> %d", first, got)
+	}
+
+	// Inner gate: noise must not close it; the connected event does;
+	// every event still reaches the operator sink verbatim.
+	sinkGot := make(chan twarp.SupervisorEvent, 4)
+	rt.cfg.InnerSink = func(ev twarp.SupervisorEvent) { sinkGot <- ev }
+	rt.armInnerGate()
+	time.Sleep(25 * time.Millisecond)
+	bridge := rt.innerSinkBridge()
+	bridge(twarp.SupervisorEvent{Name: twarp.EvMasqueRejected})
+	select {
+	case ev := <-sinkGot:
+		if ev.Name != twarp.EvMasqueRejected {
+			t.Fatalf("bridge forwarded %s, want verbatim %s", ev.Name, twarp.EvMasqueRejected)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("bridge lost the forwarded event")
+	}
+	if inner := m.InnerGateMS.Load(); inner != 0 {
+		t.Fatalf("non-connected event closed the inner gate: %dms", inner)
+	}
+	bridge(twarp.SupervisorEvent{Name: twarp.EvMasqueConnected})
+	if inner := m.InnerGateMS.Load(); inner < 20 {
+		t.Fatalf("inner gate = %dms, want >= 20ms", inner)
+	}
+	select {
+	case ev := <-sinkGot:
+		if ev.Name != twarp.EvMasqueConnected {
+			t.Fatalf("connected event arrived as %s", ev.Name)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("connected event never reached the operator sink")
+	}
+
+	// Nil Metrics: the whole gate path must stay a no-op surface.
+	rt2 := newWMKernelRuntime(t, fr, log)
+	rt2.armOuterGate()
+	rt2.onParentUp() // must not panic with a nil Metrics surface
+	rt2.Stop()
+
+	rt.Stop()
+}
+
+// TestWgMasquePairActiveGauge pins the gauge transitions: up on the first
+// establishment, guarded against double-count and double-drop across
+// reconnects, losses and Stop.
+func TestWgMasquePairActiveGauge(t *testing.T) {
+	fr := newFakeRoutes()
+	log := &wmEventLog{}
+	m := &Metrics{}
+	rt := newWMKernelRuntimeMetrics(t, fr, log, m)
+
+	rt.onParentUp()
+	if got := m.PairActive.Load(); got != 1 {
+		t.Fatalf("pair active after up = %d, want 1", got)
+	}
+	rt.onParentUp() // re-establishment must not double-count
+	if got := m.PairActive.Load(); got != 1 {
+		t.Fatalf("pair active after re-establishment = %d, want 1", got)
+	}
+	rt.onParentLost(twg.Failure{Class: "probe-loss"})
+	if got := m.PairActive.Load(); got != 0 {
+		t.Fatalf("pair active after parent loss = %d, want 0", got)
+	}
+	rt.onParentLost(twg.Failure{Class: "probe-loss"}) // double loss: guarded
+	if got := m.PairActive.Load(); got != 0 {
+		t.Fatalf("pair active after double loss = %d, want 0", got)
+	}
+	rt.onParentUp()
+	if got := m.PairActive.Load(); got != 1 {
+		t.Fatalf("pair active after repair = %d, want 1", got)
+	}
+	rt.Stop()
+	if got := m.PairActive.Load(); got != 0 {
+		t.Fatalf("pair active after Stop = %d, want 0", got)
+	}
+}
