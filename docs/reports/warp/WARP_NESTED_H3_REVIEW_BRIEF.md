@@ -125,7 +125,7 @@ edge-collision, pin-restore, per-layer latency атрибуция.
 | go.mod | +quic-go (pinned; единственная новая зависимость этапа) |
 | udpdial.go | DialPolicy-адаптер для UDP: тот же Control-цепочка (SO_MARK/SO_BINDTODEVICE), буферы SO_RCVBUF/SO_SNDBUF 8 МБ ignore-error, dual-bind по семейству peer'а |
 | fakeedge_h3_test.go | Фейковый H3-MASQUE сервер (quic-go server side): серт/pin, ALPN h3, extended-CONNECT (конфигурируемое отсутствие рекламы!), эхо датаграмм, матрица поведения (silent/hang/teardown/statuses) |
-| session_h3.go | Диал (CID=20, settings {0x276:1}, InitialPacketSize авто/1242-fallback, окна 10M/1–2M, streams 100, payload ≤1350, idle 60–120 s явно, ka 10–15 с) → CONNECT (:authority IP:port через JoinHostPort, cf-connect-proto, pq-enabled=false, UA пустой) → 200 → **trust gate** (2 DNS RT/600 мс/10 с) → established; датаграммы qsid(auto)+ctx(0)+payload; skip unknown frames (≤8 подряд, HEADERS ≤64 КиБ); ICMP TooBig MTU 1280 полный рецепт; open_bi/stream-open под дедлайном 10 с; **два таймера зависаний**: dial-budget + отдельный budget первого запроса (silent-handshake ловушка warpscout); ретрай ×1 только PROTOCOL_VIOLATION-класс |
+| session_h3.go | Диал (CID=20, settings {0x276:1}, InitialPacketSize авто/1242-fallback, окна 10M/1–2M, streams 100, payload ≤1350, idle 60–120 s явно, ka 10–15 с) → CONNECT (:authority IP:port через JoinHostPort, cf-connect-proto, pq-enabled=false, UA пустой) → 200 → **trust gate** (2 DNS RT/700 мс/10 с — интервал проб 1:1 унаследован от H2-гейта warp-слоя; 600 мс — это gap WG-гейта transportwg/trustgate.go, другая величина) → established; датаграммы qsid(auto)+ctx(0)+payload; skip unknown frames (≤8 подряд, HEADERS ≤64 КиБ); ICMP TooBig MTU 1280 полный рецепт; open_bi/stream-open под дедлайном 10 с; **два таймера зависаний**: dial-budget + отдельный budget первого запроса (silent-handshake ловушка warpscout); ретрай ×1 только PROTOCOL_VIOLATION-класс |
 | ladder_h3h2.go | Лестница H3→H2: классификация udp-blocked / handshake-fail / silent-after-handshake; переход только событием с причиной; возврат на H3 через cooldown-цикл; ноль осцилляций |
 | discovery_h3.go | Активация QUIC-ветки каталога (.1/.2, v6-пары); UDP-reachability проба как часть верификации кандидата |
 | cover_nfq.go | Координация с nfq-hook (E7): fake-QUIC профиль (ipset WARP-диапазонов + 2606:4700::/32, порты 7 шт., fake-bin, repeats ×6, autottl=3) на время установления — параметры Nova warp.json |
@@ -169,7 +169,7 @@ A3. **Re-assert пина**: бюджет тика достаточен? Гонк
 A4. **Edge-collision**: достаточно ли сравнения IP после установки (post-connect), или нужен pre-connect прогноз (резолв hostname-inner до подъёма)? Как вести карту соответствий пул↔colo?
 A5. **Identity-слоты**: достаточно ли двух (primary/secondary) или матрица пар требует третьего? Миграция сторов обратно совместима?
 A6. **Лестница H3↔H2**: критерии переключения устойчивы к флапу сети (осцилляции)? Правильна ли точка возврата на H3 (cooldown-цикл)?
-A7. **Trust gate на H3**: сохранение параметров (2 RT/600 мс/10 с) адекватно QUIC-особенностям (0-RTT выключен; handshake медленнее на HRR)? Нужен ли ironclad-lite в дефолте?
+A7. **Trust gate на H3**: сохранение параметров (2 RT/700 мс/10 с — интервал проб H2-наследие warp-гейта; WG-гейт живёт на своём 600 мс) адекватно QUIC-особенностям (0-RTT выключен; handshake медленнее на HRR)? Нужен ли ironclad-lite в дефолте?
 A8. **ICMP TooBig**: полный рецепт (включая IPv6 pseudo-header и swap адресов) соответствует RFC и практике connect-ip-go? Кто отвечает за PMTU-кэш?
 A9. **НЕ РФ дерево (§7.5)**: порядок AWG-регион → masque+awg → fail-closed согласован с политикой E6? Замер revocation latency заложен корректно?
 A10. **Ресурсы**: tier-числа для Keenetic (Low/Medium) применимы к gVisor-нетстеку и QUIC-очередям одновременно?
@@ -188,7 +188,7 @@ B-N7. MTU/keepalive: значения из матрицы применяются
 ### H3 (src/transport/warp/session_h3*, ladder*, discovery_h3*, cover*)
 B-H1. Датаграммный формат: qsid добавляется библиотекой (не дублировать!), ctx=0 вручную; inbound толерантность к вариантам (bare vs ctx-prefixed); лимит 64 КиБ на HEADERS, max 8 skipped подряд.
 B-H2. :authority форматтер: IPv4/IPv6-скобки/порт; отсутствие host-заголовка; пустой User-Agent.
-B-H3. Trust gate: параметры 2/600ms/10s; поведение при конкурентном потребителе пакетов; teardown по таймауту гарантирован; ironclad-lite опция отключена по умолчанию, но присутствует интерфейсом.
+B-H3. Trust gate: параметры 2/700ms/10s (warp-гейт; 600ms — WG-гейт transportwg/trustgate.go); поведение при конкурентном потребителе пакетов; teardown по таймауту гарантирован; ironclad-lite опция отключена по умолчанию, но присутствует интерфейсом.
 B-H4. Два таймера зависаний: dial-budget и первый-запрос-budget раздельны; ни один не наследует lifetime-context сессии (ловушка AfterFunc-vs-ctx из warpscout).
 B-H5. Лестница H3↔H2: переходы только событиями; осцилляции исключены cooldown-циклом; udp-blocked классифицируется ДО попыток H2 (быстрый fail).
 B-H6. ICMP TooBig: конструирование IPv4/IPv6 вариантов с checksums; MTU-значения 1280/1232; адресация swap.
@@ -239,7 +239,7 @@ Carrier:     KernelRoute (пин /32,//128 через dev outer, MAIN) | Netstac
 H3:          ALPN h3; authority=IP:port (JoinHostPort); host-заголовок запрещён;
              settings {0x276:1}; CID/SCID 20; initial packet 1350 (fallback 1242);
              ka 10-15 c; idle 60-120 c; окна 10M/1-2M; streams 100
-Gate:        2 DNS RT / 600 ms / окно 10 c на КАЖДЫЙ слой + e2e warp=on
+Gate:        2 DNS RT / 700 ms (warp-гейт, H2-наследие; WG-гейт — 600 ms) / окно 10 c на КАЖДЫЙ слой + e2e warp=on
 Stall(WG):   нет RX >10 c ИЛИ tx>=4096 при delta rx<=1024 за 120 c
 Seek:        >=3 попытки; durability burst 10x200ms tail>=3; cooldown 300 c
 Caps H3:     qsid(lib)+ctx(0)+payload; unknown-skip; DATA-only после 200
