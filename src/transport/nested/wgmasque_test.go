@@ -463,3 +463,77 @@ func TestWgMasquePairActiveGauge(t *testing.T) {
 		t.Fatalf("pair active after Stop = %d, want 0", got)
 	}
 }
+
+// ---- PATCH-07 (M-14): child lifecycle taxonomy ----
+
+// TestWgMasqueChildTaxonomySeparatesRouteIncidents pins the class split:
+// start failures emit wg_nested_child_start_failed, parent loss emits
+// wg_nested_child_invalidated, and only a genuine route wipe produces
+// nested/carrier-route-lost — with the Metrics counters split accordingly.
+func TestWgMasqueChildTaxonomySeparatesRouteIncidents(t *testing.T) {
+	fr := newFakeRoutes()
+	log := &wmEventLog{}
+	m := &Metrics{}
+	rt := newWMKernelRuntimeMetrics(t, fr, log, m)
+	// Production-style counter wiring: the wiring layer wraps OnEvent with
+	// CountingEvents; replicate that here to pin the counter separation.
+	rt.cfg.OnEvent = CountingEvents(m, log.add)
+	rt.cfg.FamilyPolicy = FamilyPolicy{RequireV4: true}
+
+	dst := validWMPair().Inner.Endpoint.Addr().String()
+
+	// Start failure: the mandatory pin cannot land, so the carrier build
+	// fails — a child-start outcome, never a route-lost.
+	fr.failReplace[dst] = true
+	rt.onParentUp()
+	if n := log.count(ClassChildStartFailed); n != 1 {
+		t.Fatalf("child-start-failed events = %d, want 1", n)
+	}
+	if n := log.count(ClassCarrierRouteLost); n != 0 {
+		t.Fatalf("route-lost leaked from a start failure: %d", n)
+	}
+	fr.failReplace[dst] = false
+
+	// Healthy generation, then parent loss: child-invalidated, not route-lost.
+	rt.onParentUp()
+	rt.onParentLost(twg.Failure{Class: "probe-loss"})
+	if n := log.count(ClassChildInvalidated); n != 1 {
+		t.Fatalf("child-invalidated events = %d, want 1", n)
+	}
+
+	// Genuine route incident: wipe → exactly one route-lost, then restored.
+	rt.onParentUp()
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("gen3: route not pinned before the wipe")
+	}
+	fr.mu.Lock()
+	fr.lines[key("-4", dst)] = dst + " dev wan0"
+	fr.mu.Unlock()
+	deadline := time.After(3 * time.Second)
+	for log.count(ClassPinRestored) == 0 {
+		select {
+		case <-deadline:
+			t.Fatal("pin-restored never arrived after wipe")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+
+	// Counter separation (Metrics via CountingEvents + Snapshot series).
+	if got := m.ChildStartFailedTotal.Load(); got != 1 {
+		t.Fatalf("ChildStartFailedTotal = %d, want 1", got)
+	}
+	if got := m.ChildInvalidatedTotal.Load(); got != 1 {
+		t.Fatalf("ChildInvalidatedTotal = %d, want 1", got)
+	}
+	if got := m.RouteLostTotal.Load(); got != 1 {
+		t.Fatalf("RouteLostTotal = %d, want 1", got)
+	}
+	snap := map[string]float64{}
+	for _, s := range m.Snapshot() {
+		snap[s.Name] = s.Value
+	}
+	if snap[SeriesChildStartFailed] != 1 || snap[SeriesChildInvalidated] != 1 || snap[SeriesRouteLost] != 1 {
+		t.Fatalf("snapshot series wrong: %v", snap)
+	}
+	rt.Stop()
+}
