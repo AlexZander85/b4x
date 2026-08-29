@@ -73,9 +73,11 @@ const (
 	Cooldown           = 300 * time.Second // after CooldownStrikes consecutive fails
 	CooldownStrikes    = 2
 	// H2ReserveRatio keeps H2 from being starved by a QUIC-heavy
-	// catalog: at least 1/H2ReserveRatio of the scan targets are
-	// reserved for H2 carriers (M3-09).
-	H2ReserveRatio       = 3
+	// catalog: half the scan targets are reserved for H2 carriers when
+	// both lists are non-empty (PATCH-22, M-10: the H3-first ladder depends
+	// on a verified H2 fallback — a 42-QUIC catalog must not push H2 out of
+	// the scan for whole rounds).
+	H2ReserveRatio       = 2
 	PerProbeTimeoutLimit = 2 * time.Second // design v2 global per-probe ceiling
 	DefaultLossBudget    = 0.2             // <=20% loss still ranks healthy
 )

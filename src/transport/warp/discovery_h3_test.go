@@ -140,3 +140,75 @@ func TestDiscoveryH3BranchOffByDefault(t *testing.T) {
 		t.Fatalf("winner transport = %q", res.Winner.Transport)
 	}
 }
+
+// ---- PATCH-22 (M-10): H2 slot fairness in the scan shape ----
+
+// TestSelectCandidatesReservesH2Slots: with a QUIC-heavy catalog, half of
+// the balanced scan must stay reserved for H2 carriers — the H3-first
+// ladder depends on a verified H2 fallback.
+func TestSelectCandidatesReservesH2Slots(t *testing.T) {
+	d, err := NewDiscoverer(DiscovererConfig{
+		Strategy:           StrategyBalanced,
+		CandidatesOverride: repeatEndpoints("162.159.192.1", 8),
+		H3:                 &H3VerifyConfig{QuicCandidatesOverride: repeatEndpoints("162.159.193.1", 42)},
+	})
+	if err != nil {
+		t.Fatalf("discoverer: %v", err)
+	}
+	shape, _ := shapeFor(StrategyBalanced)
+	cands := d.selectCandidates(shape.maxTargets)
+	var h2, quic int
+	for _, c := range cands {
+		if c.quic {
+			quic++
+		} else {
+			h2++
+		}
+	}
+	if h2 < shape.maxTargets/2 {
+		t.Fatalf("H2 candidates = %d, want >= %d (half the scan)", h2, shape.maxTargets/2)
+	}
+	if quic > shape.maxTargets-shape.maxTargets/2 {
+		t.Fatalf("QUIC candidates = %d, must fit within the non-reserved share", quic)
+	}
+}
+
+// TestTurboKeepsBothTransports: the turbo shape (2 targets) plus the H2
+// floor keeps one QUIC AND one H2 candidate in every round — the fairness
+// the ladder needs when turbo rounds repeat.
+func TestTurboKeepsBothTransports(t *testing.T) {
+	d, err := NewDiscoverer(DiscovererConfig{
+		Strategy:           StrategyTurbo,
+		CandidatesOverride: repeatEndpoints("162.159.192.1", 4),
+		H3:                 &H3VerifyConfig{QuicCandidatesOverride: repeatEndpoints("162.159.193.1", 42)},
+	})
+	if err != nil {
+		t.Fatalf("discoverer: %v", err)
+	}
+	for round := 0; round < 3; round++ {
+		cands := d.selectCandidates(2)
+		var hasQ, hasH2 bool
+		for _, c := range cands {
+			if c.quic {
+				hasQ = true
+			} else {
+				hasH2 = true
+			}
+		}
+		if !hasQ || !hasH2 {
+			t.Fatalf("round %d: shape = %+v, want both transports present", round, cands)
+		}
+	}
+}
+
+// repeatEndpoints builds n distinct endpoints from an IP prefix.
+func repeatEndpoints(prefix string, n int) []netip.AddrPort {
+	out := make([]netip.AddrPort, 0, n)
+	base := netip.MustParseAddrPort(prefix + ":443")
+	for i := 0; i < n; i++ {
+		a := base.Addr().As4()
+		a[3] = byte(1 + i%250)
+		out = append(out, netip.AddrPortFrom(netip.AddrFrom4(a), uint16(443+i%1000)))
+	}
+	return out
+}
