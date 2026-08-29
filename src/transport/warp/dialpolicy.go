@@ -35,6 +35,12 @@ type DialPolicy struct {
 	// RequireMark makes dial fail closed when mark application is not
 	// possible (production posture; addendum forbids silent fallback).
 	RequireMark bool
+	// DisableUDPFragment pins the UDP path to PLPMTUD-only: on Linux it sets
+	// IP(PV6)_MTU_DISCOVER=IP(PV6)_PMTUDISC_DO so oversized datagrams error
+	// locally (EMSIZE) instead of fragmenting (design §7; PATCH-31, N-8).
+	// Default false = the sing-box-compatible allow-fragmentation posture.
+	// Non-Linux platforms: no-op (documented limitation).
+	DisableUDPFragment bool
 }
 
 // applyControl implements the platform hook (dialpolicy_linux.go /

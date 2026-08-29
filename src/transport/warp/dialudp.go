@@ -28,7 +28,9 @@ func (p DialPolicy) ListenUDP(ctx context.Context, network, laddr string) (*net.
 	}
 	cfg := net.ListenConfig{
 		Control: func(_ string, _ string, c syscall.RawConn) error {
-			if err := p.applyControl("", "", c); err != nil {
+			// PATCH-31: the real network reaches the platform hook so the
+			// DisableUDPFragment knob can pick the right family option.
+			if err := p.applyControl(network, "", c); err != nil {
 				return err
 			}
 			// Best-effort buffer sizing; ignore errors by contract.
