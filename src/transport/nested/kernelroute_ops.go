@@ -26,11 +26,19 @@ func (c *KernelRouteCarrier) Assert(ctx context.Context) error {
 	for _, r := range owned {
 		if err := c.verifyRoute(ctx, r.family, r.dst); err != nil {
 			lastErr = err
-			c.emit(Event{Class: ClassCarrierRouteLost, Reason: err.Error()})
+			// B-N2 (PATCH-06): one route-lost event per episode — re-emit
+			// only after a successful repair closed the previous episode.
+			if !r.lostActive {
+				c.emit(Event{Class: ClassCarrierRouteLost, Reason: err.Error()})
+				c.setLostActive(r.dst, true)
+			}
 			if perr := c.repairPin(ctx, r); perr != nil {
 				c.proofOK.Store(false)
 				return perr
 			}
+			// Episode closed: the repair landed; the ClassPinRestored emit
+			// below is the single episode-close signal.
+			c.setLostActive(r.dst, false)
 			repaired = true
 		}
 	}

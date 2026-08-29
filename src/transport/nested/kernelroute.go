@@ -43,6 +43,9 @@ type pinnedRoute struct {
 	dst    netip.Addr
 	dev    string
 	prev   string // previous route line, "" when none existed
+	// lostActive marks a route-lost episode in progress (B-N2: exactly one
+	// route-lost event per episode; reset on successful repair).
+	lostActive bool
 }
 
 // KernelRouteCarrierConfig wires one carrier instance.
@@ -237,6 +240,20 @@ func (c *KernelRouteCarrier) ownedList() []pinnedRoute {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]pinnedRoute(nil), c.owned...)
+}
+
+// setLostActive flips the episode flag on the ORIGINAL owned record under
+// c.mu (ownedList returns copies, so Assert must write back through this
+// helper).
+func (c *KernelRouteCarrier) setLostActive(dst netip.Addr, v bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i := range c.owned {
+		if c.owned[i].dst == dst {
+			c.owned[i].lostActive = v
+			return
+		}
+	}
 }
 
 func (c *KernelRouteCarrier) emit(ev Event) {
