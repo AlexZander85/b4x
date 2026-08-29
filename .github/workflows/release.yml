@@ -107,6 +107,13 @@ jobs:
         working-directory: src
         run: go test -race -count=1 ./...
 
+      # PATCH-34 (review §8.2): load-dependent flakiness (e.g. the vendored
+      # amneziawg-go timer race class) only shows in SERIAL runs; keep a
+      # wg-series gate on top of the single -count=1 sweep.
+      - name: Serial race gate for transport/wg
+        working-directory: src
+        run: go test ./transport/wg/ -race -count=3
+
       - name: Fuzz smoke tests
         working-directory: src
         shell: bash
