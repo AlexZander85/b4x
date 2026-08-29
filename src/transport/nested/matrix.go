@@ -19,6 +19,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	twarp "github.com/daniellavrushin/b4/transport/warp"
 	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
@@ -208,6 +209,11 @@ type MasqueAwgConfig struct {
 
 	OnEvent      func(Event)
 	InnerOnEvent func(twg.SessionEvent) // engine-native passthrough
+
+	// OuterSink optionally receives the OUTER MASQUE supervisor's events
+	// (PATCH-17: the post-connect edge-collision fact-check consumes the
+	// outer layer's cf-warp-colo through it). Must be non-blocking.
+	OuterSink func(twarp.SupervisorEvent)
 }
 
 // MasqueAwgRuntime owns the composed M+W pair: the MASQUE supervisor is the
@@ -235,6 +241,12 @@ type MasqueAwgRuntime struct {
 	innerGateStart atomic.Int64
 
 	metrics *Metrics
+
+	// Post-connect edge witnesses (PATCH-17, B-N3): written when each layer
+	// establishes; the fact-check runs once both are non-zero.
+	outerWitness edgeWitness
+	innerWitness edgeWitness
+	witnessGen   uint64 // generation the collision alert fired for
 
 	cancel   context.CancelFunc
 	done     chan struct{}
@@ -455,6 +467,41 @@ func (r *MasqueAwgRuntime) armOuterGate()     { gateArm(&r.outerGateStart) }
 func (r *MasqueAwgRuntime) armInnerGate()     { gateArm(&r.innerGateStart) }
 func (r *MasqueAwgRuntime) observeOuterGate() { gateObserve(&r.outerGateStart, r.metrics, "outer") }
 func (r *MasqueAwgRuntime) observeInnerGate() { gateObserve(&r.innerGateStart, r.metrics, "inner") }
+
+// checkEdgeCollisionLocked runs the B-N3 post-connect fact-check once BOTH
+// layers' witnesses are non-zero; emits the collision event once per
+// generation. Called under r.mu (callers hold it).
+func (r *MasqueAwgRuntime) checkEdgeCollisionLocked(gen uint64) {
+	if r.witnessGen == gen {
+		return
+	}
+	if r.outerWitness.ip == "" || r.innerWitness.ip == "" {
+		return
+	}
+	if edgeCollision(r.outerWitness, r.innerWitness) {
+		r.witnessGen = gen
+		reason := fmt.Sprintf("post-connect: outer=%s/%s inner=%s/%s",
+			r.outerWitness.ip, r.outerWitness.colo,
+			r.innerWitness.ip, r.innerWitness.colo)
+		r.emit(Event{Class: ClassEdgeCollision, Reason: reason})
+	}
+}
+
+// ObserveOuterEvent is the PATCH-17 colo feed for the M+W composition: the
+// OUTER MASQUE supervisor is owned by the wiring layer, so production wiring
+// forwards its events here (the runtime extracts the established edge's
+// cf-warp-colo and passes everything through to OuterSink verbatim).
+func (r *MasqueAwgRuntime) ObserveOuterEvent(ev twarp.SupervisorEvent) {
+	if ev.Name == twarp.EvMasqueConnected && ev.Colo != "" {
+		r.mu.Lock()
+		r.outerWitness.colo = ev.Colo
+		r.checkEdgeCollisionLocked(r.parentGen)
+		r.mu.Unlock()
+	}
+	if cb := r.cfg.OuterSink; cb != nil {
+		cb(ev)
+	}
+}
 
 func (r *MasqueAwgRuntime) setLink(link string, gen uint64, reason string) {
 	r.mu.Lock()

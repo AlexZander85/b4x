@@ -109,6 +109,11 @@ type WgMasqueRuntime struct {
 	outerGateStart atomic.Int64
 	innerGateStart atomic.Int64
 
+	// Post-connect edge witnesses (PATCH-17, B-N3); guarded by mu.
+	outerWitness edgeWitness
+	innerWitness edgeWitness
+	witnessGen   uint64
+
 	metrics *Metrics
 	// assertInterval is the kernel assertion-loop cadence (test seam: unit
 	// tests shrink it; production keeps the 30s discipline).
@@ -308,6 +313,9 @@ func (r *WgMasqueRuntime) onParentUp() {
 	}
 	r.mu.Lock()
 	r.carrier, r.kernel = carrier, krc
+	// PATCH-17: the OUTER AWG session just established — record its witness
+	// (AWG reports no colo; the ip is the endpoint this generation dialed).
+	r.outerWitness = edgeWitness{ip: r.cfg.Pair.Outer.Endpoint.Addr().String()}
 	r.mu.Unlock()
 
 	sup, err := twarp.NewSupervisor(twarp.SupervisorConfig{
@@ -340,6 +348,11 @@ func (r *WgMasqueRuntime) onParentUp() {
 	r.innerCancel = icancel
 	r.link = "up"
 	r.parentGen = gen
+	// PATCH-17: the inner MASQUE supervisor dials its endpoint through the
+	// carrier — record the fact and run the post-connect fact-check (colo
+	// lands later through the sink bridge and re-runs it).
+	r.innerWitness = edgeWitness{ip: r.cfg.Pair.Inner.Endpoint.Addr().String()}
+	r.checkEdgeCollisionLocked(gen)
 	freshUp := !r.pairUp
 	r.pairUp = true
 	r.mu.Unlock()
@@ -465,10 +478,34 @@ func (r *WgMasqueRuntime) innerSinkBridge() func(twarp.SupervisorEvent) {
 	return func(ev twarp.SupervisorEvent) {
 		if ev.Name == twarp.EvMasqueConnected {
 			r.observeInnerGate()
+			// PATCH-17: the inner layer's established-edge colo telemetry.
+			r.mu.Lock()
+			r.innerWitness.colo = ev.Colo
+			r.checkEdgeCollisionLocked(r.parentGen)
+			r.mu.Unlock()
 		}
 		if user != nil {
 			user(ev)
 		}
+	}
+}
+
+// checkEdgeCollisionLocked runs the B-N3 post-connect fact-check once BOTH
+// layers' witnesses are non-zero; emits the collision event once per
+// generation. Callers hold r.mu.
+func (r *WgMasqueRuntime) checkEdgeCollisionLocked(gen uint64) {
+	if gen == 0 || r.witnessGen == gen {
+		return
+	}
+	if r.outerWitness.ip == "" || r.innerWitness.ip == "" {
+		return
+	}
+	if edgeCollision(r.outerWitness, r.innerWitness) {
+		r.witnessGen = gen
+		reason := fmt.Sprintf("post-connect: outer=%s/%s inner=%s/%s",
+			r.outerWitness.ip, r.outerWitness.colo,
+			r.innerWitness.ip, r.innerWitness.colo)
+		r.emit(Event{Class: ClassEdgeCollision, Reason: reason})
 	}
 }
 

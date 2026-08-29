@@ -268,3 +268,81 @@ func TestMasqueAwgOuterGateAndPairGauge(t *testing.T) {
 		t.Fatalf("repair outer gate = %dms, want >= 40ms (first was %dms)", got, first)
 	}
 }
+
+// ---- PATCH-17 (M-4): post-connect edge-collision fact-check ----
+
+func TestEdgeCollisionPostConnectUnit(t *testing.T) {
+	sameIP := edgeCollision(edgeWitness{ip: "1.2.3.4", colo: "A"}, edgeWitness{ip: "1.2.3.4"})
+	if !sameIP {
+		t.Fatal("same-ip witnesses must collide")
+	}
+	sameColo := edgeCollision(edgeWitness{ip: "1.2.3.4", colo: "TEST"}, edgeWitness{ip: "5.6.7.8", colo: "TEST"})
+	if !sameColo {
+		t.Fatal("same-colo witnesses must collide")
+	}
+	distinct := edgeCollision(edgeWitness{ip: "1.2.3.4", colo: "AAA"}, edgeWitness{ip: "5.6.7.8", colo: "BBB"})
+	if distinct {
+		t.Fatal("distinct witnesses must not collide")
+	}
+	// Empty facts never collide (a layer without telemetry cannot lie).
+	emptyOK := edgeCollision(edgeWitness{ip: "1.2.3.4"}, edgeWitness{ip: "5.6.7.8"})
+	if emptyOK {
+		t.Fatal("missing colo must not collide on the empty side")
+	}
+}
+
+// TestWgMasqueEdgeCollisionPostConnectDetected runs the fact-check through
+// the W+M wiring: outer/inner witnesses land via onParentUp, the inner colo
+// arrives through the sink bridge, and the collision emits once per
+// generation with the post-connect reason prefix.
+func TestWgMasqueEdgeCollisionPostConnectDetected(t *testing.T) {
+	fr := newFakeRoutes()
+	log := &wmEventLog{}
+	rt := newWMKernelRuntimeMetrics(t, fr, log, &Metrics{})
+
+	// Established pair: both ip witnesses recorded (outer + inner endpoints
+	// differ by config, so no collision yet).
+	rt.onParentUp()
+	if n := log.count(ClassEdgeCollision); n != 0 {
+		t.Fatalf("pre-collision events = %d, want 0", n)
+	}
+
+	// The inner lands on the SAME physical edge as the outer: the colo
+	// telemetry arrives through the sink bridge — the fact-check fires.
+	rt.mu.Lock()
+	rt.outerWitness.colo = "TEST"
+	rt.innerWitness.colo = "TEST"
+	rt.checkEdgeCollisionLocked(rt.parentGen)
+	rt.mu.Unlock()
+	if n := log.count(ClassEdgeCollision); n != 1 {
+		t.Fatalf("collision events = %d, want 1", n)
+	}
+	evs := func() []Event { log.mu.Lock(); defer log.mu.Unlock(); return append([]Event(nil), log.ev...) }()
+	found := false
+	for _, ev := range evs {
+		if ev.Class == ClassEdgeCollision && strings.HasPrefix(ev.Reason, "post-connect:") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("collision reason lacks the post-connect: prefix")
+	}
+
+	// Consume-once per generation: a duplicate check must not re-emit.
+	rt.mu.Lock()
+	rt.checkEdgeCollisionLocked(rt.parentGen)
+	rt.mu.Unlock()
+	if n := log.count(ClassEdgeCollision); n != 1 {
+		t.Fatalf("duplicate collision events = %d, want still 1", n)
+	}
+
+	// Distinct facts: no collision on the next generation.
+	rt.mu.Lock()
+	rt.outerWitness, rt.innerWitness = edgeWitness{ip: "1.1.1.1", colo: "AAA"}, edgeWitness{ip: "2.2.2.2", colo: "BBB"}
+	rt.checkEdgeCollisionLocked(rt.parentGen + 1)
+	rt.mu.Unlock()
+	if n := log.count(ClassEdgeCollision); n != 1 {
+		t.Fatalf("distinct-fact events = %d, want still 1", n)
+	}
+	rt.Stop()
+}
