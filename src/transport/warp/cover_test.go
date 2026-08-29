@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"sync"
 	"testing"
+	"time"
 )
 
 // ---- profile conformance (prompt EH5: юнит соответствия профилю) ----
@@ -251,4 +252,142 @@ func TestLadderCoverIntegration(t *testing.T) {
 		t.Fatalf("gate poisoned by local cover failure: %+v", m)
 	}
 	_ = h3Calls // must stay 0 while the cover is broken
+}
+
+// ---- PATCH-23 (M-15): release retry + escalation ----
+
+// flakyCoverApplier fails Deactivate a fixed number of times, then succeeds.
+type flakyCoverApplier struct {
+	stubCoverApplier
+	mu       sync.Mutex
+	failLeft int
+	calls    int
+}
+
+func (f *flakyCoverApplier) Deactivate(setV4, setV6 string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	if f.failLeft > 0 {
+		f.failLeft--
+		return errors.New("nft panic: ruleset busy")
+	}
+	return nil
+}
+
+// Calls returns the Deactivate call count (race-safe for test polling).
+func (f *flakyCoverApplier) Calls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+// guardEvents is a mutex-guarded GuardEvent collector (the retry loop emits
+// from a background goroutine).
+type guardEvents struct {
+	mu  sync.Mutex
+	evs []GuardEvent
+}
+
+func (g *guardEvents) add(ev GuardEvent) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.evs = append(g.evs, ev)
+}
+
+func (g *guardEvents) count(name string) int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	n := 0
+	for _, ev := range g.evs {
+		if ev.Name == name {
+			n++
+		}
+	}
+	return n
+}
+
+func newFlakyCover(t *testing.T, failLeft int) (*FakeQUICCover, *flakyCoverApplier, *guardEvents) {
+	t.Helper()
+	prof := DefaultFakeQUICCoverProfile()
+	applier := &flakyCoverApplier{failLeft: failLeft}
+	events := &guardEvents{}
+	c, err := NewFakeQUICCover(FakeQUICCoverConfig{
+		Profile:                  prof,
+		Apply:                    applier,
+		Sink:                     events.add,
+		ReleaseRetryEvery:        5 * time.Millisecond,
+		ReleaseRetryFastAttempts: 3,
+		ReleaseRetrySlowEvery:    20 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, applier, events
+}
+
+// TestReleaseRetriesUntilSuccess: two failed Deactivates, then the retry
+// loop clears the sets; exactly one escalation (the initial failure), the
+// fast retries stay quiet, and the final Deactivate succeeded.
+func TestReleaseRetriesUntilSuccess(t *testing.T) {
+	c, applier, events := newFlakyCover(t, 2)
+	if err := c.Arm(); err != nil {
+		t.Fatalf("arm: %v", err)
+	}
+	c.Release("test-done")
+
+	deadline := time.After(3 * time.Second)
+	for {
+		st := c.Status()
+		if !st.Armed && applier.Calls() >= 3 && events.count(EvFakeQUICCoverReleased) >= 2 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("retry never cleared: status=%+v calls=%d", c.Status(), applier.Calls())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	time.Sleep(50 * time.Millisecond) // settle: no further retries may arrive
+	st := c.Status()
+	if st.ReleaseRetries != 2 {
+		t.Fatalf("ReleaseRetries = %d, want 2", st.ReleaseRetries)
+	}
+	if n := events.count(EvFakeQUICCoverReleaseFailed); n != 1 {
+		t.Fatalf("escalations = %d, want exactly 1 (initial failure)", n)
+	}
+	if calls := applier.Calls(); calls < 3 {
+		t.Fatalf("Deactivate calls = %d, want >= 3 (initial + 2 retries)", calls)
+	}
+}
+
+// TestReleaseEscalatesWhenPersistent: a permanently failing applier drives
+// escalations at the discharged cadence; a new Arm() cancels the retry loop
+// (no goroutine leak, no events after the re-arm).
+func TestReleaseEscalatesWhenPersistent(t *testing.T) {
+	c, applier, events := newFlakyCover(t, 1<<30) // never succeeds
+	if err := c.Arm(); err != nil {
+		t.Fatal(err)
+	}
+	c.Release("test-stuck")
+
+	deadline := time.After(3 * time.Second)
+	for events.count(EvFakeQUICCoverReleaseFailed) < 2 {
+		select {
+		case <-deadline:
+			t.Fatal("escalations never reached the discharged cadence")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	// Re-arm cancels the retry loop.
+	if err := c.Arm(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond) // a leaked loop would keep retrying/escalating
+	base := events.count(EvFakeQUICCoverReleaseFailed)
+	time.Sleep(100 * time.Millisecond)
+	if got := events.count(EvFakeQUICCoverReleaseFailed); got != base {
+		t.Fatalf("retry loop survived Arm(): escalations %d -> %d", base, got)
+	}
+	t.Logf("total Deactivate calls before re-arm: %d", applier.Calls())
 }

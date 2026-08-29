@@ -381,6 +381,9 @@ func hashAddrs(addrs []netip.Addr) string {
 const (
 	EvFakeQUICCoverArmed    = "warp_fake_quic_cover_armed"
 	EvFakeQUICCoverReleased = "warp_fake_quic_cover_released"
+	// PATCH-23 (M-15): release-failure escalation (first failure, then one
+	// event per discharged-cadence retry; never more than one per cadence).
+	EvFakeQUICCoverReleaseFailed = "warp_fake_quic_cover_release_failed"
 )
 
 // DefaultFakeQUICCoverSetV4/V6 are the kernel set names the fake-QUIC rules
@@ -454,6 +457,15 @@ type FakeQUICCoverConfig struct {
 	Apply   CoverApplier
 	Sink    func(GuardEvent)
 	Now     func() time.Time
+
+	// Release retry cadence (PATCH-23, M-15): a failed Deactivate starts ONE
+	// background retry loop — fast attempts every ReleaseRetryEvery (up to
+	// ReleaseRetryFastAttempts), then the discharged ReleaseRetrySlowEvery
+	// cadence until success or the next Arm(). Zero values map to the
+	// production numbers (5s × 3 → 60s); tests shrink them.
+	ReleaseRetryEvery        time.Duration
+	ReleaseRetryFastAttempts int
+	ReleaseRetrySlowEvery    time.Duration
 }
 
 // FakeQUICCover owns the arm/release lifecycle around H3 establishments.
@@ -461,12 +473,15 @@ type FakeQUICCoverConfig struct {
 type FakeQUICCover struct {
 	cfg FakeQUICCoverConfig
 
-	mu          sync.Mutex
-	armed       bool
-	arms        uint64
-	releases    uint64
-	applyErrors uint64
-	lastErr     string
+	mu             sync.Mutex
+	armed          bool
+	arms           uint64
+	releases       uint64
+	applyErrors    uint64
+	releaseRetries uint64
+	lastErr        string
+	retryCancel    context.CancelFunc // live retry loop; nil = none
+	retryGen       uint64             // retry-loop generation (identity for cleanup)
 }
 
 // NewFakeQUICCover validates the profile shape.
@@ -489,6 +504,13 @@ func (c *FakeQUICCover) Arm() error {
 		return nil
 	}
 	profile, applier := c.cfg.Profile, c.cfg.Apply
+	// PATCH-23: re-arm overlaps and cancels any pending release retry — the
+	// sets are about to be (re)activated, cleanup is no longer wanted.
+	if c.retryCancel != nil {
+		c.retryCancel()
+		c.retryCancel = nil
+		c.retryGen++
+	}
 	c.mu.Unlock()
 
 	v4, v6 := cfCoverPrefixes()
@@ -515,7 +537,9 @@ func (c *FakeQUICCover) Arm() error {
 }
 
 // Release deactivates the coverage. Safe to call from every terminal path;
-// no-op when nothing is armed.
+// no-op when nothing is armed. Non-blocking: a failed Deactivate hands the
+// cleanup to ONE background retry loop (PATCH-23, M-15) instead of leaving
+// the fake-QUIC rules matched against an ESTABLISHED session (risk §C.4).
 func (c *FakeQUICCover) Release(reason string) {
 	c.mu.Lock()
 	if !c.armed {
@@ -531,11 +555,86 @@ func (c *FakeQUICCover) Release(reason string) {
 		c.mu.Lock()
 		c.applyErrors++
 		c.lastErr = err.Error()
+		startRetry := c.retryCancel == nil // single retry loop, never duplicates
 		c.mu.Unlock()
-		// Deactivate failure leaves rules referencing empty/absent sets in
-		// the worst case; surfaced via Status for the field layer to heal.
+		// Escalation: the first failure is loud; the retry loop escalates at
+		// the discharged cadence (>= one cadence apart — no spam).
+		c.emit(GuardEvent{Name: EvFakeQUICCoverReleaseFailed,
+			Detail: fmt.Sprintf("reason=%s attempt=0 err=%v", reason, err)})
+		if startRetry {
+			c.startReleaseRetry(reason)
+		}
 	}
 	c.emit(GuardEvent{Name: EvFakeQUICCoverReleased, Detail: "reason=" + reason})
+}
+
+// startReleaseRetry re-attempts the Deactivate: ReleaseRetryEvery for
+// ReleaseRetryFastAttempts fast attempts, then the discharged
+// ReleaseRetrySlowEvery cadence. Stops on success, on Close, or when the
+// next Arm() cancels it (re-arm overlaps and replaces the stale context).
+func (c *FakeQUICCover) startReleaseRetry(reason string) {
+	ctx, cancel := context.WithCancel(context.Background())
+	c.mu.Lock()
+	c.retryCancel = cancel
+	c.retryGen++
+	gen := c.retryGen
+	fast := c.cfg.ReleaseRetryFastAttempts
+	if fast <= 0 {
+		fast = 3
+	}
+	fastEvery := c.cfg.ReleaseRetryEvery
+	if fastEvery <= 0 {
+		fastEvery = 5 * time.Second
+	}
+	slowEvery := c.cfg.ReleaseRetrySlowEvery
+	if slowEvery <= 0 {
+		slowEvery = 60 * time.Second
+	}
+	profile, applier := c.cfg.Profile, c.cfg.Apply
+	c.mu.Unlock()
+
+	go func() {
+		defer func() {
+			c.mu.Lock()
+			if c.retryGen == gen {
+				c.retryCancel = nil
+			}
+			c.mu.Unlock()
+		}()
+		attempt := 0
+		for {
+			wait := fastEvery
+			if attempt >= fast {
+				wait = slowEvery
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+			attempt++
+			c.mu.Lock()
+			c.releaseRetries++ // every re-attempt counts, including the clearing one
+			c.mu.Unlock()
+			err := applier.Deactivate(profile.SetNameV4, profile.SetNameV6)
+			if err == nil {
+				c.emit(GuardEvent{Name: EvFakeQUICCoverReleased,
+					Detail: fmt.Sprintf("reason=%s attempt=%d cleared", reason, attempt)})
+				cancel() // stops the loop on the next select
+				continue
+			}
+			c.mu.Lock()
+			c.applyErrors++
+			c.lastErr = err.Error()
+			c.mu.Unlock()
+			// Escalation cadence: fast retries stay quiet (seconds apart);
+			// every discharged (slow-cadence) failure escalates again.
+			if attempt > fast {
+				c.emit(GuardEvent{Name: EvFakeQUICCoverReleaseFailed,
+					Detail: fmt.Sprintf("reason=%s attempt=%d err=%v", reason, attempt, err)})
+			}
+		}
+	}()
 }
 
 // Status snapshots the cover counters.
@@ -544,18 +643,22 @@ type FakeQUICCoverStatus struct {
 	Arms        uint64
 	Releases    uint64
 	ApplyErrors uint64
-	LastError   string
+	// ReleaseRetries counts background Deactivate re-attempts since
+	// construction (PATCH-23, M-15: the self-healing surface is observable).
+	ReleaseRetries uint64
+	LastError      string
 }
 
 func (c *FakeQUICCover) Status() FakeQUICCoverStatus {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return FakeQUICCoverStatus{
-		Armed:       c.armed,
-		Arms:        c.arms,
-		Releases:    c.releases,
-		ApplyErrors: c.applyErrors,
-		LastError:   c.lastErr,
+		Armed:          c.armed,
+		Arms:           c.arms,
+		Releases:       c.releases,
+		ApplyErrors:    c.applyErrors,
+		ReleaseRetries: c.releaseRetries,
+		LastError:      c.lastErr,
 	}
 }
 
