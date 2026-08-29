@@ -1057,3 +1057,29 @@ func startMasqueAwgPair(t *testing.T, merged bool) *masqueAwgPair {
 	t.Cleanup(rt.Stop)
 	return fx
 }
+
+// ---- PATCH-28 (N-5): per-layer StatusDetailed over a live pair ----
+
+// TestE2EMasqueAwgStatusDetailed: once the pair is established through both
+// planes, the per-layer snapshot carries real inner WG telemetry (handshake
+// age, transfer bytes) and an honest outer establishment timestamp.
+func TestE2EMasqueAwgStatusDetailed(t *testing.T) {
+	fx := startMasqueAwgPair(t, false)
+	if !fx.events.await(t, 90*time.Second, "wg_established") {
+		t.Fatalf("no established; events=%v", fx.events.tail())
+	}
+	st := fx.rt.StatusDetailed()
+	if st.Link != "up" || !st.ChildRunning {
+		t.Fatalf("pair status = %+v", st)
+	}
+	if st.Outer.HandshakeMS < 0 {
+		t.Fatalf("outer handshake never recorded: %+v", st.Outer)
+	}
+	if st.Inner.HandshakeMS < 0 {
+		t.Fatalf("inner handshake never recorded: %+v", st.Inner)
+	}
+	// The trust-gate DNS probes pushed bytes both ways through the WG peer.
+	if st.Inner.RXBytes == 0 || st.Inner.TXBytes == 0 {
+		t.Fatalf("inner telemetry = %+v, want non-zero RX/TX after the gate", st.Inner)
+	}
+}

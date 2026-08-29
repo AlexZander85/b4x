@@ -113,6 +113,7 @@ type WgMasqueRuntime struct {
 	outerWitness edgeWitness
 	innerWitness edgeWitness
 	witnessGen   uint64
+	innerUpSince time.Time // last inner supervisor start (StatusDetailed)
 
 	metrics *Metrics
 	// assertInterval is the kernel assertion-loop cadence (test seam: unit
@@ -214,6 +215,38 @@ func (r *WgMasqueRuntime) Status() (link string, parentGen uint64, childRunning 
 		child = true
 	}
 	return r.link, r.parentGen, child
+}
+
+// StatusDetailed returns the per-layer snapshot (PATCH-28, N-5): the OUTER
+// AWG session reports real peer telemetry (IpcGet); the INNER MASQUE
+// supervisor exposes no transfer counters (honest zeros + establishment
+// timestamp as the handshake-age surrogate).
+func (r *WgMasqueRuntime) StatusDetailed() PairStatus {
+	r.mu.Lock()
+	link, gen := r.link, r.parentGen
+	outer := r.outerSession
+	innerUp := r.innerUpSince
+	innerRunning := r.inner != nil && r.inner.Snapshot().State != twarp.StateStopped
+	r.mu.Unlock()
+
+	st := PairStatus{Link: link, ParentGen: gen, ChildRunning: innerRunning}
+	// Outer AWG session: real peer telemetry via IpcGet.
+	if outer != nil {
+		tel := outer.Telemetry()
+		st.Outer.HandshakeMS = handshakeAgeMS(tel.HandshakeUnix)
+		st.Outer.RXBytes = tel.RXBytes
+		st.Outer.TXBytes = tel.TXBytes
+	} else {
+		st.Outer.HandshakeMS = neverEstablished
+	}
+	// Inner MASQUE supervisor: no transfer telemetry on the supervisor
+	// surface; the establishment timestamp is what we honestly know.
+	if innerRunning && !innerUp.IsZero() {
+		st.Inner.HandshakeMS = time.Since(innerUp).Milliseconds()
+	} else {
+		st.Inner.HandshakeMS = neverEstablished
+	}
+	return st
 }
 
 // Stop tears down CHILD-FIRST (inner supervisor), then kernel pins if owned,
@@ -348,6 +381,7 @@ func (r *WgMasqueRuntime) onParentUp() {
 	r.innerCancel = icancel
 	r.link = "up"
 	r.parentGen = gen
+	r.innerUpSince = time.Now()
 	// PATCH-17: the inner MASQUE supervisor dials its endpoint through the
 	// carrier — record the fact and run the post-connect fact-check (colo
 	// lands later through the sink bridge and re-runs it).

@@ -246,7 +246,8 @@ type MasqueAwgRuntime struct {
 	// establishes; the fact-check runs once both are non-zero.
 	outerWitness edgeWitness
 	innerWitness edgeWitness
-	witnessGen   uint64 // generation the collision alert fired for
+	witnessGen   uint64    // generation the collision alert fired for
+	outerUpSince time.Time // last outer establishment (StatusDetailed)
 
 	cancel   context.CancelFunc
 	done     chan struct{}
@@ -332,6 +333,77 @@ func (r *MasqueAwgRuntime) Status() (link string, parentGen uint64, childRunning
 	return r.link, r.parentGen, child
 }
 
+// LayerStatus is one composed layer's post-establishment snapshot
+// (PATCH-28, N-5 / design §1.2): last handshake age, per-layer transfer
+// counters. Sources differ per engine: WG sessions expose peer telemetry
+// (IpcGet), the MASQUE plane interface carries none (zeros stay honest).
+type LayerStatus struct {
+	// HandshakeMS is the AGE of the layer's last handshake in milliseconds;
+	// -1 = never established.
+	HandshakeMS int64
+	RXBytes     uint64
+	TXBytes     uint64
+	// RXPackets/TXPackets: engines that count packets (H3 datagram path)
+	// fill these; WG telemetry exposes bytes only (zero here).
+	RXPackets uint64
+	TXPackets uint64
+}
+
+// PairStatus is one snapshot of both composed layers (design §1.2).
+type PairStatus struct {
+	Link         string
+	ParentGen    uint64
+	ChildRunning bool
+	Outer        LayerStatus
+	Inner        LayerStatus
+}
+
+// neverEstablished is the "never" handshake marker.
+const neverEstablished = int64(-1)
+
+// handshakeAgeMS converts a unix handshake stamp to its age in ms
+// (0/absent stamp -> neverEstablished).
+func handshakeAgeMS(unixSec int64) int64 {
+	if unixSec <= 0 {
+		return neverEstablished
+	}
+	age := time.Since(time.Unix(unixSec, 0))
+	if age < 0 {
+		return 0
+	}
+	return age.Milliseconds()
+}
+
+// StatusDetailed returns the per-layer snapshot without breaking the
+// degraded Status() callers.
+func (r *MasqueAwgRuntime) StatusDetailed() PairStatus {
+	r.mu.Lock()
+	link, gen := r.link, r.parentGen
+	innerSess := r.inner
+	outerUp := r.outerUpSince
+	r.mu.Unlock()
+
+	st := PairStatus{Link: link, ParentGen: gen}
+	// Outer MASQUE plane: no telemetry on CapsulePlane; the witnessed
+	// establishment timestamp is the honest "handshake age" surrogate.
+	if !outerUp.IsZero() {
+		st.Outer.HandshakeMS = time.Since(outerUp).Milliseconds()
+	} else {
+		st.Outer.HandshakeMS = neverEstablished
+	}
+	// Inner AWG session: real peer telemetry via IpcGet.
+	if innerSess != nil && innerSess.State() != twg.StateClosed {
+		st.ChildRunning = true
+		tel := innerSess.Telemetry()
+		st.Inner.HandshakeMS = handshakeAgeMS(tel.HandshakeUnix)
+		st.Inner.RXBytes = tel.RXBytes
+		st.Inner.TXBytes = tel.TXBytes
+	} else {
+		st.Inner.HandshakeMS = neverEstablished
+	}
+	return st
+}
+
 // RelayDroppedInbound exposes the carrier's demux drop counter (diagnostics).
 func (r *MasqueAwgRuntime) RelayDroppedInbound() uint64 {
 	return r.carrier.DroppedInbound()
@@ -359,6 +431,13 @@ func (r *MasqueAwgRuntime) run(ctx context.Context) {
 			gen := r.parentGen + 1
 			// MAJOR-5: RouteHeld rising edge closes the outer gate.
 			r.observeOuterGate()
+			// PATCH-17: the outer plane is held — record its witness.
+			// The colo arrives through OuterSink (cf-warp-colo of the
+			// established edge); AWG inner layers report none.
+			r.mu.Lock()
+			r.outerWitness = edgeWitness{ip: r.cfg.Pair.Outer.Endpoint.Addr().String()}
+			r.outerUpSince = time.Now() // PATCH-28: StatusDetailed handshake age
+			r.mu.Unlock()
 			if err := r.startChild(gen); err != nil {
 				r.setLink("child-invalidated", gen, err.Error())
 				break

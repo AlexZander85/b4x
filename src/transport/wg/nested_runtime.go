@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net/netip"
 	"sync"
+	"time"
 )
 
 // NestedLinkState mirrors transportwarp LinkState semantics for the WG-WG
@@ -41,6 +42,16 @@ const (
 	NestedChildInvalidated NestedLinkState = "child-invalidated"
 )
 
+// WgLayerStatus is one layer's post-establishment snapshot (PATCH-28, N-5;
+// local mirror of the nested package's LayerStatus — importing nested here
+// would close the nested->wg import cycle).
+type WgLayerStatus struct {
+	// HandshakeMS is the AGE of the layer's last handshake in ms; -1 = never.
+	HandshakeMS int64
+	RXBytes     uint64
+	TXBytes     uint64
+}
+
 // NestedWgStatus is the externally visible snapshot.
 type NestedWgStatus struct {
 	Link      NestedLinkState
@@ -49,6 +60,26 @@ type NestedWgStatus struct {
 	// inner layer self-manages restarts (its own supervisor); the runtime
 	// only respawns children on PARENT transitions.
 	ChildRunning bool
+	// Per-layer transfer snapshots (PATCH-28, N-5 / design §1.2).
+	Outer WgLayerStatus
+	Inner WgLayerStatus
+}
+
+// wgLayerStatusOf converts one session's telemetry (nil/closed session ->
+// never established).
+func wgLayerStatusOf(sess *Session) WgLayerStatus {
+	if sess == nil || sess.State() == StateClosed {
+		return WgLayerStatus{HandshakeMS: -1}
+	}
+	tel := sess.Telemetry()
+	ms := int64(-1)
+	if tel.HandshakeUnix > 0 {
+		ms = time.Since(time.Unix(tel.HandshakeUnix, 0)).Milliseconds()
+		if ms < 0 {
+			ms = 0
+		}
+	}
+	return WgLayerStatus{HandshakeMS: ms, RXBytes: tel.RXBytes, TXBytes: tel.TXBytes}
 }
 
 // NestedWgOptions carries tuning knobs; zero values map to design defaults.
@@ -147,7 +178,8 @@ func (r *NestedWgRuntime) Stop() {
 	})
 }
 
-// Status snapshots the link state.
+// Status snapshots the link state with per-layer transfer telemetry
+// (PATCH-28, N-5).
 func (r *NestedWgRuntime) Status() NestedWgStatus {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -155,6 +187,8 @@ func (r *NestedWgRuntime) Status() NestedWgStatus {
 	if r.inner != nil && r.inner.State() != StateClosed {
 		st.ChildRunning = true
 	}
+	st.Outer = wgLayerStatusOf(r.outer)
+	st.Inner = wgLayerStatusOf(r.inner)
 	return st
 }
 

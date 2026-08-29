@@ -498,6 +498,65 @@ func (s *Session) countersSampler(dev *device.Device) CountersFunc {
 	}
 }
 
+// SessionTelemetry is the parsed per-peer transfer snapshot of one session
+// (PATCH-28, N-5: per-layer handshake/RX/TX for the composed Status views).
+type SessionTelemetry struct {
+	// HandshakeUnix is the last completed handshake as a unix timestamp
+	// (0 = never established).
+	HandshakeUnix int64
+	RXBytes       uint64
+	TXBytes       uint64
+}
+
+// Telemetry parses the first peer's counters out of the live IpcGet dump.
+// Errors degrade to a zero-value telemetry (never blocks the caller).
+func (s *Session) Telemetry() SessionTelemetry {
+	dump, err := s.IPCSnapshot()
+	if err != nil {
+		return SessionTelemetry{}
+	}
+	return ParseWGTelemetry(dump)
+}
+
+// ParseWGTelemetry extracts the per-peer handshake stamp and transfer
+// counters from a wg IpcGet dump (first peer wins; the nested runtimes
+// compose exactly one peer per session). Both key spellings are accepted:
+// upstream wireguard-go ships transfer_rx_bytes/transfer_tx_bytes while the
+// vendored amneziawg-go v3 UAPI emits rx_bytes/tx_bytes (uapi.go:212).
+func ParseWGTelemetry(dump string) SessionTelemetry {
+	var t SessionTelemetry
+	for _, line := range strings.Split(dump, "\n") {
+		name, value, found := cutLine(line)
+		if !found {
+			continue
+		}
+		switch name {
+		case "last_handshake_time_sec":
+			if t.HandshakeUnix == 0 {
+				t.HandshakeUnix, _ = strconv.ParseInt(value, 10, 64)
+			}
+		case "transfer_rx_bytes", "rx_bytes":
+			if t.RXBytes == 0 {
+				t.RXBytes, _ = strconv.ParseUint(value, 10, 64)
+			}
+		case "transfer_tx_bytes", "tx_bytes":
+			if t.TXBytes == 0 {
+				t.TXBytes, _ = strconv.ParseUint(value, 10, 64)
+			}
+		}
+	}
+	return t
+}
+
+func cutLine(line string) (name, value string, ok bool) {
+	for i := 0; i < len(line); i++ {
+		if line[i] == '=' {
+			return line[:i], line[i+1:], true
+		}
+	}
+	return "", "", false
+}
+
 // IPCSnapshot returns the live IpcGet dump of the current generation
 // (empty string + error when no device is up).
 func (s *Session) IPCSnapshot() (string, error) {
