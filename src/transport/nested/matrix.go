@@ -10,43 +10,43 @@
 package nested
 
 import (
-        "context"
-        "errors"
-        "fmt"
-        "net"
-        "net/netip"
-        "sync"
-        "sync/atomic"
-        "time"
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/netip"
+	"sync"
+	"sync/atomic"
+	"time"
 
-        twg "github.com/daniellavrushin/b4/transport/wg"
+	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
 // Kind selects the transport family of one layer.
 type Kind string
 
 const (
-        KindAWG      Kind = "awg"
-        KindMasqueH2 Kind = "masque-h2"
+	KindAWG      Kind = "awg"
+	KindMasqueH2 Kind = "masque-h2"
 )
 
 func (k Kind) valid() bool { return k == KindAWG || k == KindMasqueH2 }
 
 // Identity slots (design 2: one CF device cannot be two layers).
 const (
-        SlotPrimary   = "primary"
-        SlotSecondary = "secondary"
+	SlotPrimary   = "primary"
+	SlotSecondary = "secondary"
 )
 
 // CarrierMode selects (or auto-resolves) the outer-side carrier.
 type CarrierMode string
 
 const (
-        CarrierAuto        CarrierMode = "auto"
-        CarrierKernelRoute CarrierMode = "kernel-route"
-        CarrierNetstack    CarrierMode = "netstack"
-        // CarrierDatagram is the resolved mode for a MASQUE CONNECT-IP outer.
-        CarrierDatagram CarrierMode = "masque-datagram"
+	CarrierAuto        CarrierMode = "auto"
+	CarrierKernelRoute CarrierMode = "kernel-route"
+	CarrierNetstack    CarrierMode = "netstack"
+	// CarrierDatagram is the resolved mode for a MASQUE CONNECT-IP outer.
+	CarrierDatagram CarrierMode = "masque-datagram"
 )
 
 // FailureMode: the only supported posture (design 6).
@@ -54,11 +54,11 @@ const FailureModeFailClosedScoped = "fail-closed-scoped"
 
 // Validation errors carry structural identity (design 5 classes).
 var (
-        // ErrEdgeCollision names its class in the text so traces can classify
-        // without parsing free form (nested/edge-collision).
-        ErrEdgeCollision = errors.New("nested/edge-collision: layers terminate on the same edge IP")
-        ErrBadKind       = errors.New("nested: illegal layer kind")
-        ErrBadSlot       = errors.New("nested: inner identity slot must be " + SlotSecondary)
+	// ErrEdgeCollision names its class in the text so traces can classify
+	// without parsing free form (nested/edge-collision).
+	ErrEdgeCollision = errors.New("nested/edge-collision: layers terminate on the same edge IP")
+	ErrBadKind       = errors.New("nested: illegal layer kind")
+	ErrBadSlot       = errors.New("nested: inner identity slot must be " + SlotSecondary)
 )
 
 // MaxInnerMTU is the hard cap under ANY outer (design 2: encapsulation headroom).
@@ -66,84 +66,84 @@ const MaxInnerMTU = 1200
 
 // LayerSpec declares one layer of the pair.
 type LayerSpec struct {
-        Kind         Kind
-        IdentitySlot string
-        ProfileID    string // profile catalog reference; resolved by wiring
-        Endpoint     netip.AddrPort
-        MTU          int // 0 = engine default (outer) / MaxInnerMTU (inner cap)
+	Kind         Kind
+	IdentitySlot string
+	ProfileID    string // profile catalog reference; resolved by wiring
+	Endpoint     netip.AddrPort
+	MTU          int // 0 = engine default (outer) / MaxInnerMTU (inner cap)
 }
 
 // PairConfig is the declarative schema of one nested pair (design 6).
 type PairConfig struct {
-        Outer LayerSpec
-        Inner LayerSpec
-        // Carrier: auto | kernel-route | netstack (datagram is resolved-only).
-        Carrier CarrierMode
-        // FailureMode: empty or fail-closed-scoped.
-        FailureMode string
+	Outer LayerSpec
+	Inner LayerSpec
+	// Carrier: auto | kernel-route | netstack (datagram is resolved-only).
+	Carrier CarrierMode
+	// FailureMode: empty or fail-closed-scoped.
+	FailureMode string
 }
 
 // Validate enforces every matrix rule without touching network state.
 func (p *PairConfig) Validate() error {
-        if !p.Outer.Kind.valid() || !p.Inner.Kind.valid() {
-                return fmt.Errorf("%w: outer=%q inner=%q", ErrBadKind, p.Outer.Kind, p.Inner.Kind)
-        }
-        if p.Outer.IdentitySlot != SlotPrimary {
-                return fmt.Errorf("nested: outer identity slot must be %q", SlotPrimary)
-        }
-        if p.Inner.IdentitySlot != SlotSecondary {
-                return ErrBadSlot
-        }
-        if p.Outer.ProfileID == "" || p.Inner.ProfileID == "" {
-                return errors.New("nested: profile_id required for both layers")
-        }
-        if !p.Outer.Endpoint.IsValid() || p.Outer.Endpoint.Port() == 0 ||
-                !p.Inner.Endpoint.IsValid() || p.Inner.Endpoint.Port() == 0 {
-                return errors.New("nested: both layer endpoints must be valid addr:port")
-        }
-        if p.Outer.Endpoint.Addr() == p.Inner.Endpoint.Addr() {
-                return ErrEdgeCollision
-        }
-        innerMTU := p.Inner.MTU
-        if innerMTU == 0 {
-                innerMTU = MaxInnerMTU
-        }
-        if innerMTU > MaxInnerMTU {
-                return fmt.Errorf("nested: inner mtu %d exceeds cap %d", innerMTU, MaxInnerMTU)
-        }
-        switch p.Carrier {
-        case "", CarrierAuto, CarrierKernelRoute, CarrierNetstack:
-        default:
-                return fmt.Errorf("nested: carrier mode %q is not declarable (resolved only)", p.Carrier)
-        }
-        if p.FailureMode != "" && p.FailureMode != FailureModeFailClosedScoped {
-                return fmt.Errorf("nested: unsupported failure_mode %q", p.FailureMode)
-        }
-        return nil
+	if !p.Outer.Kind.valid() || !p.Inner.Kind.valid() {
+		return fmt.Errorf("%w: outer=%q inner=%q", ErrBadKind, p.Outer.Kind, p.Inner.Kind)
+	}
+	if p.Outer.IdentitySlot != SlotPrimary {
+		return fmt.Errorf("nested: outer identity slot must be %q", SlotPrimary)
+	}
+	if p.Inner.IdentitySlot != SlotSecondary {
+		return ErrBadSlot
+	}
+	if p.Outer.ProfileID == "" || p.Inner.ProfileID == "" {
+		return errors.New("nested: profile_id required for both layers")
+	}
+	if !p.Outer.Endpoint.IsValid() || p.Outer.Endpoint.Port() == 0 ||
+		!p.Inner.Endpoint.IsValid() || p.Inner.Endpoint.Port() == 0 {
+		return errors.New("nested: both layer endpoints must be valid addr:port")
+	}
+	if p.Outer.Endpoint.Addr() == p.Inner.Endpoint.Addr() {
+		return ErrEdgeCollision
+	}
+	innerMTU := p.Inner.MTU
+	if innerMTU == 0 {
+		innerMTU = MaxInnerMTU
+	}
+	if innerMTU > MaxInnerMTU {
+		return fmt.Errorf("nested: inner mtu %d exceeds cap %d", innerMTU, MaxInnerMTU)
+	}
+	switch p.Carrier {
+	case "", CarrierAuto, CarrierKernelRoute, CarrierNetstack:
+	default:
+		return fmt.Errorf("nested: carrier mode %q is not declarable (resolved only)", p.Carrier)
+	}
+	if p.FailureMode != "" && p.FailureMode != FailureModeFailClosedScoped {
+		return fmt.Errorf("nested: unsupported failure_mode %q", p.FailureMode)
+	}
+	return nil
 }
 
 // ResolveCarrier implements the auto rule: the OUTER data-plane mode decides.
 // awg outer -> kernel route when the outer rides a kernel TUN, netstack when
 // it runs the gVisor stack; masque-h2 outer -> datagram plane.
 func ResolveCarrier(p PairConfig, outerKernelTUN bool) (CarrierMode, error) {
-        switch p.Carrier {
-        case CarrierKernelRoute, CarrierNetstack, CarrierDatagram:
-                return p.Carrier, nil
-        case "", CarrierAuto:
-        default:
-                return "", fmt.Errorf("nested: unknown carrier mode %q", p.Carrier)
-        }
-        switch p.Outer.Kind {
-        case KindMasqueH2:
-                return CarrierDatagram, nil
-        case KindAWG:
-                if outerKernelTUN {
-                        return CarrierKernelRoute, nil
-                }
-                return CarrierNetstack, nil
-        default:
-                return "", ErrBadKind
-        }
+	switch p.Carrier {
+	case CarrierKernelRoute, CarrierNetstack, CarrierDatagram:
+		return p.Carrier, nil
+	case "", CarrierAuto:
+	default:
+		return "", fmt.Errorf("nested: unknown carrier mode %q", p.Carrier)
+	}
+	switch p.Outer.Kind {
+	case KindMasqueH2:
+		return CarrierDatagram, nil
+	case KindAWG:
+		if outerKernelTUN {
+			return CarrierKernelRoute, nil
+		}
+		return CarrierNetstack, nil
+	default:
+		return "", ErrBadKind
+	}
 }
 
 // ---- assembly seams ----
@@ -152,31 +152,31 @@ func ResolveCarrier(p PairConfig, outerKernelTUN bool) (CarrierMode, error) {
 // forwarder dial seam: the relay keeps its tested pump logic while its
 // upstream becomes the carrier session (M+W path).
 func ForwarderSeam(c UDPSessionCarrier) twg.DialUDPFunc {
-        return func(ctx context.Context, network, address string) (twg.UDPConn, error) {
-                if network != "udp" && network != "udp4" {
-                        return nil, fmt.Errorf("nested: forwarder seam carries udp only, got %q", network)
-                }
-                ap, err := netip.ParseAddrPort(address)
-                if err != nil {
-                        return nil, fmt.Errorf("nested: forwarder seam endpoint: %w", err)
-                }
-                return c.DialUDPThrough(ctx, ap)
-        }
+	return func(ctx context.Context, network, address string) (twg.UDPConn, error) {
+		if network != "udp" && network != "udp4" {
+			return nil, fmt.Errorf("nested: forwarder seam carries udp only, got %q", network)
+		}
+		ap, err := netip.ParseAddrPort(address)
+		if err != nil {
+			return nil, fmt.Errorf("nested: forwarder seam endpoint: %w", err)
+		}
+		return c.DialUDPThrough(ctx, ap)
+	}
 }
 
 // CarrierDialFunc adapts a NestedCarrier to transportwarp SessionConfig.DialFunc:
 // the inner MASQUE control socket dials THROUGH the outer (W+M path).
 func CarrierDialFunc(c NestedCarrier) func(ctx context.Context, network, addr string) (net.Conn, error) {
-        return func(ctx context.Context, network, addr string) (net.Conn, error) {
-                if network != "tcp" {
-                        return nil, fmt.Errorf("nested: carrier dial func carries tcp only, got %q", network)
-                }
-                ap, err := netip.ParseAddrPort(addr)
-                if err != nil {
-                        return nil, fmt.Errorf("nested: carrier dial endpoint: %w", err)
-                }
-                return c.DialTCPThrough(ctx, ap)
-        }
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		if network != "tcp" {
+			return nil, fmt.Errorf("nested: carrier dial func carries tcp only, got %q", network)
+		}
+		ap, err := netip.ParseAddrPort(addr)
+		if err != nil {
+			return nil, fmt.Errorf("nested: carrier dial endpoint: %w", err)
+		}
+		return c.DialTCPThrough(ctx, ap)
+	}
 }
 
 // ---- M+W runtime: MASQUE outer carrying an AWG inner ----
@@ -185,29 +185,29 @@ func CarrierDialFunc(c NestedCarrier) func(ctx context.Context, network, addr st
 // caller (identity enrollment, profiles, catalogs); the runtime owns ONLY
 // the composition lifecycle (parent-link contracts reused from E5/WG6).
 type MasqueAwgConfig struct {
-        Pair PairConfig // must validate as masque-h2 outer + awg inner
+	Pair PairConfig // must validate as masque-h2 outer + awg inner
 
-        // Plane is the OUTER MASQUE CONNECT-IP instance (*warp.Supervisor in
-        // production; the interface keeps the runtime e2e-testable with a
-        // direct DialSession adapter).
-        Plane   CapsulePlane
-        LocalV4 [4]byte // outer assigned address (carrier source)
+	// Plane is the OUTER MASQUE CONNECT-IP instance (*warp.Supervisor in
+	// production; the interface keeps the runtime e2e-testable with a
+	// direct DialSession adapter).
+	Plane   CapsulePlane
+	LocalV4 [4]byte // outer assigned address (carrier source)
 
-        // Inner AWG layer pieces.
-        InnerIdent   *twg.Identity
-        InnerProfile twg.Profile
-        DNS          netip.Addr // inside BOTH planes' resolvers; default 8.8.8.8
+	// Inner AWG layer pieces.
+	InnerIdent   *twg.Identity
+	InnerProfile twg.Profile
+	DNS          netip.Addr // inside BOTH planes' resolvers; default 8.8.8.8
 
-        MaxInnerGenerations int
-        PollInterval        time.Duration // parent-link tick; default 20ms
+	MaxInnerGenerations int
+	PollInterval        time.Duration // parent-link tick; default 20ms
 
-        // Metrics optionally receives this pair's counter surface (design 5):
-        // per-layer gate latency (design 62.9), the pair-active gauge and the
-        // composition counters. All methods are nil-safe; nil = no-op surface.
-        Metrics *Metrics
+	// Metrics optionally receives this pair's counter surface (design 5):
+	// per-layer gate latency (design 62.9), the pair-active gauge and the
+	// composition counters. All methods are nil-safe; nil = no-op surface.
+	Metrics *Metrics
 
-        OnEvent      func(Event)
-        InnerOnEvent func(twg.SessionEvent) // engine-native passthrough
+	OnEvent      func(Event)
+	InnerOnEvent func(twg.SessionEvent) // engine-native passthrough
 }
 
 // MasqueAwgRuntime owns the composed M+W pair: the MASQUE supervisor is the
@@ -216,237 +216,237 @@ type MasqueAwgConfig struct {
 // proof inherited from WG6 - the inner still dials loopback; its datagrams
 // physically ride the capsule stream).
 type MasqueAwgRuntime struct {
-        cfg     MasqueAwgConfig
-        carrier *MasqueDatagramCarrier
+	cfg     MasqueAwgConfig
+	carrier *MasqueDatagramCarrier
 
-        mu        sync.Mutex
-        link      string // waiting-parent | up | child-invalidated
-        parentGen uint64
-        inner     *twg.Session
-        fwd       *twg.LoopbackForwarder
-        // pairUp guards the PairActive gauge transition (no double-decrement
-        // across repeated lost->held cycles and Stop).
-        pairUp bool
+	mu        sync.Mutex
+	link      string // waiting-parent | up | child-invalidated
+	parentGen uint64
+	inner     *twg.Session
+	fwd       *twg.LoopbackForwarder
+	// pairUp guards the PairActive gauge transition (no double-decrement
+	// across repeated lost->held cycles and Stop).
+	pairUp bool
 
-        // Gate stamps (MAJOR-5, design 62.9): unix nanos, 0 = disarmed; see
-        // gateObserve in metrics.go. The inner OnEstablished fires on the
-        // session's goroutine, hence atomics over the runtime mutex.
-        outerGateStart atomic.Int64
-        innerGateStart atomic.Int64
+	// Gate stamps (MAJOR-5, design 62.9): unix nanos, 0 = disarmed; see
+	// gateObserve in metrics.go. The inner OnEstablished fires on the
+	// session's goroutine, hence atomics over the runtime mutex.
+	outerGateStart atomic.Int64
+	innerGateStart atomic.Int64
 
-        metrics *Metrics
+	metrics *Metrics
 
-        cancel   context.CancelFunc
-        done     chan struct{}
-        startOne sync.Once
-        stopOnce sync.Once
+	cancel   context.CancelFunc
+	done     chan struct{}
+	startOne sync.Once
+	stopOnce sync.Once
 }
 
 // NewMasqueAwgRuntime validates the declaration and returns a stopped runtime.
 func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
-        if err := cfg.Pair.Validate(); err != nil {
-                return nil, err
-        }
-        if cfg.Pair.Outer.Kind != KindMasqueH2 || cfg.Pair.Inner.Kind != KindAWG {
-                return nil, fmt.Errorf("nested: MasqueAwgRuntime requires masque-h2+awg, got %s+%s",
-                        cfg.Pair.Outer.Kind, cfg.Pair.Inner.Kind)
-        }
-        if cfg.Plane == nil || cfg.InnerIdent == nil {
-                return nil, errors.New("nested: masque+awg requires capsule plane and inner identity")
-        }
-        if cfg.PollInterval <= 0 {
-                cfg.PollInterval = 20 * time.Millisecond
-        }
-        if !cfg.DNS.IsValid() {
-                cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
-        }
-        carrier, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
-                Plane:   cfg.Plane,
-                LocalV4: cfg.LocalV4,
-        })
-        if err != nil {
-                return nil, err
-        }
-        return &MasqueAwgRuntime{
-                cfg:     cfg,
-                carrier: carrier,
-                link:    "waiting-parent",
-                metrics: cfg.Metrics,
-                done:    make(chan struct{}),
-        }, nil
+	if err := cfg.Pair.Validate(); err != nil {
+		return nil, err
+	}
+	if cfg.Pair.Outer.Kind != KindMasqueH2 || cfg.Pair.Inner.Kind != KindAWG {
+		return nil, fmt.Errorf("nested: MasqueAwgRuntime requires masque-h2+awg, got %s+%s",
+			cfg.Pair.Outer.Kind, cfg.Pair.Inner.Kind)
+	}
+	if cfg.Plane == nil || cfg.InnerIdent == nil {
+		return nil, errors.New("nested: masque+awg requires capsule plane and inner identity")
+	}
+	if cfg.PollInterval <= 0 {
+		cfg.PollInterval = 20 * time.Millisecond
+	}
+	if !cfg.DNS.IsValid() {
+		cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
+	}
+	carrier, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
+		Plane:   cfg.Plane,
+		LocalV4: cfg.LocalV4,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &MasqueAwgRuntime{
+		cfg:     cfg,
+		carrier: carrier,
+		link:    "waiting-parent",
+		metrics: cfg.Metrics,
+		done:    make(chan struct{}),
+	}, nil
 }
 
 // Start launches the parent-link controller and the carrier pump.
 func (r *MasqueAwgRuntime) Start(parent context.Context) error {
-        r.startOne.Do(func() {
-                ctx, cancel := context.WithCancel(parent)
-                r.cancel = cancel
-                // MAJOR-5: the outer gate is attributable only when THIS
-                // runtime witnesses the plane's establishment; an already-held
-                // plane predates the runtime (no gate claim is allowed).
-                if !r.cfg.Plane.Snapshot().RouteHeld {
-                        r.armOuterGate()
-                }
-                r.carrier.StartPumping()
-                go r.run(ctx)
-        })
-        select {
-        case <-r.done:
-                return fmt.Errorf("nested: masque+awg runtime exited during start")
-        default:
-                return nil
-        }
+	r.startOne.Do(func() {
+		ctx, cancel := context.WithCancel(parent)
+		r.cancel = cancel
+		// MAJOR-5: the outer gate is attributable only when THIS
+		// runtime witnesses the plane's establishment; an already-held
+		// plane predates the runtime (no gate claim is allowed).
+		if !r.cfg.Plane.Snapshot().RouteHeld {
+			r.armOuterGate()
+		}
+		r.carrier.StartPumping()
+		go r.run(ctx)
+	})
+	select {
+	case <-r.done:
+		return fmt.Errorf("nested: masque+awg runtime exited during start")
+	default:
+		return nil
+	}
 }
 
 // Stop tears down CHILD-FIRST (inner, forwarder), then the controller and
 // the carrier. The MASQUE supervisor itself stays owned by its creator.
 func (r *MasqueAwgRuntime) Stop() {
-        r.stopOnce.Do(func() {
-                if r.cancel != nil {
-                        r.cancel()
-                }
-                <-r.done
-                r.stopChild()
-                r.pairGauge(-1) // MAJOR-5: teardown drops the pair gauge
-                r.carrier.Close()
-        })
+	r.stopOnce.Do(func() {
+		if r.cancel != nil {
+			r.cancel()
+		}
+		<-r.done
+		r.stopChild()
+		r.pairGauge(-1) // MAJOR-5: teardown drops the pair gauge
+		r.carrier.Close()
+	})
 }
 
 // Status snapshots the parent-link state.
 func (r *MasqueAwgRuntime) Status() (link string, parentGen uint64, childRunning bool) {
-        r.mu.Lock()
-        defer r.mu.Unlock()
-        child := r.inner != nil && r.inner.State() != twg.StateClosed
-        return r.link, r.parentGen, child
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	child := r.inner != nil && r.inner.State() != twg.StateClosed
+	return r.link, r.parentGen, child
 }
 
 // RelayDroppedInbound exposes the carrier's demux drop counter (diagnostics).
 func (r *MasqueAwgRuntime) RelayDroppedInbound() uint64 {
-        return r.carrier.DroppedInbound()
+	return r.carrier.DroppedInbound()
 }
 
 // RelayDemuxStats exposes matched/unknown inbound demux counters.
 func (r *MasqueAwgRuntime) RelayDemuxStats() (matched, unknown uint64) {
-        return r.carrier.DemuxStats()
+	return r.carrier.DemuxStats()
 }
 
 func (r *MasqueAwgRuntime) run(ctx context.Context) {
-        defer close(r.done)
-        t := time.NewTicker(r.cfg.PollInterval)
-        defer t.Stop()
-        held := false
-        for {
-                select {
-                case <-ctx.Done():
-                        return
-                case <-t.C:
-                }
-                nowHeld := r.cfg.Plane.Snapshot().RouteHeld
-                switch {
-                case nowHeld && !held:
-                        gen := r.parentGen + 1
-                        // MAJOR-5: RouteHeld rising edge closes the outer gate.
-                        r.observeOuterGate()
-                        if err := r.startChild(gen); err != nil {
-                                r.setLink("child-invalidated", gen, err.Error())
-                                break
-                        }
-                        r.setLink("up", gen, "")
-                        r.pairGauge(1)
-                case !nowHeld && held:
-                        r.stopChild()
-                        r.pairGauge(-1)
-                        // MAJOR-5: re-arm - the next held edge measures the
-                        // REPAIR gate (plane loss -> re-establishment).
-                        r.armOuterGate()
-                        r.mu.Lock()
-                        r.link = "child-invalidated"
-                        r.mu.Unlock()
-                        r.emit(Event{Class: "warp_masque_disconnected",
-                                Reason: "parent lost: child invalidated"})
-                        // PATCH-07 (M-14): parity with W+M — parent loss is a
-                        // child invalidation, not a route incident.
-                        r.emit(Event{Class: ClassChildInvalidated,
-                                Reason: "parent:warp_masque_disconnected"})
-                }
-                held = nowHeld
-        }
+	defer close(r.done)
+	t := time.NewTicker(r.cfg.PollInterval)
+	defer t.Stop()
+	held := false
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		nowHeld := r.cfg.Plane.Snapshot().RouteHeld
+		switch {
+		case nowHeld && !held:
+			gen := r.parentGen + 1
+			// MAJOR-5: RouteHeld rising edge closes the outer gate.
+			r.observeOuterGate()
+			if err := r.startChild(gen); err != nil {
+				r.setLink("child-invalidated", gen, err.Error())
+				break
+			}
+			r.setLink("up", gen, "")
+			r.pairGauge(1)
+		case !nowHeld && held:
+			r.stopChild()
+			r.pairGauge(-1)
+			// MAJOR-5: re-arm - the next held edge measures the
+			// REPAIR gate (plane loss -> re-establishment).
+			r.armOuterGate()
+			r.mu.Lock()
+			r.link = "child-invalidated"
+			r.mu.Unlock()
+			r.emit(Event{Class: "warp_masque_disconnected",
+				Reason: "parent lost: child invalidated"})
+			// PATCH-07 (M-14): parity with W+M — parent loss is a
+			// child invalidation, not a route incident.
+			r.emit(Event{Class: ClassChildInvalidated,
+				Reason: "parent:warp_masque_disconnected"})
+		}
+		held = nowHeld
+	}
 }
 
 func (r *MasqueAwgRuntime) startChild(gen uint64) error {
-        r.mu.Lock()
-        defer r.mu.Unlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-        fwd, err := twg.NewLoopbackForwarder(ForwarderSeam(r.carrier), r.cfg.Pair.Inner.Endpoint)
-        if err != nil {
-                return fmt.Errorf("forwarder: %w", err)
-        }
-        addr, err := fwd.Start(context.Background())
-        if err != nil {
-                _ = fwd.Close()
-                return fmt.Errorf("forwarder start: %w", err)
-        }
-        sessCfg := twg.SessionConfig{
-                Ident:          r.cfg.InnerIdent,
-                Profile:        r.cfg.InnerProfile,
-                Endpoint:       addr.String(),
-                Tunnel:         r.innerTunnel(),
-                MaxGenerations: r.cfg.MaxInnerGenerations,
-                Health:         twg.HealthConfig{KeepaliveSec: twg.NestedInnerKeepaliveSec},
-                Callbacks: twg.SessionCallbacks{
-                        OnEvent: r.innerEvent,
-                        // MAJOR-5: the inner session's trust gate closes here
-                        // (atomic-only body - safe under the runtime mutex held
-                        // by startChild).
-                        OnEstablished: r.observeInnerGate,
-                },
-        }
-        sess, err := twg.NewSession(sessCfg)
-        if err != nil {
-                _ = fwd.Close()
-                return fmt.Errorf("inner config: %w", err)
-        }
-        // MAJOR-5: inner gate = forwarder+session launch -> OnEstablished.
-        r.armInnerGate()
-        if err := sess.Start(); err != nil {
-                _ = fwd.Close()
-                gateDisarm(&r.innerGateStart) // dead generation owns no gate
-                return fmt.Errorf("inner start: %w", err)
-        }
-        r.inner, r.fwd = sess, fwd
-        r.parentGen = gen
-        r.link = "up"
-        r.emit(Event{Class: "wg_nested_child_revalidated",
-                Reason: fmt.Sprintf("gen=%d fwd=%s proof=%v", gen, addr, r.proofText())})
-        return nil
+	fwd, err := twg.NewLoopbackForwarder(ForwarderSeam(r.carrier), r.cfg.Pair.Inner.Endpoint)
+	if err != nil {
+		return fmt.Errorf("forwarder: %w", err)
+	}
+	addr, err := fwd.Start(context.Background())
+	if err != nil {
+		_ = fwd.Close()
+		return fmt.Errorf("forwarder start: %w", err)
+	}
+	sessCfg := twg.SessionConfig{
+		Ident:          r.cfg.InnerIdent,
+		Profile:        r.cfg.InnerProfile,
+		Endpoint:       addr.String(),
+		Tunnel:         r.innerTunnel(),
+		MaxGenerations: r.cfg.MaxInnerGenerations,
+		Health:         twg.HealthConfig{KeepaliveSec: twg.NestedInnerKeepaliveSec},
+		Callbacks: twg.SessionCallbacks{
+			OnEvent: r.innerEvent,
+			// MAJOR-5: the inner session's trust gate closes here
+			// (atomic-only body - safe under the runtime mutex held
+			// by startChild).
+			OnEstablished: r.observeInnerGate,
+		},
+	}
+	sess, err := twg.NewSession(sessCfg)
+	if err != nil {
+		_ = fwd.Close()
+		return fmt.Errorf("inner config: %w", err)
+	}
+	// MAJOR-5: inner gate = forwarder+session launch -> OnEstablished.
+	r.armInnerGate()
+	if err := sess.Start(); err != nil {
+		_ = fwd.Close()
+		gateDisarm(&r.innerGateStart) // dead generation owns no gate
+		return fmt.Errorf("inner start: %w", err)
+	}
+	r.inner, r.fwd = sess, fwd
+	r.parentGen = gen
+	r.link = "up"
+	r.emit(Event{Class: "wg_nested_child_revalidated",
+		Reason: fmt.Sprintf("gen=%d fwd=%s proof=%v", gen, addr, r.proofText())})
+	return nil
 }
 
 func (r *MasqueAwgRuntime) stopChild() {
-        r.mu.Lock()
-        inner, fwd := r.inner, r.fwd
-        r.inner, r.fwd = nil, nil
-        r.mu.Unlock()
-        if inner != nil {
-                inner.Stop()
-        }
-        if fwd != nil {
-                _ = fwd.Close()
-        }
+	r.mu.Lock()
+	inner, fwd := r.inner, r.fwd
+	r.inner, r.fwd = nil, nil
+	r.mu.Unlock()
+	if inner != nil {
+		inner.Stop()
+	}
+	if fwd != nil {
+		_ = fwd.Close()
+	}
 }
 
 // pairGauge moves the pair-active gauge under the up-transition guard
 // (MAJOR-5): repeated same-direction transitions cannot drift the gauge.
 func (r *MasqueAwgRuntime) pairGauge(delta int64) {
-        r.mu.Lock()
-        up := r.pairUp
-        r.pairUp = delta > 0
-        r.mu.Unlock()
-        if delta > 0 && !up {
-                r.metrics.PairGaugeMove(1)
-        }
-        if delta < 0 && up {
-                r.metrics.PairGaugeMove(-1)
-        }
+	r.mu.Lock()
+	up := r.pairUp
+	r.pairUp = delta > 0
+	r.mu.Unlock()
+	if delta > 0 && !up {
+		r.metrics.PairGaugeMove(1)
+	}
+	if delta < 0 && up {
+		r.metrics.PairGaugeMove(-1)
+	}
 }
 
 // ---- gate-stamp wrappers (MAJOR-5; shared math in metrics.go) ----
@@ -457,45 +457,45 @@ func (r *MasqueAwgRuntime) observeOuterGate() { gateObserve(&r.outerGateStart, r
 func (r *MasqueAwgRuntime) observeInnerGate() { gateObserve(&r.innerGateStart, r.metrics, "inner") }
 
 func (r *MasqueAwgRuntime) setLink(link string, gen uint64, reason string) {
-        r.mu.Lock()
-        r.link, r.parentGen = link, gen
-        r.mu.Unlock()
-        if reason != "" {
-                // PATCH-07 (M-14): child start failures carry their own class —
-                // route-lost stays strictly a kernel-route incident.
-                r.emit(Event{Class: ClassChildStartFailed, Reason: reason})
-        }
+	r.mu.Lock()
+	r.link, r.parentGen = link, gen
+	r.mu.Unlock()
+	if reason != "" {
+		// PATCH-07 (M-14): child start failures carry their own class —
+		// route-lost stays strictly a kernel-route incident.
+		r.emit(Event{Class: ClassChildStartFailed, Reason: reason})
+	}
 }
 
 func (r *MasqueAwgRuntime) innerTunnel() twg.TunnelConfig {
-        mtu := r.cfg.Pair.Inner.MTU
-        if mtu <= 0 {
-                mtu = MaxInnerMTU
-        }
-        return twg.TunnelConfig{
-                Mode:      twg.ModeNetstack,
-                Addresses: []netip.Addr{mustAddr(r.cfg.InnerIdent.AssignedV4)},
-                DNS:       []netip.Addr{r.cfg.DNS},
-                MTU:       mtu,
-        }
+	mtu := r.cfg.Pair.Inner.MTU
+	if mtu <= 0 {
+		mtu = MaxInnerMTU
+	}
+	return twg.TunnelConfig{
+		Mode:      twg.ModeNetstack,
+		Addresses: []netip.Addr{mustAddr(r.cfg.InnerIdent.AssignedV4)},
+		DNS:       []netip.Addr{r.cfg.DNS},
+		MTU:       mtu,
+	}
 }
 
 func (r *MasqueAwgRuntime) innerEvent(ev twg.SessionEvent) {
-        if cb := r.cfg.InnerOnEvent; cb != nil {
-                cb(ev)
-        }
+	if cb := r.cfg.InnerOnEvent; cb != nil {
+		cb(ev)
+	}
 }
 
 func (r *MasqueAwgRuntime) proofText() string {
-        p, _ := r.carrier.ProofSnapshot()
-        return p
+	p, _ := r.carrier.ProofSnapshot()
+	return p
 }
 
 func (r *MasqueAwgRuntime) emit(ev Event) {
-        ev.At = time.Now()
-        if cb := r.cfg.OnEvent; cb != nil {
-                cb(ev)
-        }
+	ev.At = time.Now()
+	if cb := r.cfg.OnEvent; cb != nil {
+		cb(ev)
+	}
 }
 
 func mustAddr(s string) netip.Addr { return netip.MustParseAddr(s) }

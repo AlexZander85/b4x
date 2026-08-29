@@ -798,7 +798,9 @@ func TestE2EWgMasqueKillInner(t *testing.T) {
 	}
 
 	// Kill the inner path of the NEXT generation: the pin can never land
-	// again, so buildCarrier fails after the old carrier was torn down.
+	// again (add and its replace fallback both fail), so buildCarrier fails
+	// after the old carrier was torn down.
+	fr.failAdd[dst] = true
 	fr.failReplace[dst] = true
 	rt.onParentUp()
 	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
@@ -819,6 +821,7 @@ func TestE2EWgMasqueKillInner(t *testing.T) {
 
 	// Recovery: a healthy generation rebuilds the single live carrier (no
 	// carrier_replaced: the failed generation left nothing to replace).
+	fr.failAdd[dst] = false
 	fr.failReplace[dst] = false
 	rt.onParentUp()
 	if !fr.has("-4", dst, "wgout") {

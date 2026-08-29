@@ -17,6 +17,7 @@ type fakeRoutes struct {
 	mu          sync.Mutex
 	lines       map[string]string // "fam|dst" -> effective line
 	showPre     map[string]string // pre-existing foreign route per dst
+	failAdd     map[string]bool   // PATCH-14: simulate add conflicts (EEXIST-like)
 	failReplace map[string]bool
 	failGet     map[string]bool
 	calls       []string
@@ -26,6 +27,7 @@ func newFakeRoutes() *fakeRoutes {
 	return &fakeRoutes{
 		lines:       map[string]string{},
 		showPre:     map[string]string{},
+		failAdd:     map[string]bool{},
 		failReplace: map[string]bool{},
 		failGet:     map[string]bool{},
 	}
@@ -49,6 +51,19 @@ func (f *fakeRoutes) run(_ context.Context, args ...string) (string, error) {
 			return line + "\n", nil
 		}
 		return f.showPre[dst] + "\n", nil
+	case rest[0] == "route" && rest[1] == "add":
+		dst := strings.TrimSuffix(strings.TrimSuffix(rest[2], "/128"), "/32")
+		if f.failAdd[dst] {
+			return "", fmt.Errorf("ip route add %s: RTNETLINK answers: File exists", dst)
+		}
+		dev := "unknown"
+		for i, a := range rest {
+			if a == "dev" && i+1 < len(rest) {
+				dev = rest[i+1]
+			}
+		}
+		f.lines[key(fam, dst)] = fmt.Sprintf("%s dev %s", dst, dev)
+		return "", nil
 	case rest[0] == "route" && rest[1] == "replace":
 		dst := strings.TrimSuffix(strings.TrimSuffix(rest[2], "/128"), "/32")
 		if f.failReplace[dst] {
@@ -146,16 +161,22 @@ func TestKernelSetupIdempotentNoDoublePin(t *testing.T) {
 	if err := c.Setup(context.Background()); err != nil {
 		t.Fatalf("setup2: %v", err)
 	}
+	// PATCH-14: a fresh pin is one `route add`; no replace, no del.
 	fr.mu.Lock()
-	replaces := 0
+	adds, replaces, dels := 0, 0, 0
 	for _, cl := range fr.calls {
-		if strings.Contains(cl, "route replace") {
+		switch {
+		case strings.Contains(cl, "route add"):
+			adds++
+		case strings.Contains(cl, "route replace"):
 			replaces++
+		case strings.Contains(cl, "route del"):
+			dels++
 		}
 	}
 	fr.mu.Unlock()
-	if replaces != 1 {
-		t.Fatalf("replace calls = %d, want 1 (idempotent)", replaces)
+	if adds != 1 || replaces != 0 || dels != 0 {
+		t.Fatalf("pin calls = add:%d replace:%d del:%d, want 1/0/0 (B-N1)", adds, replaces, dels)
 	}
 	if n := len(c.ownedList()); n != 1 {
 		t.Fatalf("owned entries = %d, want 1", n)
@@ -323,4 +344,84 @@ func TestKernelRestoreDeletesOwnedPinOnly(t *testing.T) {
 	if _, ok := c.ProofSnapshot(); ok {
 		t.Fatal("proof must be false after Restore")
 	}
+}
+
+// ---- PATCH-14 (M-1): B-N1 pin discipline — add first, replace fallback ----
+
+func TestPinFamilyAddFirstDiscipline(t *testing.T) {
+	t.Run("clean-pin-is-single-add", func(t *testing.T) {
+		fr := newFakeRoutes()
+		c := testCarrier(t, fr, nil)
+		defer c.Close()
+		if err := c.Setup(context.Background()); err != nil {
+			t.Fatalf("setup: %v", err)
+		}
+		fr.mu.Lock()
+		var adds, replaces, dels int
+		for _, cl := range fr.calls {
+			switch {
+			case strings.Contains(cl, "route add"):
+				adds++
+			case strings.Contains(cl, "route replace"):
+				replaces++
+			case strings.Contains(cl, "route del"):
+				dels++
+			}
+		}
+		fr.mu.Unlock()
+		if adds != 1 || replaces != 0 || dels != 0 {
+			t.Fatalf("clean pin = add:%d replace:%d del:%d, want 1/0/0", adds, replaces, dels)
+		}
+	})
+
+	t.Run("conflict-falls-back-to-single-replace", func(t *testing.T) {
+		fr := newFakeRoutes()
+		ep := ep4()
+		fr.failAdd[ep.Addr().String()] = true
+		c := testCarrier(t, fr, nil)
+		defer c.Close()
+		if err := c.Setup(context.Background()); err != nil {
+			t.Fatalf("setup with add conflict: %v", err)
+		}
+		fr.mu.Lock()
+		var adds, replaces, dels int
+		for _, cl := range fr.calls {
+			switch {
+			case strings.Contains(cl, "route add"):
+				adds++
+			case strings.Contains(cl, "route replace"):
+				replaces++
+			case strings.Contains(cl, "route del"):
+				dels++
+			}
+		}
+		fr.mu.Unlock()
+		if adds != 1 || replaces != 1 || dels != 0 {
+			t.Fatalf("conflict pin = add:%d replace:%d del:%d, want 1/1/0", adds, replaces, dels)
+		}
+		if !fr.has("-4", ep.Addr().String(), "wgout") {
+			t.Fatal("conflict fallback did not land the pin")
+		}
+	})
+
+	t.Run("both-fail-pin-errors", func(t *testing.T) {
+		fr := newFakeRoutes()
+		ep := ep4()
+		dst := ep.Addr().String()
+		fr.failAdd[dst] = true
+		fr.failReplace[dst] = true
+		c := testCarrier(t, fr, nil)
+		defer c.Close()
+		if err := c.Setup(context.Background()); err == nil {
+			t.Fatal("setup must fail when add and replace both fail")
+		}
+		fr.mu.Lock()
+		for _, cl := range fr.calls {
+			if strings.Contains(cl, "route del") {
+				fr.mu.Unlock()
+				t.Fatalf("pinFamily must never del (del only in Restore/self-clean): %q", cl)
+			}
+		}
+		fr.mu.Unlock()
+	})
 }

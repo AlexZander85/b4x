@@ -482,8 +482,10 @@ func TestWgMasqueChildTaxonomySeparatesRouteIncidents(t *testing.T) {
 
 	dst := validWMPair().Inner.Endpoint.Addr().String()
 
-	// Start failure: the mandatory pin cannot land, so the carrier build
-	// fails — a child-start outcome, never a route-lost.
+	// Start failure: the mandatory pin cannot land (add AND its replace
+	// fallback both fail), so the carrier build fails — a child-start
+	// outcome, never a route-lost.
+	fr.failAdd[dst] = true
 	fr.failReplace[dst] = true
 	rt.onParentUp()
 	if n := log.count(ClassChildStartFailed); n != 1 {
@@ -492,6 +494,7 @@ func TestWgMasqueChildTaxonomySeparatesRouteIncidents(t *testing.T) {
 	if n := log.count(ClassCarrierRouteLost); n != 0 {
 		t.Fatalf("route-lost leaked from a start failure: %d", n)
 	}
+	fr.failAdd[dst] = false
 	fr.failReplace[dst] = false
 
 	// Healthy generation, then parent loss: child-invalidated, not route-lost.
