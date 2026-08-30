@@ -33,7 +33,9 @@ func applySocketControl(c syscall.RawConn, opts SocketOptions, mark uint32) erro
 		}
 		if effective != 0 {
 			if err := unix.SetsockoptInt(raw, unix.SOL_SOCKET, unix.SO_MARK, int(effective)); err != nil {
-				ctrlErr = fmt.Errorf("transportwg: SO_MARK(%d): %w", effective, err)
+				// PATCH-15 (B1): privilege failures carry the dial-policy
+				// sentinel so the session classifies them structurally.
+				ctrlErr = fmt.Errorf("transportwg: SO_MARK(%d): %w", effective, wrapDialPolicy("so-mark", err))
 				return
 			}
 		}
@@ -44,7 +46,7 @@ func applySocketControl(c syscall.RawConn, opts SocketOptions, mark uint32) erro
 				return
 			}
 			if err := unix.BindToDevice(raw, iface.Name); err != nil {
-				ctrlErr = fmt.Errorf("transportwg: SO_BINDTODEVICE(%q): %w", iface.Name, err)
+				ctrlErr = fmt.Errorf("transportwg: SO_BINDTODEVICE(%q): %w", iface.Name, wrapDialPolicy("so-bindtodevice", err))
 				return
 			}
 		}
@@ -71,6 +73,36 @@ func setMarkOnConn(c *net.UDPConn, mark uint32) error {
 		return fmt.Errorf("transportwg: SO_MARK(%d): %w", mark, ctrlErr)
 	}
 	return nil
+}
+
+// errDialPolicy is the B1 sentinel: socket-control failures caused by
+// missing privileges (EPERM/EACCES) travel as this type so session.go maps
+// them to ClassDialPolicy instead of ClassParamRejected — "raise
+// CAP_NET_ADMIN" is a different remediation than "fix the config".
+type errDialPolicy struct {
+	op  string
+	err error
+}
+
+func (e *errDialPolicy) Error() string {
+	return fmt.Sprintf("transportwg: dial policy %s requires privileges: %v", e.op, e.err)
+}
+
+func (e *errDialPolicy) Unwrap() error { return e.err }
+
+// wrapDialPolicy wraps errno-bearing socket-control errors into the B1
+// sentinel when the errno says "operation not permitted" (EPERM/EACCES);
+// anything else passes through unchanged.
+func wrapDialPolicy(op string, err error) error {
+	if err == nil {
+		return nil
+	}
+	for _, errno := range []error{syscall.EPERM, unix.EPERM, syscall.EACCES, unix.EACCES} {
+		if errors.Is(err, errno) {
+			return &errDialPolicy{op: op, err: err}
+		}
+	}
+	return err
 }
 
 // isFamilyUnsupported reports whether err means "this address family does not

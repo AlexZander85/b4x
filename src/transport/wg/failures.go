@@ -36,6 +36,12 @@ const (
 	// out — a TERMINAL session outcome. Structurally distinct from rx-stall
 	// so consumers/metrics never conflate storm-stop with a live stall.
 	ClassRestartCapExhausted FailureClass = "restart-cap-exhausted"
+	// ClassDialPolicy: the socket dial policy (SO_MARK / SO_BINDTODEVICE)
+	// could not be applied — typically missing CAP_NET_ADMIN (EPERM/EACCES).
+	// "No privileges" is operationally distinct from "broken config"
+	// (param-rejected): the remediation is raising capabilities, not fixing
+	// the config (B1). Symmetric with the MASQUE track's dial-policy class.
+	ClassDialPolicy FailureClass = "wg-dial-policy"
 )
 
 // Failure is a structured outcome. It implements error so it can travel
