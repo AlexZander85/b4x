@@ -120,6 +120,14 @@ type Client struct {
 	// OnPinCommit fires after a successful response commits a TOFU pin (the
 	// service persists the store).
 	OnPinCommit func(host string)
+
+	// Transport telemetry of the LAST logicals fetch, read by the
+	// serverlist cache (single-goroutine control plane).
+	// LastModified carries the Last-Modified response header (the
+	// If-Modified-Since hint of the next conditional request).
+	LastModified string
+	// LastLogicalsv1 reports that the v1 fallback answered (source label).
+	LastLogicalsv1 bool
 }
 
 // NewPinnedClient builds the default TLS-pinning HTTP client. carrier (when
@@ -327,6 +335,7 @@ func (c *Client) callStatus(ctx context.Context, method, path string, body any, 
 		}
 		result = raw
 		status = resp.StatusCode
+		c.LastModified = resp.Header.Get("Last-Modified")
 		lastErr = nil // a later rung won: earlier rung failures are history
 		done = true
 		return false
@@ -666,6 +675,7 @@ func (c *Client) FetchLogicals(ctx context.Context, sess *Session, cacheHint str
 		extra["X-PM-netzone"] = c.Netzone
 	}
 
+	c.LastLogicalsv1 = false
 	raw, status, err := c.callStatus(ctx, http.MethodGet,
 		"/vpn/v2/logicals?WithEntriesForProtocols=wireguard&WithState=true", nil, sess, extra)
 	if err != nil {
@@ -697,6 +707,7 @@ func (c *Client) fetchLogicalsV1(ctx context.Context, sess *Session) (*LogicalsR
 	if err != nil {
 		return nil, err
 	}
+	c.LastLogicalsv1 = true
 	var head envelope
 	_ = json.Unmarshal(raw, &head)
 	if head.Code != ProtonSuccessCode {
