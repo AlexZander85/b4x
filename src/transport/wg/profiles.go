@@ -42,6 +42,41 @@ import (
 // fallback (see the honest-posture note in profiles_loader.go).
 const CatalogVersion = 2
 
+// catalogEngineGeneration is the DEMON generation the ladder gates against
+// (PATCH-17, WG MINOR 12 / design WG4): profiles whose EngineGeneration
+// exceeds the current demon are SKIPPED by the ladder (not discarded) and
+// re-enter automatically once the daemon is updated. Default 1.
+var catalogEngineGeneration = 1
+
+// filterByEngineGeneration returns the templates whose minimum demon
+// generation is satisfied by the current demon (PATCH-17). Exported for
+// library-merge paths; LadderFor applies it internally.
+func filterByEngineGeneration(tpls []ProfileTemplate) []ProfileTemplate {
+	out := make([]ProfileTemplate, 0, len(tpls))
+	for _, t := range tpls {
+		if t.EngineGeneration > catalogEngineGeneration {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+// ResetEngineGenerationForTest restores the default demon generation (test
+// hygiene: SetEngineGeneration leaks across tests otherwise).
+func ResetEngineGenerationForTest() { catalogEngineGeneration = 1 }
+
+// EngineGeneration reports the demon generation the ladder gates against.
+func EngineGeneration() int { return catalogEngineGeneration }
+
+// SetEngineGeneration updates the demon generation (engine wiring at
+// startup/upgrade). Values < 1 are ignored (0 is the "any" profile marker).
+func SetEngineGeneration(gen int) {
+	if gen >= 1 {
+		catalogEngineGeneration = gen
+	}
+}
+
 // ProfileTarget restricts where a template may be applied.
 type ProfileTarget string
 
@@ -58,7 +93,12 @@ type ProfileTemplate struct {
 	Target  ProfileTarget
 	Ports   []uint16 // affinity hint (endpoint port diversification)
 	Comment string
-	build   func() Profile
+	// EngineGeneration is the minimum demon generation this profile requires
+	// (PATCH-17): 0 = any demon; 1+ = the profile joins the ladder only when
+	// EngineGeneration() >= this value. Skipped profiles re-enter after a
+	// daemon upgrade — a soft gate, never a permanent discard.
+	EngineGeneration int
+	build            func() Profile
 }
 
 // Build renders the template into a validated Profile instance.
@@ -210,6 +250,12 @@ func LadderFor(target ProfileTarget, preferredID string) ([]ProfileTemplate, err
 			if have.ID == t.ID {
 				return
 			}
+		}
+		// PATCH-17 (WG MINOR 12): a profile whose minimum demon generation
+		// exceeds the current demon is SKIPPED (soft gate) — it re-enters
+		// the ladder automatically after a daemon upgrade.
+		if t.EngineGeneration > catalogEngineGeneration {
+			return
 		}
 		ladder = append(ladder, t)
 	}

@@ -50,6 +50,11 @@ type profileFileEntry struct {
 	JunkMin   uint32 `json:"jmin,omitempty"`
 	JunkMax   uint32 `json:"jmax,omitempty"`
 
+	// EngineGeneration: minimum demon generation for this profile
+	// (PATCH-17). A library entry demanding a newer demon than the running
+	// one is skipped by the ladder, not discarded.
+	EngineGeneration int `json:"engine_generation,omitempty"`
+
 	// Chain DSL slots (i1..i5 packets, j1..j3 hidden junk — the j-slots are
 	// STORE-ONLY upstream, never rendered to IPC; same red line as seeds).
 	I1 string `json:"i1,omitempty"`
@@ -180,11 +185,12 @@ func decodeProfileEntry(item json.RawMessage) (ProfileTemplate, error) {
 	}
 
 	t := ProfileTemplate{
-		ID:      e.ID,
-		Target:  target,
-		Ports:   e.Ports,
-		Comment: e.Comment,
-		build:   func() Profile { return p },
+		ID:               e.ID,
+		Target:           target,
+		Ports:            e.Ports,
+		Comment:          e.Comment,
+		EngineGeneration: e.EngineGeneration,
+		build:            func() Profile { return p },
 	}
 	if _, err := t.Build(); err != nil {
 		return ProfileTemplate{}, err

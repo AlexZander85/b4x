@@ -93,6 +93,11 @@ type Profile struct {
 	RejectAfterTime  *Range
 	KeepaliveTimeout *Range
 	MaxHandshakeAtt  *Range
+
+	// EngineGeneration is the minimum demon generation this profile requires
+	// (PATCH-17, WG MINOR 12): 0 = any demon. Validation-only metadata — it
+	// is NEVER rendered into IpcSet (the upstream daemon has no such key).
+	EngineGeneration int `json:"-"`
 }
 
 // Validate enforces every structural rule BEFORE any device sees the config.
