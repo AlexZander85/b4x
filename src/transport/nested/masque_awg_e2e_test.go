@@ -778,10 +778,12 @@ func TestE2EMasqueAwgKillWAN(t *testing.T) {
 	}
 }
 
-// TestE2EWgMasqueKillInner: W+M, a NEW generation's carrier build fails
-// (mandatory pin unrepairable on the fake table): the old carrier is torn
-// down first (single live carrier), the child start fails with the PATCH-07
-// taxonomy, and a healthy generation rebuilds everything.
+// TestE2EWgMasqueKillInner: W+M, the FIRST carrier build fails (mandatory
+// pin unrepairable on the fake table): the child start fails with the
+// PATCH-07 child-start taxonomy, NOTHING leaks (no pin, no carrier, no
+// route-lost), and a healthy generation builds the single live carrier.
+// PATCH-07/E2 semantics: with ONE carrier per runtime there is no
+// per-generation teardown/rebuild anymore, so no carrier_replaced events.
 func TestE2EWgMasqueKillInner(t *testing.T) {
 	fr := newFakeRoutes()
 	dst := validWMPair().Inner.Endpoint.Addr().String()
@@ -791,20 +793,13 @@ func TestE2EWgMasqueKillInner(t *testing.T) {
 	rt := newWMKernelRuntimeMetrics(t, fr, log, &Metrics{})
 	rt.cfg.FamilyPolicy = FamilyPolicy{RequireV4: true}
 
-	// Healthy generation 1.
-	rt.onParentUp()
-	if !fr.has("-4", dst, "wgout") {
-		t.Fatal("gen1: route not pinned")
-	}
-
-	// Kill the inner path of the NEXT generation: the pin can never land
-	// again (add and its replace fallback both fail), so buildCarrier fails
-	// after the old carrier was torn down.
+	// Kill the carrier build: the pin can never land (add and its replace
+	// fallback both fail), so buildCarrier fails before anything exists.
 	fr.failAdd[dst] = true
 	fr.failReplace[dst] = true
 	rt.onParentUp()
-	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
-		t.Fatalf("carrier_replaced = %d, want exactly 1 (teardown before rebuild)", n)
+	if n := log.count("wg_nested_carrier_replaced"); n != 0 {
+		t.Fatalf("carrier_replaced = %d, want 0 (single-carrier lifecycle)", n)
 	}
 	if n := log.count(ClassChildStartFailed); n != 1 {
 		t.Fatalf("child-start-failed = %d, want 1", n)
@@ -819,16 +814,15 @@ func TestE2EWgMasqueKillInner(t *testing.T) {
 		t.Fatal("failed generation leaked the pin into the table")
 	}
 
-	// Recovery: a healthy generation rebuilds the single live carrier (no
-	// carrier_replaced: the failed generation left nothing to replace).
+	// Recovery: a healthy generation builds the single live carrier.
 	fr.failAdd[dst] = false
 	fr.failReplace[dst] = false
 	rt.onParentUp()
 	if !fr.has("-4", dst, "wgout") {
-		t.Fatal("recovery generation did not re-pin")
+		t.Fatal("recovery generation did not pin")
 	}
-	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
-		t.Fatalf("carrier_replaced after recovery = %d, want still 1", n)
+	if n := log.count("wg_nested_carrier_replaced"); n != 0 {
+		t.Fatalf("carrier_replaced after recovery = %d, want still 0", n)
 	}
 	if n := log.count(ClassChildStartFailed); n != 1 {
 		t.Fatalf("child-start-failed after recovery = %d, want still 1", n)

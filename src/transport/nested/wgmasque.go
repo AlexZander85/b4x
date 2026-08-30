@@ -179,13 +179,8 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 			Ident:    r.cfg.OuterIdent,
 			Profile:  r.cfg.OuterProfile,
 			Endpoint: r.cfg.Pair.Outer.Endpoint.String(),
-			Tunnel: twg.TunnelConfig{
-				Mode:      tunMode,
-				Addresses: []netip.Addr{outerV4},
-				DNS:       []netip.Addr{r.cfg.DNS},
-				MTU:       r.outerMTU(),
-			},
-			Health: twg.HealthConfig{KeepaliveSec: twg.NestedOuterKeepaliveSec},
+			Tunnel:   r.outerTunnelConfig(tunMode, outerV4),
+			Health:   twg.HealthConfig{KeepaliveSec: twg.NestedOuterKeepaliveSec},
 			Callbacks: twg.SessionCallbacks{
 				OnEvent:       r.outerEvent,
 				OnEstablished: r.onParentUp,
@@ -301,12 +296,55 @@ func (r *WgMasqueRuntime) Stop() {
 
 // ---- internals ----
 
-func (r *WgMasqueRuntime) outerMTU() int {
-	mtu := r.cfg.Pair.Outer.MTU
-	if mtu <= 0 {
-		mtu = twg.DefaultMTU
+// outerTunnelConfig renders the OUTER session's TUN declaration.
+// PATCH-07/E4: in kernel mode the configured device name is passed as the
+// InterfaceName hint so the created TUN carries the SAME name the kernel
+// route pins will own. Without it the kernel silently picked its own name
+// ("empty = kernel picks"), leaving the pin aimed at an unrelated device.
+func (r *WgMasqueRuntime) outerTunnelConfig(tunMode twg.TUNMode, outerV4 netip.Addr) twg.TunnelConfig {
+	tc := twg.TunnelConfig{
+		Mode:      tunMode,
+		Addresses: []netip.Addr{outerV4},
+		DNS:       []netip.Addr{r.cfg.DNS},
+		MTU:       r.outerMTU(),
 	}
-	return mtu
+	if tunMode == twg.ModeKernel {
+		tc.InterfaceName = r.cfg.KernelDevice
+	}
+	return tc
+}
+
+// resolveKernelDevice picks the pin device name: the ACTUAL TUN device name
+// of the live outer generation when known, else the configured hint.
+// Returns (device, diverged). PATCH-07/E4 second half: even with the hint
+// passed, the kernel may fail over to another name — the pin must follow
+// the ACTUAL device, with the divergence surfaced as an event.
+func resolveKernelDevice(hint, actual string) (string, bool) {
+	if actual != "" {
+		return actual, actual != hint
+	}
+	return hint, false
+}
+
+// actualDeviceName reads the live outer generation's TUN device name
+// ("" when the outer session or its device is not available — unit tests
+// drive onParentUp without a live outer, the hint is used then).
+func (r *WgMasqueRuntime) actualDeviceName() string {
+	r.mu.Lock()
+	outer := r.outerSession
+	r.mu.Unlock()
+	if outer == nil {
+		return ""
+	}
+	tun := outer.Tunnel()
+	if tun == nil || tun.Device == nil {
+		return ""
+	}
+	n, err := tun.Device.Name()
+	if err != nil {
+		return ""
+	}
+	return n
 }
 
 func (r *WgMasqueRuntime) watch() {
@@ -323,9 +361,19 @@ func (r *WgMasqueRuntime) watch() {
 	<-ctx.Done()
 }
 
-// onParentUp builds a FRESH carrier for THIS generation and starts a FRESH
-// inner supervisor against it. Serialized against Stop via mu discipline of
-// the runtime (callbacks run on the outer session's goroutine).
+func (r *WgMasqueRuntime) outerMTU() int {
+	mtu := r.cfg.Pair.Outer.MTU
+	if mtu <= 0 {
+		mtu = twg.DefaultMTU
+	}
+	return mtu
+}
+
+// onParentUp (re)establishes the composition: the kernel carrier is built
+// ONCE per runtime (PATCH-07/E2) and reused across generations; the inner
+// supervisor is FRESH per generation (supervisors are single-shot by
+// design). Serialized against Stop via mu discipline of the runtime
+// (callbacks run on the outer session's goroutine).
 func (r *WgMasqueRuntime) onParentUp() {
 	gen := r.bumpGen()
 	// MAJOR-5: this callback IS the outer trust gate closing (first
@@ -338,23 +386,12 @@ func (r *WgMasqueRuntime) onParentUp() {
 	// never leave a stale supervisor dialing through a torn-down carrier.
 	r.stopInner()
 
-	// Carrier lifecycle (B-N2/N6): exactly one kernel carrier may be
-	// alive per runtime. Teardown the previous generation BEFORE building
-	// the next one: Restore() returns the foreign prev-route, so the new
-	// Setup() snapshots the TRUE foreign state and the final Stop()
-	// restores it (first-generation prev survives across generations).
-	r.mu.Lock()
-	oldKernel := r.kernel
-	r.carrier, r.kernel = nil, nil
-	r.mu.Unlock()
-	if oldKernel != nil {
-		oldKernel.StopAssertionLoop()
-		oldKernel.Restore(context.Background())
-		oldKernel.Close()
-		r.emit(Event{Class: "wg_nested_carrier_replaced",
-			Reason: fmt.Sprintf("gen=%d carrier torn down before rebuild", gen)})
-	}
-
+	// PATCH-07/E2: the KERNEL carrier is ONE per runtime lifetime. The
+	// assertion loop repairs pins through outer device recreations — that
+	// IS the declared zapret-gui gap closure; a teardown/rebuild per
+	// generation churned the host route, leaked provenance bookkeeping and
+	// multiplied assertion goroutines. Fresh-per-generation remains the
+	// NETSTACK posture (a new outer stack needs a new wrapper).
 	carrier, krc, cerr := r.buildCarrier(gen)
 	if cerr != nil {
 		r.setInvalidated(gen, cerr.Error())
@@ -429,16 +466,18 @@ func (r *WgMasqueRuntime) onParentLost(f twg.Failure) {
 }
 
 // buildCarrier resolves the carrier per the OUTER data-plane mode.
+// PATCH-07/E2: in kernel mode this is ONE carrier per runtime — the first
+// call builds and proves it, later generations return the SAME instance
+// (Setup is idempotent; the assertion loop owns repair through generations).
 func (r *WgMasqueRuntime) buildCarrier(gen uint64) (NestedCarrier, *KernelRouteCarrier, error) {
 	if r.cfg.OuterKernelTUN {
-		krc, err := NewKernelRouteCarrier(KernelRouteCarrierConfig{
-			Endpoint: r.cfg.Pair.Inner.Endpoint,
-			Device:   r.cfg.KernelDevice,
-			Policy:   r.cfg.FamilyPolicy,
-			Runner:   r.cfg.KernelRunner,
-			Dialer:   DialerWithMSS(nil, r.cfg.InnerTCPMSS),
-			OnEvent:  r.emit,
-		})
+		r.mu.Lock()
+		existing := r.kernel
+		r.mu.Unlock()
+		if existing != nil {
+			return existing, existing, nil
+		}
+		krc, err := r.newKernelCarrier(gen)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -449,7 +488,10 @@ func (r *WgMasqueRuntime) buildCarrier(gen uint64) (NestedCarrier, *KernelRouteC
 		if interval <= 0 {
 			interval = 30 * time.Second
 		}
-		krc.RunAssertionLoop(context.Background(), interval)
+		// PATCH-07/E2: bind the assertion loop to the RUNTIME context —
+		// runtime death (cancelCtx) kills the loop even without Close,
+		// never context.Background() (which leaked per generation).
+		krc.RunAssertionLoop(r.ctxOrBackground(), interval)
 		return krc, krc, nil
 	}
 	r.mu.Lock()
@@ -464,6 +506,27 @@ func (r *WgMasqueRuntime) buildCarrier(gen uint64) (NestedCarrier, *KernelRouteC
 		return nil, nil, err
 	}
 	return ns, nil, nil
+}
+
+// newKernelCarrier constructs the kernel route carrier with the ACTUAL
+// device name (PATCH-07/E4): the hint passed at Start makes the kernel
+// create the TUN under cfg.KernelDevice, but the pin still follows the
+// verified live name when the two ever diverge.
+func (r *WgMasqueRuntime) newKernelCarrier(gen uint64) (*KernelRouteCarrier, error) {
+	devName, diverged := resolveKernelDevice(r.cfg.KernelDevice, r.actualDeviceName())
+	if diverged {
+		r.emit(Event{Class: "wg_nested_kernel_device_mismatch",
+			Reason: fmt.Sprintf("gen=%d hint=%s actual=%s (pin follows the actual device)",
+				gen, r.cfg.KernelDevice, devName)})
+	}
+	return NewKernelRouteCarrier(KernelRouteCarrierConfig{
+		Endpoint: r.cfg.Pair.Inner.Endpoint,
+		Device:   devName,
+		Policy:   r.cfg.FamilyPolicy,
+		Runner:   r.cfg.KernelRunner,
+		Dialer:   DialerWithMSS(nil, r.cfg.InnerTCPMSS),
+		OnEvent:  r.emit,
+	})
 }
 
 func (r *WgMasqueRuntime) innerTemplate(carrier NestedCarrier) twarp.SessionConfig {

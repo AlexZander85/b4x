@@ -203,7 +203,12 @@ func newWMKernelRuntime(t *testing.T, fr *fakeRoutes, log *wmEventLog) *WgMasque
 	return rt
 }
 
-func TestWgMasqueCarrierTornDownAcrossGenerations(t *testing.T) {
+// TestWgMasqueKernelCarrierSurvivesOuterGenerations is the PATCH-07/E2
+// acceptance test: the kernel route carrier is built ONCE per runtime and
+// survives outer generations — no teardown/rebuild churn, no repeated
+// route-show snapshots (provenance stays with the single carrier), and the
+// final Stop restores the ORIGINAL foreign route verbatim.
+func TestWgMasqueKernelCarrierSurvivesOuterGenerations(t *testing.T) {
 	fr := newFakeRoutes()
 	dst := validWMPair().Inner.Endpoint.Addr().String() // the pin target the runtime actually owns
 	// Foreign route present BEFORE the first pin: the final Stop must
@@ -218,25 +223,21 @@ func TestWgMasqueCarrierTornDownAcrossGenerations(t *testing.T) {
 	if !fr.has("-4", dst, "wgout") {
 		t.Fatal("gen1: route not pinned on the outer device")
 	}
+	showsAfterGen1 := fr.count("route show")
 
-	// Generation 2 (outer reconnect): the old carrier must be torn down
-	// (terminal record) before the new one builds.
+	// Generations 2 and 3 (outer reconnects): the SAME carrier serves —
+	// no teardown event, no new Setup snapshot (show count unchanged),
+	// pin ownership undisturbed.
 	rt.onParentUp()
-	if n := log.count("wg_nested_carrier_replaced"); n != 1 {
-		t.Fatalf("carrier_replaced events = %d, want exactly 1", n)
+	rt.onParentUp()
+	if n := log.count("wg_nested_carrier_replaced"); n != 0 {
+		t.Fatalf("carrier_replaced events = %d, want 0 (single carrier)", n)
+	}
+	if got := fr.count("route show"); got != showsAfterGen1 {
+		t.Fatalf("route show calls grew %d -> %d across generations (carrier was rebuilt)", showsAfterGen1, got)
 	}
 	if !fr.has("-4", dst, "wgout") {
-		t.Fatal("gen2: route not re-pinned by the new carrier")
-	}
-
-	// Old assertion loop must be DEAD: after the gen2 teardown its journal
-	// freezes. Wait several ticks and confirm no foreign-restore churn from
-	// the dead carrier (its Restore already ran exactly once: the pin
-	// stays ours and no extra route-lost can come from the dead side).
-	lostBefore := log.count(ClassCarrierRouteLost)
-	time.Sleep(200 * time.Millisecond)
-	if got := log.count(ClassCarrierRouteLost); got != lostBefore {
-		t.Fatalf("dead carrier still asserting: route-lost %d -> %d", lostBefore, got)
+		t.Fatal("pin lost across generations")
 	}
 
 	// Final Stop: the ORIGINAL foreign route comes back, not our pin.
@@ -249,7 +250,32 @@ func TestWgMasqueCarrierTornDownAcrossGenerations(t *testing.T) {
 	}
 }
 
-func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
+// TestWgMasqueForeignRouteProvenanceAcrossGenerations is the end-to-end
+// E1+E2 acceptance: two outer generations over a pre-existing foreign /32,
+// then Stop — the foreign route must come back verbatim, our pin gone.
+func TestWgMasqueForeignRouteProvenanceAcrossGenerations(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := validWMPair().Inner.Endpoint.Addr().String()
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+
+	rt := newWMKernelRuntime(t, fr, &wmEventLog{})
+
+	rt.onParentUp()
+	rt.onParentUp() // second generation reuses the single carrier
+	rt.Stop()
+
+	if !fr.has("-4", dst, "wan0") {
+		t.Fatalf("foreign route not restored verbatim, table=%v", fr.lines)
+	}
+	if fr.has("-4", dst, "wgout") {
+		t.Fatal("pin survived Stop across generations")
+	}
+}
+
+// TestWgMasqueNoDuplicateRouteLostAfterWipe pins the wipe->repair cycle on
+// the SINGLE runtime carrier (PATCH-07/E2): exactly one route-lost event
+// and one repair per episode — there is no second emitter at all anymore.
+func TestWgMasqueNoDuplicateRouteLostAfterWipe(t *testing.T) {
 	fr := newFakeRoutes()
 	dst := validWMPair().Inner.Endpoint.Addr().String()
 	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
@@ -258,7 +284,6 @@ func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
 	rt := newWMKernelRuntime(t, fr, log)
 
 	rt.onParentUp()
-	rt.onParentUp() // reconnect: gen2 carrier is the only live one
 	lostBase := log.count(ClassCarrierRouteLost)
 	if lostBase != 0 {
 		t.Fatalf("pre-wipe route-lost events = %d, want 0", lostBase)
@@ -278,8 +303,8 @@ func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	// Settle window: a duplicate emitter (dead gen1 carrier) would add more
-	// route-lost events within a couple of ticks.
+	// Settle window: a duplicate emitter would add more route-lost events
+	// within a couple of ticks (none can exist with a single carrier).
 	time.Sleep(200 * time.Millisecond)
 	if n := log.count(ClassCarrierRouteLost); n != 1 {
 		t.Fatalf("route-lost events after wipe = %d, want exactly 1", n)
@@ -328,6 +353,65 @@ func TestWgMasqueStopClosesWatchWithoutParentCancel(t *testing.T) {
 	default:
 	}
 	rt.Stop() // idempotent
+}
+
+// ---- PATCH-07 (E4): kernel device-name contract ----
+
+// TestWgMasqueInterfaceNameHintPassed is the PATCH-07/E4 acceptance test:
+// in kernel mode the OUTER TunnelConfig carries InterfaceName == KernelDevice
+// so the TUN is created under the name the route pins will own.
+func TestWgMasqueInterfaceNameHintPassed(t *testing.T) {
+	fr := newFakeRoutes()
+	rt := newWMKernelRuntime(t, fr, &wmEventLog{})
+	defer rt.Stop()
+
+	outerV4 := netip.MustParseAddr("10.77.0.2")
+	tc := rt.outerTunnelConfig(twg.ModeKernel, outerV4)
+	if tc.InterfaceName != "wgout" {
+		t.Fatalf("kernel-mode InterfaceName = %q, want the KernelDevice hint %q", tc.InterfaceName, "wgout")
+	}
+	// Netstack mode stays clean: the hint is a kernel-only knob.
+	tcNS := rt.outerTunnelConfig(twg.ModeNetstack, outerV4)
+	if tcNS.InterfaceName != "" {
+		t.Fatalf("netstack-mode InterfaceName = %q, want empty", tcNS.InterfaceName)
+	}
+}
+
+// TestResolveKernelDevicePinsActualName is the PATCH-07/E4 second half: the
+// pin follows the ACTUAL device name, with divergence flagged for events.
+func TestResolveKernelDevicePinsActualName(t *testing.T) {
+	dev, diverged := resolveKernelDevice("wgout", "tun42")
+	if dev != "tun42" || !diverged {
+		t.Fatalf("resolve = (%q, %v), want (tun42, true)", dev, diverged)
+	}
+	dev, diverged = resolveKernelDevice("wgout", "wgout")
+	if dev != "wgout" || diverged {
+		t.Fatalf("resolve = (%q, %v), want (wgout, false)", dev, diverged)
+	}
+	dev, diverged = resolveKernelDevice("wgout", "")
+	if dev != "wgout" || diverged {
+		t.Fatalf("resolve = (%q, %v), want (wgout, false)", dev, diverged)
+	}
+}
+
+// TestWgMasqueKernelPinsActualDeviceName drives the carrier construction
+// through the runtime: without a live outer (unit CI) the hint is used and
+// no mismatch is emitted; the resolve contract (actual wins + divergence
+// flag) is pinned by TestResolveKernelDevicePinsActualName.
+func TestWgMasqueKernelPinsActualDeviceName(t *testing.T) {
+	fr := newFakeRoutes()
+	log := &wmEventLog{}
+	rt := newWMKernelRuntime(t, fr, log)
+	defer rt.Stop()
+
+	rt.onParentUp()
+	dst := validWMPair().Inner.Endpoint.Addr().String()
+	if !fr.has("-4", dst, "wgout") {
+		t.Fatal("pin must use the configured hint when no actual device is known")
+	}
+	if n := log.count("wg_nested_kernel_device_mismatch"); n != 0 {
+		t.Fatalf("mismatch events = %d, want 0 (no divergence in unit fixture)", n)
+	}
 }
 
 func TestMetricsSnapshotAndExportLoop(t *testing.T) {

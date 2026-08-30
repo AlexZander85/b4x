@@ -116,6 +116,19 @@ func (f *fakeRoutes) has(fam, dst, dev string) bool {
 	return strings.Contains(line, "dev "+dev)
 }
 
+// count counts recorded runner calls containing substr (PATCH-07).
+func (f *fakeRoutes) count(substr string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for _, cl := range f.calls {
+		if strings.Contains(cl, substr) {
+			n++
+		}
+	}
+	return n
+}
+
 func ep4() netip.AddrPort {
 	return netip.AddrPortFrom(netip.AddrFrom4([4]byte{9, 9, 9, 9}), 51820)
 }
