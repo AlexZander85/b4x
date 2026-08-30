@@ -15,7 +15,12 @@ import (
 // provides to the INNER layer (design §1):
 //
 //   - InjectUDPDatagram pushes ONE datagram toward dst as if sent from
-//     inside the outer tunnel (WG/AWG handshake and transport traffic);
+//     inside the outer tunnel. CONTRACT (PATCH-25, E-NM doc review): this
+//     is FIRE-AND-FORGET — it triggers WG/AWG handshakes and carries
+//     outbound transport traffic, but REPLIES DO NOT COME BACK through it
+//     (the source port is caller-chosen/one-shot and nothing demuxes
+//     responses to it). Any exchange that expects answers must use
+//     UDPSessionCarrier.DialUDPThrough, which registers a demuxed flow.
 //   - DialTCPThrough opens one TCP stream to dst through the outer tunnel
 //     (MASQUE-inner control socket, W+M);
 //   - ProofSnapshot names the evidence that traffic really traverses the
