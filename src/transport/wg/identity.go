@@ -53,6 +53,14 @@ type Identity struct {
 	AssignedV6   string `json:"wg_assigned_v6,omitempty"`
 	EndpointHint string `json:"wg_endpoint_hint,omitempty"`
 
+	// Autostart marks that the ENGINE should bring up a session bound to
+	// this identity at daemon start (design §10 tail; PATCH-03). The flag
+	// lives in the shared identity JSON store; the consumer is the E8
+	// engine wiring OUTSIDE this package (startup session composer), not
+	// the transport layer. Default false: identity files written before
+	// the field existed decode with the zero value and no error.
+	Autostart bool `json:"autostart,omitempty"`
+
 	// CFWarp marks a Cloudflare WARP peer: ONLY then may reserved bytes be
 	// stamped on the wire (red line §11.3).
 	CFWarp bool `json:"cf_warp"`

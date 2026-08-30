@@ -9,10 +9,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	mathrand "math/rand"
 	"net/netip"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/amnezia-vpn/amneziawg-go/v3/device"
@@ -53,8 +55,9 @@ type HealthConfig struct {
 	HandshakeTimeout time.Duration // default 10 s
 	Gate             TrustGate
 	Watchdog         WatchdogConfig
-	RestartBackoff   time.Duration // default 1 s
-	KeepaliveSec     uint16        // default 25 (NAT/CGNAT)
+	RestartBackoff   time.Duration // default 1 s (exponential base)
+	RestartCap       RestartCapConfig
+	KeepaliveSec     uint16 // default 25 (NAT/CGNAT)
 }
 
 func (h *HealthConfig) fillDefaults() {
@@ -67,8 +70,36 @@ func (h *HealthConfig) fillDefaults() {
 	if h.KeepaliveSec == 0 {
 		h.KeepaliveSec = 25
 	}
+	h.RestartCap.fillDefaults()
 	h.Watchdog.fillDefaults()
 }
+
+// RestartCapConfig bounds restart storms (design §10 tail; PATCH-03): an
+// endpoint that cannot hold a generation burns its budget and the session
+// goes TERMINAL instead of cycling forever.
+type RestartCapConfig struct {
+	// MaxPerHour bounds restarts per rolling Window: 0 = default (6),
+	// -1 = explicit off (tests / supervisor-managed scenarios).
+	MaxPerHour int
+	// Window is the rolling window; default 1h.
+	Window time.Duration
+	// OnExhausted is an optional structural notification fired when the
+	// cap closes the session (the wg_restart_cap_exhausted event and the
+	// terminal OnLost fire regardless).
+	OnExhausted func(gen uint64)
+}
+
+func (c *RestartCapConfig) fillDefaults() {
+	if c.MaxPerHour == 0 {
+		c.MaxPerHour = 6
+	}
+	if c.Window <= 0 {
+		c.Window = time.Hour
+	}
+}
+
+// enabled reports whether the cap governs restarts (-1 = off).
+func (c *RestartCapConfig) enabled() bool { return c.MaxPerHour > 0 }
 
 // SessionConfig assembles everything the session needs to build itself.
 type SessionConfig struct {
@@ -99,6 +130,20 @@ type Session struct {
 	// (PATCH-02: a malformed endpoint is a construction-time structural
 	// rejection, not a goroutine panic).
 	endpointAP netip.AddrPort
+
+	// restart telemetry (PATCH-03): the wg layer has no metrics pipeline;
+	// structural events plus these atomics are the composed surface.
+	restartTotal  atomic.Int64
+	lastBackoffMS atomic.Int64
+	// genEstablished flips true when the CURRENT generation reached
+	// StateEstablished — a successful generation resets the restart
+	// backoff ladder (design §10: consecutive-failure growth only).
+	genEstablished atomic.Bool
+	// restartStamps is the rolling restart window (cap bookkeeping);
+	// guarded by mu, only touched from the run goroutine + Stop.
+	restartStamps []time.Time
+	// randF is the jitter source hook (tests pin it for determinism).
+	randF func() float64
 
 	// countersOverride lets tests script counter samples (same-package hook;
 	// production leaves it nil and the sampler reads IpcGet).
@@ -139,7 +184,7 @@ func NewSession(cfg SessionConfig) (*Session, error) {
 		return nil, newFailure(ClassParamRejected, "endpoint", fmt.Errorf(
 			"endpoint %q is not ip:port (hostnames must be resolved by the caller): %w", cfg.Endpoint, err))
 	}
-	return &Session{cfg: cfg, endpointAP: ap, state: StateIdle}, nil
+	return &Session{cfg: cfg, endpointAP: ap, state: StateIdle, randF: mathrand.Float64}, nil
 }
 
 // State returns the current lifecycle phase.
@@ -203,7 +248,8 @@ func (s *Session) emit(ev SessionEvent) {
 }
 
 // run is the supervisor loop: assemble -> handshake -> gate -> established,
-// restart on any structural failure until ctx dies or MaxGenerations ends.
+// restart on any structural failure until ctx dies, MaxGenerations ends, or
+// the restart cap (design §10, PATCH-03) closes the session terminally.
 func (s *Session) run(ctx context.Context) {
 	defer func() {
 		s.teardown()
@@ -213,6 +259,13 @@ func (s *Session) run(ctx context.Context) {
 		close(s.done)
 	}()
 	gens := 0
+	base := s.cfg.Health.RestartBackoff
+	if base <= 0 {
+		base = time.Second
+	}
+	backoff := base
+	capCfg := s.cfg.Health.RestartCap
+	capCfg.fillDefaults()
 	for {
 		select {
 		case <-ctx.Done():
@@ -227,6 +280,7 @@ func (s *Session) run(ctx context.Context) {
 		s.gen++
 		gen := s.gen
 		s.mu.Unlock()
+		s.genEstablished.Store(false)
 
 		f := s.establishGeneration(ctx)
 		if f != nil && !errors.Is(f.Err, context.Canceled) {
@@ -243,18 +297,91 @@ func (s *Session) run(ctx context.Context) {
 		if s.cfg.MaxGenerations > 0 && gens >= s.cfg.MaxGenerations {
 			return
 		}
+
+		// PATCH-03: the backoff ladder grows on CONSECUTIVE failures
+		// and resets after any successful (established) generation.
+		if s.genEstablished.Load() {
+			backoff = base
+		} else {
+			backoff = min(backoff*2, maxRestartBackoff)
+		}
+
+		// PATCH-03: sliding-window restart cap. Before spending the
+		// next restart, prune the window and go TERMINAL when the
+		// budget is exhausted — the session must not cycle forever.
+		if capCfg.enabled() {
+			s.pruneRestartStamps(time.Now().Add(-capCfg.Window))
+			s.mu.Lock()
+			n := len(s.restartStamps)
+			s.mu.Unlock()
+			if n >= capCfg.MaxPerHour {
+				reason := fmt.Sprintf("gen=%d restarts=%d window=%s", gen, n, capCfg.Window)
+				s.emit(SessionEvent{Name: "wg_restart_cap_exhausted", Class: ClassRestartCapExhausted, Reason: reason})
+				if cb := s.cfg.Callbacks.OnLost; cb != nil {
+					cb(*newFailure(ClassRestartCapExhausted, "restart-cap-exhausted", nil))
+				}
+				if capCfg.OnExhausted != nil {
+					capCfg.OnExhausted(gen)
+				}
+				return
+			}
+		}
+
 		s.mu.Lock()
 		s.state = StateRestarting
 		s.mu.Unlock()
 		s.emit(SessionEvent{Name: "wg_restarting", Reason: fmt.Sprintf("gen=%d", gen)})
 
+		delay := s.applyJitter(backoff)
+		s.lastBackoffMS.Store(delay.Milliseconds())
+		s.emit(SessionEvent{Name: "wg_restart_backoff",
+			Reason: fmt.Sprintf("gen=%d backoff_ms=%d", gen, delay.Milliseconds())})
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(s.cfg.Health.RestartBackoff):
+		case <-time.After(delay):
 		}
+		s.mu.Lock()
+		s.restartStamps = append(s.restartStamps, time.Now())
+		s.mu.Unlock()
+		s.restartTotal.Add(1)
 	}
 }
+
+// maxRestartBackoff is the exponential-ladder ceiling (design §10: 60 s).
+const maxRestartBackoff = 60 * time.Second
+
+// pruneRestartStamps drops restart stamps older than the cutoff (PATCH-03).
+func (s *Session) pruneRestartStamps(cutoff time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.restartStamps[:0]
+	for _, st := range s.restartStamps {
+		if st.After(cutoff) {
+			kept = append(kept, st)
+		}
+	}
+	s.restartStamps = kept
+}
+
+// applyJitter widens d by ±20% (design §10 anti-thundering-herd):
+// [0.8d; 1.2d], sourced from the injectable rand hook.
+func (s *Session) applyJitter(d time.Duration) time.Duration {
+	r := 0.0
+	if s.randF != nil {
+		r = s.randF()
+	}
+	factor := 0.8 + 0.4*r
+	return time.Duration(float64(d) * factor)
+}
+
+// RestartTotal reports how many restarts this session performed (PATCH-03
+// telemetry; the structural events remain the primary observability).
+func (s *Session) RestartTotal() int64 { return s.restartTotal.Load() }
+
+// LastBackoffMS reports the most recent restart delay in milliseconds.
+func (s *Session) LastBackoffMS() int64 { return s.lastBackoffMS.Load() }
 
 // establishGeneration builds one device generation and drives it to
 // Established, then blocks until stall or ctx death. Returns a failure when
@@ -372,6 +499,7 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	go liveWd.Run(gctx, s.countersSampler(dev))
 	s.setState(StateEstablished)
 	s.emit(SessionEvent{Name: "wg_established"})
+	s.genEstablished.Store(true)
 	if cb := s.cfg.Callbacks.OnEstablished; cb != nil {
 		cb()
 	}

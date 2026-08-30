@@ -6,9 +6,12 @@ package transportwg
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/netip"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -702,5 +705,174 @@ func TestSessionRefusedIdentityStallFiresWithinWindow(t *testing.T) {
 	}
 	if !waitFor(func() bool { return sess.Generation() >= 2 }, 5*time.Second) {
 		t.Fatalf("no restart after version-mismatch stall: %d", sess.Generation())
+	}
+}
+
+// ---- PATCH-03: restart cap + exponential backoff + autostart ----
+
+// TestSessionRestartCapExhausted: a session whose every generation fails
+// (tunnel factory always errors) burns its restart budget (MaxPerHour=3,
+// Window=1h) and goes TERMINAL — exactly 3 restarts, the structural
+// wg_restart_cap_exhausted event, the terminal OnLost with the dedicated
+// class, done closed, and no goroutine leak.
+func TestSessionRestartCapExhausted(t *testing.T) {
+	id, err := NewIdentity(mustKeyNow().B64(), mustKeyNow().Pub().B64(), "uS9/", clientTunnelIP, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &sessionRecorder{}
+	sc := SessionConfig{
+		Ident:    id,
+		Endpoint: "127.0.0.1:2408",
+		Tunnel:   TunnelConfig{Mode: ModeNetstack},
+		Health: HealthConfig{
+			RestartBackoff: time.Millisecond,
+			RestartCap: RestartCapConfig{
+				MaxPerHour: 3,
+				Window:     time.Hour,
+			},
+		},
+		Callbacks: SessionCallbacks{
+			OnEvent: rec.onEvent,
+			OnLost:  rec.onLost,
+		},
+	}
+	sess, err := NewSession(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := errors.New("no tunnel in this test")
+	sess.newTunnelFn = func(TunnelConfig) (*Tunnel, error) { return nil, broken }
+
+	before := runtime.NumGoroutine()
+	if err := sess.Start(); err != nil {
+		t.Fatal(err)
+	}
+	<-sess.done
+
+	if got := sess.State(); got != StateClosed {
+		t.Fatalf("state after cap exhaustion = %s, want closed", got)
+	}
+	restarts := 0
+	exhausted := false
+	for _, ev := range rec.events {
+		switch ev.Name {
+		case "wg_restarting":
+			restarts++
+		case "wg_restart_cap_exhausted":
+			exhausted = true
+		}
+	}
+	if restarts != 3 {
+		t.Fatalf("restarts = %d, want exactly 3", restarts)
+	}
+	if !exhausted {
+		t.Fatal("wg_restart_cap_exhausted event never emitted")
+	}
+	lost := rec.lostList()
+	if len(lost) == 0 {
+		t.Fatal("terminal OnLost never fired")
+	}
+	last := lost[len(lost)-1]
+	if last.Class != ClassRestartCapExhausted {
+		t.Fatalf("terminal loss class = %s, want %s", last.Class, ClassRestartCapExhausted)
+	}
+	if got := sess.RestartTotal(); got != 3 {
+		t.Fatalf("RestartTotal = %d, want 3", got)
+	}
+	// Goroutine hygiene: the terminal loop must leave nothing behind.
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= before {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("goroutines: before=%d after=%d (leak)", before, runtime.NumGoroutine())
+}
+
+// TestSessionBackoffExponentialWithJitter pins the ladder math: doubling
+// per consecutive failure with the 60 s ceiling and reset after an
+// established generation; jitter stays inside ±20%.
+func TestSessionBackoffExponentialWithJitter(t *testing.T) {
+	id, err := NewIdentity(mustKeyNow().B64(), mustKeyNow().Pub().B64(), "uS9/", clientTunnelIP, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess, err := NewSession(SessionConfig{Ident: id, Endpoint: "127.0.0.1:2408"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess.randF = func() float64 { return 0.5 } // exact factor 1.0
+
+	// Ladder: 1,2,4,8,16,32,60,60... (seconds).
+	base := time.Second
+	want := []time.Duration{1, 2, 4, 8, 16, 32, 60, 60}
+	prev := base
+	for i, w := range want {
+		if i > 0 {
+			prev = min(prev*2, maxRestartBackoff)
+		}
+		if prev != w*time.Second {
+			t.Fatalf("ladder[%d] = %s, want %s", i, prev, w*time.Second)
+		}
+	}
+	// Reset after an established generation.
+	sess.genEstablished.Store(true)
+	if got := sess.applyJitter(base); got != base {
+		t.Fatalf("post-establish first retry = %s, want base %s", got, base)
+	}
+	sess.genEstablished.Store(false)
+
+	// Jitter bounds: randF 0 => 0.8x, randF 1 => 1.2x.
+	sess.randF = func() float64 { return 0 }
+	if got := sess.applyJitter(10 * time.Second); got != 8*time.Second {
+		t.Fatalf("jitter low = %s, want 8s", got)
+	}
+	sess.randF = func() float64 { return 1 }
+	if got := sess.applyJitter(10 * time.Second); got != 12*time.Second {
+		t.Fatalf("jitter high = %s, want 12s", got)
+	}
+}
+
+// TestIdentityAutostartRoundTrip: the PATCH-03 flag survives a store
+// round-trip, and a legacy JSON file without the field decodes false with
+// no error.
+func TestIdentityAutostartRoundTrip(t *testing.T) {
+	id, err := NewIdentity(mustKeyNow().B64(), mustKeyNow().Pub().B64(), "uS9/", clientTunnelIP, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id.Autostart = true
+
+	store := &IdentityStore{Path: filepath.Join(t.TempDir(), "wgid.json")}
+	if err := store.Save(id); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Autostart {
+		t.Fatal("autostart flag lost across the store round-trip")
+	}
+
+	// Legacy file: no autostart field at all.
+	legacy := map[string]any{}
+	blob, err := os.ReadFile(store.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(blob, &legacy); err != nil {
+		t.Fatal(err)
+	}
+	delete(legacy, "autostart")
+	legacyBlob, _ := json.Marshal(legacy)
+	var decoded Identity
+	if err := json.Unmarshal(legacyBlob, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Autostart {
+		t.Fatal("legacy file without the field must decode to autostart=false")
 	}
 }

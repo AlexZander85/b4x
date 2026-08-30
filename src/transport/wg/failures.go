@@ -32,6 +32,10 @@ const (
 	// ClassReservedInvalid: reserved-byte discipline violated (hook absent
 	// for a cf_warp identity, or client_id undecodable).
 	ClassReservedInvalid FailureClass = "reserved-bytes-invalid"
+	// ClassRestartCapExhausted: the restart budget (design §10 cap) ran
+	// out — a TERMINAL session outcome. Structurally distinct from rx-stall
+	// so consumers/metrics never conflate storm-stop with a live stall.
+	ClassRestartCapExhausted FailureClass = "restart-cap-exhausted"
 )
 
 // Failure is a structured outcome. It implements error so it can travel
