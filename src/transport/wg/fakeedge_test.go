@@ -244,6 +244,10 @@ func startFakeEdge(t *testing.T, expect [3]byte, requireReserved, stampTX, scrub
 	}
 	e.dev = device.NewDevice(&onceCloseTUN{Device: e.tun.TUN()}, e.bind, edgeLogger(t))
 	t.Cleanup(e.dev.Close)
+	// PATCH-16 (B8) finding: the responder goroutine leaked past every test
+	// (nothing ever closed its stop channel). The cleanup below stops it —
+	// goleak's first unknown leak, now fixed at the fixture level.
+	t.Cleanup(e.StopResponder)
 	return e, nil
 }
 
@@ -357,6 +361,18 @@ func parseQName(b []byte) string {
 		pos += 1 + l
 	}
 	return sb.String()
+}
+
+// StopResponder terminates the responder goroutine (PATCH-16 goleak
+// hygiene). Safe to call multiple times and when not running.
+func (e *fakeEdge) StopResponder() {
+	e.mu.Lock()
+	stop := e.stopResp
+	e.stopResp = nil
+	e.mu.Unlock()
+	if stop != nil {
+		close(stop)
+	}
 }
 
 // StartResponder pumps decrypted packets back into the tunnel: UDP/53 gets

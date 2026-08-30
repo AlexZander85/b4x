@@ -307,7 +307,9 @@ func TestWatchdogRealTickerSmoke(t *testing.T) {
 	}
 
 	var tx uint64
-	go wd.Run(context.Background(), func(context.Context) (CounterSample, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // stop the sampler goroutine before goleak inspects
+	go wd.Run(ctx, func(context.Context) (CounterSample, error) {
 		tx += 512
 		return CounterSample{Time: time.Now(), TxBytes: tx}, nil
 	})
@@ -318,6 +320,7 @@ func TestWatchdogRealTickerSmoke(t *testing.T) {
 			t.Fatalf("class=%s want awg-version-mismatch", f.Class)
 		}
 	case <-time.After(5 * time.Second):
+		cancel()
 		t.Fatal("version-mismatch signature never fired on real ticker")
 	}
 }

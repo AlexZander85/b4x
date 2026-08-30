@@ -124,6 +124,7 @@ func TestMasqueCarrierDemuxRoutesRepliesToFlow(t *testing.T) {
 		t.Fatalf("carrier: %v", err)
 	}
 	c.StartPumping()
+	defer c.Close() // PATCH-16: stop the pump goroutine (goleak finding)
 
 	peer := netip.AddrPortFrom(netip.AddrFrom4([4]byte{203, 0, 113, 9}), 51820)
 	sess, err := c.DialUDPThrough(context.Background(), peer)
@@ -187,6 +188,7 @@ func TestMasqueCarrierForeignPacketsDoNotBlockPump(t *testing.T) {
 		t.Fatalf("carrier: %v", err)
 	}
 	c.StartPumping()
+	defer c.Close() // PATCH-16: stop the pump goroutine (goleak finding)
 	// No flows registered: everything drops (counted), pump stays alive.
 	fp.emit([]byte{0x45, 0x00, 0x00, 0x14}) // truncated garbage
 	fp.emit([]byte("short"))

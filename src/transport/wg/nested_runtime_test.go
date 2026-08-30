@@ -625,10 +625,28 @@ func TestNestedRuntimeRetriesChildWhileParentAlive(t *testing.T) {
 	}
 	outer.tun = &Tunnel{Device: dev, Netstack: ns}
 
+	// Drain the netstack outbound: nothing else reads this device (the outer
+	// session is not started), and an undrained channel would park the
+	// forwarder's pump inside gvisor forever (goleak finding, PATCH-16).
+	go func() {
+		bufs := [][]byte{make([]byte, 65535)}
+		sizes := make([]int, 1)
+		for {
+			if _, err := dev.Read(bufs, sizes, 0); err != nil {
+				return
+			}
+		}
+	}()
+
 	rt.mu.Lock()
 	rt.ctx, rt.cancel = ctx, cancel
 	rt.outer = outer
 	rt.mu.Unlock()
+	// Cleanup order matters (LIFO): stop the runtime FIRST so the forwarder
+	// pumps drain, THEN release the gvisor dispatchers (PATCH-16: a live
+	// netstack must be closed like any other device — the vendored netTun
+	// panics on writes after Close).
+	t.Cleanup(func() { _ = dev.Close() })
 	t.Cleanup(rt.Stop)
 
 	// Attempt 1: a corrupt inner identity => establishChild fails

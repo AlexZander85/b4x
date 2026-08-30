@@ -66,12 +66,13 @@ func (p planeAdapter) Snapshot() twarp.Status {
 // ---- fake MASQUE edge: TLS+h2 CONNECT-IP with a NAT into the AWG edge ----
 
 type relayEdge struct {
-	t     *testing.T
-	key   *ecdsa.PrivateKey
-	ln    net.Listener
-	decl  netip.AddrPort // DECLARED inner edge seen by carrier/config
-	real  netip.AddrPort // REAL loopback address of the AWG responder
-	local [4]byte        // outer assigned v4 (datagram dst on replies)
+	uplinks []net.Conn
+	t       *testing.T
+	key     *ecdsa.PrivateKey
+	ln      net.Listener
+	decl    netip.AddrPort // DECLARED inner edge seen by carrier/config
+	real    netip.AddrPort // REAL loopback address of the AWG responder
+	local   [4]byte        // outer assigned v4 (datagram dst on replies)
 
 	mu          sync.Mutex
 	clientSport uint16
@@ -106,7 +107,19 @@ func startRelayEdge(t *testing.T, decl netip.AddrPort, real netip.AddrPort, oute
 	}
 	re.ln = ln
 	go re.serve()
-	t.Cleanup(func() { _ = ln.Close() })
+	// PATCH-16: the per-stream uplink UDP sockets park in Read until the
+	// relay is shut down — close them at cleanup so the handler goroutines
+	// exit (goleak finding).
+	t.Cleanup(func() {
+		_ = ln.Close()
+		re.mu.Lock()
+		uplinks := append([]net.Conn(nil), re.uplinks...)
+		re.uplinks = nil
+		re.mu.Unlock()
+		for _, up := range uplinks {
+			_ = up.Close()
+		}
+	})
 	return re
 }
 
@@ -213,6 +226,9 @@ func (re *relayEdge) handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
+	re.mu.Lock()
+	re.uplinks = append(re.uplinks, uplink)
+	re.mu.Unlock()
 	defer func() { _ = uplink.Close() }()
 
 	// Invariant copied from the proven fakeServer fixture: ALL writes to
@@ -402,13 +418,25 @@ func startWgEdge(t *testing.T, edgePriv, clientPub twg.Key, clientV4 netip.Addr)
 	t.Cleanup(e.dev.Close)
 
 	// Responder: decrypted UDP/53 queries get a crafted A reply injected
-	// back through the tunnel (trust-gate food).
+	// back through the tunnel (trust-gate food). PATCH-16: the loop exits
+	// via the cleanup-closed stop channel — the old `for range Inbound`
+	// leaked the goroutine in every e2e test (goleak finding).
+	stop := make(chan struct{})
+	t.Cleanup(func() { close(stop) })
 	go func() {
-		for pkt := range e.tun.Inbound {
-			if reply := dnsReply(pkt); reply != nil {
-				select {
-				case e.tun.Outbound <- reply:
-				default:
+		for {
+			select {
+			case <-stop:
+				return
+			case pkt, ok := <-e.tun.Inbound:
+				if !ok {
+					return
+				}
+				if reply := dnsReply(pkt); reply != nil {
+					select {
+					case e.tun.Outbound <- reply:
+					default:
+					}
 				}
 			}
 		}
