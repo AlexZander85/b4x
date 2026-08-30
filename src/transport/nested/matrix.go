@@ -112,6 +112,15 @@ func (p *PairConfig) Validate() error {
 	if innerMTU > MaxInnerMTU {
 		return fmt.Errorf("nested: inner mtu %d exceeds cap %d", innerMTU, MaxInnerMTU)
 	}
+	// PATCH-18/E13: when BOTH layer MTUs are declared, the encapsulation
+	// invariant must hold: every inner datagram rides inside an outer one.
+	// If the outer MTU is left to the engine default, the effective value is
+	// the plane's and only the carrier's write gate applies.
+	if p.Outer.MTU > 0 && p.Inner.MTU > 0 &&
+		innerMTU+UDPDatagramOverhead > p.Outer.MTU {
+		return fmt.Errorf("nested: inner mtu %d + datagram overhead %d exceeds outer mtu %d",
+			innerMTU, UDPDatagramOverhead, p.Outer.MTU)
+	}
 	switch p.Carrier {
 	case "", CarrierAuto, CarrierKernelRoute, CarrierNetstack:
 	default:
@@ -254,10 +263,13 @@ type MasqueAwgRuntime struct {
 	witnessGen   uint64    // generation the collision alert fired for
 	outerUpSince time.Time // last outer establishment (StatusDetailed)
 
-	cancel   context.CancelFunc
-	done     chan struct{}
-	startOne sync.Once
-	stopOnce sync.Once
+	cancel    context.CancelFunc
+	done      chan struct{}
+	doneClose sync.Once // PATCH-19/E15: done closes exactly once
+	startOne  sync.Once
+	stopOnce  sync.Once
+	started   atomic.Bool // PATCH-19/E15 lifecycle contract
+	stopped   atomic.Bool
 
 	// PATCH-08/E3: child-retry ladder. Production: base 1s, cap 30s,
 	// doubling per consecutive failed start, reset on every parent flap
@@ -295,9 +307,18 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 	if !cfg.DNS.IsValid() {
 		cfg.DNS = netip.AddrFrom4([4]byte{8, 8, 8, 8})
 	}
+	// PATCH-18/E13: propagate the OUTER plane's MTU into the carrier — the
+	// old code always crafted against the 1280 default, so a plane with a
+	// smaller MTU turned every inner datagram into a silent local rejection
+	// ("up" black hole). The inner<=outer invariant is validated below.
+	outerMTU := cfg.Pair.Outer.MTU
+	if outerMTU <= 0 {
+		outerMTU = twarp.DefaultMTU
+	}
 	carrier, err := NewMasqueDatagramCarrier(MasqueCarrierConfig{
-		Plane:   cfg.Plane,
-		LocalV4: cfg.LocalV4,
+		Plane:    cfg.Plane,
+		LocalV4:  cfg.LocalV4,
+		OuterMTU: outerMTU,
 	})
 	if err != nil {
 		return nil, err
@@ -312,11 +333,28 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 	}, nil
 }
 
+// ErrRuntimeStopped is the structural verdict for Start-after-Stop
+// (PATCH-19/E15): a stopped runtime must not silently zombie.
+var ErrRuntimeStopped = errors.New("nested: runtime stopped")
+
+// closeDone closes done exactly once (run's exit and Stop's never-started
+// branch share it).
+func (r *MasqueAwgRuntime) closeDone() { r.doneClose.Do(func() { close(r.done) }) }
+
 // Start launches the parent-link controller and the carrier pump.
+// PATCH-19/E15: Stop-before-Start no longer deadlocks (Stop closes done
+// itself), and Start-after-Stop is a structural error instead of a silent
+// zombie whose second Stop is a no-op.
 func (r *MasqueAwgRuntime) Start(parent context.Context) error {
+	if r.stopped.Load() {
+		return ErrRuntimeStopped
+	}
 	r.startOne.Do(func() {
 		ctx, cancel := context.WithCancel(parent)
 		r.cancel = cancel
+		if r.stopped.Load() {
+			return // Stop won the race: run never launches
+		}
 		// MAJOR-5: the outer gate is attributable only when THIS
 		// runtime witnesses the plane's establishment; an already-held
 		// plane predates the runtime (no gate claim is allowed).
@@ -324,10 +362,14 @@ func (r *MasqueAwgRuntime) Start(parent context.Context) error {
 			r.armOuterGate()
 		}
 		r.carrier.StartPumping()
+		r.started.Store(true)
 		go r.run(ctx)
 	})
 	select {
 	case <-r.done:
+		if r.stopped.Load() {
+			return ErrRuntimeStopped
+		}
 		return fmt.Errorf("nested: masque+awg runtime exited during start")
 	default:
 		return nil
@@ -336,12 +378,18 @@ func (r *MasqueAwgRuntime) Start(parent context.Context) error {
 
 // Stop tears down CHILD-FIRST (inner, forwarder), then the controller and
 // the carrier. The MASQUE supervisor itself stays owned by its creator.
+// PATCH-19/E15: Stop-before-Start completes immediately (done is closed by
+// Stop itself — the old code deadlocked on <-r.done forever) and marks the
+// runtime stopped so a later Start fails structurally.
 func (r *MasqueAwgRuntime) Stop() {
 	r.stopOnce.Do(func() {
+		r.stopped.Store(true)
 		if r.cancel != nil {
 			r.cancel()
+			<-r.done
+		} else {
+			r.closeDone() // never started: unblock Stop and any Status watchers
 		}
-		<-r.done
 		r.stopChild()
 		r.pairGauge(-1) // MAJOR-5: teardown drops the pair gauge
 		r.carrier.Close()
@@ -443,7 +491,7 @@ func (r *MasqueAwgRuntime) RelayDemuxStats() (matched, unknown uint64) {
 // ladder while the parent stays up (previously one failed startChild left a
 // dead child until the next parent flap).
 func (r *MasqueAwgRuntime) run(ctx context.Context) {
-	defer close(r.done)
+	defer r.closeDone()
 	t := time.NewTicker(r.cfg.PollInterval)
 	defer t.Stop()
 	retryBase := r.retryBase

@@ -90,8 +90,13 @@ func NewMasqueDatagramCarrier(cfg MasqueCarrierConfig) (*MasqueDatagramCarrier, 
 
 // StartPumping subscribes to inbound capsules of every outer generation
 // (the plane re-subscribes across reconnects) and routes them to flows.
+// PATCH-19/E21: on a CLOSED carrier this is a no-op — the old code
+// subscribed unconditionally and pumped into closed flows forever.
 func (c *MasqueDatagramCarrier) StartPumping() {
 	c.pumpOnce.Do(func() {
+		if c.closed.Load() {
+			return
+		}
 		ch, cancel := c.cfg.Plane.SubscribePackets()
 		c.mu.Lock()
 		c.subCh, c.subCancel = ch, cancel
@@ -139,8 +144,18 @@ func (c *MasqueDatagramCarrier) DialUDPThrough(_ context.Context, dst netip.Addr
 	if !dst.IsValid() || !dst.Addr().Is4() {
 		return nil, fmt.Errorf("%w: %v", ErrNotV4, dst)
 	}
-	sport := randomSport()
-	key := flowKey{peer: dst.Addr(), peerPort: dst.Port(), localPort: sport}
+	// PATCH-18/E11 completion: the sport must be collision-aware. The old
+	// code drew a raw random port and silently OVERWROTE an existing flow
+	// registration on a tuple collision (orphaning the old client, whose
+	// Close then deleted the NEW registration). nextSport regenerates and
+	// finally walks deterministically instead; the false-confidence test
+	// that "covered" this path pinned randomPortFn while the code called
+	// randomSport() directly.
+	key0 := flowKey{peer: dst.Addr(), peerPort: dst.Port()}
+	sport := nextSport(func(p uint16) bool {
+		return c.hasFlow(flowKey{peer: key0.peer, peerPort: key0.peerPort, localPort: p})
+	})
+	key := flowKey{peer: key0.peer, peerPort: key0.peerPort, localPort: sport}
 	f := &flowConn{c: c, key: key, dst: dst, ch: make(chan []byte, 32), done: make(chan struct{})}
 	c.mu.Lock()
 	if c.closed.Load() {
@@ -150,6 +165,14 @@ func (c *MasqueDatagramCarrier) DialUDPThrough(_ context.Context, dst netip.Addr
 	c.flows[key] = f
 	c.mu.Unlock()
 	return f, nil
+}
+
+// hasFlow reports whether a flow key is currently registered (nextSport's
+// collision predicate).
+func (c *MasqueDatagramCarrier) hasFlow(key flowKey) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.flows[key] != nil
 }
 
 func (c *MasqueDatagramCarrier) writeDatagram(dst netip.AddrPort, sport uint16, payload []byte) error {

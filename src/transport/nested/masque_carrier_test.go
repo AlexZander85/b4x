@@ -50,6 +50,13 @@ func (f *fakePlane) SubscribePackets() (<-chan []byte, func()) {
 	return ch, cancel
 }
 
+// subCount reports active subscriptions (PATCH-19/E21 helper).
+func (f *fakePlane) subCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.subs)
+}
+
 func (f *fakePlane) Snapshot() twarp.Status {
 	f.mu.Lock()
 	defer f.mu.Unlock()

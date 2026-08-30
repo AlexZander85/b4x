@@ -132,10 +132,13 @@ type WgMasqueRuntime struct {
 
 	startErr error
 
-	cancel   context.CancelFunc
-	done     chan struct{}
-	startOne sync.Once
-	stopOnce sync.Once
+	cancel    context.CancelFunc
+	done      chan struct{}
+	doneClose sync.Once // PATCH-19/E15: done closes exactly once
+	startOne  sync.Once
+	stopOnce  sync.Once
+	started   atomic.Bool // PATCH-19/E15 lifecycle contract
+	stopped   atomic.Bool
 }
 
 // NewWgMasqueRuntime validates the declaration; no network is touched and
@@ -154,12 +157,18 @@ func NewWgMasqueRuntime(cfg WgMasqueConfig) (*WgMasqueRuntime, error) {
 // follows only through the OnEstablished bridge (fresh instance per
 // generation - supervisors are single-shot by design).
 func (r *WgMasqueRuntime) Start(parent context.Context) error {
+	if r.stopped.Load() {
+		return ErrRuntimeStopped
+	}
 	r.startOne.Do(func() {
 		ctx, cancel := context.WithCancel(parent)
 		r.cancel = cancel
 		r.mu.Lock()
 		r.cancelCtx = ctx
 		r.mu.Unlock()
+		if r.stopped.Load() {
+			return // Stop won the race: outer session never launches
+		}
 
 		tunMode := twg.ModeNetstack
 		if r.cfg.OuterKernelTUN {
@@ -171,7 +180,7 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 		outerV4, v4err := netip.ParseAddr(r.cfg.OuterIdent.AssignedV4)
 		if v4err != nil {
 			cancel()
-			close(r.done)
+			r.closeDone()
 			r.startErr = fmt.Errorf("outer identity AssignedV4 %q: %w", r.cfg.OuterIdent.AssignedV4, v4err)
 			return
 		}
@@ -190,7 +199,7 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 		sess, err := twg.NewSession(sessCfg)
 		if err != nil {
 			cancel()
-			close(r.done)
+			r.closeDone()
 			r.startErr = fmt.Errorf("outer config: %w", err)
 			return
 		}
@@ -203,14 +212,18 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 		r.armOuterGate()
 		if serr := sess.Start(); serr != nil {
 			cancel()
-			close(r.done)
+			r.closeDone()
 			r.startErr = fmt.Errorf("outer start: %w", serr)
 			return
 		}
+		r.started.Store(true)
 		go r.watch()
 	})
 	select {
 	case <-r.done:
+		if r.stopped.Load() {
+			return ErrRuntimeStopped
+		}
 		return r.startErr
 	default:
 		return nil
@@ -264,8 +277,13 @@ func (r *WgMasqueRuntime) StatusDetailed() PairStatus {
 // then the outer session. Idempotent.
 func (r *WgMasqueRuntime) Stop() {
 	r.stopOnce.Do(func() {
+		r.stopped.Store(true)
 		if r.cancel != nil {
 			r.cancel()
+		} else {
+			// PATCH-19/E15: never started — close done NOW so Stop completes
+			// immediately and a later Start is structurally rejected.
+			r.closeDone()
 		}
 		r.stopInner()
 		r.pairDown() // MAJOR-5: teardown drops the pair gauge
@@ -293,6 +311,10 @@ func (r *WgMasqueRuntime) Stop() {
 		}
 	})
 }
+
+// closeDone closes done exactly once (watch exit, Start error paths and
+// the never-started Stop branch share the channel).
+func (r *WgMasqueRuntime) closeDone() { r.doneClose.Do(func() { close(r.done) }) }
 
 // ---- internals ----
 
@@ -348,7 +370,7 @@ func (r *WgMasqueRuntime) actualDeviceName() string {
 }
 
 func (r *WgMasqueRuntime) watch() {
-	defer close(r.done)
+	defer r.closeDone()
 	// PATCH-05 (M-12): wait on the RUNTIME-derived context, not the caller's
 	// parent — Stop() cancels this one, so done always closes on teardown
 	// and the goroutine never outlives the runtime.
