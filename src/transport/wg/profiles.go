@@ -35,9 +35,12 @@ import (
 	"sort"
 )
 
-// CatalogVersion increments on any change to the seed set below; trace
-// exports and seek reports carry it for field correlation.
-const CatalogVersion = 1
+// CatalogVersion increments on any change to the seed set or the catalog
+// schema; trace exports and seek reports carry it for field correlation.
+// v2: external field-profile libraries (profiles_loader.go, PATCH-05
+// Variant B) join the seed set; the seeds themselves stay template-grade
+// fallback (see the honest-posture note in profiles_loader.go).
+const CatalogVersion = 2
 
 // ProfileTarget restricts where a template may be applied.
 type ProfileTarget string
