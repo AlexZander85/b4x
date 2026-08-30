@@ -65,6 +65,7 @@ func (c *Config) Validate() error {
 	c.validateClassifierConfig(v)
 	c.validateWarp(v)
 	c.validateOpera(v)
+	c.validateProton(v)
 	if v.hasErrors() {
 		return v.result()
 	}
@@ -404,6 +405,99 @@ func (c *Config) validateOpera(v *validator) {
 	if !filepath.IsAbs(o.IdentityPath) {
 		v.addf("system.opera.identity_path", "must_be_absolute", map[string]any{"path": o.IdentityPath}, "opera identity_path must be an absolute path (got: %q)", o.IdentityPath)
 	}
+}
+
+// validateProton checks the E-PROTON reserve section. The structural fields
+// are validated ALWAYS (even when disabled — the warp/opera canon: a typo
+// cannot hide until enable day); enabled-only requirements follow the opera
+// shape (absolute paths).
+func (c *Config) validateProton(v *validator) {
+	p := c.System.Proton
+	if mode := strings.ToLower(strings.TrimSpace(p.Location.Mode)); mode != "" {
+		switch mode {
+		case "auto":
+		case "country":
+			// country code required only when enabled (disabled keeps the
+			// honest-shape zero config valid).
+			if p.Enabled && strings.TrimSpace(p.Location.Country) == "" {
+				v.add("system.proton.location.country", "required", "country is required for mode=country", nil)
+			}
+		case "host":
+			if p.Enabled && strings.TrimSpace(p.Location.Host) == "" {
+				v.add("system.proton.location.host", "required", "host is required for mode=host", nil)
+			}
+		default:
+			v.addf("system.proton.location.mode", "invalid_value", map[string]any{"mode": p.Location.Mode},
+				"location.mode %q invalid (auto|country|host)", p.Location.Mode)
+		}
+	}
+	if p.Port > 0 && p.Port < 1024 {
+		// 443/88/4500 are privileged but legal; only <1024 non-catalog pins
+		// are suspicious. Catalog ports are always fine.
+		known := false
+		for _, port := range []uint16{443, 88, 4500, 500} {
+			if p.Port == port {
+				known = true
+			}
+		}
+		if !known {
+			v.addf("system.proton.port", "invalid_value", map[string]any{"port": p.Port},
+				"port %d is privileged and outside the Proton catalog; use 0 for the round-robin catalog", p.Port)
+		}
+	}
+	if p.MTU != 0 && (p.MTU < 576 || p.MTU > 9000) {
+		v.addf("system.proton.mtu", "invalid_value", map[string]any{"mtu": p.MTU},
+			"mtu %d outside the plausible range [576, 9000]", p.MTU)
+	}
+	for i, name := range p.Obfuscation.SNIPool {
+		if !protonValidSNIName(name) {
+			v.addf(fmt.Sprintf("system.proton.obfuscation.sni_pool[%d]", i), "invalid_value",
+				map[string]any{"name": name},
+				"SNI pool name %q must be a valid hostname and not a Proton domain", name)
+		}
+	}
+	switch prof := strings.ToLower(p.Obfuscation.PreferredProfile); prof {
+	case "", "proton-quic", "proton-vanilla", "proton-sip", "proton-crlf":
+	default:
+		v.addf("system.proton.obfuscation.preferred_profile", "invalid_value",
+			map[string]any{"profile": p.Obfuscation.PreferredProfile},
+			"preferred_profile %q is not a proton catalog id", p.Obfuscation.PreferredProfile)
+	}
+	if !p.Enabled {
+		return
+	}
+	if p.EffectiveIdentityPath() != DefaultProtonIdentityPath && !filepath.IsAbs(p.IdentityPath) {
+		v.addf("system.proton.identity_path", "must_be_absolute", map[string]any{"path": p.IdentityPath},
+			"proton identity_path must be an absolute path (got: %q)", p.IdentityPath)
+	}
+}
+
+// protonValidSNIName mirrors the engine admission rule without importing the
+// proton package (dependency direction: protonservice -> config).
+func protonValidSNIName(name string) bool {
+	n := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), "."))
+	if n == "" || len(n) > 253 || !strings.Contains(n, ".") {
+		return false
+	}
+	for _, label := range strings.Split(n, ".") {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		if strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+		for _, r := range label {
+			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+				return false
+			}
+		}
+	}
+	for _, bad := range []string{"proton.me", "protonvpn.ch", "protonmail.ch", "protonpro.xyz", "protonvpn.com", "protonmail.com"} {
+		if n == bad || strings.HasSuffix(n, "."+bad) {
+			return false
+		}
+	}
+	return true
 }
 
 // operaNormalizeRegion mirrors the engine whitelist without importing the

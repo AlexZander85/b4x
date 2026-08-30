@@ -333,6 +333,7 @@ type SystemConfig struct {
 	Warp        WarpConfig          `json:"warp"`
 	Opera       OperaConfig         `json:"opera"`
 	FxVPN       FxVPNConfig         `json:"fxvpn"`
+	Proton      ProtonConfig        `json:"proton"`
 	Checker     DiscoveryConfig     `json:"checker"`
 	Geo         geodat.GeoDatConfig `json:"geo"`
 	API         ApiConfig           `json:"api"`

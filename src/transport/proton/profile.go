@@ -20,6 +20,7 @@ package proton
 import (
 	_ "embed"
 	"io"
+	"net/netip"
 	"sort"
 	"strings"
 	"time"
@@ -82,6 +83,16 @@ type ProtonProfile struct {
 	I1        string // hex-chain for InitPacket[0] ("" for static families)
 	SNI       string // the pool name the I1 was built from
 	IssuedAt  int64
+}
+
+// AddrPort renders the candidate endpoint of the issued profile.
+func (p ProtonProfile) AddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(mustAddr(p.Node.EntryIP), p.Port)
+}
+
+func mustAddr(s string) netip.Addr {
+	a, _ := netip.ParseAddr(s)
+	return a
 }
 
 // LastGood is the minimal last-good view the issuer consults (satisfied by
