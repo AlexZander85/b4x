@@ -94,6 +94,12 @@ type SessionConfig struct {
 type Session struct {
 	cfg SessionConfig
 
+	// endpointAP is the parsed cfg.Endpoint (ip:port). Resolved ONCE in
+	// NewSession so the lifecycle goroutine never re-parses config input
+	// (PATCH-02: a malformed endpoint is a construction-time structural
+	// rejection, not a goroutine panic).
+	endpointAP netip.AddrPort
+
 	// countersOverride lets tests script counter samples (same-package hook;
 	// production leaves it nil and the sampler reads IpcGet).
 	countersOverride CountersFunc
@@ -123,7 +129,17 @@ func NewSession(cfg SessionConfig) (*Session, error) {
 	if cfg.Endpoint == "" {
 		return nil, newFailure(ClassParamRejected, "empty-endpoint", nil)
 	}
-	return &Session{cfg: cfg, state: StateIdle}, nil
+	// PATCH-02 (WG MAJOR 2): the endpoint must be a literal ip:port.
+	// Hostnames (e.g. directory endpoints like engage.cloudflareclient.com:2408)
+	// are the CALLER's responsibility to resolve (endpoints.go already does);
+	// a non-parsable endpoint is a structural param rejection here — never
+	// a MustParse panic inside the lifecycle goroutine.
+	ap, err := netip.ParseAddrPort(strings.TrimSpace(cfg.Endpoint))
+	if err != nil {
+		return nil, newFailure(ClassParamRejected, "endpoint", fmt.Errorf(
+			"endpoint %q is not ip:port (hostnames must be resolved by the caller): %w", cfg.Endpoint, err))
+	}
+	return &Session{cfg: cfg, endpointAP: ap, state: StateIdle}, nil
 }
 
 // State returns the current lifecycle phase.
@@ -382,8 +398,8 @@ func (s *Session) buildIPC() (string, error) {
 		Profile:    s.cfg.Profile,
 		Peers: []PeerConfig{{
 			PublicKey:              s.cfg.Ident.PeerPublicKey,
-			Endpoint:               netip.MustParseAddrPort(s.cfg.Endpoint),
-			AllowedIPs:             nil, // default route through the tunnel
+			Endpoint:               s.endpointAP, // parsed+validated in NewSession (PATCH-02)
+			AllowedIPs:             nil,          // default route through the tunnel
 			PersistentKeepaliveSec: s.cfg.Health.KeepaliveSec,
 		}},
 	}

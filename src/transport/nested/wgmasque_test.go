@@ -25,11 +25,42 @@ func validWMPair() PairConfig {
 	}
 }
 
+// wmTestIdentity builds a structurally valid throwaway identity for tests
+// that never touch the wire (PATCH-02/E10: zero identities are now rejected
+// at construction, so fixtures must carry a parseable AssignedV4).
+func wmTestIdentity(t *testing.T) *twg.Identity {
+	t.Helper()
+	priv, pub := genWGPair(t)
+	id, err := twg.NewIdentity(priv, pub, "AAAA", "10.77.0.2", "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+// TestWgMasqueValidateRejectsZeroAssignedV4 is the PATCH-02/E10 acceptance
+// test: a W+M config whose outer identity carries no parseable AssignedV4
+// must be rejected at Validate time, never panic later on Start.
+func TestWgMasqueValidateRejectsZeroAssignedV4(t *testing.T) {
+	cfg := WgMasqueConfig{
+		Pair:          validWMPair(),
+		OuterIdent:    &twg.Identity{}, // empty AssignedV4
+		InnerEnroll:   &twarp.EnrollClient{},
+		InnerSlotPath: "/tmp/secondary.json",
+	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("zero AssignedV4 must be rejected by WgMasqueConfig.Validate")
+	}
+	if _, err := NewWgMasqueRuntime(cfg); err == nil {
+		t.Fatal("zero AssignedV4 must be rejected at construction")
+	}
+}
+
 func TestWgMasqueValidateTable(t *testing.T) {
 	base := func() WgMasqueConfig {
 		return WgMasqueConfig{
 			Pair:          validWMPair(),
-			OuterIdent:    &twg.Identity{},
+			OuterIdent:    wmTestIdentity(t),
 			InnerEnroll:   &twarp.EnrollClient{},
 			InnerSlotPath: "/tmp/secondary.json",
 		}
@@ -84,7 +115,7 @@ func TestWgMasqueRuntimeConstruction(t *testing.T) {
 
 	ok := WgMasqueConfig{
 		Pair:          validWMPair(),
-		OuterIdent:    &twg.Identity{},
+		OuterIdent:    wmTestIdentity(t),
 		InnerEnroll:   &twarp.EnrollClient{},
 		InnerSlotPath: t.TempDir() + "/secondary.json",
 	}
@@ -156,7 +187,7 @@ func newWMKernelRuntime(t *testing.T, fr *fakeRoutes, log *wmEventLog) *WgMasque
 	t.Helper()
 	cfg := WgMasqueConfig{
 		Pair:           validWMPair(),
-		OuterIdent:     &twg.Identity{},
+		OuterIdent:     wmTestIdentity(t),
 		InnerEnroll:    &twarp.EnrollClient{BaseURL: "http://127.0.0.1:1"},
 		InnerSlotPath:  t.TempDir() + "/secondary.json",
 		OuterKernelTUN: true,
@@ -265,7 +296,7 @@ func TestWgMasqueNoDuplicateRouteLostAfterReconnect(t *testing.T) {
 func TestWgMasqueStopClosesWatchWithoutParentCancel(t *testing.T) {
 	cfg := WgMasqueConfig{
 		Pair:          validWMPair(),
-		OuterIdent:    &twg.Identity{},
+		OuterIdent:    wmTestIdentity(t),
 		InnerEnroll:   &twarp.EnrollClient{},
 		InnerSlotPath: t.TempDir() + "/secondary.json",
 	}
@@ -344,7 +375,7 @@ func newWMKernelRuntimeMetrics(t *testing.T, fr *fakeRoutes, log *wmEventLog, m 
 	t.Helper()
 	cfg := WgMasqueConfig{
 		Pair:           validWMPair(),
-		OuterIdent:     &twg.Identity{},
+		OuterIdent:     wmTestIdentity(t),
 		InnerEnroll:    &twarp.EnrollClient{BaseURL: "http://127.0.0.1:1"},
 		InnerSlotPath:  t.TempDir() + "/secondary.json",
 		OuterKernelTUN: true,

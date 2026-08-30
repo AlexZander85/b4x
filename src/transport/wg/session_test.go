@@ -275,6 +275,68 @@ func newTestSession(t *testing.T, edge *fakeEdge, opts ...func(*SessionConfig)) 
 
 // ---- tests ----
 
+// newSessionCfgFor builds a minimal SessionConfig around an arbitrary
+// endpoint string (identity material is valid; only the endpoint varies).
+func newSessionCfgFor(t *testing.T, endpoint string) SessionConfig {
+	t.Helper()
+	edgePriv, _ := edgeKeyPair(t)
+	clientPriv := mustKeyNow()
+	id, err := NewIdentity(clientPriv.B64(), edgePriv.Pub().B64(), "uS9/", clientTunnelIP, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return SessionConfig{
+		Ident:    id,
+		Endpoint: endpoint,
+		Tunnel:   TunnelConfig{Mode: ModeNetstack},
+	}
+}
+
+// TestNewSessionRejectsHostnameEndpoint is the PATCH-02 (WG MAJOR 2)
+// acceptance test: a directory-style hostname endpoint must produce a
+// structural ClassParamRejected failure at construction — never a
+// MustParseAddrPort panic inside buildIPC on the lifecycle goroutine.
+// Resolving hostnames is the caller's job (endpoints.go).
+func TestNewSessionRejectsHostnameEndpoint(t *testing.T) {
+	for _, ep := range []string{
+		"engage.cloudflareclient.com:2408",
+		"[::1]:2408.hostname.example:2408",
+	} {
+		sess, err := NewSession(newSessionCfgFor(t, ep))
+		if err == nil {
+			sess.Stop()
+			t.Fatalf("hostname endpoint %q must be rejected", ep)
+		}
+		if !IsClass(err, ClassParamRejected) {
+			t.Fatalf("endpoint %q: class = %s, want %s (err=%v)", ep, failureClassOf(err), ClassParamRejected, err)
+		}
+	}
+}
+
+// TestNewSessionRejectsGarbageEndpoint pins the same contract for malformed
+// literals (not ip:port at all).
+func TestNewSessionRejectsGarbageEndpoint(t *testing.T) {
+	for _, ep := range []string{"1.2.3:80", "not-an-endpoint", "1.2.3.4"} {
+		sess, err := NewSession(newSessionCfgFor(t, ep))
+		if err == nil {
+			sess.Stop()
+			t.Fatalf("garbage endpoint %q must be rejected", ep)
+		}
+		if !IsClass(err, ClassParamRejected) {
+			t.Fatalf("endpoint %q: class = %s, want %s (err=%v)", ep, failureClassOf(err), ClassParamRejected, err)
+		}
+	}
+}
+
+// failureClassOf extracts the Failure class from an error chain ("" if none).
+func failureClassOf(err error) FailureClass {
+	var f *Failure
+	if errors.As(err, &f) {
+		return f.Class
+	}
+	return ""
+}
+
 // Establishment through the trust gate: handshake, gate payload observed by
 // the edge, reserved bytes stamped on EVERY datagram, PersistentKeepalive
 // applied by the engine (config + live traffic), and user data transiting.

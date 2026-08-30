@@ -71,6 +71,12 @@ func (c *WgMasqueConfig) Validate() error {
 	if c.OuterIdent == nil {
 		return errors.New("nested: w+m requires the outer identity")
 	}
+	// PATCH-02/E10: the outer identity's assigned address must be a valid
+	// v4 literal BEFORE Start renders the TunnelConfig — construction-time
+	// rejection instead of a MustParse panic on the Start path.
+	if _, err := netip.ParseAddr(c.OuterIdent.AssignedV4); err != nil {
+		return fmt.Errorf("nested: outer identity AssignedV4 %q invalid: %w", c.OuterIdent.AssignedV4, err)
+	}
 	if c.OuterKernelTUN && (c.KernelDevice == "" || c.KernelRunner == nil) {
 		return errors.New("nested: kernel-TUN outer requires device and RouteRunner")
 	}
@@ -159,13 +165,23 @@ func (r *WgMasqueRuntime) Start(parent context.Context) error {
 		if r.cfg.OuterKernelTUN {
 			tunMode = twg.ModeKernel
 		}
+		// PATCH-02/E10: AssignedV4 was syntax-checked in Validate; the
+		// parse here cannot panic, and any residual failure degrades to
+		// the standard startErr path instead of crashing the process.
+		outerV4, v4err := netip.ParseAddr(r.cfg.OuterIdent.AssignedV4)
+		if v4err != nil {
+			cancel()
+			close(r.done)
+			r.startErr = fmt.Errorf("outer identity AssignedV4 %q: %w", r.cfg.OuterIdent.AssignedV4, v4err)
+			return
+		}
 		sessCfg := twg.SessionConfig{
 			Ident:    r.cfg.OuterIdent,
 			Profile:  r.cfg.OuterProfile,
 			Endpoint: r.cfg.Pair.Outer.Endpoint.String(),
 			Tunnel: twg.TunnelConfig{
 				Mode:      tunMode,
-				Addresses: []netip.Addr{netip.MustParseAddr(r.cfg.OuterIdent.AssignedV4)},
+				Addresses: []netip.Addr{outerV4},
 				DNS:       []netip.Addr{r.cfg.DNS},
 				MTU:       r.outerMTU(),
 			},

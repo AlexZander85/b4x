@@ -31,6 +31,28 @@ func TestMasqueAwgRuntimeRequiresPlaneAndIdentity(t *testing.T) {
 	}
 }
 
+// TestMasqueAwgRuntimeRejectsZeroIdentity is the PATCH-02/E10 acceptance
+// test: an M+W config whose inner identity carries no parseable AssignedV4
+// must fail at construction — never a MustParse panic inside run()
+// (masque_runtime_test.go used to pass &twg.Identity{} precisely because
+// this check was missing).
+func TestMasqueAwgRuntimeRejectsZeroIdentity(t *testing.T) {
+	cfg := MasqueAwgConfig{
+		Pair:       validPair(),
+		Plane:      newFakePlane(),
+		LocalV4:    localV4(),
+		InnerIdent: &twg.Identity{}, // zero identity: empty AssignedV4
+	}
+	if _, err := NewMasqueAwgRuntime(cfg); err == nil {
+		t.Fatal("zero inner identity must be rejected at construction")
+	}
+	bad := cfg
+	bad.InnerIdent = &twg.Identity{AssignedV4: "not-an-ip"}
+	if _, err := NewMasqueAwgRuntime(bad); err == nil {
+		t.Fatal("garbage AssignedV4 must be rejected at construction")
+	}
+}
+
 func TestMasqueAwgRuntimeWaitingParentAndCleanStop(t *testing.T) {
 	plane := newFakePlane()
 	setPlaneHeld(plane, false) // the fixture default is held=true; this test pins the waiting-parent posture
@@ -38,7 +60,7 @@ func TestMasqueAwgRuntimeWaitingParentAndCleanStop(t *testing.T) {
 		Pair:       validPair(),
 		Plane:      plane,
 		LocalV4:    localV4(),
-		InnerIdent: &twg.Identity{},
+		InnerIdent: wmTestIdentity(t),
 	}
 	rt, err := NewMasqueAwgRuntime(cfg)
 	if err != nil {

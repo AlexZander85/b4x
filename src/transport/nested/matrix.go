@@ -225,6 +225,11 @@ type MasqueAwgRuntime struct {
 	cfg     MasqueAwgConfig
 	carrier *MasqueDatagramCarrier
 
+	// innerV4 is the inner identity's assigned address, parsed ONCE at
+	// construction (PATCH-02/E10: a malformed AssignedV4 is a structural
+	// construction failure, never a MustParse panic inside run()).
+	innerV4 netip.Addr
+
 	mu        sync.Mutex
 	link      string // waiting-parent | up | child-invalidated
 	parentGen uint64
@@ -267,6 +272,13 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 	if cfg.Plane == nil || cfg.InnerIdent == nil {
 		return nil, errors.New("nested: masque+awg requires capsule plane and inner identity")
 	}
+	// PATCH-02/E10: validate the inner identity's assigned address at
+	// construction — the run()/startChild goroutine must never parse
+	// unvalidated config input.
+	innerV4, err := netip.ParseAddr(cfg.InnerIdent.AssignedV4)
+	if err != nil || !innerV4.IsValid() || !innerV4.Is4() {
+		return nil, fmt.Errorf("nested: inner identity AssignedV4 %q invalid: %w", cfg.InnerIdent.AssignedV4, err)
+	}
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 20 * time.Millisecond
 	}
@@ -282,6 +294,7 @@ func NewMasqueAwgRuntime(cfg MasqueAwgConfig) (*MasqueAwgRuntime, error) {
 	}
 	return &MasqueAwgRuntime{
 		cfg:     cfg,
+		innerV4: innerV4,
 		carrier: carrier,
 		link:    "waiting-parent",
 		metrics: cfg.Metrics,
@@ -600,7 +613,7 @@ func (r *MasqueAwgRuntime) innerTunnel() twg.TunnelConfig {
 	}
 	return twg.TunnelConfig{
 		Mode:      twg.ModeNetstack,
-		Addresses: []netip.Addr{mustAddr(r.cfg.InnerIdent.AssignedV4)},
+		Addresses: []netip.Addr{r.innerV4}, // parsed at construction (PATCH-02/E10)
 		DNS:       []netip.Addr{r.cfg.DNS},
 		MTU:       mtu,
 	}
@@ -623,5 +636,3 @@ func (r *MasqueAwgRuntime) emit(ev Event) {
 		cb(ev)
 	}
 }
-
-func mustAddr(s string) netip.Addr { return netip.MustParseAddr(s) }
