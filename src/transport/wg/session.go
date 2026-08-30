@@ -7,6 +7,8 @@ package transportwg
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	mathrand "math/rand"
@@ -431,6 +433,7 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 		return newFailure(ClassJunkProfileFailed, "ipc-render", err)
 	}
 	if err := dev.IpcSet(ipc); err != nil {
+		s.emitIPCSetFailed(s.Generation(), ipc, err) // PATCH-11: effective-config dump (scrubbed)
 		return newFailure(ClassParamRejected, "ipc-set", err)
 	}
 	if err := dev.Up(); err != nil {
@@ -709,8 +712,10 @@ func cutLine(line string) (name, value string, ok bool) {
 	return "", "", false
 }
 
-// IPCSnapshot returns the live IpcGet dump of the current generation
-// (empty string + error when no device is up).
+// IPCSnapshot returns the live IpcGet dump of the current generation,
+// SCRUBBED of secret key material (PATCH-14/B10: keys never travel in
+// dumps — the first diagnostic call must not be the leak). Empty string +
+// error when no device is up.
 func (s *Session) IPCSnapshot() (string, error) {
 	s.mu.Lock()
 	dev := s.dev
@@ -718,7 +723,44 @@ func (s *Session) IPCSnapshot() (string, error) {
 	if dev == nil {
 		return "", fmt.Errorf("transportwg: session has no live device")
 	}
-	return dev.IpcGet()
+	dump, err := dev.IpcGet()
+	if err != nil {
+		return "", err
+	}
+	return ScrubIPC(dump), nil
+}
+
+// ScrubIPC masks secret lines (private_key, preshared_key) in an IpcGet /
+// rendered IpcSet dump: every secret value is replaced with a stable 12
+// hex-char sha256 prefix so dumps stay correlatable without ever carrying
+// key material (B10 red line: keys never travel in logs/dumps/events).
+// All other lines pass through verbatim.
+func ScrubIPC(dump string) string {
+	if dump == "" {
+		return dump
+	}
+	lines := strings.Split(dump, "\n")
+	for i, line := range lines {
+		name, value, ok := cutLine(line)
+		if !ok || (name != "private_key" && name != "preshared_key") {
+			continue
+		}
+		sum := sha256.Sum256([]byte(value))
+		lines[i] = name + "=sha256:" + hex.EncodeToString(sum[:])[:12]
+	}
+	return strings.Join(lines, "\n")
+}
+
+// emitIPCSetFailed reports a failed IpcSet with the EFFECTIVE rendered
+// config attached (PATCH-11/B9, sing-box diagnostic pattern): field config
+// rejections arrive with gen + scrubbed render + error, not just a bare
+// upstream message.
+func (s *Session) emitIPCSetFailed(gen uint64, ipc string, err error) {
+	s.emit(SessionEvent{
+		Name:   "wg_ipc_set_failed",
+		Class:  ClassParamRejected,
+		Reason: fmt.Sprintf("gen=%d err=%v config=%q", gen, err, ScrubIPC(ipc)),
+	})
 }
 
 // teardown stops and closes the current generation's resources.

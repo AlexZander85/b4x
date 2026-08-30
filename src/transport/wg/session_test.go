@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -874,5 +875,118 @@ func TestIdentityAutostartRoundTrip(t *testing.T) {
 	}
 	if decoded.Autostart {
 		t.Fatal("legacy file without the field must decode to autostart=false")
+	}
+}
+
+// ---- PATCH-14/B10 + PATCH-11/B9: secret scrubbing + effective-config dump ----
+
+// TestIPCSnapshotNeverContainsSecrets: ScrubIPC replaces private_key and
+// preshared_key values with stable sha256 prefixes; everything else passes
+// through verbatim; the same input always scrubs identically.
+func TestIPCSnapshotNeverContainsSecrets(t *testing.T) {
+	priv := "OMd3/5PIFd9BlDjLwGKzXq1Z1x6+H1Vz3sF0kW8EUnE="
+	psk1 := "Kk7q9WQm1GJ0bXz8cVh5tN2yA4eR6uI0oP3sD7fLgWo="
+	psk2 := "Zz9Yx8Wv7Uu6tT5sS4rR3qQ2pP1oO0nN9mM8lL7kK6jJ="
+	dump := strings.Join([]string{
+		"private_key=" + priv,
+		"listen_port=51820",
+		"fwmark=0x0",
+		"public_key=AbCdEf1234567890AbCdEf1234567890AbCdEf12345=",
+		"preshared_key=" + psk1,
+		"rx_bytes=1",
+		"tx_bytes=2",
+		"public_key=FfEdCb0987654321FfEdCb0987654321FfEdCb09876=",
+		"preshared_key=" + psk2,
+	}, "\n")
+
+	scrubbed := ScrubIPC(dump)
+	for _, secret := range []string{priv, psk1, psk2} {
+		if strings.Contains(scrubbed, secret) {
+			t.Fatalf("scrubbed dump still carries secret material (%q...)", secret[:8])
+		}
+	}
+	if !strings.Contains(scrubbed, "private_key=sha256:") {
+		t.Fatalf("private_key not masked: %q", scrubbed)
+	}
+	if strings.Count(scrubbed, "preshared_key=sha256:") != 2 {
+		t.Fatalf("preshared keys not both masked: %q", scrubbed)
+	}
+	// Non-secret lines survive verbatim.
+	for _, want := range []string{"listen_port=51820", "fwmark=0x0", "rx_bytes=1", "tx_bytes=2"} {
+		if !strings.Contains(scrubbed, want) {
+			t.Fatalf("non-secret line lost: %q not in %q", want, scrubbed)
+		}
+	}
+	if strings.Count(scrubbed, "public_key=") != 2 {
+		t.Fatal("public keys must NOT be scrubbed")
+	}
+	// Stability: identical input -> identical output (correlatable prefixes).
+	if ScrubIPC(dump) != scrubbed {
+		t.Fatal("scrubbing is not stable for identical input")
+	}
+	// Distinct values -> distinct prefixes (correlation, not collision).
+	lines := strings.Split(scrubbed, "\n")
+	if lines[4] == lines[8] {
+		t.Fatal("distinct preshared keys scrubbed to the same prefix")
+	}
+	// Regex red line: no base64 key body may survive anywhere.
+	re := regexp.MustCompile(`private_key=[0-9A-Za-z+/]{40,}`)
+	if re.MatchString(scrubbed) {
+		t.Fatal("base64 private-key body survived scrubbing")
+	}
+}
+
+// TestSessionEmitsEffectiveConfigOnIpcSetFailure (PATCH-11/B9): the
+// IpcSet-failure event carries gen, the error, and the SCRUBBED effective
+// config — never raw key material.
+func TestSessionEmitsEffectiveConfigOnIpcSetFailure(t *testing.T) {
+	id, err := NewIdentity(mustKeyNow().B64(), mustKeyNow().Pub().B64(), "uS9/", clientTunnelIP, "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &sessionRecorder{}
+	sess, err := NewSession(SessionConfig{
+		Ident:    id,
+		Endpoint: "127.0.0.1:2408",
+		Health:   HealthConfig{KeepaliveSec: 7},
+		Callbacks: SessionCallbacks{
+			OnEvent: rec.onEvent,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ipc, err := sess.buildIPC()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reject := errors.New("uapi: invalid junk parameter")
+	sess.emitIPCSetFailed(3, ipc, reject)
+
+	names := rec.names()
+	if len(names) != 1 || names[0] != "wg_ipc_set_failed" {
+		t.Fatalf("events = %v, want exactly [wg_ipc_set_failed]", names)
+	}
+	ev := rec.events[0]
+	if ev.Class != ClassParamRejected {
+		t.Fatalf("class = %s, want %s", ev.Class, ClassParamRejected)
+	}
+	if !strings.Contains(ev.Reason, "gen=3") || !strings.Contains(ev.Reason, reject.Error()) {
+		t.Fatalf("event lacks gen/err: %q", ev.Reason)
+	}
+	// The scrubbed render must be present but WITHOUT the raw key.
+	if !strings.Contains(ev.Reason, "private_key=sha256:") {
+		t.Fatalf("event lacks the scrubbed config render: %q", ev.Reason)
+	}
+	if strings.Contains(ev.Reason, id.PrivateKey.B64()) {
+		t.Fatal("raw private key leaked into the diagnostic event")
+	}
+	if !strings.Contains(ev.Reason, "persistent_keepalive_interval=7") {
+		t.Fatal("effective config render lacks the keepalive line")
+	}
+	// Regex red line: no base64 key body in the event reason.
+	re := regexp.MustCompile(`private_key=[0-9A-Za-z+/]{40,}`)
+	if re.MatchString(ev.Reason) {
+		t.Fatal("base64 key body survived into the diagnostic event")
 	}
 }
