@@ -24,6 +24,12 @@ func (c *KernelRouteCarrier) Assert(ctx context.Context) error {
 	repaired := false
 	var lastErr error
 	for _, r := range owned {
+		// PATCH-06/E8: teardown-race gate. An Assert tick that started
+		// before Close/Restore must never re-pin after teardown —
+		// re-check closed before ANY repair mutation.
+		if c.closed.Load() {
+			return ErrCarrierClosed
+		}
 		if err := c.verifyRoute(ctx, r.family, r.dst); err != nil {
 			lastErr = err
 			// B-N2 (PATCH-06): one route-lost event per episode — re-emit
@@ -89,12 +95,20 @@ func (c *KernelRouteCarrier) RunAssertionLoop(ctx context.Context, interval time
 	}()
 }
 
-// StopAssertionLoop stops the background ticker (idempotent).
+// StopAssertionLoop stops the background ticker (idempotent). It does NOT
+// wait for the loop goroutine: Close() owns the bounded wait (loopWg.Wait)
+// so that teardown stays non-blocking when only the loop must stop — see the
+// teardown-race contract in Close (PATCH-06/E8).
 func (c *KernelRouteCarrier) StopAssertionLoop() { closeOnce(c.stopCh) }
 
-// Restore tears down ALL owned pins, restoring each previous route VERBATIM
-// (token-split replace) when one existed and was NOT ours; else deleting
-// exactly our pin. Foreign routes are never removed (cleanup ownership).
+// Restore tears down ALL owned pins. PATCH-06/E1: OUR pin is deleted FIRST
+// and ALWAYS (idempotently) — the previous behavior restored a covering prev
+// (e.g. `default via ... dev wan0`) and skipped the delete, which leaked the
+// /32 pin past full teardown in the most common case. The verbatim restore
+// (token-split replace) then runs ONLY when the snapshotted prev was an
+// exact-prefix foreign route that our pin actually displaced; covering prevs
+// are still in the table and must not be re-issued. Foreign routes are never
+// removed (cleanup ownership).
 func (c *KernelRouteCarrier) Restore(ctx context.Context) {
 	c.mu.Lock()
 	owned := c.owned
@@ -103,15 +117,11 @@ func (c *KernelRouteCarrier) Restore(ctx context.Context) {
 	c.proofOK.Store(false)
 
 	for _, r := range owned {
-		prev := strings.Fields(strings.TrimSpace(r.prev))
-		if len(prev) > 0 && !strings.Contains(r.prev, "dev "+c.cfg.Device) {
-			full := append([]string{r.family, "route", "replace"}, stripFamilyTokens(prev, r.family)...)
-			if _, err := c.cfg.Runner(ctx, full...); err == nil {
-				continue
-			}
-		}
+		// 1) our pin is deleted ALWAYS (idempotent).
 		_, _ = c.cfg.Runner(ctx, r.family, "route", "del",
 			r.dst.String()+"/"+prefixLenOf(r.family), "dev", c.cfg.Device)
+		// 2) verbatim-restore ONLY an exact-prefix foreign prev.
+		c.restorePrev(ctx, r)
 	}
 }
 
@@ -171,9 +181,15 @@ func (c *KernelRouteCarrier) ProofSnapshot() (string, bool) {
 // Close stops the assertion loop and marks the carrier closed. Routes are
 // NOT restored implicitly: teardown order belongs to the pair runtime
 // (child-first, then carrier Restore).
+//
+// PATCH-06/E8: Close waits for the assertion-loop goroutine to finish
+// (bounded — every Assert tick is capped by the 5 s tick timeout), so an
+// in-flight Assert cannot re-pin a route after Close/Restore returns. The
+// closed flag additionally gates every repair mutation inside Assert.
 func (c *KernelRouteCarrier) Close() {
 	c.closed.Store(true)
 	closeOnce(c.stopCh)
+	c.loopWg.Wait()
 }
 
 // ---- family helpers ----

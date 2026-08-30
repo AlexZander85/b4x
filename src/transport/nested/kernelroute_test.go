@@ -20,6 +20,7 @@ type fakeRoutes struct {
 	failAdd     map[string]bool   // PATCH-14: simulate add conflicts (EEXIST-like)
 	failReplace map[string]bool
 	failGet     map[string]bool
+	failShow    map[string]bool // PATCH-06/E5: transient route-show failure
 	calls       []string
 }
 
@@ -30,6 +31,7 @@ func newFakeRoutes() *fakeRoutes {
 		failAdd:     map[string]bool{},
 		failReplace: map[string]bool{},
 		failGet:     map[string]bool{},
+		failShow:    map[string]bool{},
 	}
 }
 
@@ -47,6 +49,9 @@ func (f *fakeRoutes) run(_ context.Context, args ...string) (string, error) {
 	switch {
 	case rest[0] == "route" && rest[1] == "show":
 		dst := rest[2]
+		if f.failShow[dst] {
+			return "", fmt.Errorf("ip route show %s: cache mispopulate (transient)", dst)
+		}
 		if line := f.lines[key(fam, dst)]; line != "" {
 			return line + "\n", nil
 		}
@@ -424,4 +429,222 @@ func TestPinFamilyAddFirstDiscipline(t *testing.T) {
 		}
 		fr.mu.Unlock()
 	})
+}
+
+// ---- PATCH-06: kernel-route teardown package (E1/E5/E6/E7/E8) ----
+
+func TestKernelRestoreWithCoveringPrevDeletesPin(t *testing.T) {
+	fr := newFakeRoutes()
+	// The MOST COMMON field case: the snapshotted prev is a COVERING route
+	// (default), not the exact /32. Old behavior: replace("default ...")
+	// succeeded and `continue` skipped our-pin deletion — the /32 pin leaked
+	// past full teardown (red before, green after PATCH-06/E1).
+	fr.showPre["9.9.9.9"] = "default via 10.1.1.1 dev wan0"
+	c := testCarrier(t, fr, nil)
+
+	if err := c.Setup(context.Background()); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	if !fr.has("-4", "9.9.9.9", "wgout") {
+		t.Fatal("precondition: pin not set")
+	}
+	c.Restore(context.Background())
+
+	if fr.has("-4", "9.9.9.9", "wgout") {
+		t.Fatal("E1: owned /32 pin survived Restore with a covering prev")
+	}
+	fr.mu.Lock()
+	defaultTouched := false
+	for _, cl := range fr.calls {
+		if strings.Contains(cl, "route replace default") {
+			defaultTouched = true
+		}
+	}
+	fr.mu.Unlock()
+	if defaultTouched {
+		t.Fatal("covering default route must never be re-issued by Restore")
+	}
+}
+
+func TestKernelRestoreWithExactForeignPrefixRestoresVerbatim(t *testing.T) {
+	fr := newFakeRoutes()
+	fr.showPre["9.9.9.9"] = "9.9.9.9 via 10.1.1.1 dev wan0"
+	c := testCarrier(t, fr, nil)
+
+	if err := c.Setup(context.Background()); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	c.Restore(context.Background())
+
+	// Our pin is gone AND the displaced foreign /32 is back verbatim.
+	if fr.has("-4", "9.9.9.9", "wgout") {
+		t.Fatal("owned pin survived Restore")
+	}
+	if !fr.has("-4", "9.9.9.9", "wan0") {
+		t.Fatal("exact-prefix foreign route was not restored verbatim")
+	}
+}
+
+func TestKernelRestoreMultiLinePrevIsSafe(t *testing.T) {
+	fr := newFakeRoutes()
+	fr.showPre["9.9.9.9"] = "9.9.9.9 via 10.1.1.1 dev wan0\ndefault via 10.1.1.1 dev wan0\nblob  garbage line"
+	c := testCarrier(t, fr, nil)
+
+	if err := c.Setup(context.Background()); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	c.Restore(context.Background()) // must not panic; pin must be gone
+	if fr.has("-4", "9.9.9.9", "wgout") {
+		t.Fatal("owned pin survived Restore with multi-line prev")
+	}
+}
+
+func TestKernelSetupFailsClosedWhenShowFails(t *testing.T) {
+	fr := newFakeRoutes()
+	fr.failShow["9.9.9.9"] = true
+	c := testCarrier(t, fr, nil)
+	defer c.Close()
+
+	err := c.Setup(context.Background())
+	if err == nil {
+		t.Fatal("E5: setup must fail closed when route show fails (no prev snapshot => no pin)")
+	}
+	fr.mu.Lock()
+	defer fr.mu.Unlock()
+	for _, cl := range fr.calls {
+		if strings.Contains(cl, "route add") || strings.Contains(cl, "route replace") {
+			t.Fatalf("no mutation may follow a failed show snapshot: %q", cl)
+		}
+	}
+}
+
+// TestKernelFallbackBothFailForeignRouteIntact pins the E6 invariant under
+// the B-N1 add-first ladder: when BOTH add and replace fail, no del was ever
+// issued, so the foreign route must remain untouched (nothing lost, nothing
+// to restore). This is the structural replacement for the plan's
+// del->replace fallback restore, which no longer exists in this ladder.
+func TestKernelFallbackBothFailForeignRouteIntact(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := ep4().Addr().String()
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+	fr.failAdd[dst] = true
+	fr.failReplace[dst] = true
+	c := testCarrier(t, fr, nil)
+	defer c.Close()
+
+	if err := c.Setup(context.Background()); err == nil {
+		t.Fatal("setup must fail when both add and replace fail")
+	}
+	fr.mu.Lock()
+	defer fr.mu.Unlock()
+	for _, cl := range fr.calls {
+		if strings.Contains(cl, "route del") {
+			t.Fatalf("both-fail path must never del (foreign route could be orphaned): %q", cl)
+		}
+	}
+	if len(fr.lines) != 0 {
+		t.Fatalf("foreign table polluted by failed pin: %v", fr.lines)
+	}
+}
+
+// TestKernelFallbackLandsThenRollbackRestoresForeign covers the mixed path:
+// add conflicts, replace lands, verify fails => self-clean del + verbatim
+// restore of the displaced foreign /32.
+func TestKernelFallbackLandsThenRollbackRestoresForeign(t *testing.T) {
+	fr := newFakeRoutes()
+	dst := ep4().Addr().String()
+	fr.showPre[dst] = dst + " via 10.7.7.1 dev wan0"
+	fr.failAdd[dst] = true
+	fr.failGet[dst] = true
+	c := testCarrier(t, fr, nil)
+	defer c.Close()
+
+	if err := c.Setup(context.Background()); err == nil {
+		t.Fatal("setup must fail when verification fails")
+	}
+	if fr.has("-4", dst, "wgout") {
+		t.Fatal("rollback did not delete the landed pin")
+	}
+	if !fr.has("-4", dst, "wan0") {
+		t.Fatal("displaced foreign /32 not restored after fallback rollback")
+	}
+}
+
+func TestKernelDeviceTokenNoPrefixCollision(t *testing.T) {
+	// E7: a `dev wg01` line must NOT satisfy a wg0 carrier — neither the
+	// idempotency check nor verifyRoute may substring-match devices.
+	fr := newFakeRoutes()
+	dst := ep4().Addr().String()
+	c := testCarrier(t, fr, func(cc *KernelRouteCarrierConfig) {
+		cc.Device = "wg0"
+	})
+	defer c.Close()
+
+	if err := c.Setup(context.Background()); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// A foreign device with a colliding name takes the route over; both
+	// re-pin mutations are blocked.
+	fr.mu.Lock()
+	fr.lines[key("-4", dst)] = dst + " dev wg01"
+	fr.failAdd[dst] = true
+	fr.failReplace[dst] = true
+	fr.mu.Unlock()
+
+	// Old code: show line contains "dev wg0" (substring of "dev wg01") and
+	// the route is owned => idempotent no-op SUCCESS. Fixed code: the token
+	// match fails => a re-pin is attempted => both mutations fail => the
+	// structural error surfaces instead of a false "already ours".
+	if err := c.Setup(context.Background()); err == nil {
+		t.Fatal("E7: collision line accepted as already-ours by the idempotency check")
+	}
+	// verifyRoute must likewise reject a wg01 effective route for wg0.
+	if err := c.verifyRoute(context.Background(), "-4", ep4().Addr()); err == nil {
+		t.Fatal("E7: verify accepted a dev wg01 line for carrier wg0")
+	}
+}
+
+func TestDevTokenIsExactMatching(t *testing.T) {
+	if !devTokenIs(strings.Fields("9.9.9.9 via 10.0.0.1 dev wg0"), "wg0") {
+		t.Fatal("devTokenIs must match the exact token")
+	}
+	if devTokenIs(strings.Fields("9.9.9.9 via 10.0.0.1 dev wg01"), "wg0") {
+		t.Fatal("devTokenIs must not substring-match prefix-colliding devices")
+	}
+	if devTokenIs(strings.Fields("9.9.9.9 dev"), "wg0") {
+		t.Fatal("dangling dev token must not match")
+	}
+}
+
+func TestKernelCloseWaitsAssertionLoop(t *testing.T) {
+	fr := newFakeRoutes()
+	c := testCarrier(t, fr, nil)
+
+	ctx := context.Background()
+	if err := c.Setup(ctx); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	c.RunAssertionLoop(ctx, 15*time.Millisecond)
+
+	// Wipe the pin, then Close IMMEDIATELY: an in-flight Assert must not
+	// re-pin after Close returns (E8 teardown race).
+	fr.mu.Lock()
+	delete(fr.lines, key("-4", "9.9.9.9"))
+	fr.mu.Unlock()
+
+	done := make(chan struct{})
+	go func() { c.Close(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(6 * time.Second):
+		t.Fatal("Close blocked beyond the Assert tick budget")
+	}
+
+	// Give any leaked (post-fix impossible) repair several tick windows.
+	for i := 0; i < 30; i++ {
+		if fr.has("-4", "9.9.9.9", "wgout") {
+			t.Fatal("E8: pin re-appeared after Close (assertion loop raced teardown)")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }

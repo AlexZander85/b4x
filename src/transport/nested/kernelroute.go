@@ -147,10 +147,17 @@ func (c *KernelRouteCarrier) pinFamily(ctx context.Context, ep netip.AddrPort) e
 	dst := ep.Addr()
 	plen := prefixLenOf(fam)
 
-	prevRaw, _ := c.cfg.Runner(ctx, fam, "route", "show", dst.String())
+	prevRaw, serr := c.cfg.Runner(ctx, fam, "route", "show", dst.String())
+	if serr != nil {
+		// PATCH-06/E5, fail-closed: without a prev snapshot the teardown
+		// could not restore the foreign state — a transient show failure
+		// would silently orphan the foreign route at Restore time. No
+		// snapshot => no pin.
+		return fmt.Errorf("pin %s: route show failed (cannot snapshot prev): %w", dst, serr)
+	}
 	prev := strings.TrimSpace(prevRaw)
 
-	if strings.Contains(prev, "dev "+c.cfg.Device) && c.ownedIndex(dst) >= 0 {
+	if devTokenIs(strings.Fields(prev), c.cfg.Device) && c.ownedIndex(dst) >= 0 {
 		return nil // already ours and owned: idempotent no-op
 	}
 
@@ -174,15 +181,13 @@ func (c *KernelRouteCarrier) pinFamily(ctx context.Context, ep netip.AddrPort) e
 	}
 
 	if verr := c.verifyRoute(ctx, fam, dst); verr != nil {
-		// Self-clean: our replace may have landed even though verification
-		// failed. Delete OUR pin and restore the previous route verbatim
-		// before reporting the failure (rollback discipline).
+		// Self-clean: our add/replace may have landed even though
+		// verification failed. Delete OUR pin and restore the previous
+		// route verbatim before reporting the failure (rollback
+		// discipline) — only when prev was an exact-prefix foreign
+		// route (PATCH-06: covering prevs stay in the table untouched).
 		_, _ = c.cfg.Runner(ctx, fam, "route", "del", dst.String()+"/"+plen)
-		if tok := strings.Fields(strings.TrimSpace(prev)); len(tok) > 0 &&
-			!strings.Contains(prev, "dev "+c.cfg.Device) {
-			full := append([]string{fam, "route", "replace"}, stripFamilyTokens(tok, fam)...)
-			_, _ = c.cfg.Runner(ctx, full...)
-		}
+		c.restorePrev(ctx, pinnedRoute{family: fam, dst: dst, prev: prev})
 		return verr
 	}
 	c.recordOwned(pinnedRoute{family: fam, dst: dst, dev: c.cfg.Device, prev: prev})
@@ -190,13 +195,15 @@ func (c *KernelRouteCarrier) pinFamily(ctx context.Context, ep netip.AddrPort) e
 }
 
 // verifyRoute reads back the EFFECTIVE route: the exit code alone never
-// proves anything (zapret-gui lesson baked into the design).
+// proves anything (zapret-gui lesson baked into the design). Device matching
+// is token-exact (PATCH-06/E7): a `dev wg0` substring would false-positive
+// on `dev wg01` lines.
 func (c *KernelRouteCarrier) verifyRoute(ctx context.Context, fam string, dst netip.Addr) error {
 	got, err := c.cfg.Runner(ctx, fam, "route", "get", dst.String())
 	if err != nil {
 		return fmt.Errorf("verify %s: %v", dst, err)
 	}
-	if !strings.Contains(got, "dev "+c.cfg.Device) {
+	if !devTokenIs(strings.Fields(got), c.cfg.Device) {
 		return fmt.Errorf("verify %s: effective route misses dev %s: %s",
 			dst, c.cfg.Device, strings.TrimSpace(got))
 	}
@@ -266,6 +273,39 @@ func (c *KernelRouteCarrier) emit(ev Event) {
 	if cb := c.cfg.OnEvent; cb != nil {
 		cb(ev)
 	}
+}
+
+// devTokenIs reports whether the iproute2 tokens carry `dev <device>` with
+// EXACT token matching (PATCH-06/E7). Substring matching (`strings.Contains
+// (line, "dev "+dev)`) false-positives on prefix-colliding device names
+// (`dev wg0` matches a `dev wg01` line), which would produce false "already
+// ours" and false "verify ok" verdicts.
+func devTokenIs(tok []string, dev string) bool {
+	for i := 0; i+1 < len(tok); i++ {
+		if tok[i] == "dev" && tok[i+1] == dev {
+			return true
+		}
+	}
+	return false
+}
+
+// restorePrev re-issues the snapshotted previous route VERBATIM, but ONLY
+// when it was an exact-prefix foreign route (same dst as our pin). A
+// covering prev ("default via ... dev wan0") was never displaced by our
+// /32(/128) pin — add/replace of the host route leaves covering routes in
+// place — so there is nothing to restore and re-issuing it would be at best
+// a no-op. Returns true when a restore command was issued.
+func (c *KernelRouteCarrier) restorePrev(ctx context.Context, r pinnedRoute) bool {
+	tok := strings.Fields(strings.TrimSpace(r.prev))
+	if len(tok) == 0 || devTokenIs(tok, c.cfg.Device) {
+		return false
+	}
+	if tok[0] != r.dst.String() && tok[0] != r.dst.String()+"/"+prefixLenOf(r.family) {
+		return false
+	}
+	full := append([]string{r.family, "route", "replace"}, stripFamilyTokens(tok, r.family)...)
+	_, _ = c.cfg.Runner(ctx, full...)
+	return true
 }
 
 func closeOnce(ch chan struct{}) (already bool) {
