@@ -70,6 +70,14 @@ func (h *HealthConfig) fillDefaults() {
 	if h.KeepaliveSec == 0 {
 		h.KeepaliveSec = 25
 	}
+	// PATCH-04: derive the default RXIdle from the session keepalive —
+	// max(30s, 3x keepalive). Keepalives are outbound-only (the peer does
+	// not answer them), so a fixed 10s RXIdle guaranteed restart cycles for
+	// nested pairs (outer keepalive 5s, inner 20s): 25s -> 75s, 5s -> 30s,
+	// 20s -> 60s. An EXPLICIT RXIdle in the config always wins.
+	if h.Watchdog.RXIdle == 0 {
+		h.Watchdog.RXIdle = max(30*time.Second, 3*time.Duration(h.KeepaliveSec)*time.Second)
+	}
 	h.RestartCap.fillDefaults()
 	h.Watchdog.fillDefaults()
 }

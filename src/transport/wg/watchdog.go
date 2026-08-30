@@ -45,6 +45,13 @@ type CountersFunc func(context.Context) (CounterSample, error)
 // the eviction horizon. Shrinking the margin below 2*Tick (or removing it)
 // makes the `span >= Window` check unreachable on real clocks and deadens
 // the trigger — see the eviction comment in Feed.
+//
+// PATCH-04 note (field measurement gate): the DEFAULT RXIdle is derived
+// from the session keepalive (max(30s, 3x keepalive)) by
+// HealthConfig.fillDefaults; an explicit RXIdle always wins. The first
+// field smoke MUST measure the actual inbound cadence of CF-WG edges
+// (sampler events) before any AGGRESSIVE RXIdle is shipped — see the
+// LivenessProbe reservation below.
 type WatchdogConfig struct {
 	RXIdle  time.Duration
 	Window  time.Duration
@@ -53,6 +60,13 @@ type WatchdogConfig struct {
 	Tick    time.Duration
 	Now     func() time.Time // injectable clock
 	OnStall func(Failure)
+
+	// LivenessProbe is a RESERVED interface (PATCH-04, design §4 field
+	// tail): a future self-liveness probe (e.g. DNS round-trip under
+	// RXIdle) to distinguish "tunnel dead" from "edge legitimately
+	// quiet". NIL by default and NOT consulted by the current detection
+	// — wiring it is a field-stage decision, not a code-stage guess.
+	LivenessProbe func(ctx context.Context) error
 }
 
 func (c *WatchdogConfig) fillDefaults() {
@@ -83,6 +97,7 @@ type Watchdog struct {
 	mu      sync.Mutex
 	samples []CounterSample
 	lastRx  time.Time // time of the last sample where rx grew
+	lastTx  time.Time // time of the last sample where tx grew (PATCH-04)
 	fired   bool
 }
 
@@ -105,8 +120,12 @@ func (w *Watchdog) Feed(s CounterSample) {
 		if s.RxBytes > w.samples[n-1].RxBytes {
 			w.lastRx = s.Time // anchor: last observed inbound growth
 		}
+		if s.TxBytes > w.samples[n-1].TxBytes {
+			w.lastTx = s.Time // anchor: last observed outbound growth
+		}
 	} else {
 		w.lastRx = s.Time
+		w.lastTx = s.Time
 	}
 	w.samples = append(w.samples, s)
 	now := s.Time
@@ -114,7 +133,16 @@ func (w *Watchdog) Feed(s CounterSample) {
 	// Trigger 1: no inbound growth for RXIdle — the tunnel went silent
 	// (design §4 "нет входящих >10 с"; the health probes keep the tunnel
 	// from being legitimately quiet).
-	if now.Sub(w.lastRx) > w.cfg.RXIdle {
+	//
+	// PATCH-04 tx-gating: idle counts ONLY when outbound traffic exists
+	// since the last inbound — a session that neither reads NOR writes
+	// is legitimately quiet (nothing can be lost behind a dead path),
+	// while "we are writing and nothing comes back" is the stall
+	// signature. NAT-keepalives requiring no response are exactly why
+	// pure idle must not restart the session; the truly-dead tunnel
+	// (with user tx flowing) is still caught, and trigger 2 covers the
+	// write-heavy mismatch signature.
+	if now.Sub(w.lastRx) > w.cfg.RXIdle && w.lastTx.After(w.lastRx) {
 		w.fire(*newFailure(ClassStallRX, "rx-idle-exceeded", nil))
 		return
 	}
@@ -158,6 +186,7 @@ func (w *Watchdog) Rearm() {
 	w.fired = false
 	w.samples = nil
 	w.lastRx = time.Time{}
+	w.lastTx = time.Time{}
 }
 
 // Fired reports whether the watchdog already fired (test introspection).

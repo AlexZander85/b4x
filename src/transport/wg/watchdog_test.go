@@ -72,8 +72,10 @@ func TestWatchdogRxIdle(t *testing.T) {
 	}
 }
 
-// TestWatchdogQuietKeepsAlive proves passive keepalive traffic (small rx
-// growth each tick) never trips either trigger.
+// TestWatchdogQuietKeepsAlive proves quiet traffic never trips either
+// trigger. PATCH-04 semantics: an idle client (NO outbound growth) over a
+// quiet edge (sparse inbound replies) must NOT restart — with no tx growth
+// the rx-idle trigger cannot fire at all, regardless of the inbound cadence.
 func TestWatchdogQuietKeepsAlive(t *testing.T) {
 	start := time.Unix(500, 0)
 	nowT := start
@@ -87,13 +89,96 @@ func TestWatchdogQuietKeepsAlive(t *testing.T) {
 	rx, tx := uint64(0), uint64(0)
 	for i := 0; i < 300; i++ { // 5 minutes of healthy idle-with-keepalive
 		nowT = start.Add(time.Duration(i) * time.Second)
-		if i%10 == 0 && i > 0 {
-			rx += 32 // passive keepalive replies ~32 B / 10 s
+		if i%30 == 0 && i > 0 {
+			rx += 32 // passive keepalive replies ~32 B / 30 s (quiet edge)
 		}
 		wd.Feed(CounterSample{Time: nowT, RxBytes: rx, TxBytes: tx})
 	}
 	if wd.Fired() {
 		t.Fatal("fired flag set on healthy feed")
+	}
+}
+
+// ---- PATCH-04: tx-gating + derived RXIdle ----
+
+// TestWatchdogQuietIdleWithoutTxIsNotStall: rx AND tx both frozen — the
+// session is legitimately quiet, no restart (red before the tx-gate:
+// the rx-idle trigger fired at RXIdle regardless of tx).
+func TestWatchdogQuietIdleWithoutTxIsNotStall(t *testing.T) {
+	start := time.Unix(700, 0)
+	nowT := start
+	wd := NewWatchdog(WatchdogConfig{
+		RXIdle: 10 * time.Second,
+		Window: 120 * time.Second,
+		Tick:   time.Second,
+		Now:    func() time.Time { return nowT },
+	})
+	wd.cfg.OnStall = func(Failure) { t.Fatal("quiet idle must not be classified as a stall") }
+
+	rx, tx := uint64(1000), uint64(2000)
+	for i := 0; i <= 60; i++ { // 60 s of total silence
+		nowT = start.Add(time.Duration(i) * time.Second)
+		wd.Feed(CounterSample{Time: nowT, RxBytes: rx, TxBytes: tx})
+	}
+	if wd.Fired() {
+		t.Fatal("fired on quiet idle")
+	}
+}
+
+// TestWatchdogIdleWithTxAndDeadRxFires: rx frozen, tx growing — the classic
+// dead tunnel while the user still writes; the old detection must be
+// preserved by the tx-gate (fires when rx idle exceeds RXIdle).
+func TestWatchdogIdleWithTxAndDeadRxFires(t *testing.T) {
+	start := time.Unix(800, 0)
+	nowT := start
+	wd := NewWatchdog(WatchdogConfig{
+		RXIdle: 10 * time.Second,
+		Window: 120 * time.Second,
+		Tick:   time.Second,
+		Now:    func() time.Time { return nowT },
+	})
+	var class FailureClass
+	wd.cfg.OnStall = func(f Failure) { class = f.Class }
+
+	rx, tx := uint64(5000), uint64(5000)
+	wd.Feed(CounterSample{Time: nowT, RxBytes: rx, TxBytes: tx}) // anchor
+	for i := 1; i <= 11; i++ {
+		nowT = start.Add(time.Duration(i) * time.Second)
+		tx += 1500 // user traffic keeps flowing outward
+		wd.Feed(CounterSample{Time: nowT, RxBytes: rx, TxBytes: tx})
+	}
+	if !wd.Fired() {
+		t.Fatal("dead tunnel with live tx must fire the rx-idle trigger")
+	}
+	if class != ClassStallRX {
+		t.Fatalf("class=%s want wg-stall-rx", class)
+	}
+}
+
+// TestNestedKeepaliveDerivesRXIdle pins the PATCH-04 derivation:
+// RXIdle = max(30s, 3x keepalive) for keepalive 5/20/25 => 30/60/75 s,
+// and an explicit RXIdle always wins.
+func TestNestedKeepaliveDerivesRXIdle(t *testing.T) {
+	cases := []struct {
+		keep uint16
+		want time.Duration
+	}{
+		{5, 30 * time.Second},  // W+M outer
+		{20, 60 * time.Second}, // M+W inner
+		{25, 75 * time.Second}, // default
+	}
+	for _, tc := range cases {
+		h := HealthConfig{KeepaliveSec: tc.keep}
+		h.fillDefaults()
+		if h.Watchdog.RXIdle != tc.want {
+			t.Fatalf("keepalive %ds: RXIdle = %s, want %s", tc.keep, h.Watchdog.RXIdle, tc.want)
+		}
+	}
+	// Explicit config wins over the derivation.
+	h := HealthConfig{KeepaliveSec: 25, Watchdog: WatchdogConfig{RXIdle: 42 * time.Second}}
+	h.fillDefaults()
+	if h.Watchdog.RXIdle != 42*time.Second {
+		t.Fatalf("explicit RXIdle overwritten: %s", h.Watchdog.RXIdle)
 	}
 }
 
