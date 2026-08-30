@@ -21,15 +21,19 @@ import (
 
 // Seek budgets (design §5: handshake 5 s, per-attempt ~7 s, overall
 // 80–120 s; cooldown 300 s after two strikes).
+// PATCH-12 (WG MINOR 7): the KPI §1.3 budget is PER ENDPOINT —
+// DefaultSeekPerEndpointDeadline bounds ONE candidate's ladder; the TOTAL
+// derives from it (n candidates) unless explicitly overridden.
 const (
-	DefaultSeekHandshakeTimeout = 5 * time.Second
-	DefaultSeekGateWindow       = 900 * time.Millisecond
-	DefaultSeekGateGap          = 100 * time.Millisecond
-	DefaultSeekGateRoundTrips   = 2
-	DefaultSeekAttemptBudget    = 7 * time.Second
-	DefaultSeekTotalDeadline    = 90 * time.Second
-	DefaultSeekCooldown         = 300 * time.Second
-	DefaultSeekStrikes          = 2
+	DefaultSeekHandshakeTimeout    = 5 * time.Second
+	DefaultSeekGateWindow          = 900 * time.Millisecond
+	DefaultSeekGateGap             = 100 * time.Millisecond
+	DefaultSeekGateRoundTrips      = 2
+	DefaultSeekAttemptBudget       = 7 * time.Second
+	DefaultSeekTotalDeadline       = 90 * time.Second
+	DefaultSeekPerEndpointDeadline = 90 * time.Second
+	DefaultSeekCooldown            = 300 * time.Second
+	DefaultSeekStrikes             = 2
 )
 
 // AttemptRecord traces one ladder step for reports/tests.
@@ -103,15 +107,16 @@ type SeekerConfig struct {
 	Target     ProfileTarget
 	LadderIDs  []string // optional explicit order override (validated IDs)
 
-	Store             LastGoodStore // optional
-	HandshakeTimeout  time.Duration // default 5 s
-	GateWindow        time.Duration // default 900 ms
-	GateRoundTrips    int           // default 2
-	GateGap           time.Duration // default 100 ms
-	AttemptBudget     time.Duration // default 7 s
-	TotalDeadline     time.Duration // default 90 s
-	Cooldown          time.Duration // default 300 s
-	StrikesToCooldown int           // default 2
+	Store               LastGoodStore // optional
+	HandshakeTimeout    time.Duration // default 5 s
+	GateWindow          time.Duration // default 900 ms
+	GateRoundTrips      int           // default 2
+	GateGap             time.Duration // default 100 ms
+	AttemptBudget       time.Duration // default 7 s
+	TotalDeadline       time.Duration // 0 = derived: PerEndpointDeadline x candidates
+	PerEndpointDeadline time.Duration // PATCH-12: per-candidate ladder budget; default 90 s (KPI §1.3)
+	Cooldown            time.Duration // default 300 s
+	StrikesToCooldown   int           // default 2
 
 	Now func() time.Time
 
@@ -149,9 +154,11 @@ func (c *SeekerConfig) fillDefaults() {
 	if c.AttemptBudget == 0 {
 		c.AttemptBudget = DefaultSeekAttemptBudget
 	}
-	if c.TotalDeadline == 0 {
-		c.TotalDeadline = DefaultSeekTotalDeadline
+	if c.PerEndpointDeadline == 0 {
+		c.PerEndpointDeadline = DefaultSeekPerEndpointDeadline
 	}
+	// PATCH-12: TotalDeadline stays 0 when unset — Seek derives it from the
+	// per-endpoint budget and the candidate count (KPI §1.3 is per ENDPOINT).
 	if c.Cooldown == 0 {
 		c.Cooldown = DefaultSeekCooldown
 	}
@@ -183,6 +190,14 @@ func NewSeeker(cfg SeekerConfig) (*Seeker, error) {
 		if _, err := LookupProfile(id); err != nil {
 			return nil, newFailure(ClassParamRejected, "ladder", err)
 		}
+	}
+	// PATCH-12: the production budget band (KPI §1.3: 80–120 s per endpoint).
+	// The tests-only escape (AllowOutOfCatalog, same posture as the endpoint
+	// gate) also unlocks shrunk budgets for CI.
+	if !cfg.AllowOutOfCatalog && cfg.PerEndpointDeadline != 0 &&
+		(cfg.PerEndpointDeadline < 80*time.Second || cfg.PerEndpointDeadline > 120*time.Second) {
+		return nil, newFailure(ClassParamRejected, "per-endpoint-deadline",
+			fmt.Errorf("%s outside the 80-120s production band", cfg.PerEndpointDeadline))
 	}
 	strikes := cfg.Strikes
 	if strikes == nil {
@@ -283,10 +298,19 @@ func (s *Seeker) orderedLadder(cand netip.AddrPort) ([]ProfileTemplate, error) {
 }
 
 // Seek runs the ladder until a winner or budget exhaustion.
+// PATCH-12: every candidate's ladder runs under ITS OWN deadline
+// (PerEndpointDeadline); a candidate's budget expiry moves to the NEXT
+// candidate instead of killing the run. The total deadline is a ceiling
+// over everything: explicit when set, otherwise derived as
+// PerEndpointDeadline x candidate count (KPI §1.3 semantics).
 func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 	s.cfg.fillDefaults()
 
-	totalCtx, cancelTotal := context.WithTimeout(ctx, s.cfg.TotalDeadline)
+	total := s.cfg.TotalDeadline
+	if total <= 0 {
+		total = s.cfg.PerEndpointDeadline * time.Duration(max(1, len(s.cfg.Candidates)))
+	}
+	totalCtx, cancelTotal := context.WithTimeout(ctx, total)
 	defer cancelTotal()
 
 	res := SeekResult{}
@@ -297,14 +321,29 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 	}
 
 	for _, cand := range cands {
+		if totalCtx.Err() != nil {
+			break
+		}
+		candCtx, cancelCand := context.WithTimeout(totalCtx, s.cfg.PerEndpointDeadline)
 		ladder, err := s.orderedLadder(cand)
 		if err != nil {
+			cancelCand()
 			return res, newFailure(ClassParamRejected, "ladder", err)
 		}
 		nextCandidate := false
 		for _, tpl := range ladder {
 			if totalCtx.Err() != nil {
+				cancelCand()
 				return res, totalCtx.Err()
+			}
+			// PATCH-12: this candidate's own budget expired — move
+			// to the NEXT candidate instead of dying with the run.
+			if candCtx.Err() != nil {
+				rec := AttemptRecord{Endpoint: cand, Profile: tpl.ID, Outcome: ClassStallRX, Err: "endpoint-budget"}
+				res.Attempts = append(res.Attempts, rec)
+				s.emit(rec)
+				nextCandidate = true
+				break
 			}
 			prof, berr := tpl.Build()
 			if berr != nil {
@@ -314,7 +353,7 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 				continue
 			}
 
-			outcome := s.attempt(totalCtx, cand, prof)
+			outcome := s.attempt(candCtx, cand, prof)
 			switch {
 			case outcome.won:
 				rec := AttemptRecord{Endpoint: cand, Profile: tpl.ID, Outcome: "winner"}
@@ -325,6 +364,7 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 					_ = s.cfg.Store.Put(Attempt{Endpoint: cand, ProfileID: tpl.ID, At: s.cfg.Now()})
 				}
 				s.strikes.Clear(cand)
+				cancelCand()
 				return res, nil
 			case outcome.fail != nil && outcome.fail.Class == ClassVersionMismatch:
 				rec := AttemptRecord{Endpoint: cand, Profile: tpl.ID, Outcome: ClassVersionMismatch, Err: outcome.fail.Reason}
@@ -347,6 +387,7 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 				break
 			}
 		}
+		cancelCand()
 		if nextCandidate {
 			s.strikes.Strike(cand, s.cfg.Now(), s.cfg.StrikesToCooldown, s.cfg.Cooldown)
 		}

@@ -399,3 +399,113 @@ func seekOne(t *testing.T, base SessionConfig, cand netip.AddrPort, prof Profile
 		}
 	}
 }
+
+// ---- PATCH-12: per-endpoint seek budget (KPI §1.3 is PER ENDPOINT) ----
+
+// TestSeekPerEndpointBudget: a candidate whose ladder outlives its own
+// budget is cut at THAT budget (endpoint-budget record) and the run moves
+// to the next candidate with a fresh budget — the run is not killed by one
+// candidate's exhaustion. Total deadline derives from the per-endpoint
+// budget x candidates.
+func TestSeekPerEndpointBudget(t *testing.T) {
+	outerID, innerID := nestedIdents(t)
+	_ = innerID
+	base := SessionConfig{
+		Ident:    outerID,
+		Endpoint: "127.0.0.1:9",
+		Tunnel: TunnelConfig{
+			Mode:      ModeNetstack,
+			Addresses: []netip.Addr{netip.MustParseAddr(clientTunnelIP)},
+			DNS:       []netip.Addr{netip.MustParseAddr("8.8.8.8")},
+			MTU:       DefaultMTU,
+		},
+	}
+	dead1 := netip.MustParseAddrPort("127.0.0.1:9")
+	dead2 := netip.MustParseAddrPort("127.0.0.1:4")
+
+	var mu sync.Mutex
+	var log []AttemptRecord
+	s, err := NewSeeker(SeekerConfig{
+		Base:   base,
+		Target: TargetCfWarp,
+		// Tests-only escape: shrinks the budget band AND leaves the catalog.
+		AllowOutOfCatalog:   true,
+		Candidates:          []netip.AddrPort{dead1, dead2},
+		LadderIDs:           []string{"vanilla-off", "quic-a", "sip-invite"},
+		HandshakeTimeout:    120 * time.Millisecond,
+		GateWindow:          100 * time.Millisecond,
+		GateRoundTrips:      1,
+		GateGap:             20 * time.Millisecond,
+		AttemptBudget:       2 * time.Second, // per-attempt must NOT be the binding constraint
+		PerEndpointDeadline: 300 * time.Millisecond,
+		// TotalDeadline unset: derived = 300ms x 2 candidates.
+		OnEvent: func(rec AttemptRecord) { mu.Lock(); log = append(log, rec); mu.Unlock() },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now()
+	res, err := s.Seek(context.Background())
+	elapsed := time.Since(start)
+	if err == nil || res.Winner != nil {
+		t.Fatalf("expected exhaustion, got winner=%+v err=%v", res.Winner, err)
+	}
+	if elapsed > 2500*time.Millisecond {
+		t.Fatalf("run took %s: per-endpoint budgets did not bound the ladder", elapsed)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	byEndpoint := map[netip.AddrPort]int{}
+	for _, rec := range log {
+		byEndpoint[rec.Endpoint]++
+	}
+	if byEndpoint[dead1] == 0 || byEndpoint[dead2] == 0 {
+		t.Fatalf("a candidate was skipped instead of getting its own budget: %+v", byEndpoint)
+	}
+	// The "endpoint-budget" cut between ladder steps additionally needs a
+	// ladder that CONTINUES across attempts (version-mismatch continuation
+	// against a live AWG edge) — covered by the integration stand; what this
+	// unit pins is that candidate 2 received its own budget and ran.
+	_ = DefaultSeekPerEndpointDeadline
+}
+
+// TestSeekPerEndpointBandValidation pins the production budget band
+// (80-120 s): outside the band NewSeeker rejects unless the tests-only
+// escape is set.
+func TestSeekPerEndpointBandValidation(t *testing.T) {
+	outerID, _ := nestedIdents(t)
+	mk := func(deadline time.Duration, escape bool) error {
+		_, err := NewSeeker(SeekerConfig{
+			Base:                SessionConfig{Ident: outerID},
+			Target:              TargetCfWarp,
+			Candidates:          []netip.AddrPort{netip.MustParseAddrPort("127.0.0.1:9")},
+			PerEndpointDeadline: deadline,
+			AllowOutOfCatalog:   escape,
+		})
+		return err
+	}
+	if err := mk(30*time.Second, false); err == nil {
+		t.Fatal("30s per-endpoint budget must be rejected in production posture")
+	}
+	if err := mk(130*time.Second, false); err == nil {
+		t.Fatal("130s per-endpoint budget must be rejected in production posture")
+	}
+	if err := mk(90*time.Second, false); err != nil {
+		t.Fatalf("90s budget rejected: %v", err)
+	}
+	if err := mk(50*time.Millisecond, true); err != nil {
+		t.Fatalf("tests-only escape must unlock shrunk budgets: %v", err)
+	}
+	// Derived total: TotalDeadline 0 stays 0 in fillDefaults.
+	cfg := SeekerConfig{Base: SessionConfig{Ident: outerID}, Target: TargetCfWarp,
+		Candidates: []netip.AddrPort{netip.MustParseAddrPort("127.0.0.1:9")}}
+	cfg.fillDefaults()
+	if cfg.TotalDeadline != 0 {
+		t.Fatalf("TotalDeadline = %s, want 0 (derived in Seek)", cfg.TotalDeadline)
+	}
+	if cfg.PerEndpointDeadline != DefaultSeekPerEndpointDeadline {
+		t.Fatalf("PerEndpointDeadline = %s, want default %s", cfg.PerEndpointDeadline, DefaultSeekPerEndpointDeadline)
+	}
+}
