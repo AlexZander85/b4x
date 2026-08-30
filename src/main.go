@@ -18,8 +18,8 @@ import (
 	"time"
 	_ "time/tzdata"
 
-	"github.com/daniellavrushin/b4/ai"
 	"github.com/daniellavrushin/b4/adblock"
+	"github.com/daniellavrushin/b4/ai"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discovery"
 	"github.com/daniellavrushin/b4/geodat"
@@ -30,6 +30,7 @@ import (
 	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/nfq"
 	"github.com/daniellavrushin/b4/observability"
+	"github.com/daniellavrushin/b4/protonservice"
 	"github.com/daniellavrushin/b4/quic"
 	"github.com/daniellavrushin/b4/serviceprofile"
 	"github.com/daniellavrushin/b4/socks5"
@@ -492,25 +493,25 @@ func runB4(cmd *cobra.Command, args []string) error {
 			log.Tracef("Skipping routing sync due to --skip-tables")
 		}
 
-			metrics.RecordEvent("info", fmt.Sprintf("NFQueue started with %d threads", cfg.Queue.Threads))
-			metrics.NFQueueStatus = "active"
+		metrics.RecordEvent("info", fmt.Sprintf("NFQueue started with %d threads", cfg.Queue.Threads))
+		metrics.NFQueueStatus = "active"
 
-			// L5 field test (Часть 2.7): apply the PPE handshake window
-			// directly (no policy change, no config persist).
-			maybeStartL5PPE(&cfgPtr, appCtx)
+		// L5 field test (Часть 2.7): apply the PPE handshake window
+		// directly (no policy change, no config persist).
+		maybeStartL5PPE(&cfgPtr, appCtx)
 
-			// Part 3 П.4: proactive GGC shard discovery — feed current
-			// googlevideo shard IPs into the scoped hint store so a seek to
-			// a fresh CDN IP classifies before any QUIC/DNS observation.
-			nfq.StartGGCShardDiscovery(appCtx, &cfgPtr, pool)
+		// Part 3 П.4: proactive GGC shard discovery — feed current
+		// googlevideo shard IPs into the scoped hint store so a seek to
+		// a fresh CDN IP classifies before any QUIC/DNS observation.
+		nfq.StartGGCShardDiscovery(appCtx, &cfgPtr, pool)
 
-			// Part 3 P.5: automatic QUIC liveness fact via Version-Negotiation
-			// probes toward current googlevideo shard endpoints.
-			nfq.StartVNBProbe(appCtx, &cfgPtr, pool)
+		// Part 3 P.5: automatic QUIC liveness fact via Version-Negotiation
+		// probes toward current googlevideo shard endpoints.
+		nfq.StartVNBProbe(appCtx, &cfgPtr, pool)
 
-			// Part 3 follow-up: hourly external-churn gauge over masked-QUIC
-			// destination diversity (see nfq/storm.go).
-			nfq.StartStormGauge(appCtx, pool)
+		// Part 3 follow-up: hourly external-churn gauge over masked-QUIC
+		// destination diversity (see nfq/storm.go).
+		nfq.StartStormGauge(appCtx, pool)
 
 		// Start tables monitor to handle rule restoration if system wipes them
 		if !cfg.System.Tables.SkipSetup && cfg.System.Tables.MonitorInterval > 0 {
@@ -632,6 +633,27 @@ func runB4(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// E-PROTON reserve transport (design v2; control plane in
+	// src/transport/proton, data plane reuses the transport/wg engine).
+	// Zero goroutines and zero wire calls unless system.proton.enabled=true
+	// — the default config keeps the section off. The carrier seam
+	// (bootstrap-through-carrier) stays nil at this stage: the base-tunnel
+	// dial is wired when the selection trees learn the proton kind (design §7).
+	var protonEngine *protonservice.Runtime
+	if cfgPtr.Load().System.Proton.Enabled {
+		rt, err := protonservice.Build(cfgPtr.Load(), protonservice.Options{})
+		if err != nil {
+			log.Errorf("[proton] engine disabled this run: %v", err)
+		} else if err := rt.Start(appCtx); err != nil {
+			log.Errorf("[proton] engine start failed: %v", err)
+		} else {
+			protonEngine = rt
+			st := rt.Status()
+			log.Infof("[proton] engine started state=%s listening=%t", st.State, st.Listening)
+		}
+	}
+	handler.SetProtonRuntime(protonEngine) // nil-safe: the handler answers the disabled shape
+
 	// Service-profile WARP-recommendation lifecycle controller (FB-02 sp
 	// section §28A.11): owns the recommendation state machine
 	// (compile -> begin-test -> validate -> enable/promote) and the fourteen
@@ -677,6 +699,9 @@ func runB4(cmd *cobra.Command, args []string) error {
 	warpRT.Stop()
 	if warpEngine != nil {
 		warpEngine.Stop()
+	}
+	if protonEngine != nil {
+		protonEngine.Stop()
 	}
 	if geoScheduler != nil {
 		geoScheduler.Stop()

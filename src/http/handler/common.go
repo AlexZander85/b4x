@@ -205,6 +205,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterServiceProfileAPI()
 	api.RegisterFieldTestAPI()
 	api.RegisterFxvpnApi()
+	api.RegisterProtonApi()
 }
 
 func sendResponse(w http.ResponseWriter, response interface{}) {

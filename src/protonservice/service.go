@@ -406,6 +406,7 @@ func (r *Runtime) tick(ctx context.Context) {
 		r.noteFailure(classifyServiceErr(err))
 	}
 	r.renew(ctx)
+	r.exportState()
 }
 
 // ensureIdentity loads the stored identity or registers exactly once per
@@ -508,6 +509,7 @@ func (r *Runtime) register(ctx context.Context, fresh bool) (*proton.Identity, e
 		return nil, err
 	}
 	_ = fresh
+	r.exportRegistration()
 	return id, nil
 }
 
@@ -592,6 +594,7 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
 		OnEvent: func(rec twg.AttemptRecord) {
 			r.appendEvent(proton.Event{Name: "proton_profile_seek",
 				Class: string(rec.Outcome), Detail: rec.Endpoint.String() + " " + rec.Profile})
+			r.exportSeek(rec.Profile, string(rec.Outcome))
 		},
 		// CI budgets ride the tests-only escape; production keeps the
 		// 80-120 s band (PATCH-12).
@@ -768,7 +771,7 @@ func (r *Runtime) onSessionLost(node proton.Node, prof proton.ProtonProfile, f t
 	r.mu.Unlock()
 }
 
-// recordHandshake bumps the handshake counters (metrics wiring in PT6).
+// recordHandshake bumps the handshake counters (runtime + registry).
 func (r *Runtime) recordHandshake(ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -777,6 +780,7 @@ func (r *Runtime) recordHandshake(ok bool) {
 	} else {
 		r.dialFail++
 	}
+	r.exportHandshake(ok)
 }
 
 func jailedStrikesJitter(n int) string {
