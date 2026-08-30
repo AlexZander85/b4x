@@ -124,9 +124,9 @@ func TestH3DatagramWrapUnwrap(t *testing.T) {
 
 func TestH3DatagramMalformed(t *testing.T) {
 	cases := [][]byte{
-		{},                       // empty
-		{0x01},                   // qsid only, no context
-		AppendVarint(nil, 1),     // qsid+... truncated context handled below
+		{},                   // empty
+		{0x01},               // qsid only, no context
+		AppendVarint(nil, 1), // qsid+... truncated context handled below
 	}
 	cases[2] = AppendVarint(cases[2], 0) // qsid + ctx but zero-length payload
 	for i, c := range cases {

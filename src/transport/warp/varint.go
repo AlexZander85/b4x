@@ -21,7 +21,7 @@ import "errors"
 
 // Varint errors.
 var (
-	ErrVarintOverflow = errors.New("engine: varint exceeds 10 bytes / 62-bit range")
+	ErrVarintOverflow  = errors.New("engine: varint exceeds 10 bytes / 62-bit range")
 	ErrVarintTruncated = errors.New("engine: varint input truncated")
 )
 

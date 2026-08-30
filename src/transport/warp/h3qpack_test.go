@@ -89,12 +89,12 @@ func TestQPACKHuffmanVectorWarpColo(t *testing.T) {
 // zero table capacity; a conformant peer never sends them).
 func TestQPACKDynamicRefRejected(t *testing.T) {
 	cases := [][]byte{
-		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x80, 6, 5)...),         // indexed dynamic
-		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x40, 4, 3)...),         // literal dynamic name ref
-		{0x01, 0x00},                                                           // RIC != 0
-		{0x00, 0x80, 0x00},                                                     // negative base (sign=1)
-		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0xC0, 6, 200)...),       // static index OOR
-		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x10, 4, 2)...),         // post-base indexed
+		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x80, 6, 5)...), // indexed dynamic
+		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x40, 4, 3)...), // literal dynamic name ref
+		{0x01, 0x00},       // RIC != 0
+		{0x00, 0x80, 0x00}, // negative base (sign=1)
+		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0xC0, 6, 200)...), // static index OOR
+		append([]byte{0x00, 0x00}, appendQPACKInt(nil, 0x10, 4, 2)...),   // post-base indexed
 	}
 	for i, tc := range cases {
 		if _, err := DecodeFieldSection(tc); err == nil {

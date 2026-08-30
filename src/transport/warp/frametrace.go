@@ -62,11 +62,11 @@ func initFrameTrace() {
 func traceEnabled() bool { return traceWriter.Load() != nil }
 
 type traceLine struct {
-	T       string `json:"t"`            // RFC3339Nano UTC
-	Dir     string `json:"dir"`          // tx | rx | drop | ev
-	Session string `json:"sess"`         // EndpointHash of the owning session
-	Len     int    `json:"len"`          // payload (IP packet) length
-	WriteMS int64  `json:"wr_ms"`        // tx only: time spent inside pw.Write
+	T       string `json:"t"`             // RFC3339Nano UTC
+	Dir     string `json:"dir"`           // tx | rx | drop | ev
+	Session string `json:"sess"`          // EndpointHash of the owning session
+	Len     int    `json:"len"`           // payload (IP packet) length
+	WriteMS int64  `json:"wr_ms"`         // tx only: time spent inside pw.Write
 	CapType uint64 `json:"cap,omitempty"` // rx only: capsule type (0 = DATAGRAM)
 	Proto   uint8  `json:"proto,omitempty"`
 	Src     string `json:"src,omitempty"`

@@ -39,8 +39,8 @@ func BuildICMPv6TooBig(orig []byte, mtu int) []byte {
 	// appear in the embedded header.
 	plen := len(msg)
 	pseudo := make([]byte, 0, hdrLen+plen)
-	pseudo = append(pseudo, orig[8:24]...)   // invoking packet src
-	pseudo = append(pseudo, orig[24:40]...)  // invoking packet dst
+	pseudo = append(pseudo, orig[8:24]...)  // invoking packet src
+	pseudo = append(pseudo, orig[24:40]...) // invoking packet dst
 	pseudo = append(pseudo, byte(plen>>24), byte(plen>>16), byte(plen>>8), byte(plen))
 	pseudo = append(pseudo, 0, 0, 0, nexthdrV6)
 	pseudo = append(pseudo, msg...)
@@ -53,9 +53,9 @@ func BuildICMPv6TooBig(orig []byte, mtu int) []byte {
 	ip[0] = 0x60
 	binary.BigEndian.PutUint16(ip[4:], uint16(len(msg))) // payload length
 	ip[6] = nexthdrV6
-	ip[7] = 64 // hop limit
-	copy(ip[8:24], orig[24:40])  // src <- original dst (reporting entity)
-	copy(ip[24:40], orig[8:24])  // dst <- original src (the sender to inform)
+	ip[7] = 64                  // hop limit
+	copy(ip[8:24], orig[24:40]) // src <- original dst (reporting entity)
+	copy(ip[24:40], orig[8:24]) // dst <- original src (the sender to inform)
 	copy(ip[40:], msg)
 	return ip
 }

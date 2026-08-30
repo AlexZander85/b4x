@@ -65,15 +65,14 @@ type DatagramHook interface {
 // (ReadMsgUDPAddrPort/WriteMsgUDPAddrPort). Batch size 1 is legal per the
 // Bind contract and keeps the patch seam trivially correct.
 type Bind struct {
-	mu      sync.Mutex
-	opts    SocketOptions
-	mark    uint32 // current mark (set before or after Open)
-	v4, v6  *net.UDPConn
-	port    uint16
-	opened  bool
-	hook    atomic.Pointer[DatagramHook]
+	mu     sync.Mutex
+	opts   SocketOptions
+	mark   uint32 // current mark (set before or after Open)
+	v4, v6 *net.UDPConn
+	port   uint16
+	opened bool
+	hook   atomic.Pointer[DatagramHook]
 }
-
 
 // NewBind returns an unopened bind carrying opts.
 func NewBind(opts SocketOptions) *Bind {
