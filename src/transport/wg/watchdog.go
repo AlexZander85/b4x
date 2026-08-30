@@ -39,6 +39,12 @@ type CountersFunc func(context.Context) (CounterSample, error)
 
 // WatchdogConfig carries the thresholds; zero values map to defaults so
 // tests can shrink the windows without touching production numbers.
+//
+// Structural invariant: trigger 2 (version-mismatch) evicts samples with a
+// Window+2*Tick margin, so the Window value must always stay smaller than
+// the eviction horizon. Shrinking the margin below 2*Tick (or removing it)
+// makes the `span >= Window` check unreachable on real clocks and deadens
+// the trigger — see the eviction comment in Feed.
 type WatchdogConfig struct {
 	RXIdle  time.Duration
 	Window  time.Duration
@@ -114,7 +120,15 @@ func (w *Watchdog) Feed(s CounterSample) {
 	}
 
 	// Trigger 2: rolling version-mismatch signature.
-	cut := now.Add(-w.cfg.Window)
+	//
+	// Invariant: the eviction window MUST be wider than the span window
+	// checked below. Evicting at exactly -Window makes the
+	// `span >= Window` requirement unreachable on real clocks (it would
+	// demand nanosecond-exact equality between the oldest surviving
+	// sample and the cut line), which silently kills this trigger — the
+	// 2*Tick margin absorbs scheduler/ticker jitter so samples with an
+	// effective span of Window-epsilon .. Window+2Tick stay evaluable.
+	cut := now.Add(-w.cfg.Window - 2*w.cfg.Tick)
 	kept := w.samples[:0]
 	for _, sm := range w.samples {
 		if !sm.Time.Before(cut) {

@@ -1,6 +1,7 @@
 package transportwg
 
 import (
+	"context"
 	"testing"
 	"time"
 )
@@ -115,5 +116,123 @@ func TestWatchdogStartupBurstDoesNotFireVersionMismatch(t *testing.T) {
 	}
 	if wd.Fired() {
 		t.Fatal("premature version-mismatch fire")
+	}
+}
+
+// TestWatchdogVersionMismatchSignatureJittered is the PATCH-01 acceptance
+// test: the classic mismatch shape on a 1 s grid where even samples carry
+// +10..+50 ms of real-clock jitter. Before the eviction-margin fix the
+// span>=Window requirement was unreachable (red); after it the signature
+// fires for any jitter <= 2*Tick (green).
+func TestWatchdogVersionMismatchSignatureJittered(t *testing.T) {
+	shifts := []time.Duration{10 * time.Millisecond, 25 * time.Millisecond, 50 * time.Millisecond}
+	for _, jitter := range shifts {
+		jitter := jitter
+		t.Run("jitter="+jitter.String(), func(t *testing.T) {
+			now := time.Unix(0, 0)
+			wd := NewWatchdog(WatchdogConfig{
+				RXIdle: 10 * time.Second,
+				Window: 120 * time.Second,
+				Tick:   time.Second,
+				Now:    func() time.Time { return now },
+			})
+			var fired *Failure
+			wd.cfg.OnStall = func(f Failure) { fired = &f }
+
+			t0 := now
+			for i := 0; i <= 140; i++ { // 141 s of samples
+				stamp := t0.Add(time.Duration(i) * time.Second)
+				if i%2 == 0 && i > 0 {
+					stamp = stamp.Add(jitter) // even samples late by jitter
+				}
+				now = stamp
+				tx := uint64(i) * 200 // ~200 B/s => crosses 4096 at ~21 s
+				rx := uint64(i % 3)   // jitter below MaxRX
+				wd.Feed(CounterSample{Time: now, RxBytes: rx, TxBytes: tx})
+				if wd.Fired() {
+					break
+				}
+			}
+			if !wd.Fired() || fired == nil {
+				t.Fatalf("version-mismatch signature never fired with jitter %s", jitter)
+			}
+			if fired.Class != ClassVersionMismatch {
+				t.Fatalf("class=%s want awg-version-mismatch", fired.Class)
+			}
+		})
+	}
+}
+
+// TestWatchdogEvictionMarginProperty pins the eviction margin: a sample
+// stamped exactly now-Window must survive eviction and remain evaluable —
+// the margin (2*Tick) exists precisely so boundary-spanning samples are
+// never dropped before the span check runs.
+func TestWatchdogEvictionMarginProperty(t *testing.T) {
+	nowT := time.Unix(1000, 0)
+	wd := NewWatchdog(WatchdogConfig{
+		RXIdle: 10 * time.Hour, // isolate trigger 2
+		Window: 120 * time.Second,
+		Tick:   time.Second,
+		Now:    func() time.Time { return nowT },
+	})
+	wd.cfg.OnStall = func(Failure) {}
+
+	// Anchor at t=0.
+	wd.Feed(CounterSample{Time: nowT, RxBytes: 0, TxBytes: 0})
+	// Advance 120 s with tx growth; then evaluate at exactly t=120 s.
+	for i := 1; i <= 119; i++ {
+		nowT = time.Unix(1000+int64(i), 0)
+		wd.Feed(CounterSample{Time: nowT, TxBytes: uint64(i) * 100})
+	}
+	// The boundary sample: exactly Window (120 s) after the anchor.
+	boundary := time.Unix(1120, 0)
+	nowT = boundary
+	wd.Feed(CounterSample{Time: boundary, TxBytes: 119 * 100})
+
+	// The anchor (stamped exactly now-Window) must still be retained.
+	wd.mu.Lock()
+	retained := len(wd.samples) > 0 && wd.samples[0].Time.Equal(time.Unix(1000, 0))
+	span := wd.samples[len(wd.samples)-1].Time.Sub(wd.samples[0].Time)
+	wd.mu.Unlock()
+	if !retained {
+		t.Fatal("boundary sample (now-Window) was evicted: margin missing")
+	}
+	if span < wd.cfg.Window {
+		t.Fatalf("retained span %s < Window %s: span check would be unreachable", span, wd.cfg.Window)
+	}
+}
+
+// TestWatchdogRealTickerSmoke runs the mismatch signature against a real
+// ticker (no mock clock) to confirm the margin does not eat the window on
+// genuine scheduler jitter. Tuned to finish in ~3 s.
+func TestWatchdogRealTickerSmoke(t *testing.T) {
+	wd := NewWatchdog(WatchdogConfig{
+		RXIdle: 10 * time.Hour, // isolate trigger 2
+		Window: 1500 * time.Millisecond,
+		MinTX:  2048,
+		MaxRX:  64,
+		Tick:   200 * time.Millisecond,
+	})
+	fired := make(chan Failure, 1)
+	wd.cfg.OnStall = func(f Failure) {
+		select {
+		case fired <- f:
+		default:
+		}
+	}
+
+	var tx uint64
+	go wd.Run(context.Background(), func(context.Context) (CounterSample, error) {
+		tx += 512
+		return CounterSample{Time: time.Now(), TxBytes: tx}, nil
+	})
+
+	select {
+	case f := <-fired:
+		if f.Class != ClassVersionMismatch {
+			t.Fatalf("class=%s want awg-version-mismatch", f.Class)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("version-mismatch signature never fired on real ticker")
 	}
 }
