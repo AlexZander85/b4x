@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	mathrand "math/rand"
+	"net"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -448,6 +449,14 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	gate := s.cfg.Health.Gate
 	gate.LocalV4 = localV4Of(s.cfg.Ident)
 	gate.fillDefaults()
+	// PATCH-10 (A5): netstack production sessions attach the built-in trace
+	// probe when the wiring flag is on — an on-path injector that forges DNS
+	// replies with the correct TXID still fails the /cdn-cgi/trace check.
+	// CI fixtures and the seek ladder leave the flag off (no HTTP surface /
+	// budget); the kernel-TUN probe stays a field-layer concern.
+	if gate.E2EProbeEnabled && gate.E2EProbe == nil && tunRes.Netstack != nil {
+		gate.E2EProbe = NetstackE2EProbe(nsTCPDial(tunRes.Netstack), localV4Of(s.cfg.Ident))
+	}
 	if err := s.bootstrapThrough(tunRes, gateBootstrapPacket(gate)); err != nil {
 		return newFailure(ClassStallRX, "bootstrap-inject", err)
 	}
@@ -788,4 +797,11 @@ func deviceHandshakeEstablished(dev *device.Device) bool {
 func localV4Of(id *Identity) [4]byte {
 	addr := netip.MustParseAddr(id.AssignedV4)
 	return addr.As4()
+}
+
+// nsTCPDial adapts the netstack's DialContext to the E2E trace dial seam.
+func nsTCPDial(ns *netstack.Net) func(ctx context.Context, network, addr string) (net.Conn, error) {
+	return func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return ns.DialContext(ctx, network, addr)
+	}
 }

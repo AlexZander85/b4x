@@ -62,6 +62,15 @@ type TrustGate struct {
 	Gap        time.Duration
 	Window     time.Duration // per-round-trip budget
 	E2EProbe   E2EProbe      // optional; nil = skip (kernel-TUN field layer)
+	// E2EProbeEnabled turns the built-in netstack trace probe ON for
+	// netstack-mode sessions that did not attach an explicit E2EProbe
+	// (PATCH-10/A5, WG MINOR 14): production wiring flips this flag; CI
+	// fixtures and the seek ladder leave it off (the chan-TUN factory has
+	// no HTTP surface, and seek budgets cannot afford the extra RTT).
+	// An on-path injector that forges DNS replies with the correct TXID is
+	// rejected here: the trace answer must actually say warp=on (two
+	// measurements).
+	E2EProbeEnabled bool
 	// SigMinTX is the gate-scope version-mismatch signature threshold: on a
 	// failed gate, tx delta >= SigMinTX with zero rx upgrades the failure to
 	// awg-version-mismatch. 0 -> DefaultGateSigMinTX.
