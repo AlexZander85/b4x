@@ -41,6 +41,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"time"
 )
 
 // EndpointCatalogVersion increments on any change to ranges/ports below.
@@ -128,6 +129,46 @@ type RegionPool struct {
 	Verified   bool           // false until loc= verification through a tunnel
 	Source     string         // PRE-field provenance of the entry itself (who measured these ranges/hosts)
 	VerifyMeta string         // field evidence ONLY: "<date> <method> <result>", e.g. "2026-09-01 warpscout-seen-as loc=hh1"
+	// VerifiedAt stamps WHEN the loc= evidence was captured (PATCH-22/A7):
+	// the flip to Verified=true MUST stamp it. A verified pool whose
+	// evidence ages past DefaultRegionVerifyTTL downgrades back to the
+	// unverified posture: excluded from default sourcing, opt-in
+	// (PoolCandidates) keeps working. Re-verification re-stamps the field.
+	VerifiedAt time.Time
+}
+
+// DefaultRegionVerifyTTL is how long loc= verification stays trusted
+// (PATCH-22/A7: the region tags are re-verified in the field; stale
+// evidence no longer gates default sourcing).
+const DefaultRegionVerifyTTL = 180 * 24 * time.Hour
+
+// poolFresh reports whether a verified pool's evidence is within ttl.
+// Unverified pools are never fresh; a Verified=true pool WITHOUT a stamp is
+// a data error and is treated as stale (fail-closed).
+func (p RegionPool) poolFresh(now time.Time, ttl time.Duration) bool {
+	if !p.Verified {
+		return false
+	}
+	if p.VerifiedAt.IsZero() {
+		return false
+	}
+	return now.Sub(p.VerifiedAt) <= ttl
+}
+
+// FreshRegionalPools returns the verified pools whose loc= evidence is
+// still within ttl (0 = DefaultRegionVerifyTTL). Stale verified pools
+// downgrade to unverified posture; opt-in by tag is unaffected.
+func FreshRegionalPools(pools []RegionPool, now time.Time, ttl time.Duration) []RegionPool {
+	if ttl <= 0 {
+		ttl = DefaultRegionVerifyTTL
+	}
+	var out []RegionPool
+	for _, p := range pools {
+		if p.poolFresh(now, ttl) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // RegionalPools is the alternate-pool registry. Entries stay Verified=false
@@ -139,12 +180,16 @@ type RegionPool struct {
 // extensions are coordinated against the field2-report endpoint list.
 var RegionalPools = []RegionPool{
 	{
-		Tag:      "unassigned",
+		// PATCH-13 (WG MINOR 8): tags are UNIQUE across the registry — two
+		// "unassigned" pools made the second unreachable through the
+		// PoolCandidates opt-in API. Names stay readable and self-describing
+		// until FIELD2 assigns the final region tags.
+		Tag:      "unassigned-aether-188",
 		Source:   "aether-prefixes", // wireguard.rs:686-689
 		Prefixes: append([]netip.Prefix{}, regional188V4...),
 	},
 	{
-		Tag:      "unassigned",
+		Tag:      "unassigned-nova-hosts",
 		Source:   "nova-measured", // battle profiles; /32s because only individual hosts are measured
 		Prefixes: append([]netip.Prefix{}, regionalNovaV4...),
 	},
@@ -284,6 +329,22 @@ func CatalogCandidates(s ScanStrategy) []netip.AddrPort {
 			addr := netip.AddrFrom4([4]byte{162, 159, 193, byte(i)})
 			for _, p := range CorePorts {
 				push(netip.AddrPortFrom(addr, p))
+			}
+		}
+		// PATCH-22/A7: fresh-verified regional pools join the default
+		// sourcing; stale (or stampless) verified pools stay excluded —
+		// opt-in by tag still reaches them.
+		for _, pool := range FreshRegionalPools(RegionalPools, time.Now(), 0) {
+			for _, pfx := range pool.Prefixes {
+				addr := pfx.Addr()
+				if addr.Is4() && pfx.Bits() < 32 && addr.As4()[3] == 0 {
+					addr = addr.Next()
+				}
+				if addr.Is4() {
+					for _, p := range CorePorts {
+						push(netip.AddrPortFrom(addr, p))
+					}
+				}
 			}
 		}
 		return out

@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/netip"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -385,4 +386,79 @@ func TestSeekerCatalogGateLastGoodBinding(t *testing.T) {
 	if got[0] != rogueEP || len(got) != 3 {
 		t.Fatalf("tests escape broken: %v", got)
 	}
+}
+
+// ---- PATCH-13: unique pool tags + opt-in reachability ----
+
+// TestCatalogTagsUnique is the PATCH-13 invariant: every RegionPool tag is
+// unique — PoolCandidates resolves by tag, so a duplicate would silently
+// make the second pool unreachable.
+func TestCatalogTagsUnique(t *testing.T) {
+	seen := map[string]bool{}
+	for _, p := range RegionalPools {
+		if p.Tag == "" {
+			t.Fatal("pool tag must not be empty")
+		}
+		if seen[p.Tag] {
+			t.Fatalf("duplicate pool tag %q: opt-in by tag cannot reach both pools", p.Tag)
+		}
+		seen[p.Tag] = true
+	}
+}
+
+// TestPoolCandidatesReachesNovaHosts: the formerly-shadowed nova-hosts pool
+// is reachable through the opt-in API and returns the measured /32 hosts on
+// core ports.
+func TestPoolCandidatesReachesNovaHosts(t *testing.T) {
+	cands, err := PoolCandidates("unassigned-nova-hosts")
+	if err != nil {
+		t.Fatalf("nova-hosts opt-in failed: %v", err)
+	}
+	if len(cands) == 0 {
+		t.Fatal("nova-hosts pool expanded to zero candidates")
+	}
+	// Every candidate is a measured /32 host (8.x) on a core port.
+	ports := map[uint16]bool{}
+	for _, p := range CorePorts {
+		ports[p] = true
+	}
+	for _, c := range cands {
+		if !c.Addr().Is4() || !strings.HasPrefix(c.Addr().String(), "8.") {
+			t.Fatalf("candidate %v is not a measured nova host", c)
+		}
+		if !ports[c.Port()] {
+			t.Fatalf("candidate %v is not on a core port", c)
+		}
+	}
+	// The aether-188 pool is separately reachable (both pools coexist).
+	aether, err := PoolCandidates("unassigned-aether-188")
+	if err != nil || len(aether) == 0 {
+		t.Fatalf("aether-188 opt-in failed: %v / %d", err, len(aether))
+	}
+}
+
+// TestRegionTagTTLDowngradesStalePools is the PATCH-22 (A7) acceptance
+// test: verified pools with fresh loc= evidence stay in default sourcing,
+// evidence older than the TTL downgrades to unverified posture, and a
+// stampless flip is fail-closed.
+func TestRegionTagTTLDowngradesStalePools(t *testing.T) {
+	now := time.Now()
+	pools := []RegionPool{
+		{Tag: "fresh", Verified: true, VerifiedAt: now.Add(-30 * 24 * time.Hour)},
+		{Tag: "stale", Verified: true, VerifiedAt: now.Add(-200 * 24 * time.Hour)},
+		{Tag: "stampless", Verified: true},
+		{Tag: "unverified", Verified: false, VerifiedAt: now.Add(-time.Hour)},
+	}
+	fresh := FreshRegionalPools(pools, now, 0)
+	if len(fresh) != 1 || fresh[0].Tag != "fresh" {
+		t.Fatalf("fresh set = %+v, want only the fresh pool", fresh)
+	}
+	// Custom TTL honored.
+	fresh = FreshRegionalPools(pools, now, 100*24*time.Hour)
+	if len(fresh) != 1 || fresh[0].Tag != "fresh" {
+		t.Fatalf("custom TTL fresh set = %+v", fresh)
+	}
+	// The formerly-stale pool is still reachable via opt-in semantics:
+	// PoolCandidates matches by tag regardless of freshness.
+	_ = PoolCandidates // opt-in path unchanged (verified by TestPoolCandidatesReachesNovaHosts)
 }
