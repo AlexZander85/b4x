@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -121,4 +122,46 @@ func TestNetstackCarrierTCPClosedRefuses(t *testing.T) {
 	// a TCP connect THROUGH this gVisor pin does not honor ctx cancellation
 	// during the handshake, so an unanswered-SYN e2e case belongs to the
 	// integration stand, not unit CI.
+}
+
+// ---- PATCH-24: E-NM NIT package tests ----
+
+// TestResolveCarrierRejectsDeclaredDatagram (E18): CarrierDatagram is
+// resolved-only; declaring it in a pair must be a structural error, in sync
+// with PairConfig.Validate.
+func TestResolveCarrierRejectsDeclaredDatagram(t *testing.T) {
+	p := validPair()
+	p.Carrier = CarrierDatagram
+	if _, err := ResolveCarrier(p, false); err == nil || !strings.Contains(err.Error(), "not declarable") {
+		t.Fatalf("declared datagram mode accepted: %v", err)
+	}
+	if err := p.Validate(); err == nil {
+		t.Fatal("Validate must reject the declared datagram mode too")
+	}
+}
+
+// TestSplitUDPDatagramIgnoresPaddingPastTotal (E20): a datagram padded past
+// its IPv4 total-length must not expose the padding as payload; the udp
+// length is checked against tot.
+func TestSplitUDPDatagramIgnoresPaddingPastTotal(t *testing.T) {
+	payload := []byte("hello-nested-udp")
+	pkt, err := BuildUDPDatagram(
+		netip.AddrFrom4([4]byte{198, 51, 100, 7}),
+		netip.AddrFrom4([4]byte{10, 66, 66, 1}),
+		40000, 51820, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	padded := append(append([]byte(nil), pkt...), 0xDE, 0xAD, 0xBE, 0xEF) // padding past tot
+
+	tup, got, err := SplitUDPDatagram(padded)
+	if err != nil {
+		t.Fatalf("padded datagram rejected: %v", err)
+	}
+	if len(got) != len(payload) || string(got) != string(payload) {
+		t.Fatalf("payload leaked into padding: got %d bytes %q", len(got), got)
+	}
+	if tup.DstPort != 51820 {
+		t.Fatalf("tuple lost: %+v", tup)
+	}
 }

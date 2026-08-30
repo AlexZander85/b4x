@@ -136,12 +136,16 @@ func (p *PairConfig) Validate() error {
 // awg outer -> kernel route when the outer rides a kernel TUN, netstack when
 // it runs the gVisor stack; masque-h2 outer -> datagram plane.
 func ResolveCarrier(p PairConfig, outerKernelTUN bool) (CarrierMode, error) {
+	// PATCH-24/E18: CarrierDatagram is RESOLVED-ONLY — a caller declaring it
+	// gets a structural error, in sync with PairConfig.Validate (which
+	// rejects it as not declarable). The old passthrough accepted what
+	// Validate forbids, a contract desync.
 	switch p.Carrier {
-	case CarrierKernelRoute, CarrierNetstack, CarrierDatagram:
+	case CarrierKernelRoute, CarrierNetstack:
 		return p.Carrier, nil
 	case "", CarrierAuto:
 	default:
-		return "", fmt.Errorf("nested: unknown carrier mode %q", p.Carrier)
+		return "", fmt.Errorf("nested: carrier mode %q is not declarable (resolved only)", p.Carrier)
 	}
 	switch p.Outer.Kind {
 	case KindMasqueH2:

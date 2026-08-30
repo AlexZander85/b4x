@@ -52,7 +52,11 @@ func (c *NetstackCarrier) DialUDPThrough(ctx context.Context, dst netip.AddrPort
 	return conn, nil
 }
 
-// InjectUDPDatagram sends one datagram through a short-lived stack socket.
+// InjectUDPDatagram sends one datagram through a short-lived stack socket
+// (fire-and-forget contract, PATCH-24/E17: no context — a ~5s internal
+// budget; REPLIES ARE NOT ROUTED BACK through this path, the random source
+// port is unknown to the caller. Bidirectional exchanges must use
+// DialUDPThrough. A ctx-carrying variant is future API v2).
 func (c *NetstackCarrier) InjectUDPDatagram(dst netip.AddrPort, payload []byte) error {
 	conn, err := c.DialUDPThrough(context.Background(), dst)
 	if err != nil {
@@ -79,7 +83,7 @@ func (c *NetstackCarrier) DialTCPThrough(ctx context.Context, dst netip.AddrPort
 
 // ProofSnapshot: a live stack IS the proof (traffic cannot bypass it).
 func (c *NetstackCarrier) ProofSnapshot() (string, bool) {
-	if c.closed.Load() || c.ns == nil {
+	if c.closed.Load() {
 		return "", false
 	}
 	return "netstack:" + c.label, true

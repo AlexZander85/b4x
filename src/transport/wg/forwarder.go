@@ -234,6 +234,11 @@ func udpAddrPort(a *net.UDPAddr) (netip.AddrPort, bool) {
 }
 
 func udpAddrPortOf(ap netip.AddrPort) *net.UDPAddr {
+	// PATCH-24/E23: single-session v4 semantics — a v6 address would panic
+	// in As4(); it is dropped instead (the forwarder binds 127.0.0.1 only).
+	if !ap.Addr().Is4() {
+		return nil
+	}
 	ip := ap.Addr().As4()
 	return &net.UDPAddr{IP: ip[:], Port: int(ap.Port())}
 }

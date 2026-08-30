@@ -142,7 +142,11 @@ func (c *KernelRouteCarrier) DialUDPThrough(ctx context.Context, dst netip.AddrP
 
 // InjectUDPDatagram sends one datagram toward dst through a short-lived
 // socket; the kernel routes it via the owned pin. Relay consumers should
-// prefer DialUDPThrough (one connected session, replies find their way back).
+// prefer DialUDPThrough (one connected session, replies find their way
+// back). PATCH-24/E17 fire-and-forget contract: no context (5-second dial
+// budget internally, context.Background()); REPLIES ARE NOT ROUTED BACK
+// through this path — a bidirectional exchange must use DialUDPThrough. A
+// ctx-carrying signature is future API v2.
 func (c *KernelRouteCarrier) InjectUDPDatagram(dst netip.AddrPort, payload []byte) error {
 	conn, err := c.DialUDPThrough(context.Background(), dst)
 	if err != nil {

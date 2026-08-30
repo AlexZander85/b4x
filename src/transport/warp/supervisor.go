@@ -418,12 +418,18 @@ func (s *Supervisor) tapPump(ctx context.Context, sess packetTransport) {
 	}
 }
 
+// fanOutTaps delivers one inbound packet to every packet subscriber.
+// PATCH-24/E19: each subscriber receives a PRIVATE COPY (M-30 parity with
+// the session-level taps) — the old code handed the SAME slice to everyone,
+// so one mutating subscriber would silently corrupt the data of the others.
 func (s *Supervisor) fanOutTaps(pkt []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for ch := range s.pktSubs {
+		cp := make([]byte, len(pkt))
+		copy(cp, pkt)
 		select {
-		case ch <- pkt:
+		case ch <- cp:
 		default:
 		}
 	}

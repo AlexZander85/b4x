@@ -127,8 +127,7 @@ func (c *KernelRouteCarrier) Setup(ctx context.Context) error {
 		}
 	}
 	if mandatoryFailed != nil {
-		restCtx := ctx
-		c.Restore(restCtx)
+		c.Restore(ctx)
 		return fmt.Errorf("nested: mandatory family pin failed: %w", mandatoryFailed)
 	}
 	if !c.coverageOK() {

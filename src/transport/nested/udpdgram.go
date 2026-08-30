@@ -97,8 +97,13 @@ func SplitUDPDatagram(pkt []byte) (t UDPTuple, payload []byte, err error) {
 	u := pkt[ipv4HeaderLen:tot]
 	t.SrcPort = binary.BigEndian.Uint16(u[0:2])
 	t.DstPort = binary.BigEndian.Uint16(u[2:4])
+	// PATCH-24/E20: the UDP length is checked against the IP total-length
+	// field (tot), NOT the slice length — a datagram padded past tot must
+	// not let its payload grow into the padding. Inbound CHECKSUMS are
+	// deliberately NOT verified: integrity is guaranteed by the QUIC-AEAD
+	// outer plane; the demux only needs the tuple and payload geometry.
 	ulen := int(binary.BigEndian.Uint16(u[4:6]))
-	if ulen < udpHeaderLen || ipv4HeaderLen+ulen > len(pkt) {
+	if ulen < udpHeaderLen || ipv4HeaderLen+ulen > tot {
 		return t, nil, fmt.Errorf("%w: bad udp length %d", ErrDatagramMalformed, ulen)
 	}
 	return t, u[udpHeaderLen:ulen], nil
