@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"net"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -246,3 +248,110 @@ func TestRawTUNRoundTripperExchange(t *testing.T) {
 type logWriter struct{ t *testing.T }
 
 func (l logWriter) Printf(format string, args ...any) { l.t.Logf(format, args...) }
+
+// TestNetstackGateRetransmitsOnLoss is the PATCH-09 (WG MINOR 6) acceptance
+// test: a fake resolver that DROPS the first query must still let the gate
+// pass via the intra-window retransmission (raw-TUN parity), and the
+// retransmit counter must reflect the retry.
+func TestNetstackGateRetransmitsOnLoss(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits one probeRetryInterval; skipped in -short")
+	}
+	server, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Skipf("loopback udp unavailable: %v", err)
+	}
+	defer func() { _ = server.Close() }()
+
+	// Lossy resolver: swallow the first query, answer every later one.
+	go func() {
+		buf := make([]byte, 1500)
+		seen := 0
+		for {
+			n, from, rerr := server.ReadFromUDP(buf)
+			if rerr != nil {
+				return
+			}
+			seen++
+			if seen == 1 {
+				continue // simulated loss
+			}
+			reply := append([]byte(nil), buf[:n]...)
+			reply[2] |= 0x80 // QR=1
+			if _, werr := server.WriteToUDP(reply, from); werr != nil {
+				return
+			}
+		}
+	}()
+
+	probe, err := twarp.NewDNSProbe([4]byte{172, 16, 0, 2}, [4]byte{8, 8, 8, 8}, "cloudflare.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := net.DialUDP("udp", nil, server.LocalAddr().(*net.UDPAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := NewNetstackRoundTripper(func(context.Context, string, string) (udpConn, error) {
+		return client, nil
+	}, [4]byte{172, 16, 0, 2})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	reply, err := rt.Exchange(ctx, *probe, 4*time.Second)
+	if err != nil {
+		t.Fatalf("gate failed despite retransmission: %v", err)
+	}
+	if !validGateReply(reply, probe.TXID) {
+		t.Fatal("reply failed the txid/QR check")
+	}
+	if got := rt.Retransmits(); got == 0 {
+		t.Fatal("retransmit counter stayed zero despite the simulated loss")
+	}
+}
+
+// TestNetstackGateTimeoutCarriesRetransmits: a fully silent resolver times
+// out with the retransmit count embedded (lossy-path diagnostics).
+func TestNetstackGateTimeoutCarriesRetransmits(t *testing.T) {
+	if testing.Short() {
+		t.Skip("waits the probe window; skipped in -short")
+	}
+	server, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
+	if err != nil {
+		t.Skipf("loopback udp unavailable: %v", err)
+	}
+	defer func() { _ = server.Close() }()
+	go func() {
+		buf := make([]byte, 1500)
+		for {
+			if _, _, rerr := server.ReadFromUDP(buf); rerr != nil {
+				return
+			} // swallow everything: black hole
+		}
+	}()
+
+	probe, err := twarp.NewDNSProbe([4]byte{172, 16, 0, 2}, [4]byte{8, 8, 8, 8}, "cloudflare.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := net.DialUDP("udp", nil, server.LocalAddr().(*net.UDPAddr))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := NewNetstackRoundTripper(func(context.Context, string, string) (udpConn, error) {
+		return client, nil
+	}, [4]byte{172, 16, 0, 2})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_, err = rt.Exchange(ctx, *probe, 1600*time.Millisecond)
+	if err == nil || !errors.Is(err, errGateTimeout) {
+		t.Fatalf("expected gate timeout, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "retransmits") {
+		t.Fatalf("timeout error lacks the retransmit count: %v", err)
+	}
+	if got := rt.Retransmits(); got < 1 {
+		t.Fatalf("retransmits = %d, want >= 1 within a 1.6s window", got)
+	}
+}

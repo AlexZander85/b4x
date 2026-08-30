@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"sync/atomic"
 	"time"
 
 	twarp "github.com/daniellavrushin/b4/transport/warp"
@@ -243,16 +244,30 @@ func gateReplyPayload(pkt []byte, local, server [4]byte, ourSport uint16, txid [
 // NetstackRoundTripper drives the gate through the gvisor userspace stack:
 // the query's DNS payload is sent as a REAL UDP exchange via the netstack,
 // proving the full TCP/IP implementation path end-to-end.
+//
+// PATCH-09 (WG MINOR 6): the netstack gate RETRANSMITS on loss at the same
+// cadence as the raw-TUN path (probeRetryInterval) — one lost probe no
+// longer consumes the whole gate and tears the session down. The retransmit
+// count is carried in timeout errors for lossy-path diagnostics
+// (gate_retransmits_total).
 type NetstackRoundTripper struct {
 	NS    dialUDPFunc
 	Local [4]byte
+
+	// retransmits counts intra-window re-writes (diagnostics; part of the
+	// gate_retransmits_total surface via Retransmits()).
+	retransmits atomic.Uint64
 }
+
+// Retransmits reports how many re-writes the last exchanges performed
+// (lossy-path diagnostics; the value is cumulative per round-tripper).
+func (rt *NetstackRoundTripper) Retransmits() uint64 { return rt.retransmits.Load() }
 
 type dialUDPFunc func(ctx context.Context, network, address string) (udpConn, error)
 
 // udpConn is the minimal conn surface used by the netstack exchanger.
-// NOTE: retries are intentionally NOT implemented here yet — gonet read
-// deadlines need dedicated verification; the raw-TUN path carries them.
+// Concurrent Read+Write across the two directions is required (the reader
+// goroutine stays blocked while retransmit writes happen).
 type udpConn interface {
 	Write(b []byte) (int, error)
 	Read(b []byte) (int, error)
@@ -265,7 +280,10 @@ func NewNetstackRoundTripper(dial func(ctx context.Context, network, address str
 }
 
 // Exchange sends the probe's DNS payload to server:53 through the stack and
-// reads until the matching reply arrives or the window closes.
+// reads until the matching reply arrives or the window closes. A lost probe
+// is re-transmitted every probeRetryInterval within the window (PATCH-09;
+// parity with RawTUNRoundTripper) — a single lost datagram no longer fails
+// the gate. Timeout errors carry the retransmit count for diagnostics.
 func (rt *NetstackRoundTripper) Exchange(ctx context.Context, probe twarp.Probe, timeout time.Duration) ([]byte, error) {
 	const dnsPayloadOffset = 28 // ip20 + udp8
 	if len(probe.Packet) <= dnsPayloadOffset {
@@ -281,43 +299,63 @@ func (rt *NetstackRoundTripper) Exchange(ctx context.Context, probe twarp.Probe,
 		return nil, fmt.Errorf("gate udp dial: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
-	if _, err := conn.Write(query); err != nil {
-		return nil, fmt.Errorf("gate udp write: %w", err)
+
+	write := func(what string) error {
+		if _, err := conn.Write(query); err != nil {
+			return fmt.Errorf("gate udp %s: %w", what, err)
+		}
+		return nil
 	}
+	if err := write("write"); err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(timeout)
+
+	// One reader owns the socket reads for the whole window; matching
+	// datagrams flow through the channel, everything else keeps reading.
 	buf := make([]byte, 4096)
-	ch := make(chan netstackRead, 1)
+	replies := make(chan []byte, 4)
+	readErr := make(chan error, 1)
 	go func() {
 		for {
 			n, rerr := conn.Read(buf)
 			if rerr != nil {
-				ch <- netstackRead{err: rerr}
+				readErr <- rerr
 				return
 			}
 			if n >= 12 && buf[0] == probe.TXID[0] && buf[1] == probe.TXID[1] && buf[2]&0x80 != 0 {
-				ch <- netstackRead{data: append([]byte(nil), buf[:n]...)}
-				return
+				data := append([]byte(nil), buf[:n]...)
+				select {
+				case replies <- data:
+				case <-ctx.Done():
+					return
+				}
 			}
 			// non-matching datagram: keep reading
 		}
 	}()
-	select {
-	case r := <-ch:
-		if r.err != nil {
+
+	ticker := time.NewTicker(probeRetryInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case data := <-replies:
+			return data, nil
+		case rerr := <-readErr:
 			if ctx.Err() != nil {
 				return nil, errGateTimeout
 			}
-			return nil, r.err
+			return nil, rerr
+		case <-ctx.Done():
+			return nil, fmt.Errorf("%w (after %d retransmits)", errGateTimeout, rt.retransmits.Load())
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return nil, fmt.Errorf("%w (after %d retransmits)", errGateTimeout, rt.retransmits.Load())
+			}
+			if err := write("write(retry)"); err != nil {
+				return nil, err
+			}
+			rt.retransmits.Add(1)
 		}
-		return r.data, nil
-	case <-ctx.Done():
-		// Unblock the reader by closing the socket; the abandoned goroutine
-		// exits on the resulting error.
-		_ = conn.Close()
-		return nil, errGateTimeout
 	}
-}
-
-type netstackRead struct {
-	data []byte
-	err  error
 }
