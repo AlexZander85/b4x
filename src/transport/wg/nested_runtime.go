@@ -126,6 +126,15 @@ type NestedWgRuntime struct {
 	fwd            *LoopbackForwarder
 	inner          *Session
 	outerGateStart time.Time // PATCH-09: armed at Start / on parent loss
+	// parentUp tracks the OUTER layer's aliveness for the child-retry
+	// chain (PATCH-08): retries are allowed ONLY while the parent lives.
+	parentUp bool
+
+	// PATCH-08/WG MINOR 13: child-retry ladder knobs (test seams;
+	// production defaults base 1s / cap 30s, doubling per consecutive
+	// failure, reset on every parent flap).
+	retryBase time.Duration
+	retryCap  time.Duration
 
 	startOnce sync.Once
 	stopOnce  sync.Once
@@ -147,7 +156,13 @@ func NewNestedWgRuntime(cfg NestedWgConfig, opt NestedWgOptions) (*NestedWgRunti
 func (r *NestedWgRuntime) Start(parent context.Context) error {
 	r.startOnce.Do(func() {
 		ctx, cancel := context.WithCancel(parent)
-		sess, err := NewSession(r.outerSessionConfig())
+		sc, cerr := r.outerSessionConfig()
+		if cerr != nil {
+			cancel()
+			r.startErr = cerr
+			return
+		}
+		sess, err := NewSession(sc)
 		if err != nil {
 			cancel()
 			r.startErr = err
@@ -209,13 +224,68 @@ func (r *NestedWgRuntime) onParentEstablished() {
 	r.mu.Lock()
 	start := r.outerGateStart
 	r.outerGateStart = time.Time{}
+	r.parentUp = true // PATCH-08: the parent lives; child retries allowed
 	r.mu.Unlock()
 	if !start.IsZero() && r.opt.ObserveGate != nil {
 		r.opt.ObserveGate("outer", time.Since(start))
 	}
-	for _, ev := range r.establishChild() {
+	evs := r.establishChild()
+	for _, ev := range evs {
 		r.emit(ev)
 	}
+	// PATCH-08/WG MINOR 13: a failed child start used to leave a dead
+	// child until the NEXT parent flap; schedule a bounded-backoff retry
+	// while the parent stays alive. A fresh parent flap resets to base.
+	if r.childNeedsRetry() {
+		base := r.retryBase
+		if base <= 0 {
+			base = time.Second
+		}
+		r.scheduleChildRetry(base)
+	}
+}
+
+// childNeedsRetry reports that the runtime is started, the parent is up,
+// and the child is dead-but-retryable (start failed, not a parent loss).
+func (r *NestedWgRuntime) childNeedsRetry() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.cancel != nil && r.parentUp &&
+		r.link == NestedChildInvalidated && r.inner == nil
+}
+
+// scheduleChildRetry re-attempts establishChild after backoff; a failed
+// re-attempt schedules the next one with a doubled delay up to the cap
+// (30s default). The chain dies on Stop, parent loss, or a successful child.
+func (r *NestedWgRuntime) scheduleChildRetry(backoff time.Duration) {
+	r.mu.Lock()
+	ctx := r.ctx
+	r.mu.Unlock()
+	if ctx == nil {
+		return
+	}
+	capD := r.retryCap
+	if capD <= 0 {
+		capD = 30 * time.Second
+	}
+	go func() {
+		t := time.NewTimer(backoff)
+		defer t.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if !r.childNeedsRetry() {
+			return
+		}
+		for _, ev := range r.establishChild() {
+			r.emit(ev)
+		}
+		if r.childNeedsRetry() {
+			r.scheduleChildRetry(min(backoff*2, capD))
+		}
+	}()
 }
 
 func (r *NestedWgRuntime) onParentLost(f Failure) {
@@ -224,6 +294,7 @@ func (r *NestedWgRuntime) onParentLost(f Failure) {
 		r.mu.Unlock()
 		return
 	}
+	r.parentUp = false // PATCH-08: no child retries while the parent is down
 	r.stopChildLocked()
 	r.link = NestedChildInvalidated
 	// PATCH-09: re-arm the outer gate — the next OnEstablished measures the
@@ -283,7 +354,12 @@ func (r *NestedWgRuntime) establishChild() []SessionEvent {
 		_ = fwd.Close()
 		return invalidate(fmt.Sprintf("forwarder-start: %v", err))
 	}
-	sess, err := NewSession(r.innerSessionConfig(addr.String()))
+	innerCfg, cerr := r.innerSessionConfig(addr.String())
+	if cerr != nil {
+		_ = fwd.Close()
+		return invalidate(fmt.Sprintf("inner-config: %v", cerr))
+	}
+	sess, err := NewSession(innerCfg)
 	if err != nil {
 		_ = fwd.Close()
 		return invalidate(fmt.Sprintf("inner-config: %v", err))
@@ -319,7 +395,13 @@ func (r *NestedWgRuntime) stopChildLocked() {
 	}
 }
 
-func (r *NestedWgRuntime) outerSessionConfig() SessionConfig {
+func (r *NestedWgRuntime) outerSessionConfig() (SessionConfig, error) {
+	// PATCH-02: the tunnel render is error-returning; on a malformed
+	// identity the session construction fails structurally (never panics).
+	outerTun, err := r.cfg.OuterTunnelConfig(r.dns())
+	if err != nil {
+		return SessionConfig{}, err
+	}
 	hc := HealthConfig{KeepaliveSec: r.cfg.Outer.EffectiveKeepalive(true)}
 	if r.opt.OuterHealth != nil {
 		r.opt.OuterHealth(&hc)
@@ -328,7 +410,7 @@ func (r *NestedWgRuntime) outerSessionConfig() SessionConfig {
 		Ident:              r.cfg.Outer.Ident,
 		Profile:            r.cfg.Outer.Profile,
 		Endpoint:           r.cfg.OuterEdge.String(),
-		Tunnel:             r.cfg.OuterTunnelConfig(r.dns()),
+		Tunnel:             outerTun,
 		Health:             hc,
 		VerboseDiagnostics: r.opt.VerboseDiagnostics,
 		Callbacks: SessionCallbacks{
@@ -336,10 +418,14 @@ func (r *NestedWgRuntime) outerSessionConfig() SessionConfig {
 			OnEstablished: r.onParentEstablished,
 			OnLost:        r.onParentLost,
 		},
-	}
+	}, nil
 }
 
-func (r *NestedWgRuntime) innerSessionConfig(endpoint string) SessionConfig {
+func (r *NestedWgRuntime) innerSessionConfig(endpoint string) (SessionConfig, error) {
+	innerTun, err := r.cfg.InnerTunnelConfig(r.dns())
+	if err != nil {
+		return SessionConfig{}, err
+	}
 	hc := HealthConfig{KeepaliveSec: r.cfg.Inner.EffectiveKeepalive(false)}
 	if r.opt.InnerHealth != nil {
 		r.opt.InnerHealth(&hc)
@@ -348,12 +434,12 @@ func (r *NestedWgRuntime) innerSessionConfig(endpoint string) SessionConfig {
 		Ident:              r.cfg.Inner.Ident,
 		Profile:            r.cfg.Inner.Profile,
 		Endpoint:           endpoint,
-		Tunnel:             r.cfg.InnerTunnelConfig(r.dns()),
+		Tunnel:             innerTun,
 		Health:             hc,
 		MaxGenerations:     r.opt.MaxGenerations,
 		VerboseDiagnostics: r.opt.VerboseDiagnostics,
 		Callbacks:          SessionCallbacks{OnEvent: r.emit},
-	}
+	}, nil
 }
 
 func (r *NestedWgRuntime) dns() netip.Addr {

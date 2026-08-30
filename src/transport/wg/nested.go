@@ -174,25 +174,36 @@ func (c *NestedWgConfig) Validate() error {
 	return nil
 }
 
-// InnerTunnelConfig renders the netstack TUN config for the inner layer
-// (assigned address isolation comes from the validated identities).
-func (c *NestedWgConfig) InnerTunnelConfig(dns netip.Addr) TunnelConfig {
+// InnerTunnelConfig renders the netstack TUN config for the inner layer.
+// PATCH-02 (WG MAJOR 2 stack-wide closure): the assigned address is parsed
+// with an error return — a malformed identity is a structural rejection,
+// never a panic on a lifecycle goroutine. Callers validated the identities
+// (Validate) BEFORE reaching the render path; the error return guards the
+// re-validation gap (identities swapped after construction).
+func (c *NestedWgConfig) InnerTunnelConfig(dns netip.Addr) (TunnelConfig, error) {
+	v4, err := netip.ParseAddr(c.Inner.Ident.AssignedV4)
+	if err != nil || !v4.IsValid() || !v4.Is4() {
+		return TunnelConfig{}, fmt.Errorf("transportwg: inner identity assigned_v4 %q invalid: %w", c.Inner.Ident.AssignedV4, err)
+	}
 	return TunnelConfig{
 		Mode:      ModeNetstack,
-		Addresses: []netip.Addr{mustParseAddr(c.Inner.Ident.AssignedV4)},
+		Addresses: []netip.Addr{v4},
 		DNS:       []netip.Addr{dns},
 		MTU:       c.Inner.EffectiveMTU(false),
-	}
+	}, nil
 }
 
-// OuterTunnelConfig renders the netstack TUN config for the outer layer.
-func (c *NestedWgConfig) OuterTunnelConfig(dns netip.Addr) TunnelConfig {
+// OuterTunnelConfig renders the netstack TUN config for the outer layer
+// (same PATCH-02 error-return contract as InnerTunnelConfig).
+func (c *NestedWgConfig) OuterTunnelConfig(dns netip.Addr) (TunnelConfig, error) {
+	v4, err := netip.ParseAddr(c.Outer.Ident.AssignedV4)
+	if err != nil || !v4.IsValid() || !v4.Is4() {
+		return TunnelConfig{}, fmt.Errorf("transportwg: outer identity assigned_v4 %q invalid: %w", c.Outer.Ident.AssignedV4, err)
+	}
 	return TunnelConfig{
 		Mode:      ModeNetstack,
-		Addresses: []netip.Addr{mustParseAddr(c.Outer.Ident.AssignedV4)},
+		Addresses: []netip.Addr{v4},
 		DNS:       []netip.Addr{dns},
 		MTU:       c.Outer.EffectiveMTU(true),
-	}
+	}, nil
 }
-
-func mustParseAddr(s string) netip.Addr { return netip.MustParseAddr(s) }

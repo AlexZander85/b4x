@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/netip"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -345,4 +346,198 @@ func TestWgMasqueEdgeCollisionPostConnectDetected(t *testing.T) {
 		t.Fatalf("distinct-fact events = %d, want still 1", n)
 	}
 	rt.Stop()
+}
+
+// ---- PATCH-08/E3: child retry while the parent is alive ----
+
+// TestMasqueAwgRuntimeRetriesChildAfterFailedStart: two injected child-start
+// failures, then success — the poller retries with the backoff ladder and
+// the link reaches "up" without any parent flap (red before the patch: one
+// failed startChild left a dead child until the next parent flap).
+func TestMasqueAwgRuntimeRetriesChildAfterFailedStart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts a loopback-forwarded inner session; skipped in -short")
+	}
+	plane := newFakePlane()
+	rt, err := NewMasqueAwgRuntime(MasqueAwgConfig{
+		Pair:         validPair(),
+		Plane:        plane,
+		LocalV4:      localV4(),
+		InnerIdent:   testInnerIdentity(),
+		PollInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	rt.retryBase = 20 * time.Millisecond
+	rt.retryCap = 60 * time.Millisecond
+
+	attempts := 0
+	rt.startChildFn = func(gen uint64) error {
+		attempts++
+		if attempts <= 2 {
+			return errors.New("injected child-start failure")
+		}
+		return rt.startChild(gen)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer rt.Stop()
+	setPlaneHeld(plane, true)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if link, _, _ := rt.Status(); link == "up" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("link never reached up; attempts=%d", attempts)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if attempts != 3 {
+		t.Fatalf("attempts = %d, want 3 (two failures then success)", attempts)
+	}
+}
+
+// TestMasqueAwgRuntimeBackoffCapsAndFlapResets: with a permanently failing
+// child start the attempt intervals double up to the cap; a parent flap
+// resets the ladder to the base.
+func TestMasqueAwgRuntimeBackoffCapsAndFlapResets(t *testing.T) {
+	plane := newFakePlane()
+	rt, err := NewMasqueAwgRuntime(MasqueAwgConfig{
+		Pair:         validPair(),
+		Plane:        plane,
+		LocalV4:      localV4(),
+		InnerIdent:   testInnerIdentity(),
+		PollInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	base := 60 * time.Millisecond
+	cap := 180 * time.Millisecond
+	rt.retryBase = base
+	rt.retryCap = cap
+
+	var mu sync.Mutex
+	var stamps []time.Time
+	rt.startChildFn = func(uint64) error {
+		mu.Lock()
+		stamps = append(stamps, time.Now())
+		mu.Unlock()
+		return errors.New("always fails")
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	defer rt.Stop()
+	setPlaneHeld(plane, true)
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		n := len(stamps)
+		mu.Unlock()
+		if n >= 5 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("only %d attempts within deadline", n)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	mu.Lock()
+	deltas := make([]time.Duration, 0, len(stamps)-1)
+	for i := 1; i < len(stamps); i++ {
+		deltas = append(deltas, stamps[i].Sub(stamps[i-1]))
+	}
+	mu.Unlock()
+
+	// Ladder: ~base, ~2*base, ~cap (3rd doubling hits the cap), ~cap...
+	if deltas[0] < base*3/4 || deltas[0] > base*3+40*time.Millisecond {
+		t.Fatalf("delta[0] = %s, want ~%s", deltas[0], base)
+	}
+	if deltas[1] < deltas[0]*3/2 {
+		t.Fatalf("delta[1] = %s, want growth beyond delta[0]=%s", deltas[1], deltas[0])
+	}
+	for i := 2; i < len(deltas); i++ {
+		if deltas[i] > cap+80*time.Millisecond {
+			t.Fatalf("delta[%d] = %s exceeds cap %s (plus slop)", i, deltas[i], cap)
+		}
+	}
+
+	// Parent flap resets the ladder: drop the plane, re-raise, the next
+	// attempt lands at ~base again.
+	setPlaneHeld(plane, false)
+	time.Sleep(40 * time.Millisecond)
+	mu.Lock()
+	before := len(stamps)
+	mu.Unlock()
+	setPlaneHeld(plane, true)
+	deadline = time.Now().Add(3 * time.Second)
+	for {
+		mu.Lock()
+		n := len(stamps)
+		mu.Unlock()
+		if n > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no attempt after the parent flap")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	mu.Lock()
+	flapDelta := stamps[before].Sub(stamps[before-1])
+	mu.Unlock()
+	if flapDelta > base*3+80*time.Millisecond {
+		t.Fatalf("post-flap delta = %s, want ~base %s (ladder was not reset)", flapDelta, base)
+	}
+}
+
+// TestMasqueAwgRuntimeRetryNoGoroutineLeak: Stop while the retry ladder is
+// active leaves no goroutines behind (NumGoroutine delta, per DoD item 3).
+func TestMasqueAwgRuntimeRetryNoGoroutineLeak(t *testing.T) {
+	plane := newFakePlane()
+	rt, err := NewMasqueAwgRuntime(MasqueAwgConfig{
+		Pair:         validPair(),
+		Plane:        plane,
+		LocalV4:      localV4(),
+		InnerIdent:   testInnerIdentity(),
+		PollInterval: 5 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("construct: %v", err)
+	}
+	rt.retryBase = 10 * time.Millisecond
+	rt.retryCap = 20 * time.Millisecond
+	rt.startChildFn = func(uint64) error { return errors.New("always fails") }
+
+	ctx, cancel := context.WithCancel(context.Background())
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	setPlaneHeld(plane, true)
+	time.Sleep(100 * time.Millisecond) // a few failed attempts
+
+	base := runtime.NumGoroutine()
+	rt.Stop()
+	cancel()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if runtime.NumGoroutine() <= base {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("goroutine leak: base=%d now=%d", base, runtime.NumGoroutine())
 }

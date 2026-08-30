@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack"
 	twarp "github.com/daniellavrushin/b4/transport/warp"
 )
 
@@ -584,4 +585,85 @@ func TestNestedWgRuntimeRejectsInvalidConfig(t *testing.T) {
 			t.Fatalf("pre-start status=%+v", st)
 		}
 	})
+}
+
+// TestNestedRuntimeRetriesChildWhileParentAlive is the PATCH-08 (WG MINOR
+// 13) acceptance test: a failed child start while the parent is UP is
+// retried with a bounded backoff until it succeeds, and the retry chain
+// goes quiet after a parent loss. Red before the patch: one failed start
+// left a dead child until the next parent flap.
+func TestNestedRuntimeRetriesChildWhileParentAlive(t *testing.T) {
+	if testing.Short() {
+		t.Skip("starts a live forwarder + inner session; skipped in -short")
+	}
+	outerID, innerID := nestedIdents(t)
+	cfg := validNestedWg()
+	cfg.Outer.Ident, cfg.Inner.Ident = outerID, innerID
+	rt, err := NewNestedWgRuntime(*cfg, NestedWgOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.retryBase = 20 * time.Millisecond
+	rt.retryCap = 60 * time.Millisecond
+
+	// Hand-wire the runtime (unit CI has no outer edge): ctx + a live outer
+	// session carrying a REAL gVisor netstack for the Backend-B forwarder.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	outer, err := NewSession(SessionConfig{
+		Ident:    outerID,
+		Endpoint: "127.0.0.1:1",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev, ns, err := netstack.CreateNetTUN(
+		[]netip.Addr{netip.MustParseAddr("10.0.0.2")},
+		[]netip.Addr{netip.MustParseAddr("8.8.8.8")}, 1280)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outer.tun = &Tunnel{Device: dev, Netstack: ns}
+
+	rt.mu.Lock()
+	rt.ctx, rt.cancel = ctx, cancel
+	rt.outer = outer
+	rt.mu.Unlock()
+	t.Cleanup(rt.Stop)
+
+	// Attempt 1: a corrupt inner identity => establishChild fails
+	// ("inner-config"), the child is invalidated — but the parent is UP.
+	rt.mu.Lock()
+	rt.cfg.Inner.Ident = &Identity{}
+	rt.mu.Unlock()
+	rt.onParentEstablished()
+	if st := rt.Status(); st.Link != NestedChildInvalidated || st.ChildRunning {
+		t.Fatalf("post-failure status=%+v", st)
+	}
+
+	// The retry chain must keep attempting while the parent lives (gen bumps).
+	if !waitFor(func() bool {
+		return rt.Status().ParentGen >= 2
+	}, 3*time.Second) {
+		t.Fatalf("no retry attempt while parent alive: %+v", rt.Status())
+	}
+
+	// Heal the inner identity: the retry chain lands the child.
+	rt.mu.Lock()
+	rt.cfg.Inner.Ident = innerID
+	rt.mu.Unlock()
+	if !waitFor(func() bool {
+		st := rt.Status()
+		return st.Link == NestedUp && st.ChildRunning
+	}, 3*time.Second) {
+		t.Fatalf("child never established after the retry chain healed; status=%+v", rt.Status())
+	}
+
+	// Parent loss: the retry chain must go quiet (no further attempts).
+	before := rt.Status().ParentGen
+	rt.onParentLost(Failure{Class: ClassStallRX, Reason: "test-loss"})
+	time.Sleep(10 * rt.retryBase)
+	if got := rt.Status().ParentGen; got != before {
+		t.Fatalf("parent gen advanced after parent loss (%d -> %d): retry ran while parent down", before, got)
+	}
 }

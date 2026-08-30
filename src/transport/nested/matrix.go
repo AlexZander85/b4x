@@ -258,6 +258,16 @@ type MasqueAwgRuntime struct {
 	done     chan struct{}
 	startOne sync.Once
 	stopOnce sync.Once
+
+	// PATCH-08/E3: child-retry ladder. Production: base 1s, cap 30s,
+	// doubling per consecutive failed start, reset on every parent flap
+	// (a new parent generation deserves a fresh attempt immediately).
+	// retryBase/retryCap are test knobs (house style, cf. assertInterval).
+	// startChildFn is the child-start seam (tests inject failures;
+	// production leaves it nil).
+	retryBase    time.Duration
+	retryCap     time.Duration
+	startChildFn func(gen uint64) error
 }
 
 // NewMasqueAwgRuntime validates the declaration and returns a stopped runtime.
@@ -427,11 +437,27 @@ func (r *MasqueAwgRuntime) RelayDemuxStats() (matched, unknown uint64) {
 	return r.carrier.DemuxStats()
 }
 
+// run is the parent-link controller. PATCH-08/E3 restructure: `held`
+// reflects ONLY the parent (plane) state; the child state is its own
+// variable and a failed child start is RETRIED with a bounded exponential
+// ladder while the parent stays up (previously one failed startChild left a
+// dead child until the next parent flap).
 func (r *MasqueAwgRuntime) run(ctx context.Context) {
 	defer close(r.done)
 	t := time.NewTicker(r.cfg.PollInterval)
 	defer t.Stop()
-	held := false
+	retryBase := r.retryBase
+	if retryBase <= 0 {
+		retryBase = time.Second
+	}
+	retryCap := r.retryCap
+	if retryCap <= 0 {
+		retryCap = 30 * time.Second
+	}
+	held := false    // parent state ONLY
+	childUp := false // child state tracked independently
+	var nextRetry time.Time
+	backoff := retryBase
 	for {
 		select {
 		case <-ctx.Done():
@@ -439,41 +465,59 @@ func (r *MasqueAwgRuntime) run(ctx context.Context) {
 		case <-t.C:
 		}
 		nowHeld := r.cfg.Plane.Snapshot().RouteHeld
-		switch {
-		case nowHeld && !held:
-			gen := r.parentGen + 1
-			// MAJOR-5: RouteHeld rising edge closes the outer gate.
-			r.observeOuterGate()
-			// PATCH-17: the outer plane is held — record its witness.
-			// The colo arrives through OuterSink (cf-warp-colo of the
-			// established edge); AWG inner layers report none.
-			r.mu.Lock()
-			r.outerWitness = edgeWitness{ip: r.cfg.Pair.Outer.Endpoint.Addr().String()}
-			r.outerUpSince = time.Now() // PATCH-28: StatusDetailed handshake age
-			r.mu.Unlock()
-			if err := r.startChild(gen); err != nil {
-				r.setLink("child-invalidated", gen, err.Error())
-				break
+		if !nowHeld {
+			if held || childUp {
+				r.stopChild()
+				r.pairGauge(-1)
+				// MAJOR-5: re-arm - the next held edge measures
+				// the REPAIR gate (plane loss -> re-establishment).
+				r.armOuterGate()
+				r.mu.Lock()
+				r.link = "child-invalidated"
+				r.mu.Unlock()
+				r.emit(Event{Class: "warp_masque_disconnected",
+					Reason: "parent lost: child invalidated"})
+				// PATCH-07 (M-14): parity with W+M — parent loss is
+				// a child invalidation, not a route incident.
+				r.emit(Event{Class: ClassChildInvalidated,
+					Reason: "parent:warp_masque_disconnected"})
 			}
-			r.setLink("up", gen, "")
-			r.pairGauge(1)
-		case !nowHeld && held:
-			r.stopChild()
-			r.pairGauge(-1)
-			// MAJOR-5: re-arm - the next held edge measures the
-			// REPAIR gate (plane loss -> re-establishment).
-			r.armOuterGate()
-			r.mu.Lock()
-			r.link = "child-invalidated"
-			r.mu.Unlock()
-			r.emit(Event{Class: "warp_masque_disconnected",
-				Reason: "parent lost: child invalidated"})
-			// PATCH-07 (M-14): parity with W+M — parent loss is a
-			// child invalidation, not a route incident.
-			r.emit(Event{Class: ClassChildInvalidated,
-				Reason: "parent:warp_masque_disconnected"})
+			held, childUp = false, false
+			continue
 		}
-		held = nowHeld
+		if !held {
+			// Parent (re)rose: the flap resets the retry ladder.
+			held = true
+			backoff = retryBase
+			nextRetry = time.Time{}
+		}
+		if !childUp && !time.Now().Before(nextRetry) {
+			if nextRetry.IsZero() {
+				// MAJOR-5: the RouteHeld RISING edge closes the outer
+				// gate (once per parent generation, on the first
+				// child attempt).
+				r.observeOuterGate()
+				// PATCH-17: the outer plane is held — record its
+				// witness (the colo arrives through OuterSink).
+				r.mu.Lock()
+				r.outerWitness = edgeWitness{ip: r.cfg.Pair.Outer.Endpoint.Addr().String()}
+				r.outerUpSince = time.Now() // PATCH-28: handshake-age surrogate
+				r.mu.Unlock()
+			}
+			gen := r.parentGen + 1
+			start := r.startChild
+			if r.startChildFn != nil {
+				start = r.startChildFn
+			}
+			if err := start(gen); err != nil {
+				r.setLink("child-invalidated", gen, err.Error())
+				nextRetry = time.Now().Add(backoff)
+				backoff = min(backoff*2, retryCap)
+			} else {
+				r.pairGauge(1)
+				childUp = true
+			}
+		}
 	}
 }
 
