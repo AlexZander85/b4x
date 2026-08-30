@@ -85,6 +85,11 @@ const (
 	TargetCfWarp ProfileTarget = "cf-warp"
 	// TargetAwgServer: own/AWG server (plan Б) — S/H templates permitted.
 	TargetAwgServer ProfileTarget = "awg-server"
+	// TargetProton: Proton VPN free edge — a VANILLA WireGuard peer
+	// (E-PROTON design §3.1): the same vanilla-safe invariant as cf-warp
+	// applies, and the whole proton family lives in its own catalog entries
+	// so the CF ladder never picks up a Proton-shaped payload.
+	TargetProton ProfileTarget = "proton"
 )
 
 // ProfileTemplate is one named entry of the catalog.
@@ -98,7 +103,13 @@ type ProfileTemplate struct {
 	// EngineGeneration() >= this value. Skipped profiles re-enter after a
 	// daemon upgrade — a soft gate, never a permanent discard.
 	EngineGeneration int
-	build            func() Profile
+	// RuntimeI1 marks templates whose I1 is generated AT RUNTIME (the
+	// E-PROTON proton-quic family): the catalog stores an empty I1 plus this
+	// flag; the service fills Profile.InitPacket[0] via the proton QUIC
+	// Initial generator before IpcSet (design §3.4). Build() tolerates the
+	// empty I1 on such templates — vanilla profiles have empty I-chains too.
+	RuntimeI1 bool
+	build     func() Profile
 }
 
 // Build renders the template into a validated Profile instance.
@@ -107,8 +118,8 @@ func (t ProfileTemplate) Build() (Profile, error) {
 	if err := p.Validate(); err != nil {
 		return p, fmt.Errorf("transportwg: catalog profile %s: %w", t.ID, err)
 	}
-	if t.Target == TargetCfWarp && !p.VanillaSafe() {
-		return p, fmt.Errorf("transportwg: catalog profile %s: cf-warp target must be vanilla-safe", t.ID)
+	if (t.Target == TargetCfWarp || t.Target == TargetProton) && !p.VanillaSafe() {
+		return p, fmt.Errorf("transportwg: catalog profile %s: %s target must be vanilla-safe", t.ID, t.Target)
 	}
 	return p, nil
 }
@@ -208,6 +219,66 @@ func defaultCatalog() []ProfileTemplate {
 				}
 			},
 		},
+
+		// ---- E-PROTON family (design §3.2): vanilla WireGuard peers, so every
+		// entry is vanilla-safe; the junk is confined "in front of the flow"
+		// (I1 + Jc). Ports = the vanilla catalog the free edge listens on
+		// (clientconfig [443,88,1224,51820,500,4500]).
+		{
+			ID:        "proton-quic",
+			Target:    TargetProton,
+			Ports:     []uint16{443, 88, 1224, 51820, 500, 4500},
+			RuntimeI1: true,
+			Comment: "PREFERRED Proton family (live-verified Nova lineage): a REAL " +
+				"QUIC v1 Initial (RFC 9001, 1250 B) generated at runtime from the " +
+				"SNI pool + Jc=3 junk 1..3 (Amnezia site defaults); the catalog " +
+				"keeps the I1 empty — the service fills InitPacket[0] before IpcSet",
+			build: func() Profile {
+				return Profile{
+					JunkCount: 3, JunkMin: 1, JunkMax: 3,
+					// I1 arrives at runtime (RuntimeI1); empty here is valid.
+				}
+			},
+		},
+		{
+			ID:     "proton-vanilla",
+			Target: TargetProton,
+			Ports:  []uint16{443, 88, 1224, 51820, 500, 4500},
+			Comment: "pure vanilla WG peer shape: zero obfuscation — the last " +
+				"Proton ladder step (plain WireGuard fingerprint)",
+			build: func() Profile { return Profile{} },
+		},
+		{
+			ID:     "proton-sip",
+			Target: TargetProton,
+			Ports:  []uint16{443, 88, 1224, 51820, 500, 4500},
+			Comment: "SIP mimicry (warp-seed lineage): INVITE-head i1 of 348 B " +
+				"and SIP/2.0-head i2 of 245 B, fixed-size random tails",
+			build: func() Profile {
+				// i1: "INVITE sip:" (11 B) + 337 random = 348 B.
+				// i2: "SIP/2.0 " (8 B) + 237 random = 245 B.
+				return Profile{
+					JunkCount: 4, JunkMin: 40, JunkMax: 70,
+					InitPacket: [5]string{
+						"<b 0x494e56495445207369703a><r 337>",
+						"<b 0x5349502f322e3020><r 237>",
+					},
+				}
+			},
+		},
+		{
+			ID:     "proton-crlf",
+			Target: TargetProton,
+			Ports:  []uint16{443, 88, 1224, 51820, 500, 4500},
+			Comment: "crlf-light shape retargeted to Proton (a separate catalog " +
+				"entry — the CF crlf-* records stay untouched)",
+			build: func() Profile {
+				return Profile{
+					JunkCount: 4, JunkMin: 48, JunkMax: 190,
+					InitPacket: [5]string{"<b 0x0d0a><t><rc 16>"},
+				}
+			},
+		},
 	}
 }
 
@@ -235,6 +306,13 @@ func CatalogIDs() []string {
 // owner decision 2026-08-24 — see the package comment for rationale).
 var cfWarpLadderOrder = []string{
 	"quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive", "vanilla-off",
+}
+
+// protonLadderOrder is the E-PROTON ladder (design 3.5): the QUIC-Initial
+// family first (the live-verified reference shape), pure vanilla as the
+// compatibility anchor, then the static payload families.
+var protonLadderOrder = []string{
+	"proton-quic", "proton-vanilla", "proton-sip", "proton-crlf",
 }
 
 // LadderFor builds the per-candidate profile order for a target:
@@ -283,6 +361,10 @@ func LadderFor(target ProfileTarget, preferredID string) ([]ProfileTemplate, err
 	switch target {
 	case TargetCfWarp:
 		if err := pushAll(cfWarpLadderOrder); err != nil {
+			return nil, err
+		}
+	case TargetProton:
+		if err := pushAll(protonLadderOrder); err != nil {
 			return nil, err
 		}
 	default:

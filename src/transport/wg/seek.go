@@ -100,6 +100,26 @@ func (ss *StrikeState) Clear(c netip.AddrPort) {
 	delete(ss.strikes, c.String())
 }
 
+// CandidateSource is the candidate-admission seam (E-PROTON patch-plan
+// §5.4): the seeker validates every candidate AND the last-good binding
+// against "the catalog of the peer it is seeking" — Cloudflare ranges via
+// InWGCatalog for the default CF behavior, or the CURRENT node list for
+// Proton (a protonSource is a func-wrapper over the node queue). nil Source
+// keeps the historical CF-catalog gate (back-compat; behavior unchanged).
+type CandidateSource interface {
+	Allowed(netip.AddrPort) bool
+}
+
+// CatalogSource is the CF-catalog admission (the pre-existing behavior,
+// extracted so production wiring can pass it explicitly when useful).
+var CatalogSource CandidateSource = CatalogSourceFunc(endpointInCatalog)
+
+// CatalogSourceFunc adapts a plain predicate to the seam.
+type CatalogSourceFunc func(netip.AddrPort) bool
+
+// Allowed implements CandidateSource.
+func (f CatalogSourceFunc) Allowed(c netip.AddrPort) bool { return f(c) }
+
 // SeekerConfig assembles the seek run.
 type SeekerConfig struct {
 	Base       SessionConfig // Ident/Tunnel/SockOpts reused; endpoint/profile/health overridden
@@ -129,6 +149,12 @@ type SeekerConfig struct {
 	// Strikes carries cross-run strike/cooldown state. nil -> the seeker
 	// allocates its own (single-lifetime usage).
 	Strikes *StrikeState
+
+	// Source admits candidates (E-PROTON §5.4): nil => the historical
+	// CF-catalog gate (InWGCatalog + KnownWGPort); a custom source (the
+	// Proton node list) REPLACES the range check — behavior, budgets and
+	// strikes are unchanged.
+	Source CandidateSource
 
 	// AllowOutOfCatalog is a TESTS-ONLY escape (loopback fake edges bind
 	// outside the endpoint catalog). Production MUST leave it false: with
@@ -255,9 +281,17 @@ func (s *Seeker) orderedCandidates(now time.Time) []netip.AddrPort {
 	return out
 }
 
-// admissible applies the §34-analog gate unless the tests-only escape is set.
+// admissible applies the §34-analog gate unless the tests-only escape is
+// set. The candidate source decides the gate: nil => CF catalog (legacy),
+// non-nil => the wired peer catalog (Proton node list etc.).
 func (s *Seeker) admissible(c netip.AddrPort) bool {
-	return s.cfg.AllowOutOfCatalog || endpointInCatalog(c)
+	if s.cfg.AllowOutOfCatalog {
+		return true
+	}
+	if s.cfg.Source != nil {
+		return s.cfg.Source.Allowed(c)
+	}
+	return endpointInCatalog(c)
 }
 
 // orderedLadder returns profiles for one candidate: last-good profile first

@@ -16,12 +16,13 @@ import (
 func TestCatalogInvariants(t *testing.T) {
 	seen := map[string]bool{}
 	hasServer := false
+	hasProton := false
 	for _, tpl := range defaultCatalog() {
 		if tpl.ID == "" || seen[tpl.ID] {
 			t.Fatalf("catalog id empty/duplicate: %q", tpl.ID)
 		}
 		seen[tpl.ID] = true
-		if tpl.Target != TargetCfWarp && tpl.Target != TargetAwgServer {
+		if tpl.Target != TargetCfWarp && tpl.Target != TargetAwgServer && tpl.Target != TargetProton {
 			t.Fatalf("%s: bad target %q", tpl.ID, tpl.Target)
 		}
 		p, err := tpl.Build()
@@ -34,12 +35,27 @@ func TestCatalogInvariants(t *testing.T) {
 		if tpl.Target == TargetAwgServer && p.VanillaSafe() {
 			t.Fatalf("%s: awg-server template must carry S/H parameters", tpl.ID)
 		}
+		// E-PROTON red line (design §10.2): the Proton edge is vanilla WG —
+		// every proton-family profile MUST be vanilla-safe, and proton-quic
+		// is the only RuntimeI1 member.
+		if tpl.Target == TargetProton {
+			if !p.VanillaSafe() {
+				t.Fatalf("%s: proton profile must be vanilla-safe", tpl.ID)
+			}
+			hasProton = true
+			if (tpl.ID == "proton-quic") != tpl.RuntimeI1 {
+				t.Fatalf("%s: RuntimeI1 flag mismatch", tpl.ID)
+			}
+		}
 		if tpl.ID == "awg-sh-a" {
 			hasServer = true
 		}
 	}
 	if !hasServer {
 		t.Fatal("catalog lacks the awg-server seed")
+	}
+	if !hasProton {
+		t.Fatal("catalog lacks the proton family")
 	}
 	ladder, err := LadderFor(TargetCfWarp, "")
 	if err != nil {
@@ -64,6 +80,24 @@ func TestCatalogInvariants(t *testing.T) {
 	srv, err := LadderFor(TargetAwgServer, "")
 	if err != nil || len(srv) == 0 {
 		t.Fatalf("awg-server ladder empty: %v", err)
+	}
+	// E-PROTON ladder (design §3.5): quic -> vanilla anchor -> static
+	// families; nothing foreign may leak in.
+	prot, err := LadderFor(TargetProton, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantProton := []string{"proton-quic", "proton-vanilla", "proton-sip", "proton-crlf"}
+	if len(prot) != len(wantProton) {
+		t.Fatalf("proton ladder len=%d want %d (%v)", len(prot), len(wantProton), prot)
+	}
+	for i, want := range wantProton {
+		if prot[i].ID != want {
+			t.Fatalf("proton ladder[%d]=%s want %s", i, prot[i].ID, want)
+		}
+		if prot[i].Target != TargetProton {
+			t.Fatalf("proton ladder leaked foreign target %s", prot[i].ID)
+		}
 	}
 }
 
