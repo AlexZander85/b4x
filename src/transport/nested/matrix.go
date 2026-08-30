@@ -711,7 +711,16 @@ func (r *MasqueAwgRuntime) innerTunnel() twg.TunnelConfig {
 	}
 }
 
+// innerEvent forwards engine-native events to the operator and produces the
+// nested-level ClassInnerVersionMismatch mapping (PATCH-20/E12(г)): the WG
+// layer classifies an AWG parameter disagreement as awg-version-mismatch;
+// the composition surface re-labels it with its own class so consumers can
+// attribute the mismatch to the INNER layer without string parsing.
 func (r *MasqueAwgRuntime) innerEvent(ev twg.SessionEvent) {
+	if ev.Class == twg.ClassVersionMismatch {
+		r.emit(Event{Class: ClassInnerVersionMismatch,
+			Reason: "inner:" + string(ev.Class) + ":" + ev.Reason})
+	}
 	if cb := r.cfg.InnerOnEvent; cb != nil {
 		cb(ev)
 	}

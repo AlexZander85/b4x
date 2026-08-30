@@ -46,11 +46,11 @@ func (m *Metrics) Snapshot() []MetricSample {
 		{Name: SeriesChildStartFailed, Value: float64(m.ChildStartFailedTotal.Load())},
 		{Name: SeriesChildInvalidated, Value: float64(m.ChildInvalidatedTotal.Load())},
 	}
-	if v := m.OuterGateMS.Load(); v >= 0 {
+	if v := m.OuterGateMS.Load(); v > 0 { // PATCH-20/E12: 0 = never-observed sentinel
 		out = append(out, MetricSample{Name: SeriesLayerGateSeconds,
 			Value: float64(v) / 1000, Labels: map[string]string{"layer": "outer"}})
 	}
-	if v := m.InnerGateMS.Load(); v >= 0 {
+	if v := m.InnerGateMS.Load(); v > 0 { // PATCH-20/E12: 0 = never-observed sentinel
 		out = append(out, MetricSample{Name: SeriesLayerGateSeconds,
 			Value: float64(v) / 1000, Labels: map[string]string{"layer": "inner"}})
 	}
