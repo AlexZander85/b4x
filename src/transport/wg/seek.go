@@ -317,7 +317,9 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 	now := s.cfg.Now()
 	cands := s.orderedCandidates(now)
 	if len(cands) == 0 {
-		return res, newFailure(ClassStallRX, "all-candidates-cooling", nil)
+		// PATCH-23/NIT7: discovery exhaustion is its own verdict — the old
+		// ClassStallRX mixed it into the rx-stall metrics.
+		return res, newFailure(ClassDiscoveryExhausted, "all-candidates-cooling", nil)
 	}
 
 	for _, cand := range cands {
@@ -393,7 +395,7 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 		}
 	}
 	if res.Winner == nil {
-		return res, newFailure(ClassStallRX, "seek-exhausted", nil)
+		return res, newFailure(ClassDiscoveryExhausted, "seek-exhausted", nil)
 	}
 	return res, nil
 }
@@ -461,5 +463,3 @@ func (s *Seeker) attempt(ctx context.Context, cand netip.AddrPort, prof Profile)
 		}
 	}
 }
-
-var _ = fmt.Sprintf // keep fmt if diagnostics evolve

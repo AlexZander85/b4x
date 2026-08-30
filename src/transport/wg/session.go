@@ -476,7 +476,7 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	// Pre-gate counter snapshot: on gate failure the delta classifies the
 	// outcome — tx growth with rx pinned at zero is the AWG version-mismatch
 	// signature ("92 B received / 20 KB sent" family), not a plain stall.
-	pre, preOK := s.countersSampler(dev)(ctx)
+	pre, preErr := s.countersSampler(dev)(ctx)
 	if err := gate.Verify(gctx, rt); err != nil {
 		var f *Failure
 		if errors.As(err, &f) {
@@ -484,7 +484,7 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 			// tx grows while rx stays zero is the AWG parameter-disagreement
 			// signature. A vanilla profile failing the gate means the
 			// endpoint itself is dead/DPI'd — plain stall class.
-			if f.Class == ClassStallRX && !s.cfg.Profile.VanillaSafe() && preOK == nil {
+			if f.Class == ClassStallRX && !s.cfg.Profile.VanillaSafe() && preErr == nil {
 				if post, e := s.countersSampler(dev)(ctx); e == nil {
 					txDelta := post.TxBytes - pre.TxBytes
 					rxDelta := post.RxBytes - pre.RxBytes
@@ -545,9 +545,14 @@ func (s *Session) buildIPC() (string, error) {
 		FWMark:     s.cfg.ListenFwMark,
 		Profile:    s.cfg.Profile,
 		Peers: []PeerConfig{{
-			PublicKey:              s.cfg.Ident.PeerPublicKey,
-			Endpoint:               s.endpointAP, // parsed+validated in NewSession (PATCH-02)
-			AllowedIPs:             nil,          // default route through the tunnel
+			PublicKey: s.cfg.Ident.PeerPublicKey,
+			Endpoint:  s.endpointAP, // parsed+validated in NewSession (PATCH-02)
+			// PATCH-23/NIT5: the default route is declared EXPLICITLY —
+			// empty AllowedIPs is now a validation error.
+			AllowedIPs: []netip.Prefix{
+				netip.PrefixFrom(netip.AddrFrom4([4]byte{0, 0, 0, 0}), 0),
+				netip.PrefixFrom(netip.AddrFrom16([16]byte{}), 0),
+			},
 			PersistentKeepaliveSec: s.cfg.Health.KeepaliveSec,
 		}},
 	}

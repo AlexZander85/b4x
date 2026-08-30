@@ -304,7 +304,7 @@ func TestNetstackHandshakeSmoke(t *testing.T) {
 
 	respCfg := Config{
 		PrivateKey: privB,
-		Peers:      []PeerConfig{{PublicKey: pubA}},
+		Peers:      []PeerConfig{{PublicKey: pubA, AllowedIPs: []netip.Prefix{netip.MustParsePrefix("10.0.0.2/32")}}},
 	}
 	respIPC, err := respCfg.IPCString()
 	if err != nil {
@@ -335,7 +335,7 @@ func TestNetstackHandshakeSmoke(t *testing.T) {
 		Peers: []PeerConfig{{
 			PublicKey:  pubB,
 			Endpoint:   mustAddrPort("127.0.0.1:" + itoaPort(respPort)),
-			AllowedIPs: nil,
+			AllowedIPs: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")},
 		}},
 	}
 	cliIPC, err := clientCfg.IPCString()

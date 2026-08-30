@@ -72,10 +72,8 @@ type Bind struct {
 	port    uint16
 	opened  bool
 	hook    atomic.Pointer[DatagramHook]
-	closers []ioCloser
 }
 
-type ioCloser interface{ Close() error }
 
 // NewBind returns an unopened bind carrying opts.
 func NewBind(opts SocketOptions) *Bind {
@@ -262,7 +260,6 @@ func (b *Bind) closeLocked() error {
 		b.v6 = nil
 	}
 	b.opened = false
-	b.closers = nil
 	if err1 != nil {
 		return err1
 	}

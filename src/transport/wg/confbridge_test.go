@@ -25,6 +25,7 @@ func TestIPCStringVanilla(t *testing.T) {
 		Peers: []PeerConfig{{
 			PublicKey:              peerPub,
 			Endpoint:               netip.MustParseAddrPort("162.159.193.10:2408"),
+			AllowedIPs:             []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")},
 			PersistentKeepaliveSec: 25,
 		}},
 	}
@@ -113,7 +114,7 @@ func TestIPCStringFullAWGProfile(t *testing.T) {
 			ContentPadding:  r(16, 32),
 			RekeyTimeout:    r(5, 5),
 		},
-		Peers: []PeerConfig{{PublicKey: mustKey(t)}},
+		Peers: []PeerConfig{{PublicKey: mustKey(t), AllowedIPs: []netip.Prefix{netip.MustParsePrefix("0.0.0.0/0"), netip.MustParsePrefix("::/0")}}},
 	}
 	s, err := cfg.IPCString()
 	if err != nil {

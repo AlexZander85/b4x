@@ -13,6 +13,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -35,6 +36,41 @@ func GenerateKey() (Key, error) {
 }
 
 func (k Key) Hex() string { return hex.EncodeToString(k[:]) }
+
+// MarshalJSON renders the key as a HEX STRING (PATCH-23/NIT6): identity
+// files become human-readable. UnmarshalJSON accepts BOTH formats — the
+// new hex string and the legacy base64/JSON-byte-array shapes — so stores
+// written by older builds keep loading.
+func (k Key) MarshalJSON() ([]byte, error) {
+	return json.Marshal(k.Hex())
+}
+
+func (k *Key) UnmarshalJSON(data []byte) error {
+	// String form: canonical hex first, legacy base64 second (Go's own
+	// json.Marshal of []byte produces base64, so old stores may carry it).
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		if raw, herr := hex.DecodeString(s); herr == nil && len(raw) == 32 {
+			copy(k[:], raw)
+			return nil
+		}
+		if raw, berr := base64.StdEncoding.DecodeString(s); berr == nil && len(raw) == 32 {
+			copy(k[:], raw)
+			return nil
+		}
+		return fmt.Errorf("transportwg: key string must be 64-char hex (or legacy base64)")
+	}
+	// Legacy JSON byte array.
+	var raw []byte
+	if err := json.Unmarshal(data, &raw); err == nil {
+		if len(raw) == 32 {
+			copy(k[:], raw)
+			return nil
+		}
+		return fmt.Errorf("transportwg: key byte array must be 32 bytes, got %d", len(raw))
+	}
+	return fmt.Errorf("transportwg: key must be hex string, base64 string or 32-byte array")
+}
 
 // B64 renders the key as padded standard base64 (WireGuard ecosystem form).
 func (k Key) B64() string { return base64.StdEncoding.EncodeToString(k[:]) }
@@ -109,6 +145,14 @@ func (c *Config) Validate() error {
 		p := &c.Peers[i]
 		if p.PublicKey == (Key{}) {
 			return fmt.Errorf("transportwg: peer[%d]: public_key is required", i)
+		}
+		// PATCH-23/NIT5: empty AllowedIPs is a VALIDATION ERROR — the old
+		// render silently granted 0.0.0.0/0+::/0, the widest possible route,
+		// from an easy-to-forget omission. Callers wanting the default route
+		// must declare it explicitly (the session render does).
+		if len(p.AllowedIPs) == 0 {
+			return fmt.Errorf("transportwg: peer[%d]: allowed_ips is required "+
+				"(declare 0.0.0.0/0 + ::/0 explicitly for the default route)", i)
 		}
 	}
 	return nil

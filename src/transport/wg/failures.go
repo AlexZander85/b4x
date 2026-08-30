@@ -36,6 +36,11 @@ const (
 	// out — a TERMINAL session outcome. Structurally distinct from rx-stall
 	// so consumers/metrics never conflate storm-stop with a live stall.
 	ClassRestartCapExhausted FailureClass = "restart-cap-exhausted"
+	// ClassDiscoveryExhausted: the seek ladder found nothing to probe (all
+	// candidates cooling) or exhausted every attempt — a discovery outcome,
+	// structurally distinct from rx-stall so stall metrics stay honest
+	// (PATCH-23/NIT7).
+	ClassDiscoveryExhausted FailureClass = "wg-discovery-exhausted"
 	// ClassDialPolicy: the socket dial policy (SO_MARK / SO_BINDTODEVICE)
 	// could not be applied — typically missing CAP_NET_ADMIN (EPERM/EACCES).
 	// "No privileges" is operationally distinct from "broken config"

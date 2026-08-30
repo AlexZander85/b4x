@@ -13,6 +13,7 @@ package transportwg
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -220,11 +221,12 @@ func (p *Profile) VanillaSafe() bool {
 }
 
 // parseUint32 is strconv.ParseUint with a wrapped error type.
+// PATCH-23/NIT4: strict parsing — surrounding whitespace is tolerated but
+// TRAILING GARBAGE ("12abc") is an error (Sscanf silently accepted it).
 func parseUint32(s string) (uint32, error) {
-	var v uint64
-	_, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &v)
-	if err != nil || v > 0xFFFFFFFF {
-		return 0, fmt.Errorf("not a uint32")
+	v, err := strconv.ParseUint(strings.TrimSpace(s), 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("not a uint32: %w", err)
 	}
 	return uint32(v), nil
 }
