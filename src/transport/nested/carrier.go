@@ -110,9 +110,6 @@ var (
 	// bd b4x-9aa). Callers must treat it as BLOCKED_CARRIER semantics —
 	// a structural limitation, not a network failure.
 	ErrNoTCPCarrier = errors.New("nested: outer mode carries no TCP streams")
-	// ErrFamilyUnsupported: the requested address family has no carrier
-	// path and the family policy says mandatory (v4 default).
-	ErrFamilyUnsupported = errors.New("nested: address family unsupported by carrier")
 )
 
 // FamilyPolicy encodes the asymmetric criticality of address families
