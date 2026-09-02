@@ -17,57 +17,66 @@
 package fxvpservice
 
 import (
-	"sync/atomic"
+        "sync/atomic"
 
-	"github.com/daniellavrushin/b4/observability"
-	fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
+        "github.com/daniellavrushin/b4/observability"
+        fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
 )
 
 // poolStateVector lists every AccountState in lifecycle order.
 var poolStateVector = []fxvpn.AccountState{
-	fxvpn.StateProvisioning,
-	fxvpn.StateVerifying,
-	fxvpn.StateStandby,
-	fxvpn.StateActive,
-	fxvpn.StateCoolingDown,
-	fxvpn.StateExhausted,
-	fxvpn.StateBanned,
-	fxvpn.StateRefused,
+        fxvpn.StateProvisioning,
+        fxvpn.StateVerifying,
+        fxvpn.StateStandby,
+        fxvpn.StateActive,
+        fxvpn.StateCoolingDown,
+        fxvpn.StateExhausted,
+        fxvpn.StateBanned,
+        fxvpn.StateRefused,
 }
 
 // recordDial bumps the runtime atomic AND the shared registry counter.
 func (r *Runtime) recordDial(ok bool) {
-	if ok {
-		atomic.AddUint64(&r.dialOK, 1)
-		observability.Default().Metrics.Inc(observability.MetricFxvpnDialTotal, map[string]string{"result": "ok"}, 1)
-		return
-	}
-	atomic.AddUint64(&r.dialFail, 1)
-	observability.Default().Metrics.Inc(observability.MetricFxvpnDialTotal, map[string]string{"result": "fail"}, 1)
+        if ok {
+                atomic.AddUint64(&r.dialOK, 1)
+                observability.Default().Metrics.Inc(observability.MetricFxvpnDialTotal, map[string]string{"result": "ok"}, 1)
+                return
+        }
+        atomic.AddUint64(&r.dialFail, 1)
+        observability.Default().Metrics.Inc(observability.MetricFxvpnDialTotal, map[string]string{"result": "fail"}, 1)
 }
 
 // exportPoolMetrics pushes the current pool/quota state into the registry.
+// Events are emitted while the pool mutex is held, so this uses the
+// non-blocking StatusTry and skips when it loses the lock (the supervision
+// tick refreshes the gauges right after) — the synchronous Status() here
+// deadlocked the daemon on the FIRST pool event (FX5 latent bug, caught by
+// the F3 live-path test).
 func (r *Runtime) exportPoolMetrics() {
-	counts, activeLeft := poolStateCounts(r.pool.Status())
-	met := observability.Default().Metrics
-	for _, s := range poolStateVector {
-		met.Set(observability.MetricFxvpnPoolState, map[string]string{"state": string(s)}, counts[s])
-	}
-	if activeLeft >= 0 {
-		met.Set(observability.MetricFxvpnQuotaRemainingBytes, map[string]string{"account": "active"}, uint64(activeLeft))
-	}
+        st, ok := r.pool.StatusTry()
+        if !ok {
+                return
+        }
+        counts, activeLeft := poolStateCounts(st)
+        met := observability.Default().Metrics
+        for _, s := range poolStateVector {
+                met.Set(observability.MetricFxvpnPoolState, map[string]string{"state": string(s)}, counts[s])
+        }
+        if activeLeft >= 0 {
+                met.Set(observability.MetricFxvpnQuotaRemainingBytes, map[string]string{"account": "active"}, uint64(activeLeft))
+        }
 }
 
 // poolStateCounts reduces a pool snapshot into per-state counts plus the
 // active account's remaining quota (-1 when unknown or no active seat).
 func poolStateCounts(st fxvpn.PoolStatus) (map[fxvpn.AccountState]uint64, int64) {
-	counts := make(map[fxvpn.AccountState]uint64, len(poolStateVector))
-	activeLeft := int64(-1)
-	for _, v := range st.Views {
-		counts[v.State]++
-		if v.Active {
-			activeLeft = v.QuotaLeft
-		}
-	}
-	return counts, activeLeft
+        counts := make(map[fxvpn.AccountState]uint64, len(poolStateVector))
+        activeLeft := int64(-1)
+        for _, v := range st.Views {
+                counts[v.State]++
+                if v.Active {
+                        activeLeft = v.QuotaLeft
+                }
+        }
+        return counts, activeLeft
 }
