@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"strings"
 	"sync"
@@ -304,7 +305,10 @@ func (r *Runtime) Status() Status {
 
 // DialStream dials ONE TCP stream to addr THROUGH the currently selected
 // node (the warp StreamDialer contract, Backend-B userspace carrier shape).
-// Self-loop targets (the transport's own node IPs) are refused.
+// Self-loop targets (the transport's own node IPs) are refused. A 407 on
+// the CONNECT is fed to the health supervisor as a credential-rejection
+// signal (review M1/M2: the refresh cycle used to be blind to it) and an
+// immediate supervision kick runs in the background.
 func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
 	entry := r.sup.ActiveEntry()
 	if entry.IP == "" {
@@ -317,7 +321,13 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 	if err != nil {
 		return nil, err
 	}
-	return nd.DialContext(ctx, "tcp", addr.String())
+	conn, err := nd.DialContext(ctx, "tcp", addr.String())
+	if err != nil && opera.IsClass(err, opera.ClassDataPlaneConnectRefused) &&
+		opera.FailureStatus(err) == http.StatusProxyAuthRequired {
+		r.sup.NoteDataPlaneAuthRejected()
+		go r.sup.Tick(r.sup.Now())
+	}
+	return conn, err
 }
 
 // ActiveNodeAddr exposes the current node for diagnostics/status pages.

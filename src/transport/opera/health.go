@@ -21,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,6 +41,9 @@ const (
 	// maxTickSteps bounds the plan->execute->apply loop (bootstrap,
 	// desired-retry, refresh, probe, rotate — one tick never chains more).
 	maxTickSteps = 4
+	// refreshRetryBase is the exponential-backoff base for a failed JWT
+	// refresh (review M1: 60s, doubling, capped at the cadence).
+	refreshRetryBase = 60 * time.Second
 )
 
 // ProbeVerdict is the tri-state probe outcome (design §4):
@@ -328,6 +332,14 @@ type HealthSupervisor struct {
 	pendingSave *NodeCacheRecord // flushed (file I/O) OUTSIDE the mutex
 	cache       *NodeCache
 
+	// JWT refresh discipline (review M1/M2): a failed refresh retries with
+	// exponential backoff (60s base, capped at the cadence) instead of
+	// silently waiting the next full 4h interval; a 407 on the data-plane
+	// CONNECT marks credentials rejected and pulls the refresh forward.
+	authRejected     bool
+	refreshRetryAt   time.Time
+	refreshFailRound int
+
 	busy atomic.Bool // one Tick flight at a time (ticker vs Kick)
 }
 
@@ -359,6 +371,19 @@ func (h *HealthSupervisor) SetProber(p Prober) {
 // Now exposes the supervisor's injectable clock (operaservice.Kick uses it
 // so manual kicks share the ticker's time source).
 func (h *HealthSupervisor) Now() time.Time { return h.cfg.Now() }
+
+// NoteDataPlaneAuthRejected feeds a 407-on-CONNECT from the data-plane
+// dial path into the control-plane refresh loop (review M1/M2: the 407
+// was previously unrelated to the refresh cycle entirely). The next Tick
+// attempts the credential refresh immediately; if the refresh is refused
+// the existing recovery machinery takes over (credsDead -> capped
+// re-register).
+func (h *HealthSupervisor) NoteDataPlaneAuthRejected() {
+	h.mu.Lock()
+	h.authRejected = true
+	h.refreshRetryAt = time.Time{} // no backoff on a fresh hard signal
+	h.mu.Unlock()
+}
 
 // Run drives Tick with the configured cadence until ctx is cancelled. The
 // first tick fires immediately (review L1: fxvpn/proton parity — the
@@ -442,8 +467,12 @@ func (h *HealthSupervisor) planLocked(now time.Time, done *tickDone) tickPlan {
 		now.After(h.nextDesiredRetry) && !done.desiredRetry {
 		return tickPlan{action: actDesiredRetry}
 	}
-	// JWT refresh cadence (4h).
-	if !h.lastRefreshAt.IsZero() && now.Sub(h.lastRefreshAt) >= h.cfg.RefreshEvery && !done.refreshed {
+	// JWT refresh: 4h cadence, an immediate pull-forward when the data
+	// plane reported 407, and exponential backoff between failed attempts
+	// (60s base, capped at the cadence — review M1).
+	refreshDue := (!h.lastRefreshAt.IsZero() && now.Sub(h.lastRefreshAt) >= h.cfg.RefreshEvery) || h.authRejected
+	refreshAllowed := h.refreshRetryAt.IsZero() || now.After(h.refreshRetryAt)
+	if refreshDue && refreshAllowed && !done.refreshed {
 		return tickPlan{action: actRefresh}
 	}
 	// Two-level probe: deep when due, cheap otherwise — once per tick.
@@ -685,11 +714,26 @@ func (h *HealthSupervisor) applyDesiredRetry(res stepResult, now time.Time) bool
 }
 
 func (h *HealthSupervisor) applyRefresh(res stepResult, now time.Time) bool {
-	h.lastRefreshAt = now // do not hammer within the same interval
-	if res.err != nil {
-		h.lastErr = res.err.Error()
-		h.noteAPIFailure(res.err, now)
+	if res.err == nil {
+		// Success: cadence anchor moves forward, backoff and the 407 flag
+		// clear together.
+		h.lastRefreshAt = now
+		h.refreshRetryAt = time.Time{}
+		h.refreshFailRound = 0
+		h.authRejected = false
+		return true
 	}
+	h.lastErr = res.err.Error()
+	h.noteAPIFailure(res.err, now)
+	// Failed refresh: exponential backoff from 60s, capped at the cadence
+	// (review M1) — a transient network blip no longer costs the data
+	// plane a full 4h window with a dying JWT.
+	delay := refreshRetryBase << min64(int64(h.refreshFailRound), 10)
+	if delay > h.cfg.RefreshEvery {
+		delay = h.cfg.RefreshEvery
+	}
+	h.refreshFailRound++
+	h.refreshRetryAt = now.Add(delay)
 	return true
 }
 
@@ -761,6 +805,22 @@ func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool 
 		}
 		return true
 	default: // ProbeFail
+		// 407 on CONNECT = proxy credentials rejected (review M2). The
+		// right lever is the credential refresh (and, if that is refused
+		// too, the capped re-register) — rotating healthy nodes for a
+		// stale JWT is noise, so the rotation counters stay untouched.
+		if IsClass(err, ClassDataPlaneConnectRefused) && FailureStatus(err) == http.StatusProxyAuthRequired {
+			h.lastVerdict = ProbeFail
+			h.lastErr = err.Error()
+			if deep {
+				h.lastDeepAt = now
+				h.lastDeepOK = false
+				h.listening = false
+			}
+			h.authRejected = true
+			h.consecFails = 0
+			return true
+		}
 		h.consecFails++
 		h.lastVerdict = ProbeFail
 		if err != nil {

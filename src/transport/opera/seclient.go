@@ -587,6 +587,15 @@ func (c *Client) registerNewLocked(ctx context.Context) error {
 	if err := c.jar.Reset(); err != nil {
 		return err
 	}
+	// Review L4: every FRESH registration draws a NEW device_hash. Reusing
+	// the per-boot value made a recovery re-registration semantically
+	// identical to the old device (the server could answer with the same
+	// device_id, defeating the point of the recovery).
+	deviceRaw, err := randomCapitalHexString(deviceIDBytes)
+	if err != nil {
+		return err
+	}
+	c.deviceRaw = deviceRaw
 	localPart, err := randomEmailLocalPart(anonEmailLocalpartBytes)
 	if err != nil {
 		return err

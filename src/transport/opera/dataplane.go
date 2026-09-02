@@ -260,8 +260,12 @@ func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (
 			status = fmt.Sprintf("%d", resp.StatusCode)
 		}
 		_ = conn.Close()
-		return nil, newFailure(ClassDataPlaneConnectRefused,
-			fmt.Sprintf("connect through %s to %s: %s", d.Address, address, status), nil)
+		// The status code rides the structured failure (review M2): 407 =
+		// credentials rejected - a refresh/re-register lever, NOT a
+		// node-rotation lever.
+		return nil, newFailureStatus(ClassDataPlaneConnectRefused,
+			fmt.Sprintf("connect through %s to %s: %s", d.Address, address, status),
+			resp.StatusCode, nil)
 	}
 	return wrapped, nil
 }
@@ -286,6 +290,10 @@ func readConnectResponse(conn net.Conn) (*http.Response, net.Conn, error) {
 		resp.Body = io.NopCloser(wrapped)
 		return resp, wrapped, nil
 	}
+	// No lookahead: the raw conn IS the tunnel. Body still gets a closer so
+	// the response owns its transport uniformly (review L3: the zero-Buffer
+	// branch used to leak the close duty to the GC).
+	resp.Body = io.NopCloser(conn)
 	return resp, conn, nil
 }
 
@@ -302,6 +310,13 @@ func (pc *prefixConn) Read(b []byte) (int, error) { return pc.Reader.Read(b) }
 // directions finish, then closes both. A clean EOF on either side counts as
 // normal tunnel completion (the opposite direction is unblocked by Close and
 // its forced-error is swallowed); a genuine transport error wins otherwise.
+//
+// Deliberate semantics (NOT a bug - review L2 asks for this note): the
+// firstErr from the direction that errored is DISCARDED when the other
+// direction reached a clean EOF - after a clean EOF the peer closed its
+// half properly, so the "error" is just the forced-read failure from the
+// concurrent Close, i.e. noise. Only when NEITHER side ended cleanly does
+// firstErr carry a real transport failure.
 func Relay(a, b io.ReadWriteCloser) error {
 	var (
 		wg       sync.WaitGroup

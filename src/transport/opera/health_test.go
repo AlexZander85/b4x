@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -636,5 +637,129 @@ func TestNodeCacheCorruptQuarantined(t *testing.T) {
 	}
 	if _, err := os.Stat(path + ".corrupt"); err != nil {
 		t.Fatal("corrupt file not quarantined")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA M1/M2 + §6: 407-on-CONNECT -> refresh -> capped re-register.
+// ---------------------------------------------------------------------------
+
+// errConnect407 mimics the data-plane refusal shape DialContext produces
+// (structured class + HTTP status).
+func errConnect407() error {
+	return newFailureStatus(ClassDataPlaneConnectRefused,
+		"connect through node to target: 407 Proxy Authentication Required",
+		http.StatusProxyAuthRequired, nil)
+}
+
+// TestProbe407PullsRefreshForwardNotRotation: a 407 is a credential
+// rejection — the node cache must not rotate and the JWT refresh must fire
+// on the NEXT tick regardless of the 4h cadence (review M1+M2).
+func TestProbe407PullsRefreshForwardNotRotation(t *testing.T) {
+	stand := newSEStand(t)
+	sup, pb, clk := newTestSupervisor(t, stand, "EU")
+	sup.Tick(clk.t) // healthy bootstrap
+
+	pb.set(func(e SEIPEntry) error { return errConnect407() },
+		func(e SEIPEntry) error { return errConnect407() })
+	genBefore := stand.generateCalls()
+	clk.t = clk.t.Add(time.Minute)
+	sup.Tick(clk.t)
+
+	st := sup.Status()
+	if st.ConsecFails != 0 || sup.idx != 0 {
+		t.Fatalf("407 leaked into rotation counters: fails=%d idx=%d", st.ConsecFails, sup.idx)
+	}
+
+	// The refresh pulls forward IN THE SAME TICK (pipeline: probe -> 407 ->
+	// refresh): generate_password fires even though the 4h cadence is
+	// nowhere near due.
+	if stand.generateCalls() != genBefore+1 {
+		t.Fatalf("refresh after 407 did not fire (gen=%d, want %d)", stand.generateCalls(), genBefore+1)
+	}
+	if sup.authRejected || !sup.refreshRetryAt.IsZero() {
+		t.Fatalf("successful refresh did not clear the 407 state: flag=%v retryAt=%v",
+			sup.authRejected, sup.refreshRetryAt)
+	}
+}
+
+// TestRefreshFailureBacksOffThenRetries: a failed refresh retries on the
+// exponential backoff (60s, doubling) instead of disappearing for 4h
+// (review M1).
+func TestRefreshFailureBacksOffThenRetries(t *testing.T) {
+	stand := newSEStand(t)
+	sup, pb, clk := newTestSupervisor(t, stand, "EU")
+	sup.Tick(clk.t) // healthy bootstrap
+
+	// First refresh attempt fails with a transient (network) error.
+	pb.set(nil, nil)                          // probes fine; the failure is injected via the stand
+	stand.setKnobs(false, false, true, false) // malformed replies = transient
+	sup.authRejected = true                   // force a refresh attempt now
+	clk.t = clk.t.Add(time.Minute)
+	sup.Tick(clk.t)
+	if sup.refreshRetryAt.IsZero() {
+		t.Fatal("failed refresh scheduled no backoff retry")
+	}
+	firstRetry := sup.refreshRetryAt
+	if !clk.t.Before(firstRetry) {
+		t.Fatalf("retry instant %v not in the future relative to %v", firstRetry, clk.t)
+	}
+
+	// Still inside the backoff: no second attempt.
+	genAfterFirst := stand.generateCalls()
+	clk.t = clk.t.Add(30 * time.Second)
+	sup.Tick(clk.t)
+	if stand.generateCalls() != genAfterFirst {
+		t.Fatal("refresh retried inside the backoff window")
+	}
+
+	// Backoff elapsed: the retry fires and succeeds (knobs healed).
+	stand.setKnobs(false, false, false, false)
+	clk.t = firstRetry.Add(time.Second)
+	sup.Tick(clk.t)
+	if stand.generateCalls() != genAfterFirst+1 {
+		t.Fatalf("backoff retry did not fire (gen=%d)", stand.generateCalls())
+	}
+	if !sup.refreshRetryAt.IsZero() || sup.refreshFailRound != 0 {
+		t.Fatalf("success did not reset the backoff: retryAt=%v round=%d",
+			sup.refreshRetryAt, sup.refreshFailRound)
+	}
+}
+
+// TestProbe407ThenRefusedRefreshCapsReRegister (review §6 third test): the
+// full chain — 407 on CONNECT -> immediate refresh -> refresh refused ->
+// credsDead -> capped re-register (<=6/hour).
+func TestProbe407ThenRefusedRefreshCapsReRegister(t *testing.T) {
+	stand := newSEStand(t)
+	sup, pb, clk := newTestSupervisor(t, stand, "EU")
+	sup.Tick(clk.t) // healthy bootstrap
+
+	// 407 on both probe levels: credentials rejected by the node. The
+	// refresh fires in the same tick (knobs still healthy) and succeeds.
+	pb.set(func(e SEIPEntry) error { return errConnect407() },
+		func(e SEIPEntry) error { return errConnect407() })
+	clk.t = clk.t.Add(time.Minute)
+	sup.Tick(clk.t)
+
+	// Next tick: the node still answers 407, but now the REFRESH hits a
+	// refusing API — creds die, recovery engages in the same tick.
+	stand.setKnobs(true, false, false, false)
+	clk.t = clk.t.Add(time.Minute)
+	sup.Tick(clk.t) // 407 -> refresh refused -> credsDead -> recover attempt #1
+	if st := sup.Status(); st.RestartsLastHour != 1 {
+		t.Fatalf("restarts=%d, want the first capped re-register to have fired", st.RestartsLastHour)
+	}
+
+	// Subsequent ticks retry the registration while refused; cap at 6/hour.
+	for i := 0; i < 8; i++ {
+		clk.t = clk.t.Add(time.Minute)
+		sup.Tick(clk.t)
+	}
+	st := sup.Status()
+	if st.RestartsLastHour != sup.cfg.RestartCapPerHour {
+		t.Fatalf("restarts=%d, want capped at %d", st.RestartsLastHour, sup.cfg.RestartCapPerHour)
+	}
+	if st.Running {
+		t.Fatal("must stay unbootstrapped while the API refuses and the cap holds")
 	}
 }
