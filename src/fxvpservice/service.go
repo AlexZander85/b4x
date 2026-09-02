@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/packetmark"
 	fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
 	warp "github.com/daniellavrushin/b4/transport/warp"
 )
@@ -188,11 +189,13 @@ type Runtime struct {
 	// Carrier-nesting state (review §7.5, FX-M2): when the :2499 port/IP
 	// block is detected, the data plane nests in the base-tunnel carrier
 	// (TCP/H2 only — UDP nesting is a designed extension §7.6.4).
-	carrierDial   DialFunc  // the injected base-transport dial (nil = no carrier)
-	nested        bool      // nested mode active
-	nestAnnounced bool      // fxvpn_nested_activated emitted (red line: never silent)
-	nestStrikes   int       // consecutive port-block-suspect dial failures
-	lastNestProbe time.Time // last hourly direct-path return probe
+	carrierDial DialFunc // the injected base-transport dial (nil = no carrier)
+	nested      bool     // nested mode active
+
+	bait          *baitState // NFQ bait seam (FX-M3): nil = not configured
+	nestAnnounced bool       // fxvpn_nested_activated emitted (red line: never silent)
+	nestStrikes   int        // consecutive port-block-suspect dial failures
+	lastNestProbe time.Time  // last hourly direct-path return probe
 
 	bytesUp     uint64         // relay bytes out (F7b)
 	bytesDown   uint64         // relay bytes in (F7b)
@@ -233,6 +236,13 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		masq: fxvpn.ResolveMasquerade(fc.Masquerade.Profile, fc.Masquerade.PreflightFake,
 			fc.Masquerade.FakeSNI, fc.Masquerade.FakeTTL, fc.Masquerade.FakeCount,
 			fc.Masquerade.InitialPadding, fc.Masquerade.HelloShaping),
+	}
+	// FX-M3: the NFQ bait master switch is masquerade.preflight_fake —
+	// it gates BOTH bait branches (the UDP preflight on the QUIC carrier
+	// and the SO_MARK+NFQUEUE treatment of the TCP branch). Honest status:
+	// Active flips only when the tables layer confirms the OUTPUT rule.
+	if fc.Masquerade.PreflightFake {
+		r.bait = &baitState{configured: true}
 	}
 	// Last-good rung (§7.5): a previous run that ended nested starts
 	// nested — releasing without proof would walk straight back into the
@@ -338,6 +348,27 @@ func (r *Runtime) SupportsUDP() bool { return false }
 // no consumers; the daemon wiring plus this accessor give the router a
 // stable contract without importing the service internals).
 func (r *Runtime) StreamDialer() warp.StreamDialer { return r }
+
+// baitState is the FX-M3 NFQ bait handle: configured = the master switch
+// is on; active = the tables layer CONFIRMED the OUTPUT rule (honest
+// status — §7.8.5; the daemon wiring flips it after tables.ApplyFxvpnBaitOnly
+// succeeded / on teardown).
+type baitState struct {
+	configured bool
+	confirmed  bool
+}
+
+func (b *baitState) on() bool     { return b != nil && b.configured }
+func (b *baitState) active() bool { return b != nil && b.confirmed }
+
+// SetBaitActive records the tables-layer confirmation (daemon seam; nil
+// runtime or unconfigured bait is a no-op).
+func (r *Runtime) SetBaitActive(active bool) {
+	if r.bait == nil {
+		return
+	}
+	r.bait.confirmed = active
+}
 
 // RestartNow forces an immediate supervision cycle (GUI button). It bypasses
 // the tick cadence; as an EXPLICIT admin action its rebuild bypasses the
@@ -492,10 +523,7 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
 	r.mu.Lock()
 	nested := r.nested
 	r.mu.Unlock()
-	policy := fxvpn.DialPolicy{}
-	if nested && r.carrierDial != nil {
-		policy.BaseDial = r.carrierDial
-	}
+	policy := r.dialPolicyFor(nested)
 	sess, carrier, serr := dialSession(ctx, r.cp, host, port, bearerRaw, r.preferH3.Load() && !nested, r.masq, policy)
 	if serr != nil {
 		// F8: consecutive dial failures degrade the node; after the
@@ -625,6 +653,21 @@ func (r *Runtime) pickCandidate(cands []fxvpn.ConnectCandidate) fxvpn.ConnectCan
 		}
 	}
 	return cands[0]
+}
+
+// dialPolicyFor assembles the session dial policy (FX-M2/FX-M3): the bait
+// mark tags DIRECT egress so the OUTPUT NFQ rule can pick the first flight
+// up, while the carrier-nested leg stays unmarked (the outer tunnel already
+// obfuscates it — §7.8.3) and dials through the carrier seam.
+func (r *Runtime) dialPolicyFor(nested bool) fxvpn.DialPolicy {
+	policy := fxvpn.DialPolicy{}
+	if r.bait.on() && !nested {
+		policy.FwMark = packetmark.MarkFxvpnEgress
+	}
+	if nested && r.carrierDial != nil {
+		policy.BaseDial = r.carrierDial
+	}
+	return policy
 }
 
 // nestStrikeThreshold is the consecutive port-block-suspect failures after
@@ -903,6 +946,7 @@ type Status struct {
 	BytesUp       uint64               `json:"bytes_up"`
 	BytesDown     uint64               `json:"bytes_down"`
 	Nested        bool                 `json:"nested"`
+	BaitActive    bool                 `json:"bait_active"`
 	RestartCapHit bool                 `json:"restart_cap_hit"`
 	Events        []fxvpn.PoolEvent    `json:"events,omitempty"`
 }
@@ -929,6 +973,7 @@ func (r *Runtime) Status() Status {
 		BytesUp:      atomic.LoadUint64(&r.bytesUp),
 		BytesDown:    atomic.LoadUint64(&r.bytesDown),
 		Nested:       r.nested,
+		BaitActive:   r.bait.active(),
 		Events:       append([]fxvpn.PoolEvent(nil), r.events...),
 	}
 	listening := false

@@ -21,6 +21,12 @@ const (
 // (24-26); bits {0-14, 17} stay reserved for the queue contract.
 const MarkOperaEgress uint32 = 1 << 23
 
+// MarkFxvpnEgress (bit 22) tags the Firefox VPN reserve transport's own
+// egress sockets the same way (review E-FXVPN §7.4.2, FX-M3 — shared NFQ
+// bait infrastructure with opera). Bit 22 is disjoint from bit 23, the
+// canary control mask (24-26) and ProcessedBit (27).
+const MarkFxvpnEgress uint32 = 1 << 22
+
 func ProcessedFor(legacyMark uint) uint32 {
 	return uint32(legacyMark) | ProcessedBit
 }
