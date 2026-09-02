@@ -537,3 +537,60 @@ func TestValidate_Idempotent(t *testing.T) {
 		t.Errorf("Validate is not idempotent: marks/mode changed on second call")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA §7.3 + L6: masquerade section validation (always-on).
+// ---------------------------------------------------------------------------
+
+func TestOperaMasqueradeValidationAlwaysOn(t *testing.T) {
+	c := NewConfig()
+	c.System.Opera.Masquerade.Profile = "wizard"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "masquerade.profile") {
+		t.Fatalf("bad profile accepted while disabled: %v", err)
+	}
+
+	c = NewConfig()
+	c.System.Opera.Masquerade.SNIMode = "stealth"
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "sni_mode") {
+		t.Fatalf("bad sni_mode accepted while disabled: %v", err)
+	}
+}
+
+func TestOperaFakeSNIHostnameValidation(t *testing.T) {
+	// L6: fake_sni must be an RFC 1123 hostname — any garbage used to
+	// flow straight into the SNI extension.
+	c := NewConfig()
+	c.System.Opera.FakeSNI = "not a hostname!"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "fake_sni") {
+		t.Fatalf("invalid fake_sni accepted: %v", err)
+	}
+
+	c = NewConfig()
+	c.System.Opera.FakeSNI = "www.gosuslugi.ru"
+	if err := c.Validate(); err != nil {
+		t.Fatalf("valid fake_sni rejected: %v", err)
+	}
+}
+
+func TestOperaSNIPoolValidation(t *testing.T) {
+	c := NewConfig()
+	c.System.Opera.Masquerade.SNIPool = []string{"go.sber.ru", "eu0.sec-tunnel.com", "bad_domain"}
+	err := c.Validate()
+	if err == nil {
+		t.Fatal("invalid pool accepted")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "sni_pool") {
+		t.Fatalf("wrong error: %v", err)
+	}
+	// The sec-tunnel name must be rejected with the dedicated reason.
+	c = NewConfig()
+	c.System.Opera.Masquerade.SNIPool = []string{"eu0.sec-tunnel.com"}
+	err = c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "must not contain sec-tunnel.com") {
+		t.Fatalf("sec-tunnel pool name accepted: %v", err)
+	}
+}

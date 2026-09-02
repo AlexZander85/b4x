@@ -83,10 +83,21 @@ type Runtime struct {
 	sup    *opera.HealthSupervisor
 	ring   *eventRing
 
+	// masquerade is the resolved anti-DPI state; nfqBait is the OP-M3
+	// OUTPUT-hook handle (nil when the bait is disabled).
+	masquerade opera.MasqueradeSettings
+	nfqBait    NFWBait
+
 	mu      sync.Mutex
 	started bool
 	stopped bool
 	cancel  context.CancelFunc
+}
+
+// NFWBait is the interface the NFQ OUTPUT-hook (OP-M3) satisfies; nil or
+// inactive means the bait is not applied (honest status).
+type NFWBait interface {
+	Active() bool
 }
 
 // Build validates the system.opera section and constructs the runtime
@@ -105,12 +116,20 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		return nil, fmt.Errorf("operaservice: system.opera.region: %w", err)
 	}
 
+	// Masquerade resolution (review §7.3): defaults live in the engine;
+	// the config layer only validated shapes.
+	mq := opera.ResolveMasquerade(
+		oc.Masquerade.Profile, oc.Masquerade.SNIMode,
+		oc.Masquerade.SNIPool, oc.Masquerade.ALPN,
+		oc.Masquerade.SessionResumption, oc.Masquerade.TTLFake)
+
 	client := opts.Client
 	if client == nil {
 		dial := failoverDialerFn(nil, opts.Carrier)
 		c, err := opera.New(opera.Options{
 			DialContext: dial,
 			Slot:        &opera.IdentityStore{Path: oc.IdentityPath},
+			Masquerade:  mq,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("operaservice: engine client: %w", err)
@@ -139,7 +158,9 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("operaservice: health supervisor: %w", err)
 	}
-	return &Runtime{cfg: oc, client: client, sup: sup, ring: ring}, nil
+	rt := &Runtime{cfg: oc, client: client, sup: sup, ring: ring, masquerade: mq}
+	rt.nfqBait = newNFWBaitIfConfigured(oc.Masquerade.TTLFake)
+	return rt, nil
 }
 
 // failoverDialer composes direct-first / carrier-second egress with a
@@ -297,6 +318,19 @@ type Status struct {
 	IdentityPath  string  `json:"identity_path"`
 	NodeCachePath string  `json:"node_cache_path"`
 	Events        []Event `json:"events,omitempty"`
+	Masquerade    MasqueradeStatus `json:"masquerade"`
+}
+
+// MasqueradeStatus is the honest observability of the anti-DPI layer
+// (review §7.8 red line 5: every step observable, silent-fallback
+// forbidden).
+type MasqueradeStatus struct {
+	Profile           string   `json:"profile"`
+	SNIMode           string   `json:"sni_mode"`
+	ALPN              []string `json:"alpn"`
+	SessionResumption bool     `json:"session_resumption"`
+	TTLFake           bool     `json:"ttl_fake"`
+	TTLFakeActive     bool     `json:"ttl_fake_active"`
 }
 
 // Status snapshots the runtime (including the bounded event tail).
@@ -312,8 +346,32 @@ func (r *Runtime) Status() Status {
 	if r.ring != nil {
 		st.Events = r.ring.snapshot()
 	}
+	st.Masquerade = r.masqueradeStatus()
 	exportNodesSource(st.HealthStatus.NodesSource)
 	return st
+}
+
+// masqueradeStatus snapshots the resolved masquerade settings. TTLFake
+// reports CONFIG intent; TTLFakeActive reports whether the NFQ OUTPUT hook
+// is actually applied (OP-M3) — honest status when the engine cannot
+// enforce the bait.
+func (r *Runtime) masqueradeStatus() MasqueradeStatus {
+	mq := r.masquerade
+	return MasqueradeStatus{
+		Profile:           string(mq.Profile),
+		SNIMode:           string(mq.SNIMode),
+		ALPN:              mq.ALPN,
+		SessionResumption: mq.SessionResumption,
+		TTLFake:           mq.TTLFake,
+		TTLFakeActive:     mq.TTLFake && r.nfqHookActive(),
+	}
+}
+
+// nfqHookActive reports whether the OUTPUT NFQ bait rule is applied
+// (OP-M3). Until the tables layer confirms the rule, the honest answer is
+// false.
+func (r *Runtime) nfqHookActive() bool {
+	return r.nfqBait != nil && r.nfqBait.Active()
 }
 
 // DialStream dials ONE TCP stream to addr THROUGH the currently selected

@@ -118,6 +118,7 @@ func newNodeEdge(t *testing.T, ca *testCA, cn string, cert tls.Certificate) *nod
 	e := &nodeEdge{t: t, ca: ca, cn: cn}
 	cfg := &tls.Config{
 		MinVersion: tls.VersionTLS12,
+		NextProtos: []string{"h2", "http/1.1"}, // CDN-like offer; clients opt in
 		GetCertificate: func(chi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 			e.sni.Store(chi.ServerName)
 			c := cert
@@ -573,5 +574,170 @@ func TestResolveRootStructuralNoRoots(t *testing.T) {
 	}
 	if !IsClass(err, ClassDataPlaneNoRoots) {
 		t.Fatalf("class = %v, want opera-dataplane-no-roots", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA §7 / OP-M0: masquerade golden tests.
+// ---------------------------------------------------------------------------
+
+// TestMasqueradeNodeSNIIsRealName: the shipping default (sni_mode=node)
+// must put the REAL node name into the ClientHello — no-SNI is a first-
+// class DPI signature (§7.4.1), suppression is only an explicit rung.
+func TestMasqueradeNodeSNIIsRealName(t *testing.T) {
+	ca := newTestCA(t, "opera-test-ca")
+	edge := newNodeEdge(t, ca, "eu0.sec-tunnel.com", ca.issueLeaf(t, "eu0.sec-tunnel.com"))
+
+	mq := DefaultMasquerade()
+	d := &NodeDialer{
+		Address:       edge.addr,
+		TLSServerName: "eu0.sec-tunnel.com",
+		Auth:          func() (string, error) { return BasicAuthHeader("l", "p"), nil },
+		RootPool:      ca.pool,
+		Masquerade:    mq,
+		// Client.NodeDialer resolves the SNI via the masquerade settings;
+		// mirror that contract here.
+		FakeSNI: mq.EffectiveNodeSNI("eu0.sec-tunnel.com", edge.addr),
+	}
+	conn, err := d.DialContext(context.Background(), "tcp", "www.gstatic.com:80")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	if got := edge.sni.Load(); got != "eu0.sec-tunnel.com" {
+		t.Fatalf("ClientHello SNI = %v, want the real node name", got)
+	}
+}
+
+// TestMasqueradeSuppressionIsExplicit: MasqueradeOff (the historical
+// behavior) suppresses the SNI — reachable only by explicit config.
+func TestMasqueradeSuppressionIsExplicit(t *testing.T) {
+	ca := newTestCA(t, "opera-test-ca")
+	edge := newNodeEdge(t, ca, "eu0.sec-tunnel.com", ca.issueLeaf(t, "eu0.sec-tunnel.com"))
+
+	mq := ResolveMasquerade("off", "", nil, nil, nil, false)
+	if mq.SNIMode != SNIModeNone {
+		t.Fatalf("off profile SNI mode = %q, want none", mq.SNIMode)
+	}
+	d := &NodeDialer{
+		Address:       edge.addr,
+		TLSServerName: "eu0.sec-tunnel.com",
+		Auth:          func() (string, error) { return BasicAuthHeader("l", "p"), nil },
+		RootPool:      ca.pool,
+		Masquerade:    mq,
+	}
+	conn, err := d.DialContext(context.Background(), "tcp", "www.gstatic.com:80")
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer conn.Close()
+	if got := edge.sni.Load(); got != "" {
+		t.Fatalf("ClientHello SNI = %q, want suppressed", got)
+	}
+}
+
+// TestMasqueradePoolStickyPerNode: pool picks are deterministic per node
+// (resumption coherence) and come from the configured pool.
+func TestMasqueradePoolStickyPerNode(t *testing.T) {
+	pool := []string{"www.gosuslugi.ru", "go.sber.ru", "m.vk.com"}
+	mq := ResolveMasquerade("browser", "pool", pool, nil, nil, false)
+
+	a1 := mq.EffectiveNodeSNI("eu0.sec-tunnel.com", "77.111.244.3:443")
+	a2 := mq.EffectiveNodeSNI("eu0.sec-tunnel.com", "77.111.244.3:443")
+	if a1 != a2 {
+		t.Fatalf("pool pick not sticky: %q vs %q", a1, a2)
+	}
+	found := false
+	for _, p := range pool {
+		if a1 == p {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("pick %q outside the pool", a1)
+	}
+	// API SNI honors the same discipline (a pool name — the pin is
+	// SNI-independent, review §7.4.5).
+	api := mq.EffectiveAPISNI("api2.sec-tunnel.com")
+	found = false
+	for _, p := range pool {
+		if api == p {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("api pick %q outside the pool", api)
+	}
+}
+
+// TestMasqueradeResumptionDidResume (§7.4.4): with the session cache wired,
+// the SECOND handshake to the same node resumes instead of issuing a full
+// handshake — the browser pattern that kills the handshake-burst
+// signature.
+func TestMasqueradeResumptionDidResume(t *testing.T) {
+	ca := newTestCA(t, "opera-test-ca")
+	edge := newNodeEdge(t, ca, "eu0.sec-tunnel.com", ca.issueLeaf(t, "eu0.sec-tunnel.com"))
+
+	cache := NewSessionCache()
+	d := &NodeDialer{
+		Address:       edge.addr,
+		TLSServerName: "eu0.sec-tunnel.com",
+		Auth:          func() (string, error) { return BasicAuthHeader("l", "p"), nil },
+		RootPool:      ca.pool,
+		Masquerade:    DefaultMasquerade(),
+		SessionCache:  cache,
+	}
+
+	// First dial: full handshake (verification passes -> ticket stored).
+	conn1, err := d.DialNodeTLS(context.Background())
+	if err != nil {
+		t.Fatalf("first dial: %v", err)
+	}
+	if conn1.(*tls.Conn).ConnectionState().DidResume {
+		t.Fatal("first handshake resumed??")
+	}
+	// TLS 1.3 session tickets arrive post-handshake and the client caches
+	// them while READING; drain briefly so the ticket is processed before
+	// the close (an application read does this naturally in production).
+	_ = conn1.SetReadDeadline(time.Now().Add(150 * time.Millisecond))
+	buf := make([]byte, 64)
+	_, _ = conn1.Read(buf)
+	_ = conn1.Close()
+
+	// Second dial: resumption expected.
+	conn2, err := d.DialNodeTLS(context.Background())
+	if err != nil {
+		t.Fatalf("second dial: %v", err)
+	}
+	if !conn2.(*tls.Conn).ConnectionState().DidResume {
+		t.Fatal("second handshake did not resume — session cache broken")
+	}
+	_ = conn2.Close()
+}
+
+// TestMasqueradeBrowserTLSParams: the browser profile applies the Chrome
+// cipher order, curve order and ALPN (OP-M0 golden of §7.4.2a).
+func TestMasqueradeBrowserTLSParams(t *testing.T) {
+	ca := newTestCA(t, "opera-test-ca")
+	edge := newNodeEdge(t, ca, "eu0.sec-tunnel.com", ca.issueLeaf(t, "eu0.sec-tunnel.com"))
+
+	d := &NodeDialer{
+		Address:       edge.addr,
+		TLSServerName: "eu0.sec-tunnel.com",
+		Auth:          func() (string, error) { return BasicAuthHeader("l", "p"), nil },
+		RootPool:      ca.pool,
+		Masquerade:    DefaultMasquerade(),
+	}
+	tlsConn, err := d.DialNodeTLS(context.Background())
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer tlsConn.Close()
+	cs := tlsConn.(*tls.Conn).ConnectionState()
+	if !cs.NegotiatedProtocolIsMutual || cs.NegotiatedProtocol != "http/1.1" {
+		t.Fatalf("negotiated ALPN = %q, want http/1.1", cs.NegotiatedProtocol)
+	}
+	if cs.Version < tls.VersionTLS12 {
+		t.Fatalf("version = %x", cs.Version)
 	}
 }

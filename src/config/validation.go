@@ -395,6 +395,45 @@ func (c *Config) validateOpera(v *validator) {
 				"control_target must be host:port (got: %q)", o.ControlTarget)
 		}
 	}
+	// Masquerade section (review §7.3 + L6): validated ALWAYS — even
+	// disabled — per the program canon (a typo cannot hide until enable
+	// day). This closes L6 (fake_sni never validated as a hostname).
+	m := o.Masquerade
+	switch strings.ToLower(strings.TrimSpace(m.Profile)) {
+	case "", "browser", "minimal", "off":
+	default:
+		v.addf("system.opera.masquerade.profile", "invalid_value", map[string]any{"profile": m.Profile},
+			"masquerade.profile must be browser|minimal|off (got: %q)", m.Profile)
+	}
+	switch strings.ToLower(strings.TrimSpace(m.SNIMode)) {
+	case "", "node", "pool", "none":
+	default:
+		v.addf("system.opera.masquerade.sni_mode", "invalid_value", map[string]any{"mode": m.SNIMode},
+			"masquerade.sni_mode must be node|pool|none (got: %q)", m.SNIMode)
+	}
+	if o.FakeSNI != "" && !operaValidSNIName(o.FakeSNI) {
+		v.addf("system.opera.fake_sni", "invalid_value", map[string]any{"sni": o.FakeSNI},
+			"fake_sni must be an RFC 1123 hostname (got: %q)", o.FakeSNI)
+	}
+	for _, name := range m.SNIPool {
+		if !operaValidSNIName(name) {
+			v.addf("system.opera.masquerade.sni_pool", "invalid_value", map[string]any{"sni": name},
+				"sni_pool entries must be RFC 1123 hostnames (got: %q)", name)
+		}
+		if strings.HasSuffix(strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), ".")), "sec-tunnel.com") {
+			v.addf("system.opera.masquerade.sni_pool", "invalid_value", map[string]any{"sni": name},
+				"sni_pool must not contain sec-tunnel.com names — the pool must not advertise the peer it heads to (got: %q)", name)
+		}
+	}
+	if len(m.ALPN) > 8 {
+		v.add("system.opera.masquerade.alpn", "invalid_value", "masquerade.alpn accepts at most 8 protocols", nil)
+	}
+	for _, p := range m.ALPN {
+		if len(p) == 0 || len(p) > 32 {
+			v.addf("system.opera.masquerade.alpn", "invalid_value", map[string]any{"alpn": p},
+				"masquerade.alpn entries must be 1..32 bytes (got: %q)", p)
+		}
+	}
 	if !o.Enabled {
 		return
 	}
@@ -495,6 +534,32 @@ func protonValidSNIName(name string) bool {
 	for _, bad := range []string{"proton.me", "protonvpn.ch", "protonmail.ch", "protonpro.xyz", "protonvpn.com", "protonmail.com"} {
 		if n == bad || strings.HasSuffix(n, "."+bad) {
 			return false
+		}
+	}
+	return true
+}
+
+// operaValidSNIName applies the pool admission rule (review L6): a
+// syntactically valid RFC 1123 hostname; sec-tunnel.com names are rejected
+// for POOL entries at the call site (a fake SNI must not name our own
+// infrastructure — the legacy fake_sni field may still carry any valid
+// hostname the owner explicitly configured).
+func operaValidSNIName(name string) bool {
+	n := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(name), "."))
+	if n == "" || len(n) > 253 || !strings.Contains(n, ".") {
+		return false
+	}
+	for _, label := range strings.Split(n, ".") {
+		if label == "" || len(label) > 63 {
+			return false
+		}
+		if strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+			return false
+		}
+		for _, r := range label {
+			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+				return false
+			}
 		}
 	}
 	return true

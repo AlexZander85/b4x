@@ -71,6 +71,12 @@ type NodeDialer struct {
 	RootPool *x509.CertPool
 	// Next dials raw TCP to Address. Nil => net.Dialer{Timeout: 15s}.
 	Next func(ctx context.Context, network, addr string) (net.Conn, error)
+	// Masquerade carries the anti-DPI settings (review §7): fingerprint
+	// knobs, ALPN, resumption. Zero value = plain Go TLS (ladder bottom).
+	Masquerade MasqueradeSettings
+	// SessionCache shares TLS session tickets across dials to the same
+	// node (§7.4.4). Nil disables resumption.
+	SessionCache tls.ClientSessionCache
 
 	poolOnce sync.Once
 	pool     *x509.CertPool
@@ -180,14 +186,25 @@ func (d *NodeDialer) dialNodeTLS(ctx context.Context) (*tls.Conn, error) {
 		return nil, newFailure(ClassDataPlaneTLS, "resolve root pool", err)
 	}
 
-	// Reference strategy: SNI carries the fake value (or is suppressed);
-	// the peer certificate is verified manually against the REAL name with
-	// the explicit root pool — intermediates come from the presented chain.
-	tlsConn := tls.Client(conn, &tls.Config{
+	// Reference strategy: SNI carries the masquerade value (real node name
+	// by default — review §7.4.1 — or a pool name; suppression is the
+	// explicit ladder bottom); the peer certificate is verified manually
+	// against the REAL name with the explicit root pool — intermediates
+	// come from the presented chain. The verification is SNI-INDEPENDENT:
+	// masquerading never weakens the trust anchor (§7.4.0 red line).
+	cfg := &tls.Config{
 		ServerName:         d.FakeSNI,
 		InsecureSkipVerify: true,
 		MinVersion:         tls.VersionTLS12,
 		VerifyConnection: func(cs tls.ConnectionState) error {
+			if len(cs.PeerCertificates) == 0 {
+				// Resumed session (§7.4.4): no certificates fly in a
+				// resumption handshake. The session ticket exists ONLY
+				// because a previous FULL handshake on this host passed
+				// this very verification, and the cache is keyed per
+				// host — the trust anchors hold.
+				return nil
+			}
 			opts := x509.VerifyOptions{
 				DNSName:       d.TLSServerName,
 				Intermediates: x509.NewCertPool(),
@@ -199,7 +216,9 @@ func (d *NodeDialer) dialNodeTLS(ctx context.Context) (*tls.Conn, error) {
 			_, err := cs.PeerCertificates[0].Verify(opts)
 			return err
 		},
-	})
+	}
+	d.Masquerade.applyMasquerade(cfg, d.SessionCache)
+	tlsConn := tls.Client(conn, cfg)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		_ = conn.Close()
 		return nil, newFailure(ClassDataPlaneTLS, "node handshake", err)

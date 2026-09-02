@@ -44,9 +44,9 @@ const (
 	DefaultAPILogin    = "se0316"
 	DefaultAPIPassword = "SILrMEPBmJuhomxWkfm3JalqHX2Eheg1YhlEZiMh8II"
 
-	anonEmailLocalpartBytes = 32
-	deviceIDBytes           = 20
-	readLimit         int64 = 128 * 1024
+	anonEmailLocalpartBytes       = 32
+	deviceIDBytes                 = 20
+	readLimit               int64 = 128 * 1024
 
 	// DefaultOperaIdentityPath mirrors the warp/wg slot layout for OP4 wiring.
 	DefaultOperaIdentityPath = "/opt/etc/b4/opera/identity.json"
@@ -128,6 +128,11 @@ type Options struct {
 	DialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 	// Slot persists the device identity (nil disables persistence — tests).
 	Slot *IdentityStore
+	// Masquerade carries the anti-DPI settings for the CONTROL channel
+	// (review §7.4.5): SNI discipline (the TOFU pin is SNI-independent),
+	// fingerprint knobs, ALPN, resumption. Zero value = plain Go TLS with
+	// suppressed SNI (historical behavior).
+	Masquerade MasqueradeSettings
 }
 
 // ---------------------------------------------------------------------------
@@ -314,6 +319,8 @@ type Client struct {
 	digest *digestTransport
 	jar    *swappableJar
 
+	sessionCache tls.ClientSessionCache // §7.4.4 resumption (control + data plane)
+
 	mu          sync.Mutex
 	deviceRaw   string // per-boot device_hash sent as register_device input
 	email       string
@@ -355,14 +362,15 @@ func New(opts Options) (*Client, error) {
 		return nil, err
 	}
 	pins := newPinStore(nil)
-	transport := buildAPITransport(opts, pins)
+	sessionCache := tls.NewLRUClientSessionCache(8)
+	transport := buildAPITransport(opts, pins, sessionCache)
 	digestT := newDigestTransport(opts.APILogin, opts.APIPassword, transport)
 	return &Client{
-		opts:     opts,
-		pins:     pins,
-		digest:   digestT,
-		jar:      jar,
-		http:     &http.Client{Transport: digestT, Jar: jar, Timeout: clientHardTimeout},
+		opts:      opts,
+		pins:      pins,
+		digest:    digestT,
+		jar:       jar,
+		http:      &http.Client{Transport: digestT, Jar: jar, Timeout: clientHardTimeout},
 		deviceRaw: deviceRaw,
 	}, nil
 }
@@ -385,9 +393,12 @@ func resolveEndpoints(e SEEndpoints) SEEndpoints {
 }
 
 // buildAPITransport mirrors the upstream buildAPITransport tuning plus our
-// TOFU-pinned TLS layer. SNI stays suppressed (parity with upstream
-// fake-SNI="" default; recognizability tradeoff documented in design §1.4).
-func buildAPITransport(opts Options, pins *pinStore) *http.Transport {
+// TOFU-pinned TLS layer. SNI discipline follows the masquerade settings
+// (review §7.4.5): the REAL api host name by default — the TOFU SPKI pin
+// is host-keyed and SNI-INDEPENDENT, so a pool name is equally safe;
+// suppression stays an explicit ladder rung. Fingerprint knobs and session
+// resumption match the data plane (one browser-shaped client, not two).
+func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSessionCache) *http.Transport {
 	dialCtx := opts.DialContext
 	if dialCtx == nil {
 		d := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
@@ -414,14 +425,16 @@ func buildAPITransport(opts Options, pins *pinStore) *http.Transport {
 			cfg := &tls.Config{
 				// Self-signed upstream cert (design §3): standard verification
 				// is impossible; channel integrity comes exclusively from the
-				// TOFU SPKI pin checked below, fail-closed on mismatch.
+				// TOFU SPKI pin checked below, fail-closed on mismatch. The
+				// pin is keyed by HOST — SNI masquerading cannot weaken it.
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,
-				ServerName:         "", // deliberately suppressed
+				ServerName:         opts.Masquerade.EffectiveAPISNI(host),
 				VerifyConnection: func(cs tls.ConnectionState) error {
 					return pins.verify(host, cs.PeerCertificates)
 				},
 			}
+			opts.Masquerade.applyMasquerade(cfg, sessionCache)
 			conn := tls.Client(raw, cfg)
 			if err := conn.HandshakeContext(ctx); err != nil {
 				_ = raw.Close()
