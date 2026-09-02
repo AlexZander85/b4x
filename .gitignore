@@ -94,3 +94,6 @@ B4X_FIELD_VALIDATION_AGENT_PACK/
 
 # UI build artifact (produced by pnpm build in CI)
 src/http/ui/dist/
+
+# UI build output (built by CI, placeholder never ships)
+src/http/ui/dist/
