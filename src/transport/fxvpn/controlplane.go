@@ -167,9 +167,29 @@ func (c *ControlPlane) SetRootCAs(pool *x509.CertPool) {
 func (c *ControlPlane) Jar() http.CookieJar { return c.HTTP.Jar }
 
 // Do issues req with the shared client. It exists so call sites stay on one
-// path (timeout, jar, transport) — thin by design.
+// path (timeout, jar, transport) — thin by design. After a parseable 2xx it
+// also promotes the pending SPKI pin of the target host (review F5: trust
+// arrives only after an exchange PROVED the channel; a bare handshake
+// never commits).
 func (c *ControlPlane) Do(req *http.Request) (*http.Response, error) {
-	return c.HTTP.Do(req)
+	resp, err := c.HTTP.Do(req)
+	if err == nil && resp != nil && c.Pins != nil &&
+		resp.StatusCode >= http.StatusOK && resp.StatusCode < http.StatusMultipleChoices {
+		// Persistence errors are deliberately swallowed here: the pin stays
+		// committed in memory and the next proven exchange re-attempts the
+		// write (CommitPending doc).
+		_, _ = c.Pins.CommitPending(pinHostOf(req.URL.Host))
+	}
+	return resp, err
+}
+
+// pinHostOf strips an explicit :port from a URL host so the commit key
+// matches the dialTLS pin key (which is the host without the port).
+func pinHostOf(urlHost string) string {
+	if h, _, err := net.SplitHostPort(urlHost); err == nil {
+		return h
+	}
+	return urlHost
 }
 
 // applyMozillaHeaders stamps the masquerade headers used by the official
