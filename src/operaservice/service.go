@@ -81,6 +81,7 @@ type Runtime struct {
 	cfg    config.OperaConfig
 	client *opera.Client
 	sup    *opera.HealthSupervisor
+	ring   *eventRing
 
 	mu      sync.Mutex
 	started bool
@@ -118,6 +119,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	}
 
 	var sup *opera.HealthSupervisor
+	ring := &eventRing{}
 	if opts.Supervisor != nil {
 		sup, err = opts.Supervisor(client)
 	} else {
@@ -127,12 +129,17 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		// list becomes an offline asset next to the identity slot, adopted
 		// when the API is down / region unavailable (801).
 		hc.NodeCache = &opera.NodeCache{Path: opera.DefaultNodeCachePath(oc.IdentityPath)}
+		// Observability hooks (review M3): lifecycle events -> ring +
+		// registry counters; probes and discovers -> their counters.
+		hc.OnEvent = makeOnEvent(ring)
+		hc.OnProbe = recordProbe
+		hc.OnDiscover = recordDiscover
 		sup, err = opera.NewHealthSupervisor(client, hc)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("operaservice: health supervisor: %w", err)
 	}
-	return &Runtime{cfg: oc, client: client, sup: sup}, nil
+	return &Runtime{cfg: oc, client: client, sup: sup, ring: ring}, nil
 }
 
 // failoverDialer composes direct-first / carrier-second egress with a
@@ -284,16 +291,17 @@ func (r *Runtime) SupportsUDP() bool { return false }
 // Status combines health state with assembly-level facts.
 type Status struct {
 	opera.HealthStatus
-	Enabled       bool   `json:"enabled"`
-	Transport     string `json:"transport"` // constant "tcp-only"
-	FakeSNI       string `json:"fake_sni,omitempty"`
-	IdentityPath  string `json:"identity_path"`
-	NodeCachePath string `json:"node_cache_path"`
+	Enabled       bool    `json:"enabled"`
+	Transport     string  `json:"transport"` // constant "tcp-only"
+	FakeSNI       string  `json:"fake_sni,omitempty"`
+	IdentityPath  string  `json:"identity_path"`
+	NodeCachePath string  `json:"node_cache_path"`
+	Events        []Event `json:"events,omitempty"`
 }
 
-// Status snapshots the runtime.
+// Status snapshots the runtime (including the bounded event tail).
 func (r *Runtime) Status() Status {
-	return Status{
+	st := Status{
 		HealthStatus:  r.sup.Status(),
 		Enabled:       r.cfg.Enabled,
 		Transport:     "tcp-only",
@@ -301,6 +309,11 @@ func (r *Runtime) Status() Status {
 		IdentityPath:  r.cfg.IdentityPath,
 		NodeCachePath: opera.DefaultNodeCachePath(r.cfg.IdentityPath),
 	}
+	if r.ring != nil {
+		st.Events = r.ring.snapshot()
+	}
+	exportNodesSource(st.HealthStatus.NodesSource)
+	return st
 }
 
 // DialStream dials ONE TCP stream to addr THROUGH the currently selected
@@ -322,12 +335,17 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 		return nil, err
 	}
 	conn, err := nd.DialContext(ctx, "tcp", addr.String())
-	if err != nil && opera.IsClass(err, opera.ClassDataPlaneConnectRefused) &&
-		opera.FailureStatus(err) == http.StatusProxyAuthRequired {
-		r.sup.NoteDataPlaneAuthRejected()
-		go r.sup.Tick(r.sup.Now())
+	if err != nil {
+		if opera.IsClass(err, opera.ClassDataPlaneConnectRefused) &&
+			opera.FailureStatus(err) == http.StatusProxyAuthRequired {
+			r.sup.NoteDataPlaneAuthRejected()
+			go r.sup.Tick(r.sup.Now())
+		}
+		r.recordDial("fail")
+		return nil, err
 	}
-	return conn, err
+	r.recordDial("ok")
+	return conn, nil
 }
 
 // ActiveNodeAddr exposes the current node for diagnostics/status pages.

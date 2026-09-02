@@ -102,6 +102,18 @@ type HealthConfig struct {
 	// NodeCache persists the last successful discover as an offline asset
 	// (review H3); nil keeps the in-memory-only behavior.
 	NodeCache *NodeCache
+	// OnEvent receives supervisor lifecycle events (review M3:
+	// observability parity with fxvpn/proton — established strictly after
+	// the e2e deep probe, rotations, refresh failures, algorithm refusals,
+	// cache adoptions). Nil = no-op. The hook runs on the tick goroutine
+	// AFTER the state mutex is released; it must stay cheap and non-blocking.
+	OnEvent func(name, detail string)
+	// OnProbe receives every probe outcome (level=cheap|deep,
+	// verdict=ok|fail|cant-bind — review M3 probe_total{level,verdict}).
+	OnProbe func(level, verdict string)
+	// OnDiscover receives every discover attempt (source=live|cache,
+	// result=ok|<short reason>).
+	OnDiscover func(source, result string)
 }
 
 // DefaultHealthConfig returns the program-invariant defaults (design §4).
@@ -340,7 +352,16 @@ type HealthSupervisor struct {
 	refreshRetryAt   time.Time
 	refreshFailRound int
 
+	// pendingEvents drains to OnEvent outside the state mutex.
+	pendingEvents []event
+
 	busy atomic.Bool // one Tick flight at a time (ticker vs Kick)
+}
+
+// event is one supervisor lifecycle event (review M3).
+type event struct {
+	name   string
+	detail string
 }
 
 // NewHealthSupervisor validates config and wires the supervisor around a
@@ -434,11 +455,63 @@ func (h *HealthSupervisor) Tick(now time.Time) {
 	// Node-cache persistence rides AFTER the state phases: file I/O never
 	// happens under h.mu (C2 discipline).
 	h.flushPendingCache()
+	h.drainEvents()
+}
+
+// drainEvents forwards queued lifecycle events to the OnEvent hook.
+func (h *HealthSupervisor) drainEvents() {
+	h.mu.Lock()
+	events := h.pendingEvents
+	h.pendingEvents = nil
+	h.mu.Unlock()
+	for _, ev := range events {
+		h.emit(ev.name, ev.detail)
+	}
+}
+
+// fireDiscover forwards one discover attempt to the OnDiscover hook
+// (caller holds h.mu; the hook fires outside via deferred drain semantics —
+// the hook itself is invoked here, it must be cheap per OnEvent contract).
+func (h *HealthSupervisor) fireDiscover(res stepResult) {
+	if res.discN == 0 || h.cfg.OnDiscover == nil {
+		return
+	}
+	source := "live"
+	if h.nodesSource == "cache" {
+		source = "cache"
+	}
+	result := "ok"
+	if res.discErr != nil {
+		result = shortClass(res.discErr)
+	} else if len(res.discover) == 0 {
+		result = "empty"
+	}
+	h.cfg.OnDiscover(source, result)
+}
+
+// shortClass renders a failure's class (or plain message) for event detail.
+func shortClass(err error) string {
+	var f *Failure
+	if errors.As(err, &f) {
+		return string(f.Class)
+	}
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 // ---------------------------------------------------------------------------
 // Plan (caller holds h.mu): decide ONE action from the current state.
 // ---------------------------------------------------------------------------
+
+// emit fires a lifecycle event outside the state mutex (the hook is
+// invoked from the tick goroutine only — see OnEvent contract).
+func (h *HealthSupervisor) emit(name, detail string) {
+	if h.cfg.OnEvent != nil {
+		h.cfg.OnEvent(name, detail)
+	}
+}
 
 func (h *HealthSupervisor) planLocked(now time.Time, done *tickDone) tickPlan {
 	h.lastProbeAt = now
@@ -647,6 +720,7 @@ func (h *HealthSupervisor) applyBootstrap(res stepResult, now time.Time) bool {
 	h.lastRefreshAt = now
 	if res.discN > 0 {
 		h.discoverCalls += res.discN
+		h.fireDiscover(res)
 		if res.discErr == nil && len(res.discover) > 0 {
 			h.adoptDiscoverLocked(res.discover, h.region, now)
 		} else {
@@ -669,6 +743,7 @@ func (h *HealthSupervisor) applyRecover(res stepResult, now time.Time) bool {
 		h.lastErr = errRestartCapped.Error()
 		return false
 	}
+	h.pendingEvents = append(h.pendingEvents, event{name: "opera_recover_attempt"})
 	if res.err != nil {
 		h.lastErr = res.err.Error()
 		h.noteAPIFailure(res.err, now)
@@ -681,6 +756,7 @@ func (h *HealthSupervisor) applyRecover(res stepResult, now time.Time) bool {
 	h.lastDeepOK = false
 	if res.discN > 0 {
 		h.discoverCalls += res.discN
+		h.fireDiscover(res)
 		if res.discErr == nil && len(res.discover) > 0 {
 			h.adoptDiscoverLocked(res.discover, h.region, now)
 		} else {
@@ -693,6 +769,7 @@ func (h *HealthSupervisor) applyRecover(res stepResult, now time.Time) bool {
 // applyDesiredRetry folds the Nova begin_desired_retry outcome.
 func (h *HealthSupervisor) applyDesiredRetry(res stepResult, now time.Time) bool {
 	h.discoverCalls += res.discN
+	h.fireDiscover(res)
 	if res.discErr == nil && len(res.discover) > 0 {
 		h.adoptDiscoverLocked(res.discover, h.cfg.Region, now)
 		h.retryRound = 0
@@ -721,10 +798,15 @@ func (h *HealthSupervisor) applyRefresh(res stepResult, now time.Time) bool {
 		h.refreshRetryAt = time.Time{}
 		h.refreshFailRound = 0
 		h.authRejected = false
+		if h.cfg.OnEvent != nil {
+			h.pendingEvents = append(h.pendingEvents, event{name: "opera_refresh_ok"})
+		}
 		return true
 	}
 	h.lastErr = res.err.Error()
 	h.noteAPIFailure(res.err, now)
+	h.pendingEvents = append(h.pendingEvents,
+		event{name: "opera_refresh_failed", detail: shortClass(res.err)})
 	// Failed refresh: exponential backoff from 60s, capped at the cadence
 	// (review M1) — a transient network blip no longer costs the data
 	// plane a full 4h window with a dying JWT.
@@ -740,6 +822,7 @@ func (h *HealthSupervisor) applyRefresh(res stepResult, now time.Time) bool {
 func (h *HealthSupervisor) applyRotate(plan tickPlan, res stepResult, now time.Time) bool {
 	h.rotateQueued = false
 	h.discoverCalls += res.discN
+	h.fireDiscover(res)
 	if res.discErr == nil && len(res.discover) > 0 {
 		h.adoptDiscoverLocked(res.discover, plan.region, now)
 		return false // rotation completes the tick (old rotate() parity)
@@ -773,6 +856,13 @@ func (h *HealthSupervisor) noteAPIFailure(err error, now time.Time) {
 		h.degraded = string(ClassAPIPinMismatch)
 		return
 	}
+	if IsClass(err, ClassAPIAlgorithm) {
+		// Review M5: the MD5-only digest profile is a deliberate red line;
+		// a server-side algorithm move must be visible, not just a
+		// lastErr string (structural refusal, GUI fade candidate).
+		h.pendingEvents = append(h.pendingEvents,
+			event{name: "opera_api_algorithm", detail: err.Error()})
+	}
 	if IsClass(err, ClassAPIAuthRefused) || errors.Is(err, ErrIdentityCorrupt) {
 		h.credsDead = true
 		h.sessionOK = false
@@ -781,6 +871,15 @@ func (h *HealthSupervisor) noteAPIFailure(err error, now time.Time) {
 
 // applyProbe folds one probe outcome into the rotation counters.
 func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool {
+	level := "cheap"
+	if deep {
+		level = "deep"
+	}
+	defer func() {
+		if h.cfg.OnProbe != nil {
+			h.cfg.OnProbe(level, h.lastVerdict.String())
+		}
+	}()
 	switch probeVerdictOf(err) {
 	case ProbeCantBind:
 		h.lastVerdict = ProbeCantBind
@@ -793,9 +892,14 @@ func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool 
 		h.lastVerdict = ProbeOK
 		h.lastErr = ""
 		if deep {
+			wasListening := h.listening
 			h.lastDeepAt = now
 			h.lastDeepOK = true
 			h.listening = true
+			if !wasListening {
+				h.pendingEvents = append(h.pendingEvents,
+					event{name: "opera_established", detail: h.currentLocked().NetAddr()})
+			}
 		}
 		// Nova record_success: being healthy at the desired region clears
 		// the alternate-region retry machinery.
@@ -835,6 +939,8 @@ func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool 
 			h.consecFails = 0
 			if len(h.nodes) > 1 && h.idx < len(h.nodes)-1 {
 				h.idx++ // next candidate from the cache, no I/O needed
+				h.pendingEvents = append(h.pendingEvents,
+					event{name: "opera_rotated", detail: h.currentLocked().NetAddr()})
 			} else {
 				h.rotateQueued = true // cache exhausted -> rediscover step
 			}
@@ -883,6 +989,8 @@ func (h *HealthSupervisor) adoptCacheFallbackLocked(region string, now time.Time
 	h.region = rec.Region
 	h.nodesSource = "cache"
 	h.nodesSaved = rec.SavedAt
+	h.pendingEvents = append(h.pendingEvents,
+		event{name: "opera_cache_adopted", detail: fmt.Sprintf("region=%s saved=%s", rec.Region, rec.SavedAt.Format(time.RFC3339))})
 	return true
 }
 
@@ -953,6 +1061,7 @@ func (h *HealthSupervisor) SetDesiredRegion(region string) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.discoverCalls++
+	h.fireDiscover(stepResult{discover: ips, discErr: derr, discN: 1})
 	if derr == nil && len(ips) > 0 {
 		h.adoptDiscoverLocked(ips, r, now)
 		h.retryRound = 0

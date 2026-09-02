@@ -352,3 +352,35 @@ func TestFailoverDirectDialHasTimeout(t *testing.T) {
 		t.Fatal("default direct dialer missing")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA M3: observability wiring.
+// ---------------------------------------------------------------------------
+
+// TestBuildHooksWired: the assembled runtime must install the observability
+// hooks (events ring, probe/discover counters) — the "silent transport"
+// regression guard.
+func TestBuildHooksWired(t *testing.T) {
+	rt, err := Build(&config.Config{}, Options{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if rt.ring == nil {
+		t.Fatal("event ring not wired")
+	}
+	st := rt.Status()
+	if st.Events == nil {
+		t.Fatal("Status must expose the events slice")
+	}
+}
+
+// TestEventRingBounded: the tail never grows past the cap (proton parity).
+func TestEventRingBounded(t *testing.T) {
+	ring := &eventRing{}
+	for i := 0; i < eventsRingCap*3; i++ {
+		ring.append("x", "y")
+	}
+	if got := len(ring.snapshot()); got != eventsRingCap {
+		t.Fatalf("ring len = %d, want %d", got, eventsRingCap)
+	}
+}
