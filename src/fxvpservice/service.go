@@ -180,6 +180,9 @@ type Runtime struct {
         adminRebuild bool          // explicit SetLocation/RestartNow rebuild (F10)
         resolver     hostResolver
         nodeIPs      []netip.Addr // resolved ACTIVE node (anti-loop, F6; per session)
+
+        bytesUp   uint64 // relay bytes out (F7b)
+        bytesDown uint64 // relay bytes in (F7b)
 }
 
 // Build validates system.fxvpn and constructs the runtime WITHOUT starting
@@ -621,7 +624,8 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
                 return nil, err
         }
         r.atomicOK()
-        return conn, nil
+        // F7b: the relay feeds the byte counters (up/down) + /metrics gauge.
+        return byteCountingConn{Conn: conn, rt: r}, nil
 }
 
 // Status snapshots runtime state for the GUI/API (Дополнение 3 shapes).
@@ -639,6 +643,8 @@ type Status struct {
         LastFailure   string               `json:"last_failure,omitempty"`
         DialOK        uint64               `json:"dial_ok"`
         DialFail      uint64               `json:"dial_fail"`
+        BytesUp       uint64               `json:"bytes_up"`
+        BytesDown     uint64               `json:"bytes_down"`
         RestartCapHit bool                 `json:"restart_cap_hit"`
         Events        []fxvpn.PoolEvent    `json:"events,omitempty"`
 }
@@ -662,6 +668,8 @@ func (r *Runtime) Status() Status {
                 LastFailure:  r.lastFailure,
                 DialOK:       atomic.LoadUint64(&r.dialOK),
                 DialFail:     atomic.LoadUint64(&r.dialFail),
+                BytesUp:      atomic.LoadUint64(&r.bytesUp),
+                BytesDown:    atomic.LoadUint64(&r.bytesDown),
                 Events:       append([]fxvpn.PoolEvent(nil), r.events...),
         }
         listening := false

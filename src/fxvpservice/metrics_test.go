@@ -111,3 +111,45 @@ func TestPoolStateCountsReduction(t *testing.T) {
 		t.Fatalf("empty pool reduction = %+v, %d", counts, activeLeft)
 	}
 }
+
+// TestFxvpnBytesCounter pins review F7b: relay bytes land in the shared
+// registry counter fxvpn_bytes_total{dir=up|down} and the Status totals.
+func TestFxvpnBytesCounter(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	t.Cleanup(func() { observability.Default().Metrics.Reset() })
+
+	cfg := &config.Config{}
+	rt, err := Build(cfg, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	rt.recordBytes(true, 128)
+	rt.recordBytes(true, 64)
+	rt.recordBytes(false, 4096)
+
+	up, okUp := fxCounterValue(t, observability.MetricFxvpnBytesTotal, "dir", "up")
+	down, okDown := fxCounterValue(t, observability.MetricFxvpnBytesTotal, "dir", "down")
+	if !okUp || up != 192 {
+		t.Fatalf("bytes up = %d (present=%t), want 192", up, okUp)
+	}
+	if !okDown || down != 4096 {
+		t.Fatalf("bytes down = %d (present=%t), want 4096", down, okDown)
+	}
+	st := rt.Status()
+	if st.BytesUp != 192 || st.BytesDown != 4096 {
+		t.Fatalf("status bytes = %d/%d", st.BytesUp, st.BytesDown)
+	}
+}
+
+func fxCounterValue(t *testing.T, name, labelKey, labelVal string) (uint64, bool) {
+	t.Helper()
+	for _, c := range observability.Default().Metrics.Snapshot(time.Now()).Counters {
+		if c.Name != name {
+			continue
+		}
+		if v, ok := c.Labels[labelKey]; ok && v == labelVal {
+			return c.Value, true
+		}
+	}
+	return 0, false
+}
