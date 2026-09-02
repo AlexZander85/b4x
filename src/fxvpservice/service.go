@@ -37,6 +37,7 @@ import (
 
         "github.com/daniellavrushin/b4/config"
         fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
+        warp "github.com/daniellavrushin/b4/transport/warp"
 )
 
 // DialFunc is the base dial shape shared with the warp/opera engines.
@@ -283,6 +284,13 @@ func (r *Runtime) Stop() {
 
 // SupportsUDP is a protocol constant for the connect dialect.
 func (r *Runtime) SupportsUDP() bool { return false }
+
+// StreamDialer exposes the serving session in the warp StreamDialer shape
+// (DialStream over netip.AddrPort) — the seam the scoped router consumes
+// once the selection trees learn the fxvpn kind (review F4: DialStream had
+// no consumers; the daemon wiring plus this accessor give the router a
+// stable contract without importing the service internals).
+func (r *Runtime) StreamDialer() warp.StreamDialer { return r }
 
 // RestartNow forces an immediate supervision cycle (GUI button). It bypasses
 // the tick cadence but NOT the restart caps.

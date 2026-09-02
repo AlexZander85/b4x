@@ -3,6 +3,7 @@ package fxvpservice
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -152,4 +153,33 @@ func TestBuildDisabledSmokeAndLifecycle(t *testing.T) {
 	rt.Stop()
 	rt.Stop() // idempotent
 	cancel()
+}
+
+// TestWiringSmokeEnabledRuntimeStarts pins review F4 at the service layer:
+// an enabled config builds and starts the supervisor loop, Status reports
+// running, and the StreamDialer seam is the runtime itself (the scoped
+// router contract). The daemon-side wiring itself lives in main.go (proton
+// canon block).
+func TestWiringSmokeEnabledRuntimeStarts(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.System.FxVPN.Enabled = true
+	cfg.System.FxVPN.AccountsPath = filepath.Join(t.TempDir(), "accounts.json")
+	rt, err := Build(cfg, Options{})
+	if err != nil {
+		t.Fatalf("build enabled: %v", err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	if err := rt.Start(ctx); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	time.Sleep(80 * time.Millisecond) // let the first tick run (empty pool -> no-op)
+	st := rt.Status()
+	if !st.Enabled || !st.Running {
+		t.Fatalf("enabled runtime must run: %+v", st)
+	}
+	if rt.StreamDialer() == nil {
+		t.Fatal("StreamDialer seam must be exposed")
+	}
+	rt.Stop()
 }

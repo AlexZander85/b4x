@@ -25,11 +25,12 @@ import (
         "github.com/daniellavrushin/b4/geodat"
         b4http "github.com/daniellavrushin/b4/http"
         "github.com/daniellavrushin/b4/http/handler"
+        "github.com/daniellavrushin/b4/fxvpservice"
         "github.com/daniellavrushin/b4/log"
         "github.com/daniellavrushin/b4/monitoring"
         "github.com/daniellavrushin/b4/mtproto"
         "github.com/daniellavrushin/b4/nfq"
-	"github.com/daniellavrushin/b4/operaservice"
+        "github.com/daniellavrushin/b4/operaservice"
         "github.com/daniellavrushin/b4/observability"
         "github.com/daniellavrushin/b4/protonservice"
         "github.com/daniellavrushin/b4/quic"
@@ -677,6 +678,29 @@ func runB4(cmd *cobra.Command, args []string) error {
         }
         handler.SetOperaRuntime(operaEngine) // nil-safe: the handler answers the disabled shape
 
+        // E-FXVPN reserve transport (review fxvpn-reserve-review.md; engine in
+        // src/transport/fxvpn, assembly in fxvpservice). Zero goroutines and
+        // zero wire calls unless system.fxvpn.enabled=true — the default
+        // config keeps the section off. Canon: the proton/opera blocks above.
+        // The bootstrap-through-carrier seam stays nil until the selection
+        // trees learn the fxvpn kind (same posture as opera/proton); direct
+        // egress is the standalone path until then.
+        var fxvpnEngine *fxvpservice.Runtime
+        if cfgPtr.Load().System.FxVPN.Enabled {
+                rt, err := fxvpservice.Build(cfgPtr.Load(), fxvpservice.Options{})
+                if err != nil {
+                        log.Errorf("[fxvpn] engine disabled this run: %v", err)
+                } else if err := rt.Start(appCtx); err != nil {
+                        log.Errorf("[fxvpn] engine start failed: %v", err)
+                } else {
+                        fxvpnEngine = rt
+                        st := rt.Status()
+                        log.Infof("[fxvpn] engine started running=%t listening=%t carrier=%s",
+                                st.Running, st.Listening, st.Carrier)
+                }
+        }
+        handler.SetFxvpnRuntime(fxvpnEngine) // nil-safe: the handler answers the disabled shape
+
         // Service-profile WARP-recommendation lifecycle controller (FB-02 sp
         // section §28A.11): owns the recommendation state machine
         // (compile -> begin-test -> validate -> enable/promote) and the fourteen
@@ -725,6 +749,9 @@ func runB4(cmd *cobra.Command, args []string) error {
         }
         if protonEngine != nil {
                 protonEngine.Stop()
+        }
+        if fxvpnEngine != nil {
+                fxvpnEngine.Stop()
         }
         if geoScheduler != nil {
                 geoScheduler.Stop()
