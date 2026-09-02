@@ -384,3 +384,45 @@ func TestEventRingBounded(t *testing.T) {
 		t.Fatalf("ring len = %d, want %d", got, eventsRingCap)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA OP-M3: bait handle honesty.
+// ---------------------------------------------------------------------------
+
+// TestBaitHandleHonesty: the bait handle starts inactive and flips only on
+// the tables-layer confirmation; nil (not configured) stays inactive.
+func TestBaitHandleHonesty(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.System.Opera.Masquerade.TTLFake = false
+	rt, err := Build(cfg, Options{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if rt.nfqBait != nil {
+		t.Fatal("bait handle created without ttl_fake")
+	}
+	if rt.Status().Masquerade.TTLFakeActive {
+		t.Fatal("TTLFakeActive without config")
+	}
+
+	cfg2 := &config.Config{}
+	cfg2.System.Opera.Masquerade.TTLFake = true
+	rt2, err := Build(cfg2, Options{})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	if rt2.nfqBait == nil {
+		t.Fatal("bait handle missing with ttl_fake")
+	}
+	if rt2.Status().Masquerade.TTLFakeActive {
+		t.Fatal("TTLFakeActive before the tables layer confirmed the rule")
+	}
+	rt2.SetBaitActive(true)
+	if !rt2.Status().Masquerade.TTLFakeActive {
+		t.Fatal("TTLFakeActive must follow the tables confirmation")
+	}
+	rt2.SetBaitActive(false)
+	if rt2.Status().Masquerade.TTLFakeActive {
+		t.Fatal("TTLFakeActive must clear on teardown")
+	}
+}

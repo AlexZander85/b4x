@@ -32,6 +32,7 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
@@ -95,9 +96,18 @@ type Runtime struct {
 }
 
 // NFWBait is the interface the NFQ OUTPUT-hook (OP-M3) satisfies; nil or
-// inactive means the bait is not applied (honest status).
+// inactive means the bait is not applied (honest status). SetActive is
+// implemented by the concrete handle for the daemon wiring.
 type NFWBait interface {
 	Active() bool
+}
+
+// SetBaitActive records the tables-layer confirmation of the OUTPUT rule
+// (daemon wiring after tables.ApplyOperaBaitOnly).
+func (r *Runtime) SetBaitActive(active bool) {
+	if s, ok := r.nfqBait.(*nfwBaitState); ok {
+		s.SetActive(active)
+	}
 }
 
 // Build validates the system.opera section and constructs the runtime
@@ -125,7 +135,11 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 
 	client := opts.Client
 	if client == nil {
-		dial := failoverDialerFn(nil, opts.Carrier)
+		var control func(network, address string, c syscall.RawConn) error
+		if mq.TTLFake {
+			control = baitControl()
+		}
+		dial := failoverDialerFnWithControl(nil, opts.Carrier, control)
 		c, err := opera.New(opera.Options{
 			DialContext: dial,
 			Slot:        &opera.IdentityStore{Path: oc.IdentityPath},
@@ -188,8 +202,15 @@ type failoverDial struct {
 }
 
 func newFailoverDial(direct, carrier DialFunc) *failoverDial {
+	return newFailoverDialWithControl(direct, carrier, nil)
+}
+
+// newFailoverDialWithControl attaches the bait Control (SO_MARK on the
+// DIRECT stage sockets only — review OP-M3/§7.8.3) to the default direct
+// dialer; injected dialers (tests, custom egress) pass through untouched.
+func newFailoverDialWithControl(direct, carrier DialFunc, control func(network, address string, c syscall.RawConn) error) *failoverDial {
 	if direct == nil {
-		d := &net.Dialer{Timeout: directDialTimeout, KeepAlive: 30 * time.Second}
+		d := &net.Dialer{Timeout: directDialTimeout, KeepAlive: 30 * time.Second, Control: control}
 		direct = d.DialContext
 	}
 	return &failoverDial{direct: direct, carrier: carrier, now: time.Now}
@@ -252,7 +273,11 @@ func (f *failoverDial) recordDirect(ok bool) {
 // failoverDialerFn keeps the historical constructor shape used by Build
 // and the unit tests.
 func failoverDialerFn(direct, carrier DialFunc) DialFunc {
-	f := newFailoverDial(direct, carrier)
+	return failoverDialerFnWithControl(direct, carrier, nil)
+}
+
+func failoverDialerFnWithControl(direct, carrier DialFunc, control func(network, address string, c syscall.RawConn) error) DialFunc {
+	f := newFailoverDialWithControl(direct, carrier, control)
 	if f.carrier == nil {
 		return f.direct
 	}
@@ -312,12 +337,12 @@ func (r *Runtime) SupportsUDP() bool { return false }
 // Status combines health state with assembly-level facts.
 type Status struct {
 	opera.HealthStatus
-	Enabled       bool    `json:"enabled"`
-	Transport     string  `json:"transport"` // constant "tcp-only"
-	FakeSNI       string  `json:"fake_sni,omitempty"`
-	IdentityPath  string  `json:"identity_path"`
-	NodeCachePath string  `json:"node_cache_path"`
-	Events        []Event `json:"events,omitempty"`
+	Enabled       bool             `json:"enabled"`
+	Transport     string           `json:"transport"` // constant "tcp-only"
+	FakeSNI       string           `json:"fake_sni,omitempty"`
+	IdentityPath  string           `json:"identity_path"`
+	NodeCachePath string           `json:"node_cache_path"`
+	Events        []Event          `json:"events,omitempty"`
 	Masquerade    MasqueradeStatus `json:"masquerade"`
 }
 

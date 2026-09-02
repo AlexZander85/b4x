@@ -11,9 +11,9 @@
 // status never lies about an enforcement that is not happening.
 package operaservice
 
-// nfwBaitState is the current handle: a nil state means "not configured";
-// configured-but-inactive means the rule is absent (NFQ engine off, tables
-// failure) and the status must say so.
+// nfwBaitState is the current handle: nil means "not configured";
+// configured-but-inactive means the OUTPUT rule is absent (tables failure,
+// NFQ engine off) and the status must say so.
 type nfwBaitState struct {
 	configured bool
 	active     bool
@@ -21,16 +21,21 @@ type nfwBaitState struct {
 
 func (s *nfwBaitState) Active() bool { return s != nil && s.active }
 
-// newNFWBaitIfConfigured evaluates the bait activation; the OP-M3 stage
-// wires the tables-layer rule + SO_MARK dialer control here. Until then
-// the honest answer is nil (not configured) — the TTLFakeActive status
-// field stays false and the masquerade ladder treats the bait as the
-// orthogonal layer it is (§7.5).
+// SetActive records the tables-layer confirmation (called by the daemon
+// after tables.ApplyOperaBaitOnly succeeded / on teardown).
+func (s *nfwBaitState) SetActive(active bool) {
+	if s == nil {
+		return
+	}
+	s.active = active
+}
+
+// newNFWBaitIfConfigured builds the handle when the bait is configured;
+// the ACTIVE flag flips only after the tables layer confirms the OUTPUT
+// rule (honest status — review §7.8.5).
 func newNFWBaitIfConfigured(ttlFake bool) NFWBait {
 	if !ttlFake {
 		return nil
 	}
-	// OP-M3 will return an active handle once the OUTPUT rule and the
-	// socket marking are confirmed applied; the placeholder stays inactive.
-	return &nfwBaitState{configured: true, active: false}
+	return &nfwBaitState{configured: true}
 }
