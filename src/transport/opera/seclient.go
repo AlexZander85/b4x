@@ -322,6 +322,7 @@ type Client struct {
 
 	sessionCache  tls.ClientSessionCache  // §7.4.4 resumption (plain-Go stack)
 	uSessionCache utls.ClientSessionCache // §7.4.4 resumption (uTLS fingerprint stack)
+	h2pool        *h2Pool                 // OP-M2: per-node h2 CONNECT sessions
 
 	mu          sync.Mutex
 	deviceRaw   string // per-boot device_hash sent as register_device input
@@ -367,14 +368,18 @@ func New(opts Options) (*Client, error) {
 	sessionCache := tls.NewLRUClientSessionCache(8)
 	uSessionCache := utls.NewLRUClientSessionCache(8)
 	transport := buildAPITransport(opts, pins, sessionCache, uSessionCache)
+	h2pool := &h2Pool{}
 	digestT := newDigestTransport(opts.APILogin, opts.APIPassword, transport)
 	return &Client{
-		opts:      opts,
-		pins:      pins,
-		digest:    digestT,
-		jar:       jar,
-		http:      &http.Client{Transport: digestT, Jar: jar, Timeout: clientHardTimeout},
-		deviceRaw: deviceRaw,
+		opts:          opts,
+		pins:          pins,
+		digest:        digestT,
+		jar:           jar,
+		http:          &http.Client{Transport: digestT, Jar: jar, Timeout: clientHardTimeout},
+		deviceRaw:     deviceRaw,
+		sessionCache:  sessionCache,
+		uSessionCache: uSessionCache,
+		h2pool:        h2pool,
 	}, nil
 }
 

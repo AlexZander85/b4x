@@ -200,8 +200,8 @@ func TestUTLSChromeGoldenHello(t *testing.T) {
 	if p.sni != "eu0.sec-tunnel.com" {
 		t.Fatalf("SNI = %q, want the real node name", p.sni)
 	}
-	if len(p.alpn) != 1 || p.alpn[0] != "http/1.1" {
-		t.Fatalf("ALPN = %v, want the owner override [http/1.1]", p.alpn)
+	if len(p.alpn) != 2 || p.alpn[0] != "h2" || p.alpn[1] != "http/1.1" {
+		t.Fatalf("ALPN = %v, want the owner override [h2,http/1.1]", p.alpn)
 	}
 
 	// Chrome 120 cipher list (GREASE 0x?A?A filtered by the JA3 view).

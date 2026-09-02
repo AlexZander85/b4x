@@ -82,6 +82,10 @@ type NodeDialer struct {
 	// USessionCache is the uTLS-stack session cache (the fingerprint layer
 	// uses its own cache types). Nil disables uTLS resumption.
 	USessionCache utls.ClientSessionCache
+	// h2 is the per-node HTTP/2 CONNECT session pool (review OP-M2). Nil
+	// disables the h2 engine: the ALPN offer is then trimmed to
+	// http/1.1-only (an h2 offer we cannot speak would break the tunnel).
+	h2 *h2Pool
 
 	poolOnce sync.Once
 	pool     *x509.CertPool
@@ -191,11 +195,18 @@ func (d *NodeDialer) dialNodeTLS(ctx context.Context) (net.Conn, error) {
 		return nil, newFailure(ClassDataPlaneTLS, "resolve root pool", err)
 	}
 
+	effective := d.Masquerade
+	if d.h2 == nil {
+		// No h2 engine: offering h2 and then speaking 1.1 would break the
+		// tunnel (review §7.4.4 keeps ALPN honest until OP-M2 lands).
+		effective.ALPN = filterALPN(effective.ALPN, "h2")
+	}
+
 	// Fingerprint layer (review OP-M1): when the browser profile carries a
 	// Chrome fingerprint, uTLS produces the ClientHello bytes; the
 	// verification closure keeps the plain-Go trust semantics.
-	if d.Masquerade.FingerprintActive() {
-		uconn, uerr := dialUTLSClient(ctx, conn, d.FakeSNI, d.Masquerade,
+	if effective.FingerprintActive() {
+		uconn, uerr := dialUTLSClient(ctx, conn, d.FakeSNI, effective,
 			d.USessionCache, verifyNodeChainUTLS(d.TLSServerName, pool))
 		if uerr != nil {
 			_ = conn.Close()
@@ -253,16 +264,44 @@ func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (
 	default:
 		return nil, fmt.Errorf("%w: bad network %q (tcp only)", errSetup, network)
 	}
-	conn, err := d.dialNodeTLS(ctx)
+	if d.Auth == nil {
+		return nil, fmt.Errorf("%w: auth provider required", errSetup)
+	}
+	auth, err := d.Auth()
+	if err != nil {
+		return nil, fmt.Errorf("auth provider: %w", err)
+	}
+
+	// H2 engine (review OP-M2): a cached live session serves the stream
+	// with ZERO TLS dialing — the handshake-burst signature dies.
+	if d.h2 != nil {
+		h2conn, herr, found := d.h2.tryCached(ctx, d.Address, address, auth)
+		if found {
+			if herr == nil {
+				return h2conn, nil
+			}
+			if IsClass(herr, ClassDataPlaneConnectRefused) {
+				return nil, herr // credential/authority refusal: not a transport issue
+			}
+			// transport-level: fall through to a fresh session below
+		}
+	}
+
+	tlsConn, err := d.dialNodeTLS(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	auth, err := d.Auth()
-	if err != nil {
-		_ = conn.Close()
-		return nil, fmt.Errorf("auth provider: %w", err)
+	if negotiatedProtocol(tlsConn) == "h2" {
+		if d.h2 == nil {
+			// Defensive: an h2 offer without an engine must never happen
+			// (the ALPN offer is trimmed at dial time); fail honestly.
+			_ = tlsConn.Close()
+			return nil, newFailure(ClassDataPlaneProtocol,
+				"node negotiated h2 but the h2 engine is not wired", nil)
+		}
+		return d.h2.establish(ctx, tlsConn, d.Address, address, auth)
 	}
+	conn := tlsConn
 
 	req := &http.Request{
 		Method:     "CONNECT",
@@ -305,6 +344,17 @@ func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (
 			resp.StatusCode, nil)
 	}
 	return wrapped, nil
+}
+
+// filterALPN returns the list without the named protocol (order kept).
+func filterALPN(alpn []string, drop string) []string {
+	out := alpn[:0:0]
+	for _, p := range alpn {
+		if p != drop {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // readConnectResponse parses the CONNECT reply without over-consuming the

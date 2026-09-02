@@ -83,7 +83,7 @@ func DefaultMasquerade() MasqueradeSettings {
 	return MasqueradeSettings{
 		Profile:           MasqueradeBrowser,
 		SNIMode:           SNIModeNode,
-		ALPN:              []string{"http/1.1"},
+		ALPN:              []string{"h2", "http/1.1"}, // OP-M2: the h2 engine ships
 		SessionResumption: true,
 		Fingerprint:       FingerprintChrome120, // OP-M1: owner-approved uTLS layer
 	}

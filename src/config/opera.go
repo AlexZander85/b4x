@@ -13,10 +13,10 @@ const (
 	// sends; no-SNI is a first-class DPI suspicion and stays available as
 	// the explicit ladder bottom.
 	OperaSNIModeDefault = "node"
-	// OperaALPNDefault: the current data-plane engine speaks HTTP/1.1
-	// CONNECT; offering h2 lands together with the H2-CONNECT engine
-	// (OP-M2) — offering h2 and then speaking 1.1 would break the tunnel.
-	OperaALPNDefault = "http/1.1"
+	// OperaALPNDefault: the H2-CONNECT engine (OP-M2) ships, so the
+	// browser-like h2-first offer is the default; nodes that decline h2
+	// fall back to the HTTP/1.1 CONNECT engine transparently.
+	OperaALPNDefault = "h2,http/1.1"
 )
 
 // OperaMasqueradeConfig configures the anti-DPI masquerade of the Opera
@@ -33,8 +33,8 @@ type OperaMasqueradeConfig struct {
 	// names; RFC 1123 validated, sec-tunnel domains forbidden — the pool
 	// must not advertise the peer it heads to).
 	SNIPool []string `json:"sni_pool"`
-	// ALPN list offered in the ClientHello. Default ["http/1.1"] until the
-	// H2-CONNECT engine ships (OP-M2).
+	// ALPN list offered in the ClientHello. Default ["h2","http/1.1"]:
+	// h2 rides the multiplexed CONNECT engine, 1.1 is the fallback.
 	ALPN []string `json:"alpn"`
 	// SessionResumption enables the TLS session cache (§7.4.4): second and
 	// later connections to a node resume (1-RTT, non-empty session_id) —
