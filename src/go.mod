@@ -3,10 +3,13 @@ module github.com/daniellavrushin/b4
 go 1.25.3
 
 require (
+	github.com/andybalholm/brotli v1.0.6 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
+	github.com/refraction-networking/utls v1.8.2 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.9.0 // indirect

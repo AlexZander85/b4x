@@ -13,6 +13,9 @@ github.com/amnezia-vpn/amneziawg-go/v3/tai64n
 github.com/amnezia-vpn/amneziawg-go/v3/tun
 github.com/amnezia-vpn/amneziawg-go/v3/tun/netstack
 github.com/amnezia-vpn/amneziawg-go/v3/tun/tuntest
+# github.com/andybalholm/brotli v1.0.6
+## explicit; go 1.12
+github.com/andybalholm/brotli
 # github.com/florianl/go-nfqueue v1.3.2
 ## explicit; go 1.14
 github.com/florianl/go-nfqueue
@@ -39,6 +42,15 @@ github.com/inconshreveable/mousetrap
 # github.com/josharian/native v1.1.0
 ## explicit; go 1.13
 github.com/josharian/native
+# github.com/klauspost/compress v1.17.4
+## explicit; go 1.19
+github.com/klauspost/compress
+github.com/klauspost/compress/fse
+github.com/klauspost/compress/huff0
+github.com/klauspost/compress/internal/cpuinfo
+github.com/klauspost/compress/internal/snapref
+github.com/klauspost/compress/zstd
+github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/mdlayher/netlink v1.7.2
 ## explicit; go 1.18
 github.com/mdlayher/netlink
@@ -63,6 +75,20 @@ github.com/quic-go/quic-go/qlog
 github.com/quic-go/quic-go/qlogwriter
 github.com/quic-go/quic-go/qlogwriter/jsontext
 github.com/quic-go/quic-go/quicvarint
+# github.com/refraction-networking/utls v1.8.2
+## explicit; go 1.24
+github.com/refraction-networking/utls
+github.com/refraction-networking/utls/dicttls
+github.com/refraction-networking/utls/internal/boring
+github.com/refraction-networking/utls/internal/byteorder
+github.com/refraction-networking/utls/internal/fips140tls
+github.com/refraction-networking/utls/internal/helper
+github.com/refraction-networking/utls/internal/hkdf
+github.com/refraction-networking/utls/internal/hpke
+github.com/refraction-networking/utls/internal/quicvarint
+github.com/refraction-networking/utls/internal/quicvarint/protocol
+github.com/refraction-networking/utls/internal/tls12
+github.com/refraction-networking/utls/internal/tls13
 # github.com/spf13/cobra v1.10.1
 ## explicit; go 1.15
 github.com/spf13/cobra
@@ -94,6 +120,7 @@ golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
 golang.org/x/crypto/poly1305
+golang.org/x/crypto/sha3
 # golang.org/x/net v0.56.0
 ## explicit; go 1.25.0
 golang.org/x/net/bpf

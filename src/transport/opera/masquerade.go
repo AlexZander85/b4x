@@ -70,6 +70,10 @@ type MasqueradeSettings struct {
 	ALPN              []string
 	SessionResumption bool
 	TTLFake           bool
+	// Fingerprint selects the ClientHello producer (review §7.4.2):
+	// "chrome120" (default — uTLS layer, OP-M1), "chrome131" (ML-KEM
+	// experiment), "none" (plain Go TLS — the ladder fallback rung).
+	Fingerprint string
 }
 
 // DefaultMasquerade returns the shipping defaults (review §7.3): browser
@@ -81,6 +85,7 @@ func DefaultMasquerade() MasqueradeSettings {
 		SNIMode:           SNIModeNode,
 		ALPN:              []string{"http/1.1"},
 		SessionResumption: true,
+		Fingerprint:       FingerprintChrome120, // OP-M1: owner-approved uTLS layer
 	}
 }
 
@@ -94,10 +99,12 @@ func ResolveMasquerade(profile, sniMode string, sniPool []string, alpn []string,
 		m.SNIMode = SNIModeNone
 		m.SessionResumption = false
 		m.ALPN = nil
+		m.Fingerprint = FingerprintNone
 		return m
 	case MasqueradeMinimal:
 		m.Profile = MasqueradeMinimal
 		m.SessionResumption = false
+		m.Fingerprint = FingerprintNone // the plain-Go fallback rung (§7.5)
 	case "", MasqueradeBrowser:
 		// defaults hold
 	default:

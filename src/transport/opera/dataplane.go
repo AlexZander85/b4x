@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	utls "github.com/refraction-networking/utls"
 )
 
 const connectRespBufSize = 4 * 1024
@@ -77,6 +79,9 @@ type NodeDialer struct {
 	// SessionCache shares TLS session tickets across dials to the same
 	// node (§7.4.4). Nil disables resumption.
 	SessionCache tls.ClientSessionCache
+	// USessionCache is the uTLS-stack session cache (the fingerprint layer
+	// uses its own cache types). Nil disables uTLS resumption.
+	USessionCache utls.ClientSessionCache
 
 	poolOnce sync.Once
 	pool     *x509.CertPool
@@ -165,7 +170,7 @@ func (d *NodeDialer) DialNodeTLS(ctx context.Context) (net.Conn, error) {
 	return tlsConn, nil
 }
 
-func (d *NodeDialer) dialNodeTLS(ctx context.Context) (*tls.Conn, error) {
+func (d *NodeDialer) dialNodeTLS(ctx context.Context) (net.Conn, error) {
 	switch {
 	case strings.TrimSpace(d.Address) == "":
 		return nil, fmt.Errorf("%w: empty node address", errSetup)
@@ -184,6 +189,19 @@ func (d *NodeDialer) dialNodeTLS(ctx context.Context) (*tls.Conn, error) {
 	if err != nil {
 		_ = conn.Close()
 		return nil, newFailure(ClassDataPlaneTLS, "resolve root pool", err)
+	}
+
+	// Fingerprint layer (review OP-M1): when the browser profile carries a
+	// Chrome fingerprint, uTLS produces the ClientHello bytes; the
+	// verification closure keeps the plain-Go trust semantics.
+	if d.Masquerade.FingerprintActive() {
+		uconn, uerr := dialUTLSClient(ctx, conn, d.FakeSNI, d.Masquerade,
+			d.USessionCache, verifyNodeChainUTLS(d.TLSServerName, pool))
+		if uerr != nil {
+			_ = conn.Close()
+			return nil, newFailure(ClassDataPlaneTLS, "node handshake (uTLS)", uerr)
+		}
+		return uconn, nil
 	}
 
 	// Reference strategy: SNI carries the masquerade value (real node name

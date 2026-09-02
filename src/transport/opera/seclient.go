@@ -31,6 +31,7 @@ import (
 	"sync"
 	"time"
 
+	utls "github.com/refraction-networking/utls"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -319,7 +320,8 @@ type Client struct {
 	digest *digestTransport
 	jar    *swappableJar
 
-	sessionCache tls.ClientSessionCache // §7.4.4 resumption (control + data plane)
+	sessionCache  tls.ClientSessionCache  // §7.4.4 resumption (plain-Go stack)
+	uSessionCache utls.ClientSessionCache // §7.4.4 resumption (uTLS fingerprint stack)
 
 	mu          sync.Mutex
 	deviceRaw   string // per-boot device_hash sent as register_device input
@@ -363,7 +365,8 @@ func New(opts Options) (*Client, error) {
 	}
 	pins := newPinStore(nil)
 	sessionCache := tls.NewLRUClientSessionCache(8)
-	transport := buildAPITransport(opts, pins, sessionCache)
+	uSessionCache := utls.NewLRUClientSessionCache(8)
+	transport := buildAPITransport(opts, pins, sessionCache, uSessionCache)
 	digestT := newDigestTransport(opts.APILogin, opts.APIPassword, transport)
 	return &Client{
 		opts:      opts,
@@ -398,7 +401,7 @@ func resolveEndpoints(e SEEndpoints) SEEndpoints {
 // is host-keyed and SNI-INDEPENDENT, so a pool name is equally safe;
 // suppression stays an explicit ladder rung. Fingerprint knobs and session
 // resumption match the data plane (one browser-shaped client, not two).
-func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSessionCache) *http.Transport {
+func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSessionCache, uSessionCache utls.ClientSessionCache) *http.Transport {
 	dialCtx := opts.DialContext
 	if dialCtx == nil {
 		d := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
@@ -422,6 +425,21 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 				_ = raw.Close()
 				return nil, err
 			}
+			sni := opts.Masquerade.EffectiveAPISNI(host)
+			// Fingerprint layer (review OP-M1, §7.4.5): the control channel
+			// uses the same Chrome ClientHello; the TOFU pin is host-keyed
+			// and SNI-independent, so the trust model does not move.
+			if opts.Masquerade.FingerprintActive() {
+				verify := func(cs utls.ConnectionState) error {
+					return pins.verify(host, cs.PeerCertificates)
+				}
+				uconn, uerr := dialUTLSClient(ctx, raw, sni, opts.Masquerade, uSessionCache, verify)
+				if uerr != nil {
+					_ = raw.Close()
+					return nil, uerr
+				}
+				return uconn, nil
+			}
 			cfg := &tls.Config{
 				// Self-signed upstream cert (design §3): standard verification
 				// is impossible; channel integrity comes exclusively from the
@@ -429,7 +447,7 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 				// pin is keyed by HOST — SNI masquerading cannot weaken it.
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS12,
-				ServerName:         opts.Masquerade.EffectiveAPISNI(host),
+				ServerName:         sni,
 				VerifyConnection: func(cs tls.ConnectionState) error {
 					return pins.verify(host, cs.PeerCertificates)
 				},
