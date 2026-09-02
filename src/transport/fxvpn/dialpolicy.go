@@ -32,6 +32,26 @@ type DialPolicy struct {
         // §7.4.1); zero keeps the OS default. Only ever set on the THROWAWAY
         // fake socket: TTL tricks on a live flow are forbidden (§7.8.2).
         TTL int
+        // BaseDial routes the TCP leg through an active base tunnel — the
+        // carrier-nesting seam of §7.5 (FX-M2). nil = direct egress. The
+        // carrier leg is deliberately NOT SO_MARKed: the outer tunnel applies
+        // its own egress discipline, and double-obfuscating it would be a
+        // marker of its own (§7.8.3).
+        BaseDial func(ctx context.Context, network, addr string) (net.Conn, error)
+}
+
+// dialTCP performs one TCP connect per policy: through the carrier when
+// nested (BaseDial), otherwise the constrained direct dialer with the
+// caller's timeout.
+func (p DialPolicy) dialTCP(ctx context.Context, network, addr string, timeout time.Duration) (net.Conn, error) {
+        if p.BaseDial != nil {
+                // Carrier leg: the outer tunnel owns its own egress discipline
+                // (SO_MARK double-tagging would be a marker of its own, §7.8.3).
+                return p.BaseDial(ctx, network, addr)
+        }
+        dd := p.Dialer()
+        dd.Timeout = timeout
+        return dd.DialContext(ctx, network, addr)
 }
 
 // applyControl implements the platform hook.

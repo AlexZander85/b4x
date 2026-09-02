@@ -43,8 +43,6 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
         cfg.fillDefaults()
         authority := cfg.Authority()
 
-        d := cfg.Policy.Dialer()
-        d.Timeout = cfg.HandshakeBudget
         tlsCfg := &tls.Config{
                 ServerName: cfg.Host,
                 MinVersion: tls.VersionTLS12,
@@ -62,13 +60,22 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
         // (the plain-Go rung; the uTLS rung carries its own profile).
         cfg.Masquerade.ApplyHelloShaping(tlsCfg)
 
+        // The handshake itself is bounded by the handshake budget (the TCP
+        // dial timeout alone would not cover a stuck TLS flight).
+        hsCtx := ctx
+        if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+                var hcancel context.CancelFunc
+                hsCtx, hcancel = context.WithTimeout(ctx, cfg.HandshakeBudget)
+                defer hcancel()
+        }
+
         var raw net.Conn
         if cfg.Masquerade.fingerprintActive() {
-                tconn, derr := d.DialContext(ctx, "tcp", authority)
+                tconn, derr := cfg.Policy.dialTCP(ctx, "tcp", authority, cfg.HandshakeBudget)
                 if derr != nil {
                         return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, derr)
                 }
-                uc, uerr := dialUTLSClient(ctx, tconn, cfg.Host, cfg.Masquerade, verifyWebPKIUTLS(cfg.Host, tlsCfg.RootCAs, tlsCfg.InsecureSkipVerify))
+                uc, uerr := dialUTLSClient(hsCtx, tconn, cfg.Host, cfg.Masquerade, verifyWebPKIUTLS(cfg.Host, tlsCfg.RootCAs, tlsCfg.InsecureSkipVerify))
                 if uerr != nil {
                         _ = tconn.Close()
                         return nil, fmt.Errorf("fxvpn: h2 utls %s: %w", authority, uerr)
@@ -79,8 +86,15 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
                 }
                 raw = uc
         } else {
-                tc, derr := tls.DialWithDialer(d, "tcp", authority, tlsCfg)
+                // Plain-Go rung: TLS straight over the policy TCP dial (direct
+                // or carrier-nested, FX-M2).
+                raw0, derr := cfg.Policy.dialTCP(ctx, "tcp", authority, cfg.HandshakeBudget)
                 if derr != nil {
+                        return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, derr)
+                }
+                tc := tls.Client(raw0, tlsCfg)
+                if derr := tc.HandshakeContext(hsCtx); derr != nil {
+                        _ = raw0.Close()
                         return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, derr)
                 }
                 if tc.ConnectionState().NegotiatedProtocol != "h2" {
