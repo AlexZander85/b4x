@@ -14,7 +14,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"embed"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"net"
@@ -26,6 +28,20 @@ import (
 )
 
 const connectRespBufSize = 4 * 1024
+
+// embeddedRoots carries the Mozilla/NSS trust anchors the sec-tunnel node
+// chains terminate on (review E-OPERA H1: design §1.3 demanded a built-in
+// pool — routers without the OS ca-certificates package have an EMPTY
+// system store, which used to fail every node handshake silently):
+//
+//	USERTrust ECC Certification Authority      (design-named anchor)
+//	USERTrust RSA Certification Authority
+//	AAA Certificate Services (Comodo legacy)
+//	Sectigo Public Server Authentication Root E46
+//	Sectigo Public Server Authentication Root R46
+//
+//go:embed assets/roots.pem
+var embeddedRoots embed.FS
 
 // BasicAuthHeader renders "Basic base64(login:password)" for both the
 // Proxy-Authorization header and tests (reference parity).
@@ -61,20 +77,58 @@ type NodeDialer struct {
 	poolErr  error
 }
 
-// resolveRoot returns the verification pool, resolving the system store on
-// first use when no explicit pool was configured (fail-closed on error).
+// systemCertPool is the injection seam for tests (review §6: the empty
+// system-store regression needs a stubbed resolver).
+var systemCertPool = x509.SystemCertPool
+
+// embeddedRootCerts parses the embedded Mozilla/NSS anchors once.
+func embeddedRootCerts() ([]*x509.Certificate, error) {
+	blob, err := embeddedRoots.ReadFile("assets/roots.pem")
+	if err != nil {
+		return nil, fmt.Errorf("embedded roots unreadable: %w", err)
+	}
+	var out []*x509.Certificate
+	rest := blob
+	for {
+		var block *pem.Block
+		block, rest = pem.Decode(rest)
+		if block == nil {
+			break
+		}
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("embedded root malformed: %w", err)
+		}
+		out = append(out, cert)
+	}
+	return out, nil
+}
+
+// resolveRoot returns the verification pool. The embedded Mozilla/NSS pool
+// is ALWAYS present and the system store is merged in best-effort (review
+// H1): on a stock router without ca-certificates the node chains still
+// verify, and a structurally empty pool fails closed with the dedicated
+// opera-dataplane-no-roots class instead of a silent TLS dead-end.
 func (d *NodeDialer) resolveRoot() (*x509.CertPool, error) {
 	if d.RootPool != nil {
 		return d.RootPool, nil
 	}
 	d.poolOnce.Do(func() {
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			d.poolErr = fmt.Errorf("system cert pool unavailable: %w", err)
+		anchors, err := embeddedRootCerts()
+		if err != nil || len(anchors) == 0 {
+			d.poolErr = newFailure(ClassDataPlaneNoRoots,
+				"embedded root pool unavailable", err)
 			return
 		}
-		if pool == nil {
-			pool = x509.NewCertPool()
+		pool, serr := systemCertPool()
+		if serr != nil || pool == nil {
+			pool = x509.NewCertPool() // embedded anchors carry verification
+		}
+		for _, cert := range anchors {
+			pool.AddCert(cert)
 		}
 		d.pool = pool
 	})
@@ -181,7 +235,7 @@ func (d *NodeDialer) DialContext(ctx context.Context, network, address string) (
 		RequestURI: address,
 		Host:       address,
 		Header: http.Header{
-			"Host":                 []string{address},
+			"Host":                []string{address},
 			"Proxy-Authorization": []string{auth},
 		},
 	}

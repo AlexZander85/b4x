@@ -10,7 +10,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -179,7 +181,7 @@ func (e *nodeEdge) handle(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(rwc, brw)
 }
 
-func (e *nodeEdge) sawSNI() string  { s, _ := e.sni.Load().(string); return s }
+func (e *nodeEdge) sawSNI() string    { s, _ := e.sni.Load().(string); return s }
 func (e *nodeEdge) sawTarget() string { s, _ := e.target.Load().(string); return s }
 
 func fixedAuth() func() (string, error) {
@@ -503,5 +505,73 @@ func TestClientNodeDialerWiringAndJWTRotation(t *testing.T) {
 	want2 := BasicAuthHeader(capitalHexSHA1(deviceIDFix), jwtRotated)
 	if auth2 != want2 || auth2 == auth1 {
 		t.Fatalf("auth2 = %q, want rotated %q", auth2, want2)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA H1: embedded Mozilla/NSS root pool.
+// ---------------------------------------------------------------------------
+
+// TestEmbeddedRootsParse: the built-in pool must carry the design-named
+// anchors (USERTrust ECC first among them) — a router without
+// ca-certificates depends on every single one parsing.
+func TestEmbeddedRootsParse(t *testing.T) {
+	certs, err := embeddedRootCerts()
+	if err != nil {
+		t.Fatalf("embedded roots: %v", err)
+	}
+	if len(certs) < 3 {
+		t.Fatalf("embedded anchors = %d, want the USERTrust/Sectigo set", len(certs))
+	}
+	foundECC := false
+	for _, c := range certs {
+		if strings.Contains(c.Subject.CommonName, "USERTrust ECC") {
+			foundECC = true
+		}
+	}
+	if !foundECC {
+		t.Fatal("USERTrust ECC Certification Authority missing from embedded pool")
+	}
+}
+
+// TestResolveRootSurvivesEmptySystemStore: with the OS store unavailable
+// (OpenWrt/Entware without ca-certificates), the merged pool still carries
+// the embedded anchors — node verification proceeds instead of the old
+// silent fail-closed.
+func TestResolveRootSurvivesEmptySystemStore(t *testing.T) {
+	orig := systemCertPool
+	systemCertPool = func() (*x509.CertPool, error) { return nil, errors.New("no certs installed") }
+	defer func() { systemCertPool = orig }()
+
+	d := &NodeDialer{Address: "1.2.3.4:443", TLSServerName: "eu0.sec-tunnel.com"}
+	pool, err := d.resolveRoot()
+	if err != nil {
+		t.Fatalf("resolveRoot: %v", err)
+	}
+	if pool == nil {
+		t.Fatal("pool nil")
+	}
+}
+
+// TestResolveRootStructuralNoRoots: if the embedded asset itself cannot be
+// parsed, the dialer must fail closed with the dedicated
+// opera-dataplane-no-roots class (review §6 second test).
+func TestResolveRootStructuralNoRoots(t *testing.T) {
+	origPool := systemCertPool
+	origRoots := embeddedRoots
+	systemCertPool = func() (*x509.CertPool, error) { return nil, errors.New("no certs installed") }
+	embeddedRoots = embed.FS{} // unreadable asset
+	defer func() {
+		systemCertPool = origPool
+		embeddedRoots = origRoots
+	}()
+
+	d := &NodeDialer{Address: "1.2.3.4:443", TLSServerName: "eu0.sec-tunnel.com"}
+	_, err := d.resolveRoot()
+	if err == nil {
+		t.Fatal("expected structural failure")
+	}
+	if !IsClass(err, ClassDataPlaneNoRoots) {
+		t.Fatalf("class = %v, want opera-dataplane-no-roots", err)
 	}
 }

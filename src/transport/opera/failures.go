@@ -36,6 +36,11 @@ const (
 	// ClassDataPlaneTLS: node TLS handshake or certificate verification
 	// failed (wrong name / untrusted chain) — fail closed (OP2).
 	ClassDataPlaneTLS FailureClass = "opera-dataplane-tls"
+	// ClassDataPlaneNoRoots: the verification pool resolved structurally
+	// empty (embedded anchors unreadable AND no system store) — fail closed
+	// with an honest, searchable class instead of a silent TLS dead-end the
+	// field would read as "Opera is down in my region" (review H1).
+	ClassDataPlaneNoRoots FailureClass = "opera-dataplane-no-roots"
 	// ClassDataPlaneConnectRefused: the node answered CONNECT with a
 	// non-200 status (incl. 407 auth rejection) (OP2).
 	ClassDataPlaneConnectRefused FailureClass = "opera-dataplane-connect-refused"
