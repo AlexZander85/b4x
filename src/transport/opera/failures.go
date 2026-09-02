@@ -85,6 +85,13 @@ func newFailure(class FailureClass, reason string, err error) *Failure {
         return &Failure{Class: class, Reason: reason, Err: err}
 }
 
+// NewFailure is the exported constructor for diagnostics and observability
+// consumers that need to feed structured failures back into the transport's
+// classification (e.g. the masquerade ladder in operaservice).
+func NewFailure(class FailureClass, reason string, err error) *Failure {
+	return newFailure(class, reason, err)
+}
+
 // newFailureStatus is newFailure plus the HTTP status code (review M2:
 // 407 on CONNECT must be distinguishable from other non-200 refusals
 // without parsing strings).

@@ -85,9 +85,11 @@ type Runtime struct {
 	ring   *eventRing
 
 	// masquerade is the resolved anti-DPI state; nfqBait is the OP-M3
-	// OUTPUT-hook handle (nil when the bait is disabled).
+	// OUTPUT-hook handle (nil when the bait is disabled); ladder is the
+	// OP-M4 rung state machine (nil when the masquerade is off).
 	masquerade opera.MasqueradeSettings
 	nfqBait    NFWBait
+	ladder     *masqueradeLadder
 
 	mu      sync.Mutex
 	started bool
@@ -174,7 +176,22 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	}
 	rt := &Runtime{cfg: oc, client: client, sup: sup, ring: ring, masquerade: mq}
 	rt.nfqBait = newNFWBaitIfConfigured(oc.Masquerade.TTLFake)
+	if mq.Profile != opera.MasqueradeOff {
+		rt.ladder = newMasqueradeLadder(client.MasqueradeBox(), ring,
+			&LadderStore{Path: opera.DefaultLadderStorePath(oc.IdentityPath)},
+			ladderHeadForProfile(mq.Profile), mq.SNIPool, mq.TTLFake, nil)
+	}
 	return rt, nil
+}
+
+// ladderHeadForProfile maps the configured profile onto the ladder ceiling:
+// browser starts at the top; minimal skips the uTLS rungs (§7.5 rung
+// 'plain-Go'); off never builds a ladder.
+func ladderHeadForProfile(p opera.MasqueradeProfile) int {
+	if p == opera.MasqueradeMinimal {
+		return 3
+	}
+	return 0
 }
 
 // failoverDialer composes direct-first / carrier-second egress with a
@@ -382,6 +399,9 @@ func (r *Runtime) Status() Status {
 // enforce the bait.
 func (r *Runtime) masqueradeStatus() MasqueradeStatus {
 	mq := r.masquerade
+	if r.client != nil {
+		mq = r.client.CurrentMasquerade()
+	}
 	return MasqueradeStatus{
 		Profile:           string(mq.Profile),
 		SNIMode:           string(mq.SNIMode),
@@ -425,9 +445,15 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 			go r.sup.Tick(r.sup.Now())
 		}
 		r.recordDial("fail")
+		if r.ladder != nil {
+			r.ladder.ObserveDial(false, err)
+		}
 		return nil, err
 	}
 	r.recordDial("ok")
+	if r.ladder != nil {
+		r.ladder.ObserveDial(true, nil)
+	}
 	return conn, nil
 }
 

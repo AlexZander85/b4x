@@ -323,6 +323,7 @@ type Client struct {
 	sessionCache  tls.ClientSessionCache  // §7.4.4 resumption (plain-Go stack)
 	uSessionCache utls.ClientSessionCache // §7.4.4 resumption (uTLS fingerprint stack)
 	h2pool        *h2Pool                 // OP-M2: per-node h2 CONNECT sessions
+	mqBox         *MasqueradeBox          // OP-M4: ladder-driven dynamic masquerade
 
 	mu          sync.Mutex
 	deviceRaw   string // per-boot device_hash sent as register_device input
@@ -367,7 +368,8 @@ func New(opts Options) (*Client, error) {
 	pins := newPinStore(nil)
 	sessionCache := tls.NewLRUClientSessionCache(8)
 	uSessionCache := utls.NewLRUClientSessionCache(8)
-	transport := buildAPITransport(opts, pins, sessionCache, uSessionCache)
+	mqBox := &MasqueradeBox{m: opts.Masquerade}
+	transport := buildAPITransport(opts, pins, sessionCache, uSessionCache, mqBox)
 	h2pool := &h2Pool{}
 	digestT := newDigestTransport(opts.APILogin, opts.APIPassword, transport)
 	return &Client{
@@ -380,6 +382,7 @@ func New(opts Options) (*Client, error) {
 		sessionCache:  sessionCache,
 		uSessionCache: uSessionCache,
 		h2pool:        h2pool,
+		mqBox:         mqBox,
 	}, nil
 }
 
@@ -406,7 +409,7 @@ func resolveEndpoints(e SEEndpoints) SEEndpoints {
 // is host-keyed and SNI-INDEPENDENT, so a pool name is equally safe;
 // suppression stays an explicit ladder rung. Fingerprint knobs and session
 // resumption match the data plane (one browser-shaped client, not two).
-func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSessionCache, uSessionCache utls.ClientSessionCache) *http.Transport {
+func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSessionCache, uSessionCache utls.ClientSessionCache, mqBox *MasqueradeBox) *http.Transport {
 	dialCtx := opts.DialContext
 	if dialCtx == nil {
 		d := &net.Dialer{Timeout: 15 * time.Second, KeepAlive: 30 * time.Second}
@@ -430,15 +433,16 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 				_ = raw.Close()
 				return nil, err
 			}
-			sni := opts.Masquerade.EffectiveAPISNI(host)
+			mq := mqBox.Get()
+			sni := mq.EffectiveAPISNI(host)
 			// Fingerprint layer (review OP-M1, §7.4.5): the control channel
 			// uses the same Chrome ClientHello; the TOFU pin is host-keyed
 			// and SNI-independent, so the trust model does not move.
-			if opts.Masquerade.FingerprintActive() {
+			if mq.FingerprintActive() {
 				verify := func(cs utls.ConnectionState) error {
 					return pins.verify(host, cs.PeerCertificates)
 				}
-				uconn, uerr := dialUTLSClient(ctx, raw, sni, opts.Masquerade, uSessionCache, verify)
+				uconn, uerr := dialUTLSClient(ctx, raw, sni, mq, uSessionCache, verify)
 				if uerr != nil {
 					_ = raw.Close()
 					return nil, uerr
@@ -457,7 +461,7 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 					return pins.verify(host, cs.PeerCertificates)
 				},
 			}
-			opts.Masquerade.applyMasquerade(cfg, sessionCache)
+			mq.applyMasquerade(cfg, sessionCache)
 			conn := tls.Client(raw, cfg)
 			if err := conn.HandshakeContext(ctx); err != nil {
 				_ = raw.Close()

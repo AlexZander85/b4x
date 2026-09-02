@@ -30,6 +30,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/binary"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -224,6 +225,39 @@ func NewSessionCache() tls.ClientSessionCache {
 	return tls.NewLRUClientSessionCache(32)
 }
 
+// MasqueradeBox shares the CURRENT masquerade settings between the client,
+// the API transport and the ladder (review §7.5 OP-M4: the ladder switches
+// rungs at runtime — every consumer must read the live state).
+type MasqueradeBox struct {
+	mu sync.RWMutex
+	m  MasqueradeSettings
+}
+
+// Get snapshots the active settings.
+func (b *MasqueradeBox) Get() MasqueradeSettings {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.m
+}
+
+// Set swaps the active settings.
+func (b *MasqueradeBox) Set(m MasqueradeSettings) {
+	b.mu.Lock()
+	b.m = m
+	b.mu.Unlock()
+}
+
+// MasqueradeBox exposes the live-settings box for the masquerade ladder
+// (operaservice OP-M4).
+func (c *Client) MasqueradeBox() *MasqueradeBox { return c.mqBox }
+
+// SetMasquerade swaps the active masquerade settings at runtime (the
+// masquerade ladder is the only intended caller).
+func (c *Client) SetMasquerade(m MasqueradeSettings) { c.mqBox.Set(m) }
+
+// CurrentMasquerade snapshots the active settings.
+func (c *Client) CurrentMasquerade() MasqueradeSettings { return c.mqBox.Get() }
+
 // applyMasquerade folds the masquerade settings into a tls.Config:
 // SNI handling stays with the caller (ServerName semantics differ between
 // the data plane — fake-or-real — and pin verification), this applies the
@@ -244,4 +278,10 @@ func (m MasqueradeSettings) applyMasquerade(cfg *tls.Config, sessionCache tls.Cl
 	if m.SessionResumption && sessionCache != nil {
 		cfg.ClientSessionCache = sessionCache
 	}
+}
+
+// DefaultLadderStorePath derives the masquerade last-good store path from
+// the identity slot (same directory discipline as the node cache).
+func DefaultLadderStorePath(identityPath string) string {
+	return filepath.Join(filepath.Dir(identityPath), "masquerade-ladder.json")
 }
