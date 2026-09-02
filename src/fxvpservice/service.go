@@ -181,8 +181,9 @@ type Runtime struct {
         resolver     hostResolver
         nodeIPs      []netip.Addr // resolved ACTIVE node (anti-loop, F6; per session)
 
-        bytesUp   uint64 // relay bytes out (F7b)
-        bytesDown uint64 // relay bytes in (F7b)
+        bytesUp     uint64        // relay bytes out (F7b)
+        bytesDown   uint64        // relay bytes in (F7b)
+        nodeStrikes map[string]int // consecutive dial failures per node host:port (F8)
 }
 
 // Build validates system.fxvpn and constructs the runtime WITHOUT starting
@@ -446,8 +447,12 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
 
         sess, carrier, serr := dialSession(ctx, r.cp, host, port, bearerRaw, r.preferH3.Load())
         if serr != nil {
+                // F8: consecutive dial failures degrade the node; after the
+                // threshold the candidate selection rotates to the next server.
+                r.strikeNode(net.JoinHostPort(host, strconv.Itoa(port)))
                 return serr
         }
+        r.clearNodeStrikes(net.JoinHostPort(host, strconv.Itoa(port)))
 
         r.mu.Lock()
         old := r.session
@@ -491,6 +496,11 @@ func (r *Runtime) resolveNodeIPs(ctx context.Context, host string) []netip.Addr 
 }
 
 // resolveLocation picks host/port from the cached server list per mode.
+// F8: the pick is strike-aware — a node with nodeStrikeThreshold consecutive
+// dial failures is skipped in favor of the next candidate (the RTT-ranking
+// complement of the review was deliberately NOT added: a pre-dial TCP probe
+// is exactly the behavioral fingerprint §7.4.4 of the masquerade chapter
+// warns against).
 func (r *Runtime) resolveLocation(ctx context.Context) (string, int, error) {
         sl, err := r.serverlist()
         if err != nil {
@@ -516,7 +526,50 @@ func (r *Runtime) resolveLocation(ctx context.Context) (string, int, error) {
                 return "", 0, fmt.Errorf("%w: mode %q country=%q city=%q host=%q",
                         fxvpn.ErrNoServers, loc.Mode, loc.Country, loc.City, loc.Host)
         }
-        return cands[0].Hostname, cands[0].Port, nil
+        cand := r.pickCandidate(cands)
+        return cand.Hostname, cand.Port, nil
+}
+
+// nodeStrikeThreshold is the consecutive-failure count after which a node
+// is skipped in candidate selection (review F8; canon StrikeState N=2).
+const nodeStrikeThreshold = 2
+
+// strikeNode records one dial failure for node (host:port key) and announces
+// the degradation exactly once per episode (at the threshold crossing).
+func (r *Runtime) strikeNode(node string) {
+        r.mu.Lock()
+        if r.nodeStrikes == nil {
+                r.nodeStrikes = make(map[string]int)
+        }
+        r.nodeStrikes[node]++
+        n := r.nodeStrikes[node]
+        r.mu.Unlock()
+        if n == nodeStrikeThreshold {
+                r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_node_degraded",
+                        Label: node, Detail: "consecutive dial failures; rotating candidates"})
+        }
+}
+
+// clearNodeStrikes forgets the node's streak after a successful dial.
+func (r *Runtime) clearNodeStrikes(node string) {
+        r.mu.Lock()
+        delete(r.nodeStrikes, node)
+        r.mu.Unlock()
+}
+
+// pickCandidate returns the first candidate without a threshold-reaching
+// streak; when every candidate is degraded it keeps rotating from the top
+// (a bad chance beats no chance for a reserve transport).
+func (r *Runtime) pickCandidate(cands []fxvpn.ConnectCandidate) fxvpn.ConnectCandidate {
+        r.mu.Lock()
+        defer r.mu.Unlock()
+        for i := range cands {
+                key := net.JoinHostPort(cands[i].Hostname, strconv.Itoa(cands[i].Port))
+                if r.nodeStrikes[key] < nodeStrikeThreshold {
+                        return cands[i]
+                }
+        }
+        return cands[0]
 }
 
 // dialSession establishes the carrier per ladder preference: H3 first when

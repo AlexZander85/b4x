@@ -26,8 +26,16 @@ func (s ipStub) LookupIPAddr(context.Context, string) ([]net.IPAddr, error) {
 
 // seedServerlist writes a fresh (TTL-valid) cache file next to the accounts
 // store so resolveLocation never contacts Remote Settings offline.
-func seedServerlist(t *testing.T, accountsPath string, fetchedAt time.Time) {
+func seedServerlist(t *testing.T, accountsPath string, fetchedAt time.Time, servers ...map[string]interface{}) {
         t.Helper()
+        if len(servers) == 0 {
+                servers = []map[string]interface{}{
+                        // Loopback on a closed port: the admin path in
+                        // TestGuardCap... reaches dialSession and fails FAST
+                        // (connection refused) instead of timing out on DNS.
+                        {"hostname": "127.0.0.1", "port": 1},
+                }
+        }
         body := map[string]interface{}{
                 "version":    1,
                 "fetched_at": fetchedAt.UTC().Format(time.RFC3339Nano),
@@ -35,12 +43,7 @@ func seedServerlist(t *testing.T, accountsPath string, fetchedAt time.Time) {
                         "code": "US", "name": "United States",
                         "cities": []map[string]interface{}{{
                                 "code": "nyc", "name": "New York",
-                                "servers": []map[string]interface{}{
-                                        // Loopback on a closed port: the admin path in
-                                        // TestGuardCap... reaches dialSession and fails FAST
-                                        // (connection refused) instead of timing out on DNS.
-                                        {"hostname": "127.0.0.1", "port": 1},
-                                },
+                                "servers": servers,
                         }},
                 }},
         }
@@ -163,5 +166,60 @@ func TestLocationsFetchedAtFilled(t *testing.T) {
         }
         if len(view.Countries) == 0 || view.Countries[0].Code != "US" {
                 t.Fatalf("countries = %+v", view.Countries)
+        }
+}
+
+// TestNodeStrikesRotateCandidates pins review F8: two consecutive dial
+// failures on cands[0] rotate the candidate selection to the next server;
+// a success clears the streak and the original node returns.
+func TestNodeStrikesRotateCandidates(t *testing.T) {
+        dir := t.TempDir()
+        accountsPath := filepath.Join(dir, "accounts.json")
+        seedServerlist(t, accountsPath, time.Now(),
+                map[string]interface{}{"hostname": "127.0.0.1", "port": 1},
+                map[string]interface{}{"hostname": "127.0.0.1", "port": 2},
+        )
+        fx := newLiveFixture(t, 15)
+        fx.rt.cfg.AccountsPath = accountsPath
+        fx.rt.sl = nil
+        ctx := context.Background()
+
+        host, port, err := fx.rt.resolveLocation(ctx)
+        if err != nil || port != 1 {
+                t.Fatalf("first pick = %s:%d err=%v", host, port, err)
+        }
+
+        // One strike: below the threshold, same node (anti-flap).
+        fx.rt.strikeNode("127.0.0.1:1")
+        if _, port, _ = fx.rt.resolveLocation(ctx); port != 1 {
+                t.Fatalf("one strike must not rotate, picked :%d", port)
+        }
+
+        // Second strike: the candidate rotates.
+        fx.rt.strikeNode("127.0.0.1:1")
+        host, port, err = fx.rt.resolveLocation(ctx)
+        if err != nil || port != 2 {
+                t.Fatalf("two strikes must rotate to the next candidate, got %s:%d err=%v", host, port, err)
+        }
+        var degraded bool
+        for _, ev := range fx.rt.Status().Events {
+                if ev.Type == "fxvpn_node_degraded" {
+                        degraded = true
+                }
+        }
+        if !degraded {
+                t.Fatal("fxvpn_node_degraded event missing")
+        }
+}
+
+// TestNodeStrikesClearedOnSuccess keeps the F8 contract symmetric: a
+// successful dial forgets the streak, so the node re-enters rotation.
+func TestNodeStrikesClearedOnSuccess(t *testing.T) {
+        fx := newLiveFixture(t, 15)
+        fx.rt.strikeNode("127.0.0.1:1")
+        fx.rt.strikeNode("127.0.0.1:1")
+        fx.rt.clearNodeStrikes("127.0.0.1:1")
+        if got := fx.rt.nodeStrikes["127.0.0.1:1"]; got != 0 {
+                t.Fatalf("streak not cleared: %d", got)
         }
 }
