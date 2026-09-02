@@ -131,6 +131,14 @@ type Options struct {
         // QuotaPollInterval overrides the 15-min X-Quota-* poll cadence
         // (tests). <=0 keeps the default.
         QuotaPollInterval time.Duration
+        // Resolver resolves the ACTIVE node hostname for the anti-loop IP
+        // guard (review F6; tests inject a fake). nil = net.DefaultResolver.
+        Resolver hostResolver
+}
+
+// hostResolver is the node-IP lookup seam (*net.Resolver satisfies it).
+type hostResolver interface {
+        LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error)
 }
 
 // ExitView is the last verified exit observation.
@@ -160,14 +168,18 @@ type Runtime struct {
         stopped     bool
         cancel      context.CancelFunc
 
-        exit        ExitView
-        lastFailure string
-        events      []fxvpn.PoolEvent
-        dialOK      uint64
-        dialFail    uint64
+        exit          ExitView
+        lastFailure   string
+        events        []fxvpn.PoolEvent
+        dialOK        uint64
+        dialFail      uint64
 
         quotaPollInterval time.Duration
         lastQuotaPoll     time.Time
+
+        adminRebuild bool          // explicit SetLocation/RestartNow rebuild (F10)
+        resolver     hostResolver
+        nodeIPs      []netip.Addr // resolved ACTIVE node (anti-loop, F6; per session)
 }
 
 // Build validates system.fxvpn and constructs the runtime WITHOUT starting
@@ -195,7 +207,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
         }
 
         store := fxvpn.NewAccountStore(fc.AccountsPath)
-        r := &Runtime{cfg: fc, cp: cp, quotaPollInterval: opts.QuotaPollInterval}
+        r := &Runtime{cfg: fc, cp: cp, quotaPollInterval: opts.QuotaPollInterval, resolver: opts.Resolver}
         r.preferH3.Store(fc.PreferH3)
         r.guard.now = opts.Now
 
@@ -293,8 +305,17 @@ func (r *Runtime) SupportsUDP() bool { return false }
 func (r *Runtime) StreamDialer() warp.StreamDialer { return r }
 
 // RestartNow forces an immediate supervision cycle (GUI button). It bypasses
-// the tick cadence but NOT the restart caps.
-func (r *Runtime) RestartNow(ctx context.Context) { r.tick(ctx) }
+// the tick cadence; as an EXPLICIT admin action its rebuild bypasses the
+// automatic-rebuild cap too (review F10: a location change or a manual
+// restart must not die silently inside the <=6/hour budget — only
+// supervisor-driven rebuilds consume the cap, refusals emit
+// fxvpn_restart_capped).
+func (r *Runtime) RestartNow(ctx context.Context) {
+        r.mu.Lock()
+        r.adminRebuild = true
+        r.mu.Unlock()
+        r.tick(ctx)
+}
 
 func (r *Runtime) loop(ctx context.Context) {
         ticker := time.NewTicker(superviseTick)
@@ -380,10 +401,15 @@ func (r *Runtime) applySoftSwap() {
 
 // ensureSession rebuilds the data-plane session when absent/dead. Pool
 // rotation runs first so an exhausted/rejected seat moves before dialing.
+// F10: an ADMIN rebuild (SetLocation/RestartNow — explicit user actions)
+// bypasses the automatic-rebuild cap; the cap still counts every automatic
+// rebuild, and a cap refusal emits fxvpn_restart_capped so the GUI knows
+// why nothing happened.
 func (r *Runtime) ensureSession(ctx context.Context) error {
         r.mu.Lock()
         s := r.session
         alive := s != nil && s.IsAlive()
+        admin := r.adminRebuild
         r.mu.Unlock()
         if alive {
                 return nil
@@ -396,8 +422,18 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
         if !ok {
                 return errors.New("no active account bearer")
         }
-        if !r.guard.allowed() {
+        if !admin && !r.guard.allowed() {
+                r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_restart_capped",
+                        Detail: fmt.Sprintf("automatic rebuild refused (<= %d/hour or cooldown %s)", MaxRestartsPerHour, RestartCooldown)})
                 return fmt.Errorf("restart capped (<=%d/hour or cooldown %s)", MaxRestartsPerHour, RestartCooldown)
+        }
+
+        if admin {
+                r.mu.Lock()
+                r.adminRebuild = false
+                r.mu.Unlock()
+        } else {
+                r.guard.stamp()
         }
 
         host, port, lerr := r.resolveLocation(ctx)
@@ -405,7 +441,6 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
                 return lerr
         }
 
-        r.guard.stamp()
         sess, carrier, serr := dialSession(ctx, r.cp, host, port, bearerRaw, r.preferH3.Load())
         if serr != nil {
                 return serr
@@ -421,8 +456,35 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
                 _ = old.Close() // swap already atomic; old streams die naturally
         }
 
+        // F6: cache the ACTIVE node's resolved IPs for the DialStream
+        // anti-loop guard. Best-effort: on lookup failure the guard falls
+        // back to the domain rules only (BypassSuffixes / router layer).
+        r.nodeIPs = r.resolveNodeIPs(ctx, host)
+
         r.verifyExit(ctx, sess)
         return nil
+}
+
+// resolveNodeIPs resolves the node hostname (best-effort, 2s). Failure
+// yields nil — DialStream then relies on the domain-level bypass rules.
+func (r *Runtime) resolveNodeIPs(ctx context.Context, host string) []netip.Addr {
+        res := r.resolver
+        if res == nil {
+                res = net.DefaultResolver
+        }
+        lctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+        defer cancel()
+        ips, err := res.LookupIPAddr(lctx, host)
+        if err != nil || len(ips) == 0 {
+                return nil
+        }
+        out := make([]netip.Addr, 0, len(ips))
+        for _, ip := range ips {
+                if a, ok := netip.AddrFromSlice(ip.IP); ok {
+                        out = append(out, a.Unmap())
+                }
+        }
+        return out
 }
 
 // resolveLocation picks host/port from the cached server list per mode.
@@ -483,8 +545,11 @@ func dialSession(ctx context.Context, cp *fxvpn.ControlPlane, host string, port 
         return nil, "", errors.New("carrier ladder exhausted")
 }
 
-// verifyExit probes the verified exit through the fresh session; a mismatch
-// is recorded AND announced (supervisor answers via next rotation cycle).
+// verifyExit probes the verified exit through the fresh session. Review F9:
+// a FAILED PROBE (tunnel down, trace unavailable) is telemetry-distinct
+// from a verified EXIT MISMATCH — only the mismatch carries
+// ClassExitMismatch; probe failures carry ClassExitProbeFailed so the
+// mismatch statistics stay meaningful.
 func (r *Runtime) verifyExit(ctx context.Context, sess fxvpn.TunnelOpener) {
         info, err := fxvpn.ProbeExit(ctx, sess)
         r.mu.Lock()
@@ -499,7 +564,7 @@ func (r *Runtime) verifyExit(ctx context.Context, sess fxvpn.TunnelOpener) {
         r.mu.Unlock()
 
         if err != nil {
-                r.noteFailure(fxvpn.ClassExitMismatch)
+                r.noteFailure(fxvpn.ClassExitProbeFailed)
                 r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_exit_probe_failed", Detail: short(err)})
                 return
         }
@@ -512,6 +577,13 @@ func (r *Runtime) verifyExit(ctx context.Context, sess fxvpn.TunnelOpener) {
 
 // DialStream dials ONE TCP stream to addr THROUGH the serving session.
 // Self-loop targets are refused; failures feed metrics/failure class.
+//
+// F6: addr carries a resolved IP, so the guard compares it against the
+// ACTIVE node's resolved IPs (cache built at session establishment) —
+// comparing the IP against the node HOSTNAME, as before, was always false
+// and the guard was dead. Domain-level bypass (BypassSuffixes, Mozilla/
+// Fastly hosts) belongs to the scoped router / DNS layer BEFORE resolution;
+// this in-code guard is the last-resort net for node-IP dials.
 func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
         host := addr.Addr().String()
         if IsBypassDomain(host) {
@@ -526,6 +598,7 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
         r.mu.Lock()
         sess := r.session
         nodeHost := hostOf(r.sessionHost)
+        nodeIPs := r.nodeIPs
         r.mu.Unlock()
         if sess == nil {
                 r.recordDial(false)
@@ -534,6 +607,12 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
         if nodeHost != "" && strings.EqualFold(host, nodeHost) {
                 r.recordDial(false)
                 return nil, ErrFxvpnSelfLoop
+        }
+        for _, ip := range nodeIPs {
+                if ip == addr.Addr().Unmap() {
+                        r.recordDial(false)
+                        return nil, ErrFxvpnSelfLoop
+                }
         }
         conn, err := sess.OpenTunnel(ctx, net.JoinHostPort(host, strconv.Itoa(int(addr.Port()))))
         if err != nil {
@@ -625,12 +704,11 @@ func (r *Runtime) Locations(ctx context.Context) (LocationsView, error) {
         if err != nil {
                 return LocationsView{}, err
         }
-        countries, fromCache, gerr := sl.Get(ctx)
+        countries, _, gerr := sl.Get(ctx)
         if gerr != nil {
                 return LocationsView{}, gerr
         }
-        _ = fromCache
-        view := LocationsView{}
+        view := LocationsView{FetchedAt: sl.FetchedAt()}
         for _, c := range countries {
                 cv := CountryView{Code: c.Code, Name: c.Name}
                 for _, city := range c.Cities {
@@ -646,20 +724,18 @@ func (r *Runtime) Locations(ctx context.Context) (LocationsView, error) {
                 }
                 view.Countries = append(view.Countries, cv)
         }
-        r.mu.Lock()
-        if r.sl != nil {
-                view.FetchedAt = time.Time{} // filled below from cache snapshot
-        }
-        r.mu.Unlock()
         return view, nil
 }
 
 // SetLocation applies a validated desired location IN MEMORY and kicks one
 // supervision cycle. Persistence of b4.json belongs to the generic config
 // API (the GUI saves it there); this endpoint answers with the fresh status.
+// Review F10: the rebuild is ADMINISTRATIVE — it bypasses the automatic
+// restart cap so seven location changes per hour cannot brick the switch.
 func (r *Runtime) SetLocation(loc config.FxVPNLocation) {
         r.mu.Lock()
         r.cfg.Location = loc
+        r.adminRebuild = true
         // Force rebuild on next ensure: retire current session descriptor.
         if s := r.session; s != nil {
                 _ = s.Close()

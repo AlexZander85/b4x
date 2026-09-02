@@ -490,6 +490,30 @@ func TestH2RelayOutlivesOpenBudget(t *testing.T) {
         }
 }
 
+// TestTunnelWriteBufferWrapDrainsAcrossRing pins review L5: one read
+// carries data across the ring's wrap point. The old contiguous-tail copy
+// split a wrapped "gh|ijkl" payload into a 2-byte short read.
+func TestTunnelWriteBufferWrapDrainsAcrossRing(t *testing.T) {
+        b := newTunnelWriteBuffer(8)
+        if _, err := b.Write([]byte("abcdef")); err != nil {
+                t.Fatalf("write: %v", err)
+        }
+        got := make([]byte, 16)
+        n, err := b.Read(got)
+        if err != nil || n != 6 || string(got[:n]) != "abcdef" {
+                t.Fatalf("first read = %d %q err=%v", n, got[:n], err)
+        }
+
+        // "ghijkl" wraps: "gh" lands at the ring tail, "ijkl" at the head.
+        if _, err := b.Write([]byte("ghijkl")); err != nil {
+                t.Fatalf("wrap write: %v", err)
+        }
+        n, err = b.Read(got)
+        if err != nil || n != 6 || string(got[:n]) != "ghijkl" {
+                t.Fatalf("wrap read = %d %q err=%v (short read at the wrap?)", n, got[:n], err)
+        }
+}
+
 // ---- helpers shared by carrier tests ----------------------------------------
 
 func asConnectRejected(err error, target **ConnectRejectedError) bool {

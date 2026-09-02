@@ -356,8 +356,12 @@ func newTunnelWriteBuffer(size int) *tunnelWriteBuffer {
 }
 
 // Read drains buffered data, blocking while the buffer is empty and still
-// open. A read that reaches the end of the ring returns a short read rather
-// than wrapping, which io.Reader permits.
+// open. Review L5: once data is available the read drains EVERYTHING the
+// ring currently holds, walking across the wrap point — the old
+// contiguous-tail copy returned a short read in the middle of the ring
+// (legal io.Reader, but the http2 request-body path dislikes it). The
+// streaming contract is unchanged: the read returns as soon as the buffered
+// data is drained; it does NOT wait to fill p.
 func (b *tunnelWriteBuffer) Read(p []byte) (int, error) {
         b.mu.Lock()
         defer b.mu.Unlock()
@@ -370,15 +374,19 @@ func (b *tunnelWriteBuffer) Read(p []byte) (int, error) {
                 }
                 return 0, io.EOF
         }
-        end := b.off + b.n
-        if end > len(b.buf) {
-                end = len(b.buf)
+        total := 0
+        for total < len(p) && b.n > 0 {
+                end := b.off + b.n
+                if end > len(b.buf) {
+                        end = len(b.buf)
+                }
+                n := copy(p[total:], b.buf[b.off:end])
+                b.off = (b.off + n) % len(b.buf)
+                b.n -= n
+                total += n
         }
-        n := copy(p, b.buf[b.off:end])
-        b.off = (b.off + n) % len(b.buf)
-        b.n -= n
         b.notFull.Broadcast()
-        return n, nil
+        return total, nil
 }
 
 // Write blocks only while the buffer is full.

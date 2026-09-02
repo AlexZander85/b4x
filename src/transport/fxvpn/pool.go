@@ -49,6 +49,10 @@ const (
         EvPoolBlocked      = "fxvpn_pool_blocked"
         EvAccountExhausted = "fxvpn_account_exhausted"
         EvAccountRecycled  = "fxvpn_account_recycled"
+        // EvAccountBanned is the ACCOUNT-level terminal verdict (review L2):
+        // fxvpn_pool_blocked stays reserved for the structural "no servable
+        // account at all" announcement.
+        EvAccountBanned = "fxvpn_account_banned"
 )
 
 var ErrPoolBlocked = errors.New("fxvpn: account pool blocked (no servable account)")
@@ -218,7 +222,9 @@ func (p *Pool) refreshFailed(rt *accountRT, err error) error {
         rt.nextTryAt = p.cfg.Now().Add(base + p.cfg.Jitter())
         if rt.refreshFails >= p.cfg.RefreshMaxAttempts {
                 rt.state = StateBanned
-                p.emit(PoolEvent{Type: EvPoolBlocked, Label: labelOf(rt), Detail: "account banned after repeated refresh failures"})
+                // Account-level event (review L2): pool_blocked is reserved for
+                // the structural "no servable account" verdict.
+                p.emit(PoolEvent{Type: EvAccountBanned, Label: labelOf(rt), Detail: "banned after repeated refresh failures"})
                 return nil // pool-level concern, not a hard error
         }
         rt.state = StateVerifying
@@ -255,14 +261,15 @@ func (p *Pool) fetchPass(ctx context.Context, rt *accountRT, accessToken string)
                 p.mu.Lock()
                 rt.state = StateRefused
                 p.mu.Unlock()
-                p.emit(PoolEvent{Type: EvPoolBlocked, Label: labelOf(rt), Detail: "entitlement refused"})
+                p.emit(PoolEvent{Type: EvAccountBanned, Label: labelOf(rt), Detail: "entitlement refused"})
                 return nil, nil //nolint:nilnil
         }
         return nil, err // pin mismatch / challenge / transport: fail-closed upward
 }
 
-// markExhausted records quota death for an account (mu held by caller where
-// noted; this variant locks itself when called from fetch paths).
+// markExhausted records quota death for an account. It does NOT lock (the
+// callers hold p.mu — MarkExhausted and the fetch/poll paths); the comment
+// previously suggested the opposite, which misled readers (review L4).
 func (p *Pool) markExhausted(rt *accountRT, reset time.Time) {
         rt.state = StateExhausted
         rt.resetAt = reset
@@ -409,9 +416,7 @@ func (p *Pool) warmCandidate(ctx context.Context, rt *accountRT) (*ProxyPassInfo
         }
         needRefresh := rt.access == nil || now.Add(p.cfg.PassRenewLead).After(rt.accessExpireAt)
         hasRT := rt.acct.RefreshToken != ""
-        rtState := rt.state
         p.mu.Unlock()
-        _ = rtState
 
         if needRefresh {
                 if !hasRT {
