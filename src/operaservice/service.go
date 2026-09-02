@@ -31,6 +31,7 @@ import (
         "net/netip"
         "strings"
         "sync"
+        "time"
 
         "github.com/daniellavrushin/b4/config"
         opera "github.com/daniellavrushin/b4/transport/opera"
@@ -104,7 +105,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 
         client := opts.Client
         if client == nil {
-                dial := failoverDialer(nil, opts.Carrier)
+                dial := failoverDialerFn(nil, opts.Carrier)
                 c, err := opera.New(opera.Options{
                         DialContext: dial,
                         Slot:        &opera.IdentityStore{Path: oc.IdentityPath},
@@ -129,27 +130,104 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
         return &Runtime{cfg: oc, client: client, sup: sup}, nil
 }
 
-// failoverDialer composes direct-first / carrier-second egress.
-func failoverDialer(direct, carrier DialFunc) DialFunc {
+// failoverDialer composes direct-first / carrier-second egress with a
+// negative cache on the direct stage (review E-OPERA H2): the direct dial
+// is hard-bounded at 5s (the OS-level ~2min black hole made every data
+// dial AND every supervisor probe pay full price on a blocked egress), and
+// after two consecutive direct failures the stage is considered dead for a
+// 60s TTL — dials then go carrier-first, with a periodic direct self-heal
+// probe when the carrier also fails.
+const (
+        directDialTimeout   = 5 * time.Second
+        directFailThreshold = 2
+        directDeadTTL       = 60 * time.Second
+)
+
+type failoverDial struct {
+        direct  DialFunc
+        carrier DialFunc
+
+        now func() time.Time
+
+        mu              sync.Mutex
+        directFails     int
+        directDeadUntil time.Time
+}
+
+func newFailoverDial(direct, carrier DialFunc) *failoverDial {
         if direct == nil {
-                d := &net.Dialer{}
+                d := &net.Dialer{Timeout: directDialTimeout, KeepAlive: 30 * time.Second}
                 direct = d.DialContext
         }
-        if carrier == nil {
-                return direct
+        return &failoverDial{direct: direct, carrier: carrier, now: time.Now}
+}
+
+func (f *failoverDial) Dial(ctx context.Context, network, addr string) (net.Conn, error) {
+        if f.carrier == nil {
+                return f.direct(ctx, network, addr)
         }
-        return func(ctx context.Context, network, addr string) (net.Conn, error) {
-                conn, err := direct(ctx, network, addr)
+        if f.directAlive() {
+                conn, err := f.direct(ctx, network, addr)
                 if err == nil {
+                        f.recordDirect(true)
                         return conn, nil
                 }
-                cconn, cerr := carrier(ctx, network, addr)
+                f.recordDirect(false)
+                cconn, cerr := f.carrier(ctx, network, addr)
                 if cerr != nil {
                         return nil, fmt.Errorf("direct: %v; carrier: %w", err, cerr)
                 }
                 return cconn, nil
         }
+        // Direct presumed dead (negative cache): carrier-first — the typical
+        // RF-censored path pays zero direct black-hole time. If the carrier
+        // also fails, probe direct once so recovery is noticed (the record
+        // re-arms the cache when it succeeds).
+        cconn, cerr := f.carrier(ctx, network, addr)
+        if cerr == nil {
+                return cconn, nil
+        }
+        dconn, derr := f.direct(ctx, network, addr)
+        if derr == nil {
+                f.recordDirect(true)
+                return dconn, nil
+        }
+        return nil, fmt.Errorf("carrier: %v; direct: %w", cerr, derr)
 }
+
+func (f *failoverDial) directAlive() bool {
+        f.mu.Lock()
+        defer f.mu.Unlock()
+        return f.now().After(f.directDeadUntil)
+}
+
+func (f *failoverDial) recordDirect(ok bool) {
+        f.mu.Lock()
+        defer f.mu.Unlock()
+        if ok {
+                f.directFails = 0
+                f.directDeadUntil = time.Time{} // self-heal re-arms the stage immediately
+                return
+        }
+        f.directFails++
+        if f.directFails >= directFailThreshold {
+                f.directDeadUntil = f.now().Add(directDeadTTL)
+                f.directFails = 0 // fresh count for the next TTL window
+        }
+}
+
+// failoverDialerFn keeps the historical constructor shape used by Build
+// and the unit tests.
+func failoverDialerFn(direct, carrier DialFunc) DialFunc {
+        f := newFailoverDial(direct, carrier)
+        if f.carrier == nil {
+                return f.direct
+        }
+        return f.Dial
+}
+
+// failoverDialer (func-typed legacy alias) — kept for test parity.
+func failoverDialer(direct, carrier DialFunc) DialFunc { return failoverDialerFn(direct, carrier) }
 
 // Start launches the health supervisor loop (daemon mode only). The config
 // gate (system.opera.enabled) belongs to the caller, like warpservice.
@@ -202,7 +280,7 @@ func (r *Runtime) SupportsUDP() bool { return false }
 type Status struct {
         opera.HealthStatus
         Enabled      bool   `json:"enabled"`
-        Transport    string `json:"transport"`     // constant "tcp-only"
+        Transport    string `json:"transport"` // constant "tcp-only"
         FakeSNI      string `json:"fake_sni,omitempty"`
         IdentityPath string `json:"identity_path"`
 }

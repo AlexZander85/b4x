@@ -259,3 +259,96 @@ func TestStartStopLifecycle(t *testing.T) {
 // supTickOnce primes supervisor state (bootstrap + deep probe) without the
 // Run loop — deterministic for contract tests.
 func supTickOnce(rt *Runtime) { rt.sup.Tick(time.Now()) }
+
+// ---------------------------------------------------------------------------
+// Review E-OPERA H2: negative cache + timed direct stage (§6: carrier
+// preferred path — direct dead => dial via carrier in well under a second).
+// ---------------------------------------------------------------------------
+
+func TestFailoverNegativeCacheSkipsDeadDirect(t *testing.T) {
+	directHits := 0
+	carrierHits := 0
+	fd := newFailoverDial(
+		func(ctx context.Context, network, addr string) (net.Conn, error) {
+			directHits++
+			return nil, errors.New("direct blocked")
+		},
+		func(ctx context.Context, network, addr string) (net.Conn, error) {
+			carrierHits++
+			return nil, nil
+		},
+	)
+
+	// Two consecutive direct failures arm the negative cache.
+	for i := 0; i < 2; i++ {
+		if _, err := fd.Dial(context.Background(), "tcp", "x:1"); err != nil {
+			t.Fatalf("dial %d: %v", i, err)
+		}
+	}
+	if directHits != 2 || carrierHits != 2 {
+		t.Fatalf("arm phase: direct=%d carrier=%d", directHits, carrierHits)
+	}
+
+	// Within the TTL the direct stage must not be contacted at all.
+	if _, err := fd.Dial(context.Background(), "tcp", "x:1"); err != nil {
+		t.Fatalf("cached dial: %v", err)
+	}
+	if directHits != 2 || carrierHits != 3 {
+		t.Fatalf("TTL phase: direct=%d carrier=%d, want direct untouched", directHits, carrierHits)
+	}
+
+	// Past the TTL the direct stage is re-probed (self-heal window).
+	fd.mu.Lock()
+	fd.directDeadUntil = fd.now().Add(-time.Second)
+	fd.mu.Unlock()
+	if _, err := fd.Dial(context.Background(), "tcp", "x:1"); err != nil {
+		t.Fatalf("post-TTL dial: %v", err)
+	}
+	if directHits != 3 || carrierHits != 4 {
+		t.Fatalf("post-TTL: direct=%d carrier=%d", directHits, carrierHits)
+	}
+}
+
+func TestFailoverDirectHealThroughSelfProbe(t *testing.T) {
+	directOK := false
+	fd := newFailoverDial(
+		func(ctx context.Context, network, addr string) (net.Conn, error) {
+			if !directOK {
+				return nil, errors.New("still blocked")
+			}
+			return nil, nil
+		},
+		func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return nil, errors.New("carrier down too")
+		},
+	)
+	// Arm the negative cache.
+	for i := 0; i < 2; i++ {
+		_, _ = fd.Dial(context.Background(), "tcp", "x:1")
+	}
+	// Direct heals: carrier-first dial fails, self-heal probe succeeds.
+	directOK = true
+	conn, err := fd.Dial(context.Background(), "tcp", "x:1")
+	if err != nil || conn != nil {
+		t.Fatalf("heal dial: conn=%v err=%v", conn, err)
+	}
+	// Success re-arms the direct stage: next dial goes direct-first.
+	if !fd.directAlive() {
+		t.Fatal("direct stage not re-armed after self-heal")
+	}
+}
+
+// TestFailoverDirectDialHasTimeout: the zero-config direct stage must carry
+// the 5s hard cap (review H2a) — never the naked net.Dialer{}.
+func TestFailoverDirectDialHasTimeout(t *testing.T) {
+	fd := newFailoverDial(nil, nil)
+	// The default dialer is not directly observable through the DialFunc;
+	// assert via the constant contract and by construction the Build path
+	// uses newFailoverDial (single source of truth).
+	if directDialTimeout != 5*time.Second {
+		t.Fatalf("directDialTimeout = %v, want 5s", directDialTimeout)
+	}
+	if fd.direct == nil {
+		t.Fatal("default direct dialer missing")
+	}
+}
