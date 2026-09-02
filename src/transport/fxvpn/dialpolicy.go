@@ -10,10 +10,10 @@
 package fxvpn
 
 import (
-	"context"
-	"net"
-	"syscall"
-	"time"
+        "context"
+        "net"
+        "syscall"
+        "time"
 )
 
 const policyDialTimeout = 10 * time.Second
@@ -21,40 +21,49 @@ const policyDialTimeout = 10 * time.Second
 // DialPolicy is applied via net.Dialer/net.ListenConfig Control right after
 // socket() and before connect/bind.
 type DialPolicy struct {
-	// FwMark sets SO_MARK (Linux); value opaque here by design.
-	FwMark uint32
-	// BindDevice pins the socket to the named interface (SO_BINDTODEVICE).
-	BindDevice string
-	// RequireMark fails closed when mark application is not possible.
-	RequireMark bool
+        // FwMark sets SO_MARK (Linux); value opaque here by design.
+        FwMark uint32
+        // BindDevice pins the socket to the named interface (SO_BINDTODEVICE).
+        BindDevice string
+        // RequireMark fails closed when mark application is not possible.
+        RequireMark bool
+        // TTL caps the socket's IP hop limit (IP_TTL / IPV6_UNICAST_HOPS) —
+        // the preflight-fake bait dies in transit by design (masquerade
+        // §7.4.1); zero keeps the OS default. Only ever set on the THROWAWAY
+        // fake socket: TTL tricks on a live flow are forbidden (§7.8.2).
+        TTL int
 }
 
 // applyControl implements the platform hook.
 func (p DialPolicy) applyControl(_ string, _ string, c syscall.RawConn) error {
-	return applyControlPlatform(p, c)
+        return applyControlPlatform(p, c)
 }
 
 // Dialer returns a net.Dialer carrying this policy (TCP branch: H2 tunnels).
 func (p DialPolicy) Dialer() *net.Dialer {
-	return &net.Dialer{
-		Timeout: policyDialTimeout,
-		ControlContext: func(_ context.Context, network, address string, c syscall.RawConn) error {
-			return p.applyControl(network, address, c)
-		},
-	}
+        return &net.Dialer{
+                Timeout: policyDialTimeout,
+                ControlContext: func(_ context.Context, network, address string, c syscall.RawConn) error {
+                        return p.applyControl(network, address, c)
+                },
+        }
 }
 
 // ListenConfig returns a net.ListenConfig carrying this policy (UDP branch:
 // H3 carrier socket handed to quic.Transport/quic.Dial).
 func (p DialPolicy) ListenConfig() *net.ListenConfig {
-	return &net.ListenConfig{
-		Control: func(_ string, _ string, c syscall.RawConn) error {
-			return p.applyControl("", "", c)
-		},
-	}
+        return &net.ListenConfig{
+                Control: func(_ string, _ string, c syscall.RawConn) error {
+                        return p.applyControl("", "", c)
+                },
+        }
 }
 
 // Constrained reports whether the policy actually pins the path.
 func (p DialPolicy) Constrained() bool {
-	return p.FwMark != 0 || p.BindDevice != ""
+        return p.FwMark != 0 || p.BindDevice != ""
 }
+
+// ttlActive reports whether the policy caps the hop limit (the throwaway
+// preflight-fake socket; masquerade §7.4.1).
+func (p DialPolicy) ttlActive() bool { return p.TTL > 0 }

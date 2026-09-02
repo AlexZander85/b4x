@@ -61,6 +61,9 @@ type TunnelConfig struct {
         // the server list serves names, H3 dials IPs). nil = net.DefaultResolver.
         // The SNI stays the NAME regardless of the resolved address.
         Resolver resolver
+        // Masquerade carries the resolved anti-DPI settings (zero value =
+        // shipping defaults apply where semantics demand, see fillDefaults).
+        Masquerade MasqueradeSettings
 }
 
 // resolver is the lookup seam (*net.Resolver satisfies it); a narrow local
@@ -75,6 +78,12 @@ func (c *TunnelConfig) fillDefaults() {
         }
         if c.OpenBudget <= 0 {
                 c.OpenBudget = 20 * time.Second
+        }
+        // Masquerade defaults: a zero MasqueradeSettings is the "unset" case
+        // and resolves to the shipping profile (firefox + shaping + 1250) —
+        // the transport must not look like a Go robot by accident.
+        if c.Masquerade.Profile == "" {
+                c.Masquerade = DefaultMasquerade()
         }
 }
 

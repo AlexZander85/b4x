@@ -54,6 +54,8 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
                         tlsCfg.ServerName = cfg.Host
                 }
         }
+        // Masquerade §7.4.3: Firefox cipher/curve offer on the H2 handshake.
+        cfg.Masquerade.ApplyHelloShaping(tlsCfg)
         raw, err := tls.DialWithDialer(d, "tcp", authority, tlsCfg)
         if err != nil {
                 return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, err)

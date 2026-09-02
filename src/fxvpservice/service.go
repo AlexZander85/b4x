@@ -181,6 +181,8 @@ type Runtime struct {
         resolver     hostResolver
         nodeIPs      []netip.Addr // resolved ACTIVE node (anti-loop, F6; per session)
 
+        masq fxvpn.MasqueradeSettings // resolved masquerade (review chapter 7)
+
         bytesUp     uint64        // relay bytes out (F7b)
         bytesDown   uint64        // relay bytes in (F7b)
         nodeStrikes map[string]int // consecutive dial failures per node host:port (F8)
@@ -211,7 +213,15 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
         }
 
         store := fxvpn.NewAccountStore(fc.AccountsPath)
-        r := &Runtime{cfg: fc, cp: cp, quotaPollInterval: opts.QuotaPollInterval, resolver: opts.Resolver}
+        r := &Runtime{
+                cfg:               fc,
+                cp:                cp,
+                quotaPollInterval: opts.QuotaPollInterval,
+                resolver:          opts.Resolver,
+                masq: fxvpn.ResolveMasquerade(fc.Masquerade.Profile, fc.Masquerade.PreflightFake,
+                        fc.Masquerade.FakeSNI, fc.Masquerade.FakeTTL, fc.Masquerade.FakeCount,
+                        fc.Masquerade.InitialPadding, fc.Masquerade.HelloShaping),
+        }
         r.preferH3.Store(fc.PreferH3)
         r.guard.now = opts.Now
 
@@ -445,7 +455,7 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
                 return lerr
         }
 
-        sess, carrier, serr := dialSession(ctx, r.cp, host, port, bearerRaw, r.preferH3.Load())
+        sess, carrier, serr := dialSession(ctx, r.cp, host, port, bearerRaw, r.preferH3.Load(), r.masq)
         if serr != nil {
                 // F8: consecutive dial failures degrade the node; after the
                 // threshold the candidate selection rotates to the next server.
@@ -574,8 +584,9 @@ func (r *Runtime) pickCandidate(cands []fxvpn.ConnectCandidate) fxvpn.ConnectCan
 
 // dialSession establishes the carrier per ladder preference: H3 first when
 // configured with exactly one confirmed-class fallback to H2; otherwise H2.
-func dialSession(ctx context.Context, cp *fxvpn.ControlPlane, host string, port int, bearerRaw string, preferH3 bool) (fxvpn.TunnelOpener, string, error) {
-        cfg := fxvpn.TunnelConfig{Host: host, Port: port, Token: bearerRaw}
+// masq rides the TunnelConfig into both carriers (review chapter 7).
+func dialSession(ctx context.Context, cp *fxvpn.ControlPlane, host string, port int, bearerRaw string, preferH3 bool, masq fxvpn.MasqueradeSettings) (fxvpn.TunnelOpener, string, error) {
+        cfg := fxvpn.TunnelConfig{Host: host, Port: port, Token: bearerRaw, Masquerade: masq}
         ladder := fxvpn.NewLadder(fxvpn.LadderConfig{PreferH3: preferH3})
         pick := ladder.Preferred()
         for attempt := 0; attempt < 2; attempt++ {
