@@ -947,8 +947,19 @@ type Status struct {
 	BytesDown     uint64               `json:"bytes_down"`
 	Nested        bool                 `json:"nested"`
 	BaitActive    bool                 `json:"bait_active"`
+	Masquerade    MasqueradeView       `json:"masquerade"`
 	RestartCapHit bool                 `json:"restart_cap_hit"`
 	Events        []fxvpn.PoolEvent    `json:"events,omitempty"`
+}
+
+// MasqueradeView summarizes the active masquerade rung for the GUI
+// (FX-M4): profile, fingerprint producer, the bait switch and the shaped
+// hello flag — the observability half of the §7.5 carrier ladder.
+type MasqueradeView struct {
+	Profile       string `json:"profile"`
+	Fingerprint   string `json:"fingerprint"`
+	PreflightFake bool   `json:"preflight_fake"`
+	HelloShaping  bool   `json:"hello_shaping"`
 }
 
 // Status implements the honest running/listening split:
@@ -974,7 +985,13 @@ func (r *Runtime) Status() Status {
 		BytesDown:    atomic.LoadUint64(&r.bytesDown),
 		Nested:       r.nested,
 		BaitActive:   r.bait.active(),
-		Events:       append([]fxvpn.PoolEvent(nil), r.events...),
+		Masquerade: MasqueradeView{
+			Profile:       string(r.masq.Profile),
+			Fingerprint:   r.masq.Fingerprint,
+			PreflightFake: r.masq.PreflightFake,
+			HelloShaping:  r.masq.HelloShaping,
+		},
+		Events: append([]fxvpn.PoolEvent(nil), r.events...),
 	}
 	listening := false
 	if s := r.session; s != nil && s.IsAlive() {

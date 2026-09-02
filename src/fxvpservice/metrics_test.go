@@ -153,3 +153,45 @@ func fxCounterValue(t *testing.T, name, labelKey, labelVal string) (uint64, bool
 	}
 	return 0, false
 }
+
+// TestFxvpnMasqueradeGauges pins FX-M4: the nested/bait rungs are exported
+// as gauges (observable switches — §7.8.3) and the Status view carries the
+// masquerade summary.
+func TestFxvpnMasqueradeGauges(t *testing.T) {
+	observability.Default().Metrics.Reset()
+	t.Cleanup(func() { observability.Default().Metrics.Reset() })
+
+	cfg := &config.Config{}
+	rt, err := Build(cfg, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	rt.exportPoolMetrics()
+
+	if v, ok := fxGaugeValueNoLabels(t, observability.MetricFxvpnNested); !ok || v != 0 {
+		t.Fatalf("fxvpn_nested = %d (present=%t), want 0", v, ok)
+	}
+	// Bait not configured: the gauge reports 0 (explicit zero, not absent —
+	// the series must not disappear between scrapes).
+	if v, ok := fxGaugeValueNoLabels(t, observability.MetricFxvpnBaitActive); !ok || v != 0 {
+		t.Fatalf("fxvpn_bait_active = %d (present=%t), want explicit 0", v, ok)
+	}
+
+	st := rt.Status()
+	if st.Masquerade.Profile != "firefox" || st.Masquerade.Fingerprint != "firefox" {
+		t.Fatalf("default masquerade view = %+v", st.Masquerade)
+	}
+	if !st.Masquerade.HelloShaping || st.Masquerade.PreflightFake {
+		t.Fatalf("default masquerade view = %+v (bait is config-gated)", st.Masquerade)
+	}
+}
+
+func fxGaugeValueNoLabels(t *testing.T, name string) (uint64, bool) {
+	t.Helper()
+	for _, g := range observability.Default().Metrics.Snapshot(time.Now()).Gauges {
+		if g.Name == name {
+			return g.Value, true
+		}
+	}
+	return 0, false
+}

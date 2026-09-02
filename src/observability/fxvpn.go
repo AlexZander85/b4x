@@ -17,4 +17,10 @@ const (
         // MetricFxvpnBytesTotal counts the data-plane relay bytes of the fxvpn
         // reserve transport (review F7b). Labels: dir=up|down.
         MetricFxvpnBytesTotal = "fxvpn_bytes_total"
+        // MetricFxvpnNested is the carrier-nesting gauge (review §7.5/FX-M4):
+        // 1 while the data plane rides the base-tunnel carrier, 0 otherwise.
+        MetricFxvpnNested = "fxvpn_nested"
+        // MetricFxvpnBaitActive is the NFQ bait confirmation gauge (FX-M3/M4):
+        // 1 only after the tables layer confirmed the OUTPUT rule.
+        MetricFxvpnBaitActive = "fxvpn_bait_active"
 )
