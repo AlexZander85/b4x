@@ -35,6 +35,10 @@ const (
 var errH2Unavailable = errors.New("fxvpn: proxy did not negotiate HTTP/2")
 
 // DialH2 establishes one upstream H2 CONNECT session.
+// Masquerade FX-M1: the ClientHello producer follows MasqueradeSettings —
+// "firefox" dials TCP and handshakes with the uTLS Firefox profile
+// (WebPKI verification preserved through the callback); "none" keeps the
+// plain-Go path with the FX-M0 tuning.
 func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
         cfg.fillDefaults()
         authority := cfg.Authority()
@@ -54,15 +58,36 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
                         tlsCfg.ServerName = cfg.Host
                 }
         }
-        // Masquerade §7.4.3: Firefox cipher/curve offer on the H2 handshake.
+        // Masquerade §7.4.3: Firefox cipher/curve offer on the H2 handshake
+        // (the plain-Go rung; the uTLS rung carries its own profile).
         cfg.Masquerade.ApplyHelloShaping(tlsCfg)
-        raw, err := tls.DialWithDialer(d, "tcp", authority, tlsCfg)
-        if err != nil {
-                return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, err)
-        }
-        if raw.ConnectionState().NegotiatedProtocol != "h2" {
-                _ = raw.Close()
-                return nil, errH2Unavailable
+
+        var raw net.Conn
+        if cfg.Masquerade.fingerprintActive() {
+                tconn, derr := d.DialContext(ctx, "tcp", authority)
+                if derr != nil {
+                        return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, derr)
+                }
+                uc, uerr := dialUTLSClient(ctx, tconn, cfg.Host, cfg.Masquerade, verifyWebPKIUTLS(cfg.Host, tlsCfg.RootCAs, tlsCfg.InsecureSkipVerify))
+                if uerr != nil {
+                        _ = tconn.Close()
+                        return nil, fmt.Errorf("fxvpn: h2 utls %s: %w", authority, uerr)
+                }
+                if got := uc.ConnectionState().NegotiatedProtocol; got != "h2" {
+                        _ = uc.Close()
+                        return nil, errH2Unavailable
+                }
+                raw = uc
+        } else {
+                tc, derr := tls.DialWithDialer(d, "tcp", authority, tlsCfg)
+                if derr != nil {
+                        return nil, fmt.Errorf("fxvpn: h2 dial %s: %w", authority, derr)
+                }
+                if tc.ConnectionState().NegotiatedProtocol != "h2" {
+                        _ = tc.Close()
+                        return nil, errH2Unavailable
+                }
+                raw = tc
         }
 
         tr := &http2.Transport{
@@ -90,9 +115,11 @@ func DialH2(ctx context.Context, cfg TunnelConfig) (*H2Tunnel, error) {
         return s, nil
 }
 
-// H2Tunnel is one live upstream HTTP/2 CONNECT session.
+// H2Tunnel is one live upstream HTTP/2 CONNECT session. raw is either a
+// *tls.Conn (plain-Go rung) or a *utls.UConn (Firefox fingerprint rung) —
+// both are net.Conn and both closed identically.
 type H2Tunnel struct {
-        raw           *tls.Conn
+        raw           net.Conn
         cc            *http2.ClientConn
         edgeAuthority string
         cfg           TunnelConfig
