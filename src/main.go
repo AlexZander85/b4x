@@ -34,6 +34,7 @@ import (
         "github.com/daniellavrushin/b4/observability"
         "github.com/daniellavrushin/b4/protonservice"
         "github.com/daniellavrushin/b4/quic"
+        "github.com/daniellavrushin/b4/reserve"
         "github.com/daniellavrushin/b4/serviceprofile"
         "github.com/daniellavrushin/b4/socks5"
         "github.com/daniellavrushin/b4/tables"
@@ -638,9 +639,12 @@ func runB4(cmd *cobra.Command, args []string) error {
         // E-PROTON reserve transport (design v2; control plane in
         // src/transport/proton, data plane reuses the transport/wg engine).
         // Zero goroutines and zero wire calls unless system.proton.enabled=true
-        // — the default config keeps the section off. The carrier seam
-        // (bootstrap-through-carrier) stays nil at this stage: the base-tunnel
-        // dial is wired when the selection trees learn the proton kind (design §7).
+        // — the default config keeps the section off. The carrier seam is
+        // REGISTERED below (review P2 stage PT6b): DialStream/DialUDP + the
+        // kind=proton entry in the reserve registry the scoped-router trees
+        // consume (priority LOWEST — design §7: below WARP/MASQUE/H3, never
+        // a silent substitute). The kernel-TUN PBR path stays a separate
+        // stage (review P2 step в).
         var protonEngine *protonservice.Runtime
         if cfgPtr.Load().System.Proton.Enabled {
                 rt, err := protonservice.Build(cfgPtr.Load(), protonservice.Options{})
@@ -655,6 +659,13 @@ func runB4(cmd *cobra.Command, args []string) error {
                 }
         }
         handler.SetProtonRuntime(protonEngine) // nil-safe: the handler answers the disabled shape
+        // Review P2 (PT6b step б): register kind=proton in the selection-tree
+        // seam with its design priority. Unregistered on stop (below).
+        if protonEngine != nil {
+                reserve.Register(protonEngine)
+                log.Infof("[proton] carrier registered kind=proton priority=%d udp=%t",
+                        reserve.PriorityProton, protonEngine.SupportsUDP())
+        }
 
         // E-OPERA reserve transport (design v2; engine in src/transport/opera,
         // assembly in operaservice). Zero goroutines and zero wire calls unless
@@ -748,6 +759,7 @@ func runB4(cmd *cobra.Command, args []string) error {
                 warpEngine.Stop()
         }
         if protonEngine != nil {
+                reserve.Unregister(reserve.KindProton) // trees see the stop immediately
                 protonEngine.Stop()
         }
         if fxvpnEngine != nil {
