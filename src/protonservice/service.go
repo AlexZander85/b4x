@@ -682,11 +682,13 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 	}
 	// Runtime I1 fill (design §3.4): the catalog template stores an empty
 	// chain; the issued blob replaces InitPacket[0] before IpcSet.
+	var i1SNI string
 	if prof.I1 != "" {
 		profile.InitPacket[0] = prof.I1
 		if err := profile.Validate(); err != nil {
 			return nil, err
 		}
+		i1SNI = prof.SNI
 	}
 	v4Addr := netip.MustParseAddr(v4)
 	addrs := []netip.Addr{v4Addr}
@@ -738,6 +740,17 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 			},
 		},
 		MaxGenerations: 1,
+		// Per-handshake I1 regeneration (review P3, PT-obf1): slot 0
+		// re-renders the QUIC Initial with a FRESH DCID + randomness on
+		// every handshake; every other slot keeps its static chain. An
+		// empty render keeps the static IpcSet chain (fail-open to the
+		// issued blob, never to no-obfuscation).
+		I1Regen: func(slot int) string {
+			if slot != 0 || i1SNI == "" {
+				return ""
+			}
+			return proton.BuildQuicInitial(i1SNI, crandReader{})
+		},
 	})
 	return s, err
 }

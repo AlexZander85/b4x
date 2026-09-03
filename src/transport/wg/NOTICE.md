@@ -14,6 +14,18 @@ This package (`src/transport/wg`) embeds the following third-party Go module:
   callback (reset after unlock) and `Timer.Del` (reset under lock). Upstream
   report: pending — draft in `docs/upstream/amneziawg-timers-race-issue.md`.
 
+- `device/device.go` + `device/send.go` (E-PROTON review P3, stage PT-obf1):
+  add the optional `Device.InitPacketSpecFunc func(index int) string` seam.
+  When set, `SendHandshakeInitiation` consults it for every I-slot (0-based
+  I1..I5) and materializes the returned obf-chain spec FRESH for each
+  initiation; `""` or a malformed spec keeps the static IpcSet chain (a
+  parse failure never drops the slot to no-obfuscation). Purpose: per-hand
+  shake I1 regeneration — the proton QUIC family re-renders its QUIC Initial
+  (new DCID + randomness) on every handshake instead of re-sending one
+  byte-identical 1250-byte datagram (the static-DCID replay signature the
+  on-path DPI table flags). The field is nil in every other target — the
+  default behavior is bit-for-bit unchanged.
+
 ## Rule
 
 Any future change that modifies upstream files (vendored copy, patch, fork)

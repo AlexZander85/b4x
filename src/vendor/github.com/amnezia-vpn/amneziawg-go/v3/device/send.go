@@ -136,10 +136,24 @@ func (peer *Peer) SendHandshakeInitiation(isRetry bool) error {
 
 	var sendBuffer [][]byte
 
-	for _, ipacket := range peer.device.ipackets {
-		if ipacket != nil {
-			buf := make([]byte, ipacket.ObfuscatedLen(0))
-			ipacket.Obfuscate(buf, nil)
+	// b4 E-PROTON P3 patch: materialize the I-packet chains per initiation
+	// when the regeneration seam is set. A fresh chain re-renders the
+	// <b>-bytes (a new QUIC DCID / fresh randomness each handshake); an
+	// empty spec or a malformed one keeps the static IpcSet chain -
+	// degrading to NO obfuscation would be the worse failure, so a parse
+	// error never drops the slot.
+	for i, ipacket := range peer.device.ipackets {
+		chain := ipacket
+		if fn := peer.device.InitPacketSpecFunc; fn != nil && chain != nil {
+			if spec := fn(i); spec != "" {
+				if fresh, err := newObfChain(spec); err == nil && fresh != nil {
+					chain = fresh
+				}
+			}
+		}
+		if chain != nil {
+			buf := make([]byte, chain.ObfuscatedLen(0))
+			chain.Obfuscate(buf, nil)
 			sendBuffer = append(sendBuffer, buf)
 		}
 	}

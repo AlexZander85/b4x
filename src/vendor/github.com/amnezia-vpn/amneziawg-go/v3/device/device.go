@@ -129,6 +129,17 @@ type Device struct {
 
 	randomTrailers atomic.Bool
 	disableCookies atomic.Bool
+
+	// InitPacketSpecFunc, when non-nil, is consulted before EVERY handshake
+	// initiation (b4 E-PROTON P3 patch): for slot i (0-based I1..I5) it
+	// returns the obf-chain spec to materialize FOR THIS INITIATION;
+	// "" keeps the static IpcSet chain. This enables per-handshake I1
+	// regeneration - two consecutive handshakes never repeat the same
+	// InitPacket bytes byte-for-byte (the static chain re-sent an identical
+	// 1250-byte datagram with an identical QUIC DCID every time, the DPI
+	// replay signature). The callback must be fast and non-blocking and is
+	// read-only after device construction.
+	InitPacketSpecFunc func(index int) string
 }
 
 // deviceState represents the state of a Device.

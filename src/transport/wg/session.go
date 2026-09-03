@@ -128,6 +128,16 @@ type SessionConfig struct {
 	// VerboseDiagnostics routes per-generation device logs to stdout
 	// (debug aid; production keeps the silent logger).
 	VerboseDiagnostics bool
+	// I1Regen, when non-nil, wires the per-handshake InitPacket
+	// regeneration seam of the vendored amneziawg-go device (review P3,
+	// stage PT-obf1): for every SendHandshakeInitiation the device calls
+	// it with the 0-based I-slot and re-materializes the returned chain
+	// spec ("" = keep the static IpcSet chain). The proton QUIC family
+	// uses it to render a FRESH QUIC Initial (new DCID + randomness) on
+	// every handshake instead of re-sending one identical 1250-byte
+	// datagram - the static-DCID replay signature. Must be fast and
+	// non-blocking; read-only after NewSession.
+	I1Regen func(slot int) string
 }
 
 // Session owns one logical WG connection across restarts (generation bump on
@@ -425,6 +435,9 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 		dlog = DeviceLogger(nil)
 	}
 	dev := device.NewDevice(tunRes.Device, bind, dlog)
+	if s.cfg.I1Regen != nil {
+		dev.InitPacketSpecFunc = s.cfg.I1Regen
+	}
 	s.mu.Lock()
 	s.dev, s.bind, s.tun = dev, bind, tunRes
 	s.mu.Unlock()
