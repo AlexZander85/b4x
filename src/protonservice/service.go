@@ -166,6 +166,10 @@ type Options struct {
 	Now func() time.Time
 	// ExtraEvents receives every service event (metrics/GUI wiring).
 	ExtraEvents func(proton.Event)
+	// ExitProbeTLS overrides the exit-probe TLS base (*tls.Config — the
+	// fxvpn.ProbeExitTLS canon): production leaves nil and gets the default
+	// config pinned to the trace host; tests pin the fake edge certificate.
+	ExitProbeTLS any
 }
 
 // Event is one service-level taxonomy trace (name + class + detail).
@@ -204,6 +208,7 @@ type Runtime struct {
 
 	identity     *proton.Identity
 	exit         ExitView
+	exitProbing  bool // one exit probe at a time across generations
 	lastFailure  string
 	events       []proton.Event
 	stallStrikes int
@@ -695,7 +700,10 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 	node := prof.Node
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	s, err := twg.NewSession(twg.SessionConfig{
+	// s is captured by the OnEstablished closure; callbacks only fire
+	// after Start(), so the variable is always assigned by then.
+	var s *twg.Session
+	s, err = twg.NewSession(twg.SessionConfig{
 		Ident:    wgid,
 		Profile:  profile,
 		Endpoint: prof.AddrPort().String(),
@@ -719,6 +727,11 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 				r.appendEvent(proton.Event{Name: proton.EventEstablished,
 					Detail: node.Name + "@" + prof.AddrPort().String() + " " + prof.ProfileID})
 				r.recordHandshake(true)
+				// Exit verification (design §5, review P1): the probe rides
+				// the fresh data plane OFF the callback goroutine (callbacks
+				// stay non-blocking); a geo mismatch strikes the node and
+				// retires the session — the next tick re-seeks.
+				go r.verifyExit(node, prof, s)
 			},
 			OnLost: func(f twg.Failure) {
 				r.onSessionLost(node, prof, f)
