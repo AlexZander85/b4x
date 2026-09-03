@@ -33,6 +33,29 @@ type WarpConfig struct {
 	// after the connect. Default false — the strict discipline stays the
 	// shipping behavior.
 	DeferRevalidation bool `json:"defer_revalidation"`
+	// Masquerade is the anti-DPI section for the MASQUE H3 carrier (review
+	// chapter 7 of the E-FXVPN review, applied to this transport via the
+	// b4x quic-go fork). Zero values keep the vanilla crypto/tls handshake.
+	Masquerade WarpMasqueradeConfig `json:"masquerade"`
+}
+
+// WarpMasqueradeConfig configures the uTLS ClientHello of the MASQUE H3
+// carrier. Fingerprint: "chrome120" (recommended — the legitimate WARP
+// client is boringssl-based, so the Chrome-shaped hello is the closest
+// legal profile), "firefox" (experimental), "" (default — vanilla).
+type WarpMasqueradeConfig struct {
+	Fingerprint string `json:"fingerprint"`
+}
+
+// Validate checks the masquerade section shape (dial-time errors would
+// otherwise surface as opaque handshake failures).
+func (m WarpMasqueradeConfig) Validate() error {
+	switch m.Fingerprint {
+	case "", "chrome120", "firefox":
+		return nil
+	default:
+		return fmt.Errorf("system.warp.masquerade.fingerprint %q invalid (empty, chrome120 or firefox)", m.Fingerprint)
+	}
 }
 
 // EffectiveEndpoint resolves the configured endpoint against the versioned

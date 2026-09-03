@@ -113,6 +113,15 @@ func DialH3(ctx context.Context, cfg TunnelConfig) (*H3Tunnel, error) {
 	if cfg.Masquerade.InitialPadding >= 1200 && cfg.Masquerade.InitialPadding <= 1400 {
 		quicCfg.InitialPacketSize = uint16(cfg.Masquerade.InitialPadding)
 	}
+	// Masquerade FX-M1 (QUIC leg, b4x quic-go fork): the firefox profile
+	// swaps the crypto/tls ClientHello for the uTLS Firefox one. The fork
+	// preserves verification semantics and degrades to vanilla on a spec
+	// failure (connectivity first). nil (off/go-plain) keeps vanilla bytes.
+	if cfg.Masquerade.fingerprintActive() {
+		if id := utlsClientHelloID(cfg.Masquerade.Fingerprint); id != nil {
+			quicCfg.UTLSClientHelloID = id
+		}
+	}
 	conn, err := quic.Dial(dctx, uc, &net.UDPAddr{IP: ip, Port: cfg.Port}, tlsCfg, quicCfg)
 	if err != nil {
 		_ = uc.Close()

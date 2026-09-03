@@ -24,28 +24,44 @@
 package fxvpn
 
 import (
-        "context"
-        "crypto/x509"
-        "fmt"
-        "net"
+	"context"
+	"crypto/x509"
+	"fmt"
+	"net"
 
-        utls "github.com/refraction-networking/utls"
+	utls "github.com/refraction-networking/utls"
 )
 
 // Fingerprint identifiers for MasqueradeSettings.Fingerprint.
 const (
-        // FingerprintFirefox: the uTLS Firefox auto profile (HelloFirefox_Auto
-        // = Firefox 120 in uTLS v1.8) — the shipping default of the firefox
-        // masquerade profile.
-        FingerprintFirefox = "firefox"
-        // FingerprintNone: plain Go crypto/tls with the FX-M0 tuning only (the
-        // ladder fallback rung).
-        FingerprintNone = "none"
+	// FingerprintFirefox: the uTLS Firefox auto profile (HelloFirefox_Auto
+	// = Firefox 120 in uTLS v1.8) — the shipping default of the firefox
+	// masquerade profile.
+	FingerprintFirefox = "firefox"
+	// FingerprintNone: plain Go crypto/tls with the FX-M0 tuning only (the
+	// ladder fallback rung).
+	FingerprintNone = "none"
 )
+
+// utlsClientHelloID maps a fingerprint name onto the uTLS preset ("firefox"
+// -> HelloFirefox_Auto, "chrome120" -> HelloChrome_120); nil = vanilla.
+// The QUIC leg (b4x quic-go fork) and the TCP leg share this mapping.
+func utlsClientHelloID(name string) *utls.ClientHelloID {
+	switch name {
+	case FingerprintFirefox:
+		id := utls.HelloFirefox_Auto
+		return &id
+	case "chrome120":
+		id := utls.HelloChrome_120
+		return &id
+	default:
+		return nil
+	}
+}
 
 // fingerprintActive reports whether the uTLS layer produces the ClientHello.
 func (m MasqueradeSettings) fingerprintActive() bool {
-        return m.Fingerprint == FingerprintFirefox
+	return m.Fingerprint == FingerprintFirefox
 }
 
 // dialUTLSClient performs the fingerprinted TLS handshake: a uTLS UConn
@@ -53,45 +69,45 @@ func (m MasqueradeSettings) fingerprintActive() bool {
 // the callback (InsecureSkipVerify only delegates the chain check to that
 // callback — the opera pattern).
 func dialUTLSClient(ctx context.Context, raw net.Conn, sni string, m MasqueradeSettings, verify func(utls.ConnectionState) error) (*utls.UConn, error) {
-        if m.Fingerprint != FingerprintFirefox {
-                return nil, fmt.Errorf("fxvpn: fingerprint %q has no ClientHello profile", m.Fingerprint)
-        }
-        cfg := &utls.Config{
-                ServerName:         sni,
-                InsecureSkipVerify: true, // verification is delegated to `verify` below
-                VerifyConnection:   verify,
-                // A Firefox first-contact hello carries no PSK; an empty PSK
-                // extension would be a fingerprint oddity of its own.
-                OmitEmptyPsk: true,
-        }
+	if m.Fingerprint != FingerprintFirefox {
+		return nil, fmt.Errorf("fxvpn: fingerprint %q has no ClientHello profile", m.Fingerprint)
+	}
+	cfg := &utls.Config{
+		ServerName:         sni,
+		InsecureSkipVerify: true, // verification is delegated to `verify` below
+		VerifyConnection:   verify,
+		// A Firefox first-contact hello carries no PSK; an empty PSK
+		// extension would be a fingerprint oddity of its own.
+		OmitEmptyPsk: true,
+	}
 
-        // Materialize the Firefox spec and swap the ALPN extension for the H2
-        // carrier offer (the documented utls pattern: spec + HelloCustom).
-        spec, err := utls.UTLSIdToSpec(utls.HelloFirefox_Auto)
-        if err != nil {
-                return nil, fmt.Errorf("fxvpn: utls firefox spec: %w", err)
-        }
-        replaced := false
-        for i, ext := range spec.Extensions {
-                if alpn, ok := ext.(*utls.ALPNExtension); ok {
-                        alpn.AlpnProtocols = []string{"h2"}
-                        spec.Extensions[i] = alpn
-                        replaced = true
-                        break
-                }
-        }
-        if !replaced {
-                spec.Extensions = append(spec.Extensions, &utls.ALPNExtension{AlpnProtocols: []string{"h2"}})
-        }
+	// Materialize the Firefox spec and swap the ALPN extension for the H2
+	// carrier offer (the documented utls pattern: spec + HelloCustom).
+	spec, err := utls.UTLSIdToSpec(utls.HelloFirefox_Auto)
+	if err != nil {
+		return nil, fmt.Errorf("fxvpn: utls firefox spec: %w", err)
+	}
+	replaced := false
+	for i, ext := range spec.Extensions {
+		if alpn, ok := ext.(*utls.ALPNExtension); ok {
+			alpn.AlpnProtocols = []string{"h2"}
+			spec.Extensions[i] = alpn
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		spec.Extensions = append(spec.Extensions, &utls.ALPNExtension{AlpnProtocols: []string{"h2"}})
+	}
 
-        uconn := utls.UClient(raw, cfg, utls.HelloCustom)
-        if err := uconn.ApplyPreset(&spec); err != nil {
-                return nil, fmt.Errorf("fxvpn: utls firefox preset: %w", err)
-        }
-        if err := uconn.HandshakeContext(ctx); err != nil {
-                return nil, err
-        }
-        return uconn, nil
+	uconn := utls.UClient(raw, cfg, utls.HelloCustom)
+	if err := uconn.ApplyPreset(&spec); err != nil {
+		return nil, fmt.Errorf("fxvpn: utls firefox preset: %w", err)
+	}
+	if err := uconn.HandshakeContext(ctx); err != nil {
+		return nil, err
+	}
+	return uconn, nil
 }
 
 // verifyWebPKIUTLS builds the verification closure for uTLS connections:
@@ -100,24 +116,24 @@ func dialUTLSClient(ctx context.Context, raw net.Conn, sni string, m MasqueradeS
 // pool; the fake-stand seam passes InsecureSkipVerify which skips exactly
 // like the plain path would). SNI-independent, resumption-safe.
 func verifyWebPKIUTLS(host string, roots *x509.CertPool, insecure bool) func(utls.ConnectionState) error {
-        return func(cs utls.ConnectionState) error {
-                if insecure {
-                        return nil // the documented test/bootstrap seam, same as the plain path
-                }
-                if len(cs.PeerCertificates) == 0 {
-                        // Resumed session: a ticket can only exist after a verified
-                        // full handshake (opera §7.4.4 comment).
-                        return nil
-                }
-                opts := x509.VerifyOptions{
-                        DNSName:       host,
-                        Roots:         roots,
-                        Intermediates: x509.NewCertPool(),
-                }
-                for _, cert := range cs.PeerCertificates[1:] {
-                        opts.Intermediates.AddCert(cert)
-                }
-                _, err := cs.PeerCertificates[0].Verify(opts)
-                return err
-        }
+	return func(cs utls.ConnectionState) error {
+		if insecure {
+			return nil // the documented test/bootstrap seam, same as the plain path
+		}
+		if len(cs.PeerCertificates) == 0 {
+			// Resumed session: a ticket can only exist after a verified
+			// full handshake (opera §7.4.4 comment).
+			return nil
+		}
+		opts := x509.VerifyOptions{
+			DNSName:       host,
+			Roots:         roots,
+			Intermediates: x509.NewCertPool(),
+		}
+		for _, cert := range cs.PeerCertificates[1:] {
+			opts.Intermediates.AddCert(cert)
+		}
+		_, err := cs.PeerCertificates[0].Verify(opts)
+		return err
+	}
 }

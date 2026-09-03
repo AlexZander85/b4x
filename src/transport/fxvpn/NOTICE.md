@@ -18,11 +18,16 @@ Opera reserve transport already carries (`transport/opera/NOTICE.md`).
   path — the real node name against the base config's root pool (system
   pool by default; the fake-stand `InsecureSkipVerify` seam behaves
   identically).
-- **QUIC scope**: quic-go builds its ClientHello internally and exposes no
-  uTLS hook; the QUIC carrier rides the FX-M0 cheap layer (Firefox
-  suites/curves, 1250 padding, preflight white-SNI bait). Full QUIC
-  mimicry requires the community fork shim — owner decision, precedent
-  amneziawg-go v3.
+- **QUIC scope (resolved)**: the QUIC carrier now rides the owner-approved
+  quic-go fork `github.com/AlexZander85/quic-go` (branch `b4x-utls`, tag
+  `v0.61.0-b4x.2`, base upstream v0.61.0; wired via a `replace` in go.mod).
+  The fork adds `quic.Config.UTLSClientHelloID`: the handshake emits the
+  uTLS Firefox ClientHello with the caller's ALPN (h3), normalizes the
+  preset to QUIC's TLS-1.3-only requirements, carries the transport
+  parameters as a raw extension, disables session resumption/0-RTT, and
+  falls back to the vanilla crypto/tls handshake on any spec failure.
+  Verification semantics are unchanged. The FX-M0 cheap layer and the
+  preflight bait remain active on this path.
 - **Provenance**: upstream https://github.com/refraction-networking/utls,
   BSD-2-Clause; imported as a library, no source modification.
 

@@ -524,3 +524,28 @@ func TestReadPacketClosedDoneZeroGuard(t *testing.T) {
 		t.Fatalf("ReadPacket after close = (%x, %v), want ErrSessionClosed", pkt, err)
 	}
 }
+
+// TestH3SessionFingerprintChrome pins the masquerade FX-M1 wiring for the
+// MASQUE H3 carrier: with Fingerprint=chrome120 the session establishes
+// through the b4x quic-go fork's uTLS path against the (vanilla) fake edge,
+// and the data plane validates. Empty fingerprint keeps the vanilla path
+// (every other test in this file).
+func TestH3SessionFingerprintChrome(t *testing.T) {
+	e := newFakeH3Edge(t)
+	cfg := h3SessionCfg(t, e, func(c *H3SessionConfig) {
+		c.Fingerprint = "chrome120"
+	})
+	sess, res, err := DialH3Session(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("dial: %v (class=%s)", err, res.FailureClass)
+	}
+	defer sess.Close()
+	if res.Status != 200 || res.FailureClass != "" {
+		t.Fatalf("result = %+v", res)
+	}
+	vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := sess.ValidateDataPlane(vctx); err != nil {
+		t.Fatalf("data-plane validation failed: %v", err)
+	}
+}

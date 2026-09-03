@@ -9,7 +9,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.4 // indirect
 	github.com/mdlayher/socket v0.4.1 // indirect
-	github.com/refraction-networking/utls v1.8.2 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
 	golang.org/x/time v0.9.0 // indirect
@@ -24,6 +23,7 @@ require (
 	github.com/josharian/native v1.1.0
 	github.com/mdlayher/netlink v1.7.2
 	github.com/quic-go/quic-go v0.61.0
+	github.com/refraction-networking/utls v1.8.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
 	github.com/urlesistiana/v2dat v0.0.0-20221215035016-47b8ee51fb52
@@ -35,3 +35,6 @@ require (
 	google.golang.org/protobuf v1.33.0
 	gvisor.dev/gvisor v0.0.0-20231202080848-1f7806d17489
 )
+
+// b4x fork: uTLS ClientHello seam for QUIC clients (Config.UTLSClientHelloID).
+replace github.com/quic-go/quic-go => github.com/AlexZander85/quic-go v0.61.0-b4x.2

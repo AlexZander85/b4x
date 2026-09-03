@@ -43,6 +43,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	utls "github.com/refraction-networking/utls"
 )
 
 // QUIC transport constants (E-H3 design §1; prompt EH2).
@@ -118,6 +119,9 @@ type H3SessionConfig struct {
 	// two independent stall timers).
 	ResponseBudget  time.Duration // default DefaultH3ResponseBudget
 	OpenStreamBudet time.Duration // open_bi wrap, DefaultH3OpenStreamBudget
+	// Fingerprint (b4x fork extension, masquerade FX-M1): uTLS ClientHello
+	// for the QUIC handshake ("chrome120", "firefox"); empty = vanilla.
+	Fingerprint string
 	// E2EProbe optionally validates the inner path end-to-end right after the
 	// data-plane probes pass (ironclad-lite pattern, design §5; PATCH-19,
 	// B-H3: disabled by default, present as an interface). nil = disabled.
@@ -277,6 +281,12 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 		MaxIncomingStreams:         h3MaxStreams,
 		HandshakeIdleTimeout:       cfg.HandshakeBudget,
 		DisablePathMTUDiscovery:    false, // PMTUD auto per design §1
+	}
+	// Masquerade FX-M1 (b4x quic-go fork): a configured fingerprint swaps
+	// the ClientHello for the uTLS browser profile; the fork preserves the
+	// pin/WebPKI verification semantics and degrades to vanilla on failure.
+	if id := warpFingerprintClientHelloID(cfg.Fingerprint); id != nil {
+		conf.UTLSClientHelloID = id
 	}
 	hsCtx, hsCancel := context.WithTimeout(ctx, cfg.HandshakeBudget)
 	defer hsCancel()
@@ -717,6 +727,24 @@ func isRetriableH3Failure(err error) bool {
 		return true
 	}
 	return strings.Contains(err.Error(), FailureQUICProtocolViolation)
+}
+
+// warpFingerprintClientHelloID maps the configured fingerprint name onto
+// the uTLS preset (b4x fork extension). "chrome120" is the recommended
+// value here: the legitimate WARP client is boringssl-based, so the
+// Chrome-shaped hello is the closest legal profile; "firefox" stays
+// available for experiments. nil (unknown/empty) = vanilla crypto/tls.
+func warpFingerprintClientHelloID(name string) *utls.ClientHelloID {
+	switch name {
+	case "chrome120":
+		id := utls.HelloChrome_120
+		return &id
+	case "firefox":
+		id := utls.HelloFirefox_Auto
+		return &id
+	default:
+		return nil
+	}
 }
 
 // classifyUDPListenError splits the UDP listen failure (PATCH-10, M-5):

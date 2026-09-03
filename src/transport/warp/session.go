@@ -109,6 +109,11 @@ type SessionConfig struct {
 	// When nil the constrained DialPolicy dialer is used. The pinned TLS
 	// handshake and capsule framing are unchanged.
 	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
+	// Fingerprint (b4x fork extension, masquerade FX-M1): when non-empty,
+	// the MASQUE H3 client emits a uTLS browser ClientHello instead of the
+	// crypto/tls one. Supported values: "chrome120" (closest to the WARP
+	// client's boringssl profile), "firefox". Empty = vanilla (default).
+	Fingerprint string
 }
 
 func (c *SessionConfig) fillDefaults() {

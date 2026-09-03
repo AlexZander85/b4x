@@ -364,6 +364,7 @@ func h3ConfigFromSession(s SessionConfig) H3SessionConfig {
 		ValidateWindow:  s.ValidateWindow,
 		ProbeInterval:   s.ProbeInterval,
 		HandshakeBudget: s.HandshakeBudget,
+		Fingerprint:     s.Fingerprint,
 	}
 }
 

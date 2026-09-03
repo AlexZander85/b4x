@@ -77,6 +77,9 @@ func Build(cfg *config.Config, sink func(Event)) (*Runtime, error) {
 // the MASQUE session itself always dials the numeric edge directly.
 func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Client) (*Runtime, error) {
 	wc := cfg.System.Warp
+	if err := wc.Masquerade.Validate(); err != nil {
+		return nil, err
+	}
 	endpoint, err := wc.EffectiveEndpoint()
 	if err != nil {
 		return nil, err
@@ -90,6 +93,7 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 			Endpoint: endpoint,
 			// Client key + pin are injected per-generation by the
 			// supervisor from the stored identity (buildSessionConfig).
+			Fingerprint: wc.Masquerade.Fingerprint,
 		},
 		Reconciler:        rec,
 		Sink:              sink,

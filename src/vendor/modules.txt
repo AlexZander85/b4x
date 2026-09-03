@@ -58,7 +58,7 @@ github.com/mdlayher/netlink/nlenc
 # github.com/mdlayher/socket v0.4.1
 ## explicit; go 1.20
 github.com/mdlayher/socket
-# github.com/quic-go/quic-go v0.61.0
+# github.com/quic-go/quic-go v0.61.0 => github.com/AlexZander85/quic-go v0.61.0-b4x.2
 ## explicit; go 1.25.0
 github.com/quic-go/quic-go
 github.com/quic-go/quic-go/internal/ackhandler
@@ -229,3 +229,4 @@ gvisor.dev/gvisor/pkg/tcpip/transport/tcp
 gvisor.dev/gvisor/pkg/tcpip/transport/tcpconntrack
 gvisor.dev/gvisor/pkg/tcpip/transport/udp
 gvisor.dev/gvisor/pkg/waiter
+# github.com/quic-go/quic-go => github.com/AlexZander85/quic-go v0.61.0-b4x.2
