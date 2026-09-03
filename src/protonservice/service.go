@@ -218,6 +218,9 @@ type Runtime struct {
 	sessionRefreshedAt time.Time
 	stateSince         time.Time
 
+	// netzoneOnce gates the one-shot X-PM-netzone discovery (review P6).
+	netzoneOnce sync.Once
+
 	dialOK   uint64
 	dialFail uint64
 }
@@ -301,6 +304,10 @@ func (r *Runtime) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	r.cancel = cancel
 	r.running = true
+	// Netzone discovery (review P6): one STUN probe per boot, direct
+	// egress, off the supervisor loop; fills client.Netzone for the
+	// X-PM-netzone header of every logicals request.
+	go r.applyNetzone()
 	go r.loop(runCtx)
 	return nil
 }
