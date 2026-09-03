@@ -221,6 +221,11 @@ type Runtime struct {
 	// netzoneOnce gates the one-shot X-PM-netzone discovery (review P6).
 	netzoneOnce sync.Once
 
+	// kernel route owner of the LIVE generation (kernel tunnel mode,
+	// review P2 stage в); nil outside kernel mode / before establishment.
+	krn      *kernelRouter
+	krnState string // "", "applied", "lost"
+
 	dialOK   uint64
 	dialFail uint64
 }
@@ -239,6 +244,13 @@ type ExitView struct {
 // parity: the daemon gates on config, the wiring skips Start).
 func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	pc := cfg.System.Proton
+	// Tunnel mode is validated HONESTLY (review P2 stage в): a typo must
+	// fail the build, not silently degrade to netstack.
+	switch pc.TunnelMode {
+	case "", config.ProtonTunnelNetstack, config.ProtonTunnelKernel:
+	default:
+		return nil, fmt.Errorf("protonservice: invalid tunnel_mode %q (want \"netstack\"|\"kernel\")", pc.TunnelMode)
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
@@ -687,7 +699,7 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 	if err != nil {
 		return nil, err
 	}
-	v4, _, dns := ident.TunnelAddresses()
+	v4, v6, dns := ident.TunnelAddresses()
 	tpl, err := twg.LookupProfile(prof.ProfileID)
 	if err != nil {
 		return nil, err
@@ -708,11 +720,26 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 	}
 	v4Addr := netip.MustParseAddr(v4)
 	addrs := []netip.Addr{v4Addr}
+	if v6 != "" {
+		if v6Addr, err := netip.ParseAddr(v6); err == nil {
+			addrs = append(addrs, v6Addr)
+		}
+	}
 	var dnsAddrs []netip.Addr
 	for _, d := range dns {
 		if a, err := netip.ParseAddr(d); err == nil {
 			dnsAddrs = append(dnsAddrs, a)
 		}
+	}
+	// Tunnel shape (review P2 stage в): kernel mode swaps the gVisor
+	// netstack for a real /dev/net/tun device and hands the session the
+	// PBR hooks; the wiring lifecycle is owned by the kernelRouter.
+	kernelMode := r.cfg.EffectiveTunnelMode() == config.ProtonTunnelKernel
+	tunMode := twg.ModeNetstack
+	ifaceName := ""
+	if kernelMode {
+		tunMode = twg.ModeKernel
+		ifaceName = r.cfg.EffectiveKernelDevice()
 	}
 
 	node := prof.Node
@@ -727,14 +754,53 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
 		Endpoint: prof.AddrPort().String(),
 		SockOpts: twg.SocketOptions{},
 		Tunnel: twg.TunnelConfig{
-			Mode:      twg.ModeNetstack,
-			Addresses: addrs,
-			DNS:       dnsAddrs,
-			MTU:       r.cfg.EffectiveMTU(),
+			Mode:          tunMode,
+			Addresses:     addrs,
+			DNS:           dnsAddrs,
+			MTU:           r.cfg.EffectiveMTU(),
+			InterfaceName: ifaceName,
+		},
+		// Kernel-TUN PBR hooks (review P2 stage в): KernelUp runs BEFORE
+		// the trust gate (the raw probe path rides the kernel addressing);
+		// KernelDown unwires on every generation teardown. The PBR owner
+		// pins follow the ACTUAL device name the kernel created.
+		KernelUp: func(devName string) error {
+			if !kernelMode {
+				return nil
+			}
+			krn, kerr := r.newKernelRouter(devName, ident)
+			if kerr != nil {
+				return kerr
+			}
+			if serr := krn.Setup(context.Background()); serr != nil {
+				return serr
+			}
+			r.mu.Lock()
+			r.krn, r.krnState = krn, "applied"
+			r.mu.Unlock()
+			return nil
+		},
+		KernelDown: func(devName string) {
+			r.mu.Lock()
+			krn := r.krn
+			r.krn, r.krnState = nil, ""
+			r.mu.Unlock()
+			if krn != nil {
+				krn.Teardown(context.Background())
+			}
 		},
 		Health: twg.HealthConfig{
 			KeepaliveSec: 25,
-			Gate:         twg.TrustGate{RoundTrips: 2},
+			Gate: func() twg.TrustGate {
+				// Kernel-TUN mode (review P2 stage в): the raw gate cannot
+				// complete over the kernel stack (the reply dies at local
+				// delivery) — the handshake + the counters watchdog carry the
+				// liveness proof instead (twg.GateSkip contract).
+				if kernelMode {
+					return twg.TrustGate{RoundTrips: twg.GateSkip}
+				}
+				return twg.TrustGate{RoundTrips: 2}
+			}(),
 		},
 		Callbacks: twg.SessionCallbacks{
 			OnEstablished: func() {
@@ -853,6 +919,11 @@ func (r *Runtime) renew(ctx context.Context) {
 			r.noteFailure(proton.Classify(err))
 		}
 	}
+
+	// Kernel route re-assertion (review P2 stage в): every tick re-verifies
+	// the PBR coverage of the live generation and repairs a lost pin
+	// (the nested Assert discipline).
+	r.assertKernelRoute()
 
 	// Keep-alive: GET /core/v4/users every 12 h.
 	if r.lastKeepAlive.Add(sessionKeepAlive).Before(now) {
@@ -995,6 +1066,40 @@ func protonNodeSource(cands []proton.Candidate) twg.CandidateSource {
 		set[c.AddrPort()] = true
 	}
 	return twg.CatalogSourceFunc(func(c netip.AddrPort) bool { return set[c] })
+}
+
+// assertKernelRoute re-verifies the live kernel generation's PBR coverage
+// (no-op outside kernel mode or without an established session).
+func (r *Runtime) assertKernelRoute() {
+	r.mu.Lock()
+	krn, state := r.krn, r.krnState
+	r.mu.Unlock()
+	if krn == nil || state == "" {
+		return
+	}
+	if err := krn.Assert(context.Background()); err != nil {
+		r.mu.Lock()
+		r.krnState = "lost"
+		r.mu.Unlock()
+	}
+}
+
+// newKernelRouter assembles the PBR owner of one kernel generation from
+// the runtime config and the live identity (review P2 stage в).
+func (r *Runtime) newKernelRouter(devName string, ident *proton.Identity) (*kernelRouter, error) {
+	v4, v6, _ := ident.TunnelAddresses()
+	return newKernelRouter(kernelRouteConfig{
+		Device:   devName,
+		LocalV4:  v4,
+		LocalV6:  v6,
+		Mark:     r.cfg.EffectiveRouteMark(),
+		Table:    r.cfg.EffectiveRouteTable(),
+		Priority: 10000 + r.cfg.EffectiveRouteTable(),
+		Runner:   ipRouteRunner,
+		OnEvent: func(name, detail string) {
+			r.appendEvent(proton.Event{Name: name, Detail: detail})
+		},
+	})
 }
 
 // sniPoolForIssue resolves the SNI pool for the next profile re-issue

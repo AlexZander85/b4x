@@ -128,6 +128,16 @@ type SessionConfig struct {
 	// VerboseDiagnostics routes per-generation device logs to stdout
 	// (debug aid; production keeps the silent logger).
 	VerboseDiagnostics bool
+	// KernelUp / KernelDown are the kernel-TUN PBR hooks (review P2 stage
+	// в, design §7 "kernel-TUN PBR — основной путь роутера"): in ModeKernel
+	// establishGeneration calls KernelUp with the ACTUAL device name right
+	// after the TUN is created and BEFORE the trust gate (the gate's raw
+	// probe path needs the addressing/route up); teardown calls KernelDown.
+	// The hooks own the kernel wiring (addresses, policy rule, table
+	// default) and must be idempotent; nil = plain kernel TUN with no
+	// kernel wiring (the owner manages routing externally).
+	KernelUp   func(device string) error
+	KernelDown func(device string)
 	// I1Regen, when non-nil, wires the per-handshake InitPacket
 	// regeneration seam of the vendored amneziawg-go device (review P3,
 	// stage PT-obf1): for every SendHandshakeInitiation the device calls
@@ -166,6 +176,9 @@ type Session struct {
 	// randF is the jitter source hook (tests pin it for determinism).
 	randF func() float64
 
+	// kernelDev is the ACTUAL kernel-TUN device name of the live generation
+	// (kernel mode only, set by establishGeneration, cleared by teardown).
+	kernelDev string
 	// countersOverride lets tests script counter samples (same-package hook;
 	// production leaves it nil and the sampler reads IpcGet).
 	countersOverride CountersFunc
@@ -437,6 +450,23 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	dev := device.NewDevice(tunRes.Device, bind, dlog)
 	if s.cfg.I1Regen != nil {
 		dev.InitPacketSpecFunc = s.cfg.I1Regen
+	}
+	// Kernel-TUN PBR hook (review P2 stage в): the wiring MUST be up
+	// before the gate — the raw probe path rides the kernel addressing.
+	// The ACTUAL device name is passed (the kernel may diverge from the
+	// hint, the nested/E4 lesson); a failed wiring is a structural
+	// rejection, never a half-routed session.
+	if s.cfg.Tunnel.Mode == ModeKernel && s.cfg.KernelUp != nil {
+		devName := s.cfg.Tunnel.InterfaceName
+		if tunRes.Device != nil {
+			if n, nerr := tunRes.Device.Name(); nerr == nil && n != "" {
+				devName = n
+			}
+		}
+		if uerr := s.cfg.KernelUp(devName); uerr != nil {
+			return newFailure(ClassParamRejected, "kernel-up", uerr)
+		}
+		s.kernelDev = devName
 	}
 	s.mu.Lock()
 	s.dev, s.bind, s.tun = dev, bind, tunRes
@@ -795,7 +825,15 @@ func (s *Session) teardown() {
 	s.mu.Lock()
 	dev := s.dev
 	s.dev, s.bind, s.tun = nil, nil, nil
+	kernelDev := s.kernelDev
+	s.kernelDev = ""
+	down := s.cfg.KernelDown
 	s.mu.Unlock()
+	// Kernel wiring down BEFORE the device disappears: the rule/table pins
+	// reference the interface name, and the PBR owner must see it alive.
+	if down != nil && kernelDev != "" {
+		down(kernelDev)
+	}
 	if dev != nil {
 		_ = dev.Down()
 		dev.Close()

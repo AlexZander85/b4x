@@ -355,3 +355,19 @@ func TestNetstackGateTimeoutCarriesRetransmits(t *testing.T) {
 		t.Fatalf("retransmits = %d, want >= 1 within a 1.6s window", got)
 	}
 }
+
+// GateSkip (review P2 stage в): a negative RoundTrips skips the DNS loop —
+// the kernel-TUN establishment path (the raw probe cannot complete over the
+// kernel stack; liveness = handshake + counters watchdog).
+func TestGateSkipRoundTrips(t *testing.T) {
+	rt := &stubRT{respond: func(query []byte) ([]byte, error) {
+		return []byte{0x01, 0x02, 0x80}, nil // would fail any real exchange
+	}}
+	g := TrustGate{RoundTrips: GateSkip}
+	if err := g.Verify(context.Background(), rt); err != nil {
+		t.Fatalf("GateSkip must pass the gate without exchanges: %v", err)
+	}
+	if rt.sends != 0 {
+		t.Fatalf("GateSkip performed %d exchanges, want 0", rt.sends)
+	}
+}

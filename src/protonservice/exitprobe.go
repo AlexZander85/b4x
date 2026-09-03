@@ -165,6 +165,14 @@ func (r *Runtime) runExitProbe(node proton.Node, prof proton.ProtonProfile, sess
 		r.mu.Unlock()
 	}()
 
+	if dial == nil {
+		// Kernel-TUN mode (review P2 stage в): no userspace stack to dial
+		// through — the probe is SKIPPED honestly (the exit view stays
+		// empty), not failed; the netstack mode keeps the full check.
+		r.appendEvent(proton.Event{Name: "proton_exit_probe_skipped",
+			Detail: "kernel tunnel mode: no userspace data plane"})
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var tlsBase *tls.Config

@@ -53,6 +53,15 @@ type DNSRoundTripper interface {
 // E2EProbe is the optional trace probe slot (warp=on|plus double shot).
 type E2EProbe func(ctx context.Context) error
 
+// GateSkip (negative RoundTrips) disables the gate entirely: the loop body
+// never runs and Verify returns nil after the nil-rt check. The documented
+// consumer is the kernel-TUN mode (review P2 stage в): the raw probe path
+// cannot complete over a kernel stack (the probe's source is the tunnel
+// address, the reply dies at local delivery), so kernel sessions prove
+// liveness through the handshake + the counters watchdog instead. Netstack
+// sessions MUST NOT use it.
+const GateSkip = -1
+
 // TrustGate proves end-to-end reachability over an established handshake.
 type TrustGate struct {
 	LocalV4    [4]byte

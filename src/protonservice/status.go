@@ -27,6 +27,8 @@ type Status struct {
 	Running       bool                  `json:"running"`
 	Listening     bool                  `json:"listening"`
 	State         string                `json:"state"`
+	TunnelMode    string                `json:"tunnel_mode"`
+	KernelRoute   string                `json:"kernel_route,omitempty"`
 	RestartCapHit bool                  `json:"restart_cap_hit"`
 	Location      config.ProtonLocation `json:"location"`
 
@@ -53,6 +55,7 @@ func (r *Runtime) Status() Status {
 	defer r.mu.Unlock()
 	st := Status{
 		Enabled:        r.cfg.Enabled,
+		TunnelMode:     r.cfg.EffectiveTunnelMode(),
 		Running:        r.running && !r.stopped,
 		State:          r.state,
 		RestartCapHit:  !r.guard.allowed(),
@@ -69,6 +72,7 @@ func (r *Runtime) Status() Status {
 	if s := r.sess; s != nil {
 		st.Listening = s.State() == twgStateEstablished
 	}
+	st.KernelRoute = r.krnState
 	if id := r.identity; id != nil {
 		st.Identity = id.Redacted()
 		st.CertExpiresAt = id.CertExpiresAt
