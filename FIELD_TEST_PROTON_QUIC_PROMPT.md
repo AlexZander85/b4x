@@ -7,7 +7,7 @@
 
 ## 0. Контекст и цель
 
-Ветка `agent/classifier-v2.3-capture-envelope`, HEAD `ef0d9375`. На ней закрыты
+Ветка `agent/classifier-v2.3-capture-envelope`, HEAD `2444ffe0` (промт) / kernel-TUN PBR — следующий коммит. На ней закрыты
 все находки `proton-awg-reserve-review.md` (P1–P7, L1, L6):
 - **P3**: I1 перегенерируется НА КАЖДЫЙ хендшейк (патч vendored amneziawg-go,
   шов `InitPacketSpecFunc`) — свежий DCID + свежий randomness каждый раз;
@@ -191,7 +191,30 @@ handshake проходит (Proton-пир junk игнорирует — vanilla-
 - при деградации (если случилась): SNI в Initial'ах НЕ меняется чаще раза в
   30 мин (L1), fresh DCID — при каждом хендшейке.
 
-### Шаг 9 — A/B против предыдущей сборки
+### Шаг 9 — (опционально) kernel-TUN PBR (P2 stage в)
+`system.proton.tunnel_mode: "kernel"` (нужны linux + /dev/net/tun +
+CAP_NET_ADMIN). Демон строит сессию над реальным TUN (b4proton0), ПЕРЕД
+гейтом поднимает адреса и PBR: `ip addr add 10.2.0.2/32`, `ip rule add
+fwmark 0xb4b4 lookup 5182 priority 15182`, `ip route replace default dev
+b4proton0 table 5182`, верификация `ip route get 8.8.8.8 fwmark 0xb4b4`.
+События: `proton_kernel_route_applied`, при потере `proton_kernel_route_lost`
++ `proton_kernel_pin_restored` (re-assert каждые 30 с), teardown при остановке.
+ТРАФИК в туннель попадает ТОЛЬКО помеченный (mark 0xb4b4) — по умолчанию
+ничего не уходит через Proton (красная линия «никогда не подменяет молча»):
+проверка управляемого скоупа:
+`iptables -t mangle -A OUTPUT -p udp --dport 53 -j MARK --set-xmark 0xb4b4`
+→ DNS-проба роутера уходит через NL-выход (сверить `verified_exit`/trace).
+Гейт establishment в kernel-режиме честно пропущен (raw-проба над kernel-
+стеком не завершается; живость держит watchdog счётчиков) — в статусе
+ожидаемо `kernel_route: applied`, `proton_exit_probe_skipped`. Адрес 10.2.0.2
+пингуем ВНУТРИ туннеля только помеченным трафиком. Откат: `tunnel_mode:
+"netstack"` + restart; teardown снимает rule/table сам.
+PASS: applied-событие, верификация route get отвечает dev b4proton0, помеченный
+трафик уходит в туннель, немаркированный — нет (tcpdump на WAN: утечек plaintext
+в туннель нет и наоборот). FAIL: route get отвечает чужим dev — приложить
+`ip rule show` / `ip route show table 5182`.
+
+### Шаг 10 — A/B против предыдущей сборки
 Та же сеть, тот же узел: старый бинарь (jc=3, статичный I1) vs новый.
 Сравнить: время установления, долю успешных хендшейков, поведение на rekey.
 PASS: новая сборка не хуже; субъективное поле: доживает ли поток дольше под
