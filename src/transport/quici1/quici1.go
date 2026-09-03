@@ -87,32 +87,168 @@ func quicExpandLabel(secret []byte, length int, label string) ([]byte, error) {
         return out, nil
 }
 
-// quicClientHello builds the minimal ClientHello: legacy_version 0x0303,
-// 32 random bytes, empty session_id/cipher_suites/compression, one
-// server_name extension (ProtonQuicInitial.kt clientHello shape).
-func quicClientHello(sni string, random []byte) []byte {
+// TLS ClientHello constants of the Chrome-class QUIC shape (RFC 8446;
+// review §4.4 — the Initial must decrypt into a ClientHello that survives
+// deep-payload fingerprinting, not the legacy empty-shell Nova shape).
+const (
+        extServerName         = 0x0000
+        extALPN               = 0x0010
+        extPadding            = 0x0015
+        extSupportedVersions  = 0x002b
+        extKeyShare           = 0x0033
+        extQUICTransportParms = 0x0039
+
+        groupX25519 = 0x001d
+        // cipherSuitesChrome: the TLS 1.3 suites in Chrome's wire order.
+        cipherTLSAES128GCMSHA256   = 0x1301
+        cipherTLSChaCha20Poly1305  = 0x1303
+        cipherTLSAES256GCMMD5SHA38 = 0x1302 // TLS_AES_256_GCM_SHA384
+)
+
+// QUIC transport-parameter IDs (RFC 9000 §18; the TLS extension body is
+// QUIC-varint encoded: varint(id) varint(len) value per parameter).
+const (
+        qtpMaxIdleTimeout              = 0x0001
+        qtpMaxUDPPayloadSize           = 0x0003
+        qtpInitialMaxData              = 0x0004
+        qtpInitialMaxStreamDataBidiLoc = 0x0005
+        qtpInitialMaxStreamDataBidiRem = 0x0006
+        qtpInitialMaxStreamDataUni     = 0x0007
+        qtpInitialMaxStreamsBidi       = 0x0008
+        qtpInitialMaxStreamsUni        = 0x0009
+        qtpDisableActiveMigration      = 0x000c
+        qtpActiveConnectionIDLimit     = 0x000e
+        qtpInitialSourceConnectionID   = 0x000f
+)
+
+// chPadTarget is the Chrome-class ClientHello message size the padding
+// extension fills toward (review §4.4: "padding-расширение до ~1250" — the
+// packet-level PADDING frames then top the datagram off to exactly PadTo,
+// exactly like a real browser datagram).
+const chPadTarget = 1200
+
+// tlsExt renders one TLS extension: type(2) len(2) body.
+func tlsExt(t uint16, body []byte) []byte {
+        out := []byte{byte(t >> 8), byte(t), byte(len(body) >> 8), byte(len(body))}
+        return append(out, body...)
+}
+
+// greaseOf maps one random byte onto the RFC 8701 GREASE family (0x?a?a);
+// one consistent nibble k is used across the whole hello (the Chrome
+// behavior a DPI cross-checks between the extension type and the
+// supported_versions head).
+func greaseOf(b byte) (extType uint16, entry uint16, body byte) {
+        k := (b & 0x0F) % 10 // keep the family small and standard
+        body = k<<4 | 0x0a
+        v := uint16(body)<<8 | uint16(body) // 0x0a0a..0x9a9a
+        return v, v, body
+}
+
+// quicTransportParams renders the Chrome-class QUIC transport-parameter
+// block. RFC 9368 red line: initial_source_connection_id MUST equal the
+// packet's DCID — its absence was the review's headline spec violation.
+func quicTransportParams(dcid []byte) []byte {
+        param := func(id uint64, val []byte) []byte {
+                out := quicVarInt(id)
+                out = append(out, quicVarInt(uint64(len(val)))...)
+                return append(out, val...)
+        }
+        num := func(id uint64, v uint64) []byte { return param(id, quicVarInt(v)) }
+
+        out := num(qtpMaxIdleTimeout, 30000) // 30 s (review: 30–60 s)
+        out = append(out, num(qtpMaxUDPPayloadSize, 65527)...)
+        out = append(out, num(qtpInitialMaxData, 1572864)...) // ~1.5 MB (review)
+        out = append(out, num(qtpInitialMaxStreamDataBidiLoc, 1572864)...)
+        out = append(out, num(qtpInitialMaxStreamDataBidiRem, 1572864)...)
+        out = append(out, num(qtpInitialMaxStreamDataUni, 1572864)...)
+        out = append(out, num(qtpInitialMaxStreamsBidi, 100)...)
+        out = append(out, num(qtpInitialMaxStreamsUni, 3)...)
+        out = append(out, param(qtpDisableActiveMigration, nil)...)
+        out = append(out, num(qtpActiveConnectionIDLimit, 4)...) // review: 2–4
+        out = append(out, param(qtpInitialSourceConnectionID, dcid)...)
+        return out
+}
+
+// quicClientHello builds the Chrome-class QUIC ClientHello (review §4.4):
+// legacy_version 0x0303, 32 random bytes, 32-byte session_id (browsers
+// never send an empty one), the three TLS 1.3 suites in Chrome order,
+// compression [0], and the browser-ordered extensions GREASE →
+// server_name → supported_versions(0x0304) → key_share(X25519) →
+// alpn("h3") → quic_transport_parameters(SCID=DCID) → padding.
+func quicClientHello(sni string, random, dcid []byte, r io.Reader) []byte {
         name := []byte(sni)
         u16 := func(v int) []byte { return []byte{byte(v >> 8), byte(v)} }
+        u24 := func(v int) []byte { return []byte{byte(v >> 16), byte(v >> 8), byte(v)} }
 
+        readN := func(n int) []byte {
+                b := make([]byte, n)
+                _, _ = io.ReadFull(r, b) // r is deterministic in tests; crypto/rand never fails
+                return b
+        }
+
+        // GREASE pattern from the shared random nibble.
+        greaseExt, greaseEntry, greaseByte := greaseOf(readN(1)[0])
+
+        // server_name.
         serverNameList := append(u16(len(name)+3), 0x00)
         serverNameList = append(serverNameList, u16(len(name))...)
         serverNameList = append(serverNameList, name...)
 
-        sniExt := u16(0x0000) // extension type: server_name
-        sniExt = append(sniExt, u16(len(serverNameList))...)
-        sniExt = append(sniExt, serverNameList...)
+        // supported_versions: GREASE head + TLS 1.3 (QUIC forbids 1.2).
+        svEntries := u16(int(greaseEntry))
+        svEntries = append(svEntries, u16(0x0304)...)
+        svBody := append(u16(len(svEntries)), svEntries...)
 
-        extensions := u16(len(sniExt))
-        extensions = append(extensions, sniExt...)
+        // key_share: X25519, 32-byte public half.
+        ksEntry := append(u16(groupX25519), u16(32)...)
+        ksEntry = append(ksEntry, readN(32)...)
+        ksBody := append(u16(len(ksEntry)), ksEntry...)
 
-        // legacy_version(2) + random(32) + session_id_len(1) +
-        // cipher_suites_len(2) + compression_len(1), all empty after random.
+        // alpn: h3 — RFC 7301: body = list_len(2) + entries, each entry is a
+        // 1-byte length + the name (2-byte entry lengths are a wire bug).
+        alpnEntry := []byte{0x02, 'h', '3'}
+        alpnBody := append(u16(len(alpnEntry)), alpnEntry...)
+
+        // quic_transport_parameters.
+        qtpBody := quicTransportParams(dcid)
+
+        exts := tlsExt(greaseExt, []byte{greaseByte})
+        exts = append(exts, tlsExt(extServerName, serverNameList)...)
+        exts = append(exts, tlsExt(extSupportedVersions, svBody)...)
+        exts = append(exts, tlsExt(extKeyShare, ksBody)...)
+        exts = append(exts, tlsExt(extALPN, alpnBody)...)
+        exts = append(exts, tlsExt(extQUICTransportParms, qtpBody)...)
+
+        // padding extension: fill toward chPadTarget (chrome-class). Fixed
+        // layout math: handshake(4) + body so far + ext-header(4) per byte.
+        chLenWithoutPad := 4 + 2 + 32 + 1 + 32 + (2 + 6) + (1 + 1) + 2 + len(exts)
+        if n := chPadTarget - chLenWithoutPad - 4; n > 0 {
+                // Clamp against the packet capacity (header ~19 + framing ~6 + tag).
+                const maxCH = PadTo - 16 - 19 - 6
+                if n > maxCH-chLenWithoutPad {
+                        n = maxCH - chLenWithoutPad
+                }
+                if n > 0 {
+                        pad := tlsExt(extPadding, make([]byte, n))
+                        exts = append(exts, pad...)
+                }
+        }
+
+        // legacy_version(2) + random(32) + session_id(1+32) + cipher_suites
+        // (2+6) + compression(1+1) + extensions(2+N).
         body := []byte{0x03, 0x03}
         body = append(body, random...)
-        body = append(body, 0x00, 0x00, 0x00, 0x00)
-        body = append(body, extensions...)
+        body = append(body, 32)
+        body = append(body, readN(32)...)
+        body = append(body, u16(6)...)
+        body = append(body, u16(cipherTLSAES128GCMSHA256)...)
+        body = append(body, u16(cipherTLSChaCha20Poly1305)...)
+        body = append(body, u16(cipherTLSAES256GCMMD5SHA38)...)
+        body = append(body, 1, 0x00)
+        body = append(body, u16(len(exts))...)
+        body = append(body, exts...)
 
-        out := []byte{0x01, byte(len(body) >> 16), byte(len(body) >> 8), byte(len(body))}
+        out := append([]byte{0x01}, u24(len(body))...)
         return append(out, body...)
 }
 
@@ -139,7 +275,7 @@ func Build(sni string, r io.Reader) string {
         }
 
         pkn := []byte{0x00} // packet number 0, 1 byte
-        hello := quicClientHello(host, chRandom)
+        hello := quicClientHello(host, chRandom, dcid, r)
         // CRYPTO frame: type 0x06, offset 0, length, data.
         payload := []byte{0x06}
         payload = append(payload, quicVarInt(0)...)
