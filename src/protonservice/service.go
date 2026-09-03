@@ -370,7 +370,11 @@ func (r *Runtime) Locations(ctx context.Context) (proton.LocationsView, error) {
 
 // Reissue performs the owner-actioned re-registration: a FRESH key (new
 // seed) + new credentialless session, bypassing the once-per-boot gate
-// (explicit action). The current session is retired.
+// (explicit action). The live session is RETIRED (review P7: the comment
+// promised it, the code kept serving on the old key until natural death —
+// MaxConnect=2 made that silent, but the operator expectation is the
+// SetLocation semantics: stop now, rebuild on the next ensure tick, caps
+// applying to the rebuild).
 func (r *Runtime) Reissue(ctx context.Context) error {
 	r.setState(StateRegistering)
 	id, err := r.register(ctx, true)
@@ -381,9 +385,17 @@ func (r *Runtime) Reissue(ctx context.Context) error {
 	}
 	r.mu.Lock()
 	r.identity = id
+	old := r.sess
+	r.sess = nil
+	r.profiles = nil
+	r.profIdx = 0
+	r.state = StateIdle
 	r.mu.Unlock()
+	if old != nil {
+		old.Stop()
+		r.appendEvent(proton.Event{Name: "proton_session_retired", Detail: "reissue"})
+	}
 	r.appendEvent(proton.Event{Name: proton.EventRegistered, Detail: "reissue"})
-	r.setState(StateIdle)
 	return nil
 }
 
@@ -629,10 +641,7 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
 	var winProf proton.ProtonProfile
 	for _, cand := range cands {
 		if cand.AddrPort() == winner.Endpoint {
-			sniPool := proton.DefaultSNIPool()
-			if len(r.cfg.Obfuscation.SNIPool) > 0 {
-				sniPool = r.cfg.Obfuscation.SNIPool
-			}
+			sniPool := r.sniPoolForIssue()
 			issued := proton.IssueProfiles([]proton.Candidate{cand},
 				[]string{winner.Profile}, sniPool, crandReader{}, &wgLastGoodView{store: r.lastGoodFor()})
 			winProf = issued[0]
@@ -986,6 +995,33 @@ func protonNodeSource(cands []proton.Candidate) twg.CandidateSource {
 		set[c.AddrPort()] = true
 	}
 	return twg.CatalogSourceFunc(func(c netip.AddrPort) bool { return set[c] })
+}
+
+// sniPoolForIssue resolves the SNI pool for the next profile re-issue
+// (review L1, design §3.4): a DEGRADED profile re-issues with a new pool
+// name at most once per i1AdaptationStep (30 min) — rapid SNI churn is
+// itself a fingerprint. Inside the step window (stamped by the jail
+// verdict into i1LastSwap) the re-issue keeps the CURRENT name; the
+// per-handshake DCID regeneration (P3) still applies every time.
+func (r *Runtime) sniPoolForIssue() []string {
+	pool := proton.DefaultSNIPool()
+	if len(r.cfg.Obfuscation.SNIPool) > 0 {
+		pool = r.cfg.Obfuscation.SNIPool
+	}
+	if !r.cfg.Obfuscation.I1Adaptation {
+		return pool
+	}
+	r.mu.Lock()
+	lastSwap := r.i1LastSwap
+	var keepSNI string
+	if idx := r.profIdx; idx >= 0 && idx < len(r.profiles) {
+		keepSNI = r.profiles[idx].SNI
+	}
+	r.mu.Unlock()
+	if lastSwap.IsZero() || r.now().Sub(lastSwap) >= i1AdaptationStep || keepSNI == "" {
+		return pool
+	}
+	return []string{keepSNI}
 }
 
 // protonLadderIDs resolves the seek ladder from the obfuscation config.

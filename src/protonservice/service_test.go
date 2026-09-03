@@ -487,3 +487,142 @@ func mustPubPEM(t *testing.T) string {
 	}
 	return proton.DeriveKeyPair(seed).Ed25519PubPEM
 }
+
+// ---- review P7 / L1 ------------------------------------------------------------------
+
+// P7: Reissue retires the LIVE session (SetLocation semantics): a full
+// happy e2e establishes against the mini edge, then the owner Reissue
+// re-registers and drops the session immediately — no silent serving on
+// the old key.
+func TestReissueRetiresLiveSession(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "identity.json")
+	id := knownIdentity(t, path)
+
+	edge := newMiniEdge(t)
+	clientPub, err := clientPubKeyOf(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edgePubB64, err := edge.configure(clientPub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge.StartResponder()
+
+	port := edge.port
+	rt, st := buildRuntime(t, path, func(rc recordedCall) (int, string) {
+		switch {
+		case strings.HasPrefix(rc.Path, "/vpn/v2/logicals"):
+			return http.StatusOK, logicalsFor(edgePubB64, uint16(port))
+		case rc.Path == "/auth/v4/sessions":
+			// Step 1 of the enrollment ladder (user-scoped, pre-VPN).
+			return http.StatusOK, sessionJSON("uid-base", "tok-base", "rf-base", "user")
+		case rc.Path == "/auth/v4/credentialless":
+			return http.StatusOK, sessionJSON("uid-re", "tok-re", "rf-re", "vpn")
+		case rc.Path == "/vpn/v1/certificate":
+			return http.StatusOK, fmt.Sprintf(`{"Code":1000,"ExpirationTime":%d}`,
+				time.Now().Add(365*24*time.Hour).Unix())
+		default:
+			return http.StatusOK, `{"Code":1000}`
+		}
+	})
+	rt.cfg.Port = uint16(port)
+	rt.location = config.ProtonLocation{Mode: "auto"}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	rt.tick(ctx)
+
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if stS := rt.Status(); stS.Listening {
+			break
+		}
+		if time.Now().After(deadline) {
+			stS := rt.Status()
+			t.Fatalf("session did not establish: state=%s last=%q", stS.State, stS.LastFailure)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if err := rt.Reissue(ctx); err != nil {
+		t.Fatalf("reissue: %v", err)
+	}
+
+	rt.mu.Lock()
+	sessAlive := rt.sess != nil
+	profiles := len(rt.profiles)
+	profIdx := rt.profIdx
+	rt.mu.Unlock()
+	if sessAlive {
+		t.Fatal("the live session survived Reissue (review P7 regression)")
+	}
+	if profiles != 0 || profIdx != 0 {
+		t.Fatalf("profiles not reset: n=%d idx=%d", profiles, profIdx)
+	}
+	retired := false
+	for _, ev := range rt.Status().Events {
+		if ev.Name == "proton_session_retired" {
+			retired = true
+		}
+	}
+	if !retired {
+		t.Fatal("proton_session_retired event missing")
+	}
+	// The re-registration actually happened (credentialless + certificate).
+	sawCredless, sawCert := false, false
+	for _, rc := range st.journal() {
+		switch rc.Path {
+		case "/auth/v4/credentialless":
+			sawCredless = true
+		case "/vpn/v1/certificate":
+			sawCert = true
+		}
+	}
+	if !sawCredless || !sawCert {
+		t.Fatalf("reissue registration incomplete: credless=%t cert=%t", sawCredless, sawCert)
+	}
+}
+
+// L1: the SNI pool of a re-issue respects the >= 30 min adaptation step —
+// inside the window the CURRENT name is kept, outside it the full pool
+// returns (a fresh name is drawn), and the flag off keeps the pool always.
+func TestSNIPoolForIssueAdaptationGate(t *testing.T) {
+	dir := t.TempDir()
+	rt, _ := buildRuntime(t, filepath.Join(dir, "identity.json"), nil)
+	rt.cfg.Obfuscation = config.ProtonObfuscation{
+		Enabled:      true,
+		I1Adaptation: true,
+		SNIPool:      []string{"a.example", "b.example", "c.example"},
+	}
+	rt.mu.Lock()
+	rt.profiles = []proton.ProtonProfile{{SNI: "keep.me", ProfileID: "proton-quic"}}
+	rt.profIdx = 0
+	rt.mu.Unlock()
+
+	// Degraded just now: keep the current name.
+	rt.mu.Lock()
+	rt.i1LastSwap = rt.now()
+	rt.mu.Unlock()
+	if got := rt.sniPoolForIssue(); len(got) != 1 || got[0] != "keep.me" {
+		t.Fatalf("inside the step window pool = %v, want [keep.me]", got)
+	}
+
+	// Degraded 31 min ago: the window is over, a fresh name is drawn.
+	rt.mu.Lock()
+	rt.i1LastSwap = rt.now().Add(-31 * time.Minute)
+	rt.mu.Unlock()
+	if got := rt.sniPoolForIssue(); len(got) != 3 {
+		t.Fatalf("after the step window pool = %v, want the full pool", got)
+	}
+
+	// Adaptation off: always the full pool.
+	rt.cfg.Obfuscation.I1Adaptation = false
+	rt.mu.Lock()
+	rt.i1LastSwap = rt.now()
+	rt.mu.Unlock()
+	if got := rt.sniPoolForIssue(); len(got) != 3 {
+		t.Fatalf("adaptation off pool = %v, want the full pool", got)
+	}
+}
