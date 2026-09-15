@@ -1,15 +1,5 @@
 package tor
 
-// Tor process supervision (patch-plan §7.2, design §7.2): spawn the
-// external C-tor from Entware (or the owner's path) with argv-carried
-// paths, an empty DefaultsTorrcFile and the owning-controller pid in the
-// rendered torrc (b4 death = tor death, the reverse never holds).
-//
-// Identification discipline: a tor pid is only OURS when BOTH the pid
-// matches AND /proc/<pid>/exe resolves to the expected binary. Stop is the
-// graded ladder SIGNAL SHUTDOWN → SIGTERM → SIGKILL, and the ownership
-// check is repeated immediately before every OS signal.
-
 import (
 	"context"
 	"errors"
@@ -40,13 +30,14 @@ type ProcessDeath struct {
 }
 
 type ProcessHandle struct {
-	binaryPath string // canonical expected /proc/<pid>/exe when resolvable
+	binaryPath string
 	dataPath   string
-	pidFile    string // b4 ownership metadata, not Tor's native PidFile
-	nativePID  string // Tor-owned one-line pid file
+	pidFile    string
+	nativePID  string
 	cmd        *exec.Cmd
 
 	mu        sync.Mutex
+	exited    bool
 	death     chan ProcessDeath
 	deathOnce sync.Once
 }
@@ -61,18 +52,11 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	if err := os.Chmod(torrcPath, 0o600); err != nil {
 		return nil, fmt.Errorf("torrc chmod: %w", err)
 	}
-
-	// DefaultsTorrcFile MUST exist before exec. Starting Tor and only then
-	// creating this file was a race that could fail before supervision came
-	// online.
 	defaultsFile := filepath.Join(dataPath, "torrc-defaults")
 	if err := os.WriteFile(defaultsFile, nil, 0o600); err != nil {
 		return nil, fmt.Errorf("torrc-defaults: %w", err)
 	}
 
-	// Tor and b4 must not write different formats to the same pid file.
-	// tor-native.pid belongs to Tor; tor.pid is b4's {pid,exe} ownership
-	// record used by field tooling and guarded escalation.
 	pidFile := filepath.Join(dataPath, "tor.pid")
 	nativePID := filepath.Join(dataPath, "tor-native.pid")
 	_ = os.Remove(pidFile)
@@ -108,8 +92,6 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 		return nil, fmt.Errorf("tor spawn: %w", err)
 	}
 	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n%s\n", cmd.Process.Pid, expectedExe)), 0o600); err != nil {
-		// Ownership metadata is a safety primitive. If it cannot be recorded,
-		// kill the just-created child while we still have the direct handle.
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 		return nil, fmt.Errorf("tor ownership pid file: %w", err)
@@ -127,6 +109,9 @@ func (h *ProcessHandle) wait() {
 			exit = ee.ExitCode()
 		}
 	}
+	h.mu.Lock()
+	h.exited = true
+	h.mu.Unlock()
 	h.deathOnce.Do(func() {
 		h.death <- ProcessDeath{Err: err, Exit: exit}
 	})
@@ -135,10 +120,18 @@ func (h *ProcessHandle) wait() {
 func (h *ProcessHandle) PID() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.cmd == nil || h.cmd.Process == nil {
+	if h.exited || h.cmd == nil || h.cmd.Process == nil {
 		return 0
 	}
 	return h.cmd.Process.Pid
+}
+
+// Alive lets the service prove that a guarded Stop actually retired the
+// process before it discards the handle and permits a replacement spawn.
+func (h *ProcessHandle) Alive() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return !h.exited && h.cmd != nil && h.cmd.Process != nil
 }
 
 func (h *ProcessHandle) Death() <-chan ProcessDeath { return h.death }
@@ -164,19 +157,15 @@ func OwnsPID(pid int, expectedBinary string) bool {
 	return exe == expected
 }
 
-// Stop runs the graded shutdown ladder. It never uses process-name matching
-// and refuses TERM/KILL if the pid+exe ownership proof fails.
 func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
 	h.mu.Lock()
-	proc := h.cmd.Process
-	pid := 0
-	if proc != nil {
-		pid = proc.Pid
-	}
-	h.mu.Unlock()
-	if proc == nil {
+	if h.exited || h.cmd == nil || h.cmd.Process == nil {
+		h.mu.Unlock()
 		return
 	}
+	proc := h.cmd.Process
+	pid := proc.Pid
+	h.mu.Unlock()
 	defer func() {
 		_ = os.Remove(h.pidFile)
 		_ = os.Remove(h.nativePID)
@@ -190,7 +179,6 @@ func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
 			return
 		}
 	}
-
 	if !OwnsPID(pid, h.binaryPath) {
 		log.Tracef("[tor] refusing SIGTERM for pid=%d: %v", pid, ErrProcessNotOurs)
 		return
@@ -199,7 +187,6 @@ func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
 	if h.awaitDeath(ctx, ProcessTermGrace) {
 		return
 	}
-
 	if !OwnsPID(pid, h.binaryPath) {
 		log.Tracef("[tor] refusing SIGKILL for pid=%d: %v", pid, ErrProcessNotOurs)
 		return
