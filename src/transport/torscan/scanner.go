@@ -1,10 +1,10 @@
 package torscan
 
-// Scanner driver: source chain → country policy → bandwidth ranking →
-// bounded top cohort → deterministic shuffle → modern Tor channel probes.
+// Scanner driver: source chain -> country policy -> bandwidth ranking ->
+// bounded top cohort -> deterministic shuffle -> modern Tor channel probes.
 // The top cohort preserves the speed signal while shuffle avoids a stable
-// probe fingerprint. A persistent per-address cooldown prevents repeated
-// active handshakes across daemon restarts.
+// probe fingerprint. Persistent per-address and aggregate budgets prevent
+// repeated active handshakes across daemon restarts.
 
 import (
 	"context"
@@ -53,11 +53,12 @@ func (v VerifiedRelay) BridgeLine() string {
 }
 
 type Result struct {
-	Relays  []VerifiedRelay
-	Source  string
-	Probed  int
-	Checked int
+	Relays          []VerifiedRelay
+	Source          string
+	Probed          int
+	Checked         int
 	SkippedCooldown int
+	SkippedBudget   int
 }
 
 type Scanner struct {
@@ -122,10 +123,10 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 	lp := ledgerPath(cachePath)
 	ledger := loadProbeLedger(lp)
 	eligible := candidates[:0]
-	skipped := 0
+	skippedCooldown := 0
 	for _, c := range candidates {
 		if !ledger.eligible(c.addr, now) {
-			skipped++
+			skippedCooldown++
 			continue
 		}
 		eligible = append(eligible, c)
@@ -133,10 +134,11 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 	candidates = eligible
 
 	var (
-		mu       sync.Mutex
-		verified []VerifiedRelay
-		probed   int64
-		goal     = cfg.Goal
+		mu            sync.Mutex
+		verified      []VerifiedRelay
+		probed        int64
+		goal          = cfg.Goal
+		skippedBudget int
 	)
 	sem := make(chan struct{}, cfg.PoolSize)
 	var wg sync.WaitGroup
@@ -150,7 +152,10 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 		if done || rctx.Err() != nil {
 			break
 		}
-		ledger.mark(cand.addr, now)
+		if !ledger.reserve(cand.addr, now) {
+			skippedBudget++
+			break
+		}
 		wg.Add(1)
 		go func(c candidate) {
 			defer wg.Done()
@@ -177,10 +182,22 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 	_ = ledger.save(lp)
 
 	if len(verified) == 0 {
-		return Result{Source: source, Probed: int(atomic.LoadInt64(&probed)), Checked: len(candidates), SkippedCooldown: skipped},
-			fmt.Errorf("torscan: no relay passed the modern channel probe (%d candidates probed, %d cooldown-skipped)", atomic.LoadInt64(&probed), skipped)
+		return Result{
+			Source:          source,
+			Probed:          int(atomic.LoadInt64(&probed)),
+			Checked:         len(candidates),
+			SkippedCooldown: skippedCooldown,
+			SkippedBudget:   skippedBudget,
+		}, fmt.Errorf("torscan: no relay passed the modern channel probe (%d probed, %d cooldown-skipped, %d budget-skipped)", atomic.LoadInt64(&probed), skippedCooldown, skippedBudget)
 	}
-	return Result{Relays: verified, Source: source, Probed: int(atomic.LoadInt64(&probed)), Checked: len(candidates), SkippedCooldown: skipped}, nil
+	return Result{
+		Relays:          verified,
+		Source:          source,
+		Probed:          int(atomic.LoadInt64(&probed)),
+		Checked:         len(candidates),
+		SkippedCooldown: skippedCooldown,
+		SkippedBudget:   skippedBudget,
+	}, nil
 }
 
 func filterCountries(relays []Relay, countries []string) []Relay {
