@@ -16,13 +16,14 @@
 // Duplicate IDs are rejected — including collisions with the SEED catalog —
 // so a library can never silently shadow a seed profile.
 //
-// CatalogVersion bumps to 2 with this schema. HONEST POSTURE (plan Variant
-// B note): the seed fallback ladder remains template-grade; the
-// "junk-first ladder is field-ready" claim holds ONLY when a validated
-// field library is loaded and wired by the engine.
+// CatalogVersion 3 extends the external schema with the AWG 3.1 fields that
+// the typed Profile and IPC bridge already understand. Stock-WG targets still
+// pass through ProfileTemplate.Build's VanillaSafe gate, so these both-end
+// features cannot silently leak onto Cloudflare/Proton peers.
 package transportwg
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -76,6 +77,19 @@ type profileFileEntry struct {
 	HeaderResponse  *[2]uint32 `json:"h2,omitempty"`
 	HeaderCookie    *[2]uint32 `json:"h3,omitempty"`
 	HeaderTransport *[2]uint32 `json:"h4,omitempty"`
+
+	// AWG 3.1 additions. HeaderProtectionKey is standard padded base64 in
+	// the library schema (matching normal Amnezia/WireGuard key material);
+	// the IPC bridge converts the decoded 32 bytes to the daemon's hex form.
+	HeaderProtectionKey string     `json:"header_protection_key,omitempty"`
+	ContentPadding      *[2]uint32 `json:"content_padding_addition,omitempty"`
+	RandomTrailers      bool       `json:"random_trailers,omitempty"`
+	DisableCookies      bool       `json:"disable_cookies,omitempty"`
+	RekeyAfterTime      *[2]uint32 `json:"rekey_after_time,omitempty"`
+	RekeyTimeout        *[2]uint32 `json:"rekey_timeout,omitempty"`
+	RejectAfterTime     *[2]uint32 `json:"reject_after_time,omitempty"`
+	KeepaliveTimeout    *[2]uint32 `json:"keepalive_timeout,omitempty"`
+	MaxHandshakeAtt     *[2]uint32 `json:"max_handshake_attempts,omitempty"`
 }
 
 // LoadProfileLibrary loads and validates an external profile library from
@@ -159,17 +173,24 @@ func decodeProfileEntry(item json.RawMessage) (ProfileTemplate, error) {
 		return ProfileTemplate{}, fmt.Errorf("target %q must be %q or %q", e.Target, TargetCfWarp, TargetAwgServer)
 	}
 
+	hpKey, err := decodeHeaderProtectionKey(e.HeaderProtectionKey)
+	if err != nil {
+		return ProfileTemplate{}, err
+	}
 	p := Profile{
-		JunkCount:       e.JunkCount,
-		JunkMin:         e.JunkMin,
-		JunkMax:         e.JunkMax,
-		InitPacket:      [5]string{e.I1, e.I2, e.I3, e.I4, e.I5},
-		HiddenJunk:      [3]string{e.J1, e.J2, e.J3},
-		JunkIntervalSec: e.JunkIntervalSec,
-		PadInit:         e.PadInit,
-		PadResponse:     e.PadResponse,
-		PadCookie:       e.PadCookie,
-		PadTransport:    e.PadTransport,
+		JunkCount:        e.JunkCount,
+		JunkMin:          e.JunkMin,
+		JunkMax:          e.JunkMax,
+		InitPacket:       [5]string{e.I1, e.I2, e.I3, e.I4, e.I5},
+		HiddenJunk:       [3]string{e.J1, e.J2, e.J3},
+		JunkIntervalSec:  e.JunkIntervalSec,
+		PadInit:          e.PadInit,
+		PadResponse:      e.PadResponse,
+		PadCookie:        e.PadCookie,
+		PadTransport:     e.PadTransport,
+		HeaderProtKey:    hpKey,
+		RandomTrailers:   e.RandomTrailers,
+		DisableCookies:   e.DisableCookies,
 	}
 	if e.HeaderInit != nil {
 		p.HeaderInit = rangeFromPair(e.HeaderInit)
@@ -183,6 +204,12 @@ func decodeProfileEntry(item json.RawMessage) (ProfileTemplate, error) {
 	if e.HeaderTransport != nil {
 		p.HeaderTransport = rangeFromPair(e.HeaderTransport)
 	}
+	p.ContentPadding = rangeFromOptionalPair(e.ContentPadding)
+	p.RekeyAfterTime = rangeFromOptionalPair(e.RekeyAfterTime)
+	p.RekeyTimeout = rangeFromOptionalPair(e.RekeyTimeout)
+	p.RejectAfterTime = rangeFromOptionalPair(e.RejectAfterTime)
+	p.KeepaliveTimeout = rangeFromOptionalPair(e.KeepaliveTimeout)
+	p.MaxHandshakeAtt = rangeFromOptionalPair(e.MaxHandshakeAtt)
 
 	t := ProfileTemplate{
 		ID:               e.ID,
@@ -214,8 +241,30 @@ func decodeProfileEntry(item json.RawMessage) (ProfileTemplate, error) {
 	return t, nil
 }
 
+func decodeHeaderProtectionKey(encoded string) ([]byte, error) {
+	encoded = strings.TrimSpace(encoded)
+	if encoded == "" {
+		return nil, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		return nil, fmt.Errorf("header_protection_key: invalid base64: %w", err)
+	}
+	if len(raw) != 32 {
+		return nil, fmt.Errorf("header_protection_key: must decode to 32 bytes, got %d", len(raw))
+	}
+	return raw, nil
+}
+
 func rangeFromPair(pair *[2]uint32) *Range {
 	return &Range{Lo: pair[0], Hi: pair[1]}
+}
+
+func rangeFromOptionalPair(pair *[2]uint32) *Range {
+	if pair == nil {
+		return nil
+	}
+	return rangeFromPair(pair)
 }
 
 // validateQuicFieldProfile enforces the field-grade invariant on quic-*

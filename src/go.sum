@@ -1,7 +1,7 @@
 github.com/AlexZander85/quic-go v0.61.0-b4x.2 h1:sjIgrsVzlcfjR5GV9OL/Qwlw9leDfffqYQh/sh9Hsik=
 github.com/AlexZander85/quic-go v0.61.0-b4x.2/go.mod h1:H/4VMlaB69QvnKAFS3aBZv3EHhEkxa/p9BwaVVlu2cc=
-github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260814 h1:l2AhBD+sFycU8Im81n/bZORMxW7fWtlZJEuJ4Hh0+z0=
-github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260814/go.mod h1:YoPc6qcOZqD7TXZ1xpedD8Sx3aSKsxN05ZqEFmXDNHk=
+github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828 h1:D8d8gGvwXcTxUIsE4z6F6vjy4/VZddu95vMNtOygh1c=
+github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828/go.mod h1:YoPc6qcOZqD7TXZ1xpedD8Sx3aSKsxN05ZqEFmXDNHk=
 github.com/andybalholm/brotli v1.0.6 h1:Yf9fFpf49Zrxb9NlQaluyE92/+X7UVHlhMNJN2sxfOI=
 github.com/andybalholm/brotli v1.0.6/go.mod h1:fO7iG3H7G2nSZ7m0zPUDn85XEX2GTukHGRSepvi9Eig=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=

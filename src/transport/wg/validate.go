@@ -210,14 +210,17 @@ func (p *Profile) Validate() error {
 }
 
 // VanillaSafe reports whether the profile modifies ONLY client-side-only
-// parameters (junk count/size, I-chains). Against a vanilla peer (e.g. the
-// Cloudflare edge) S/H modifications break the handshake on the peer side
-// (research §7 finding 3), so seek-ladder profiles that may target vanilla
-// edges must pass this check.
+// parameters (junk count/size, I-chains). Stock WireGuard peers (Cloudflare
+// WARP and Proton) may safely receive only that client-side pre-handshake
+// camouflage. S/H, header protection, content padding, random trailers,
+// cookie suppression and AWG timing controls are reserved for an AWG-aware
+// peer and therefore fail this gate.
 func (p *Profile) VanillaSafe() bool {
 	return p.PadInit == 0 && p.PadResponse == 0 && p.PadCookie == 0 && p.PadTransport == 0 &&
 		p.HeaderInit == nil && p.HeaderResponse == nil && p.HeaderCookie == nil && p.HeaderTransport == nil &&
-		len(p.HeaderProtKey) == 0 && !p.RandomTrailers
+		len(p.HeaderProtKey) == 0 && p.ContentPadding == nil && !p.RandomTrailers && !p.DisableCookies &&
+		p.RekeyAfterTime == nil && p.RekeyTimeout == nil && p.RejectAfterTime == nil &&
+		p.KeepaliveTimeout == nil && p.MaxHandshakeAtt == nil
 }
 
 // parseUint32 is strconv.ParseUint with a wrapped error type.

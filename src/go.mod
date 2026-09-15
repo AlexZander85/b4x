@@ -16,7 +16,7 @@ require (
 )
 
 require (
-	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260814
+	github.com/amnezia-vpn/amneziawg-go/v3 v3.1.20260828
 	github.com/florianl/go-nfqueue v1.3.2
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
