@@ -43,7 +43,9 @@ import (
 // v2: external field-profile libraries (profiles_loader.go, PATCH-05
 // Variant B) join the seed set; the seeds themselves stay template-grade
 // fallback (see the honest-posture note in profiles_loader.go).
-const CatalogVersion = 2
+// v3: external field-profile libraries can ingest the AWG 3.1 UAPI fields
+// already supported by Profile and the IPC bridge.
+const CatalogVersion = 3
 
 // catalogEngineGeneration is the DEMON generation the ladder gates against
 // (PATCH-17, WG MINOR 12 / design WG4): profiles whose EngineGeneration
