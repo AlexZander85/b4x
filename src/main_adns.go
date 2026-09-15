@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"net/netip"
 	"strings"
+	"time"
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/detector"
+	b4dns "github.com/daniellavrushin/b4/dns"
 	"github.com/daniellavrushin/b4/http/handler"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/nfq"
 	dnspath "github.com/daniellavrushin/b4/transport/dns"
 	"github.com/daniellavrushin/b4/transport/dns/providers"
 )
@@ -27,10 +30,10 @@ const (
 // but adaptive selection never runs implicitly on existing installs.
 //
 // The diagnosis provider set is derived only from the already-existing
-// system.checker.reference_dns list. No new public resolvers are injected by
-// ADNS. A READY diagnosis may be adopted/prepared as pre-canary state, but
-// this function never promotes a production binding: canary + transaction
-// remain mandatory.
+// system.checker.reference_dns list. No new public resolver is injected by
+// ADNS. Diagnosis/adoption alone never changes LAN DNS: selected paths are
+// prepared, then a real source-scoped LAN canary and Transaction.Run are
+// required before the NFQ dataplane sees the new binding.
 func initAdaptiveDNS(cfg *config.Config) {
 	mode := dnspath.DNSOperatingMode(cfg.DNSMode)
 	if mode == "" {
@@ -41,15 +44,29 @@ func initAdaptiveDNS(cfg *config.Config) {
 
 	diagnosisProviders := buildADNSReferenceProviders(cfg)
 	for _, provider := range diagnosisProviders {
-		// Native UDP/TCP Prepare is side-effect free (no query is sent). Keep
-		// the handles ready so a later explicit transaction can use a profile
-		// without silently creating a new, untracked provider identity.
-		if err := manager.PreparePath(context.Background(), provider, false); err != nil {
-			log.Warnf("adaptive dns: provider %s prepare failed: %v", provider.ID().Family, err)
-			continue
-		}
-		manager.MarkPathHealth(provider.ID(), dnspath.DNSPathHealth{State: dnspath.CapAvailable})
+		manager.RegisterProvider(provider)
+		manager.MarkPathHealth(provider.ID(), dnspath.DNSPathHealth{State: provider.Capabilities().State})
 	}
+
+	// The globally promoted path is consumed by NFQ only after a transaction
+	// installs an active binding. Current/diagnostic modes remain untouched.
+	nfq.ConfigureAdaptiveDNSRuntime(func() bool {
+		mode := manager.Mode()
+		if mode != dnspath.DNSModeAdaptive && mode != dnspath.DNSModeManual {
+			return false
+		}
+		return manager.ActiveBinding() != nil
+	}, func(ctx context.Context, raw []byte) ([]byte, error) {
+		q, err := adaptiveDNSQueryFromWire(raw)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := manager.Resolve(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		return resp.Payload, nil
+	})
 
 	handler.SetDNSPathManager(manager)
 	handler.SetDNSDiagnoser(func(ctx context.Context) (*handler.DNSDiagnoseResult, error) {
@@ -60,9 +77,9 @@ func initAdaptiveDNS(cfg *config.Config) {
 		if independentResolverCount(diagnosisProviders) < 2 {
 			return nil, fmt.Errorf("adaptive dns diagnosis requires at least two independent configured reference DNS resolvers")
 		}
-		control := adnsUnrelatedControl
-		if sameDNSName(target, control) {
-			control = adnsUnrelatedControl2
+		unrelated := adnsUnrelatedControl
+		if sameDNSName(target, unrelated) {
+			unrelated = adnsUnrelatedControl2
 		}
 		livePolicy := manager.Policy()
 		attemptsValid := cfg.System.Checker.ValidationTries
@@ -75,7 +92,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 		diag, err := detector.RunADNSDiagnosis(ctx, detector.ADNSDiagnosisInput{
 			Providers:      diagnosisProviders,
 			Policy:         livePolicy,
-			Suite:          detector.CanonicalSuite(target, control),
+			Suite:          detector.CanonicalSuiteWithControls(target, "", unrelated),
 			Deep:           true,
 			AttemptsQuick:  2,
 			AttemptsValid:  attemptsValid,
@@ -98,9 +115,12 @@ func initAdaptiveDNS(cfg *config.Config) {
 			result.ProfileID = diag.Profile.ProfileID
 			result.Confidence = diag.Profile.Confidence.Score
 			if diag.Profile.Status == dnspath.ProfileStatusReady {
-				// AdoptProfile changes only the validated selection basis; it does
-				// not install/promote a production binding. That remains owned by
-				// the transaction/canary path.
+				// Diagnostic handles are retired by the detector. Re-prepare only
+				// selected primary/fallback paths as production handles before the
+				// profile becomes eligible for a LAN canary.
+				if err := manager.PrepareProfilePaths(ctx, diag.Profile); err != nil {
+					return nil, fmt.Errorf("prepare validated DNS profile: %w", err)
+				}
 				if err := manager.AdoptProfile(diag.Profile); err != nil {
 					return nil, fmt.Errorf("adopt validated DNS profile: %w", err)
 				}
@@ -108,6 +128,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 				for _, fb := range diag.Profile.Fallbacks {
 					result.FallbackFamilies = append(result.FallbackFamilies, string(fb.Family))
 				}
+				result.Explanation = append(result.Explanation, "profile prepared; source-scoped LAN canary is required before promotion")
 			} else {
 				result.Explanation = append(result.Explanation, "no path satisfied correctness, control and active policy gates")
 			}
@@ -116,17 +137,97 @@ func initAdaptiveDNS(cfg *config.Config) {
 			result.Explanation = append(result.Explanation, "conflicting early DNS responses observed")
 		}
 		if diag.PoisoningDetected {
-			result.Explanation = append(result.Explanation, "answer conflict reached differential poisoning threshold")
+			result.Explanation = append(result.Explanation, "UDP/TCP or independent answer conflict reached poisoning evidence threshold")
 		}
 		if diag.UDPDropDetected {
-			result.Explanation = append(result.Explanation, "repeated UDP DNS timeout observed")
+			result.Explanation = append(result.Explanation, "UDP failure corroborated by working TCP to the same apparent resolver")
 		}
 		if diag.Port53Blocked {
-			result.Explanation = append(result.Explanation, "classic port-53 transport failure corroborated by an encrypted path")
+			result.Explanation = append(result.Explanation, "classic port-53 failure corroborated by an independently validated encrypted path")
 		}
 		return result, nil
 	})
+
+	handler.SetDNSCanaryRunner(func(ctx context.Context, req handler.DNSCanaryRequest) (*handler.DNSCanaryResult, error) {
+		if manager.Mode() != dnspath.DNSModeAdaptive {
+			return nil, fmt.Errorf("automatic DNS canary/promotion requires dns_mode=adaptive")
+		}
+		if !manager.Policy().Enabled {
+			return nil, fmt.Errorf("adaptive DNS policy is disabled")
+		}
+		profile := manager.Profile()
+		if profile == nil {
+			return nil, fmt.Errorf("no adopted profile; diagnose first")
+		}
+		if err := profile.Valid(time.Now()); err != nil {
+			return nil, fmt.Errorf("profile not fresh: %w", err)
+		}
+		// Refresh production readiness immediately before canary.
+		if err := manager.PrepareProfilePaths(ctx, profile); err != nil {
+			return nil, err
+		}
+		bindingTTL := time.Until(profile.ValidUntil)
+		if bindingTTL <= 0 {
+			return nil, fmt.Errorf("profile expired before canary")
+		}
+		binding, err := manager.NewBinding("lan-canary", bindingTTL)
+		if err != nil {
+			return nil, err
+		}
+		lastGood := manager.ActiveBinding()
+		tx := &dnspath.Transaction{
+			Profile: profile, Candidate: binding, LastGood: lastGood,
+		}
+		var canary nfq.DNSCanaryResult
+		tx.Canary = func(canaryCtx context.Context, candidate *dnspath.DNSPathBinding) error {
+			res, runErr := nfq.RunAdaptiveDNSCanary(
+				canaryCtx,
+				req.ClientMAC,
+				req.MinimumQueries,
+				time.Duration(req.WindowSeconds)*time.Second,
+				func(resolveCtx context.Context, raw []byte) ([]byte, error) {
+					q, qErr := adaptiveDNSQueryFromWire(raw)
+					if qErr != nil {
+						return nil, qErr
+					}
+					resp, qErr := manager.ResolveCandidate(resolveCtx, candidate, q)
+					if qErr != nil {
+						return nil, qErr
+					}
+					return resp.Payload, nil
+				},
+			)
+			canary = res
+			return runErr
+		}
+		if err := tx.Run(ctx, manager); err != nil {
+			result := &handler.DNSCanaryResult{
+				Promoted: false, ProfileID: profile.ProfileID,
+				PrimaryFamily: string(profile.Primary.Family),
+				Successes: canary.Successes, Failures: canary.Failures,
+				Reason: tx.Reason,
+			}
+			return result, fmt.Errorf("DNS canary/promotion aborted: %s", tx.Reason)
+		}
+		return &handler.DNSCanaryResult{
+			Promoted: true, ProfileID: profile.ProfileID,
+			PrimaryFamily: string(profile.Primary.Family),
+			Successes: canary.Successes, Failures: canary.Failures,
+		}, nil
+	})
+
 	log.Infof("adaptive dns: mode=%s adaptive=%v reference_resolvers=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders))
+}
+
+func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
+	name, qtype, txid, ok := b4dns.ParseQuestion(raw)
+	if !ok {
+		return dnspath.DNSQuery{}, fmt.Errorf("unsupported or malformed client DNS question")
+	}
+	return dnspath.DNSQuery{
+		Name: name, NameHash: dnspath.HashQName(name), QType: qtype, TxID: txid,
+		Payload: append([]byte(nil), raw...),
+	}, nil
 }
 
 func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
