@@ -62,14 +62,7 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	_ = os.Remove(pidFile)
 	_ = os.Remove(nativePID)
 
-	expectedExe := binaryPath
-	if resolved, err := filepath.EvalSymlinks(binaryPath); err == nil {
-		expectedExe = resolved
-	}
-	if abs, err := filepath.Abs(expectedExe); err == nil {
-		expectedExe = abs
-	}
-
+	expectedExe := canonicalExecutable(binaryPath)
 	cmd := exec.Command(binaryPath,
 		"-f", torrcPath,
 		"--DefaultsTorrcFile", defaultsFile,
@@ -81,23 +74,35 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	cmd.Stderr = torLogWriter{tag: "tor-err"}
 
 	h := &ProcessHandle{
-		binaryPath: expectedExe,
-		dataPath:   dataPath,
-		pidFile:    pidFile,
-		nativePID:  nativePID,
-		cmd:        cmd,
-		death:      make(chan ProcessDeath, 1),
+		binaryPath: expectedExe, dataPath: dataPath, pidFile: pidFile,
+		nativePID: nativePID, cmd: cmd, death: make(chan ProcessDeath, 1),
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("tor spawn: %w", err)
 	}
-	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n%s\n", cmd.Process.Pid, expectedExe)), 0o600); err != nil {
+	// Resolve the ACTUAL child executable after exec. For production this is
+	// the Tor ELF; for script-based test stands it is the interpreter. The
+	// safety invariant is about the process we actually own, not argv[0].
+	if exe, err := os.Readlink(fmt.Sprintf("/proc/%d/exe", cmd.Process.Pid)); err == nil {
+		h.binaryPath = strings.TrimSuffix(exe, " (deleted)")
+	}
+	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n%s\n", cmd.Process.Pid, h.binaryPath)), 0o600); err != nil {
 		_ = cmd.Process.Kill()
 		_, _ = cmd.Process.Wait()
 		return nil, fmt.Errorf("tor ownership pid file: %w", err)
 	}
 	go h.wait()
 	return h, nil
+}
+
+func canonicalExecutable(path string) string {
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		path = resolved
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		path = abs
+	}
+	return path
 }
 
 func (h *ProcessHandle) wait() {
@@ -112,22 +117,18 @@ func (h *ProcessHandle) wait() {
 	h.mu.Lock()
 	h.exited = true
 	h.mu.Unlock()
-	h.deathOnce.Do(func() {
-		h.death <- ProcessDeath{Err: err, Exit: exit}
-	})
+	h.deathOnce.Do(func() { h.death <- ProcessDeath{Err: err, Exit: exit} })
 }
 
 func (h *ProcessHandle) PID() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.exited || h.cmd == nil || h.cmd.Process == nil {
+	if h.cmd == nil || h.cmd.Process == nil {
 		return 0
 	}
 	return h.cmd.Process.Pid
 }
 
-// Alive lets the service prove that a guarded Stop actually retired the
-// process before it discards the handle and permits a replacement spawn.
 func (h *ProcessHandle) Alive() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -144,17 +145,8 @@ func OwnsPID(pid int, expectedBinary string) bool {
 	if err != nil {
 		return false
 	}
-	if strings.HasSuffix(exe, " (deleted)") {
-		exe = strings.TrimSuffix(exe, " (deleted)")
-	}
-	expected := expectedBinary
-	if resolved, err := filepath.EvalSymlinks(expectedBinary); err == nil {
-		expected = resolved
-	}
-	if abs, err := filepath.Abs(expected); err == nil {
-		expected = abs
-	}
-	return exe == expected
+	exe = strings.TrimSuffix(exe, " (deleted)")
+	return exe == canonicalExecutable(expectedBinary)
 }
 
 func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
@@ -243,10 +235,9 @@ type torLogWriter struct{ tag string }
 
 func (w torLogWriter) Write(p []byte) (int, error) {
 	for _, line := range strings.Split(strings.TrimRight(string(p), "\n"), "\n") {
-		if line == "" {
-			continue
+		if line != "" {
+			log.Tracef("[tor/%s] %s", w.tag, line)
 		}
-		log.Tracef("[tor/%s] %s", w.tag, line)
 	}
 	return len(p), nil
 }
