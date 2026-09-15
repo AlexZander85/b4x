@@ -1,9 +1,10 @@
 package torscan
 
-// Scanner driver (design §4.3 — the tor-relay-scanner-go skeleton FIXED:
-// ALL or_addresses probed, not just [0]; goal-driven early stop; bounded
-// pool; bandwidth-ranked output). The result is a set of vanilla bridge
-// LINES ready for bridges.json.
+// Scanner driver: source chain → country policy → bandwidth ranking →
+// bounded top cohort → deterministic shuffle → modern Tor channel probes.
+// The top cohort preserves the speed signal while shuffle avoids a stable
+// probe fingerprint. A persistent per-address cooldown prevents repeated
+// active handshakes across daemon restarts.
 
 import (
 	"context"
@@ -15,24 +16,16 @@ import (
 	"time"
 )
 
-// ScanConfig bounds one scan run.
 type ScanConfig struct {
-	// Ports filters candidate OR ports (default 443, 9001).
-	Ports []int
-	// Countries PRIORITIZES (never hard-filters) relay countries (ISO
-	// codes; a leading '-' excludes, '!' means ONLY these — the ValdikSS
-	// filter canon simplified to priorities + excludes).
+	Ports     []int
 	Countries []string
-	// Goal is the early-stop count of VERIFIED relays (0 => 6).
-	Goal int
-	// Timeout is the overall budget (0 => 90s).
-	Timeout time.Duration
-	// PoolSize bounds concurrent probes (0 => 24).
-	PoolSize int
-	// CreateCount is the dummy CREATE cell count per probe (0 => 8).
+	Goal      int
+	Timeout   time.Duration
+	PoolSize  int
+	// CreateCount is retained for config/source compatibility. Modern
+	// DeepProbe no longer creates circuits.
 	CreateCount int
-	// Seed shuffles the candidate order deterministically.
-	Seed uint64
+	Seed        uint64
 }
 
 func (c *ScanConfig) normalize() {
@@ -48,48 +41,45 @@ func (c *ScanConfig) normalize() {
 	if c.PoolSize <= 0 {
 		c.PoolSize = 24
 	}
-	if c.CreateCount <= 0 {
-		c.CreateCount = 8
-	}
 }
 
-// VerifiedRelay is one deep-probe-verified relay candidate.
 type VerifiedRelay struct {
 	Relay
-	Addr string // the SPECIFIC or_address that answered the probe
+	Addr string
 }
 
-// BridgeLine renders the vanilla bridge line for a verified relay.
 func (v VerifiedRelay) BridgeLine() string {
 	return fmt.Sprintf("%s %s", v.Addr, v.Fingerprint)
 }
 
-// Result is one scan run outcome.
 type Result struct {
-	Relays []VerifiedRelay
-	Source string // the onionoo source that fed the run
-	// Probed counts the deep probes attempted / verified.
+	Relays  []VerifiedRelay
+	Source  string
 	Probed  int
 	Checked int
+	SkippedCooldown int
 }
 
-// Scanner ties the sources, probes and ranking together.
 type Scanner struct {
 	fetch Fetcher
 	dial  Dialer
+	now   func() time.Time
 }
 
-// NewScanner builds the scanner over the injected seams.
 func NewScanner(fetch Fetcher, dial Dialer) *Scanner {
 	if dial == nil {
 		dial = PlainDial
 	}
-	return &Scanner{fetch: fetch, dial: dial}
+	return &Scanner{fetch: fetch, dial: dial, now: time.Now}
 }
 
-// Scan runs one bounded scan: onionoo (fallback chain) → country
-// priority sort → bandwidth ranking → shuffle → pooled deep probes with
-// goal-driven early stop.
+// SetNow is a deterministic test seam for the persistent cooldown ledger.
+func (s *Scanner) SetNow(now func() time.Time) {
+	if now != nil {
+		s.now = now
+	}
+}
+
 func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string, cachePath string) (Result, error) {
 	cfg.normalize()
 	rctx, cancel := context.WithTimeout(ctx, cfg.Timeout)
@@ -100,12 +90,22 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 		return Result{}, err
 	}
 
-	// country policy: excludes out, "!" only-these, plain = priority order
-	relays = filterCountries(relays, cfg.Countries)
-	// bandwidth top-quantile FIRST (fast guards), then the deterministic
-	// shuffle inside the ranking (probe order leaks no preference)
+	// Bandwidth first, then stable country grouping: priority countries move
+	// to the head while bandwidth ordering is preserved inside each group.
 	ranked := BandwidthRank(relays)
-	shuffled := Shuffle(ranked, cfg.Seed)
+	ranked = filterCountries(ranked, cfg.Countries)
+	cohortN := cfg.Goal * 8
+	if min := cfg.PoolSize * 2; cohortN < min {
+		cohortN = min
+	}
+	if cohortN < cfg.Goal*3 {
+		cohortN = cfg.Goal * 3
+	}
+	if cohortN > len(ranked) {
+		cohortN = len(ranked)
+	}
+	cohort := ranked[:cohortN]
+	shuffled := Shuffle(cohort, cfg.Seed)
 
 	type candidate struct {
 		relay Relay
@@ -118,6 +118,20 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 		}
 	}
 
+	now := s.now()
+	lp := ledgerPath(cachePath)
+	ledger := loadProbeLedger(lp)
+	eligible := candidates[:0]
+	skipped := 0
+	for _, c := range candidates {
+		if !ledger.eligible(c.addr, now) {
+			skipped++
+			continue
+		}
+		eligible = append(eligible, c)
+	}
+	candidates = eligible
+
 	var (
 		mu       sync.Mutex
 		verified []VerifiedRelay
@@ -127,24 +141,25 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 	sem := make(chan struct{}, cfg.PoolSize)
 	var wg sync.WaitGroup
 	for _, cand := range candidates {
-		// early stop: goal reached (verified) or the probe budget spent
 		if int(atomic.LoadInt64(&probed)) >= goal*3 {
 			break
 		}
 		mu.Lock()
 		done := len(verified) >= goal
 		mu.Unlock()
-		if done {
+		if done || rctx.Err() != nil {
 			break
 		}
-		if rctx.Err() != nil {
-			break // budget exhausted: stop scheduling, wg.Wait collects
-		}
+		ledger.mark(cand.addr, now)
 		wg.Add(1)
 		go func(c candidate) {
 			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-rctx.Done():
+				return
+			}
 			atomic.AddInt64(&probed, 1)
 			if err := DeepProbe(rctx, s.dial, c.addr, cfg.CreateCount); err != nil {
 				return
@@ -157,16 +172,17 @@ func (s *Scanner) Scan(ctx context.Context, cfg ScanConfig, customURLs []string,
 		}(cand)
 	}
 	wg.Wait()
+	// The ledger is diagnostic/rate-safety state, not correctness state. A
+	// write failure must not erase a successful scanner result.
+	_ = ledger.save(lp)
 
 	if len(verified) == 0 {
-		return Result{Source: source, Probed: int(atomic.LoadInt64(&probed))},
-			fmt.Errorf("torscan: no relay passed the deep probe (%d candidates probed)", atomic.LoadInt64(&probed))
+		return Result{Source: source, Probed: int(atomic.LoadInt64(&probed)), Checked: len(candidates), SkippedCooldown: skipped},
+			fmt.Errorf("torscan: no relay passed the modern channel probe (%d candidates probed, %d cooldown-skipped)", atomic.LoadInt64(&probed), skipped)
 	}
-	return Result{Relays: verified, Source: source, Probed: int(atomic.LoadInt64(&probed)), Checked: len(candidates)}, nil
+	return Result{Relays: verified, Source: source, Probed: int(atomic.LoadInt64(&probed)), Checked: len(candidates), SkippedCooldown: skipped}, nil
 }
 
-// filterCountries applies the ValdikSS country policy: "-xx" excludes,
-// "!xx" restricts to exactly those, plain "xx" orders by priority.
 func filterCountries(relays []Relay, countries []string) []Relay {
 	if len(countries) == 0 {
 		return relays
@@ -210,8 +226,6 @@ func filterCountries(relays []Relay, countries []string) []Relay {
 		}
 		out = append(out, r)
 	}
-	// priority ordering: the listed countries float to the head, keeping
-	// the bandwidth order inside each group
 	if len(priority) > 0 {
 		rank := func(cc string) int {
 			for i, p := range priority {
@@ -222,13 +236,12 @@ func filterCountries(relays []Relay, countries []string) []Relay {
 			return len(priority)
 		}
 		sort.SliceStable(out, func(i, j int) bool {
-			return rank(out[i].Country) < rank(out[j].Country)
+			return rank(strings.ToUpper(out[i].Country)) < rank(strings.ToUpper(out[j].Country))
 		})
 	}
 	return out
 }
 
-// BridgeLines renders the verified set as bridge lines.
 func (res Result) BridgeLines() []string {
 	out := make([]string, 0, len(res.Relays))
 	for _, v := range res.Relays {
