@@ -52,8 +52,8 @@ func TestUDPProviderValidFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Class != dnspath.OutcomePassCorrect {
-		t.Fatalf("valid fixture must PASS_CORRECT, got %s", out.Class)
+	if out.Class != dnspath.OutcomeInconclusive {
+		t.Fatalf("valid provider evidence must remain INCONCLUSIVE until detector quorum, got %s", out.Class)
 	}
 	if out.AnswerFingerprint == "" {
 		t.Fatal("answer fingerprint required")
@@ -105,8 +105,8 @@ func TestTCPProviderValidFixture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Class != dnspath.OutcomePassCorrect {
-		t.Fatalf("tcp valid fixture must PASS_CORRECT, got %s", out.Class)
+	if out.Class != dnspath.OutcomeInconclusive {
+		t.Fatalf("valid TCP evidence must remain INCONCLUSIVE until detector quorum, got %s", out.Class)
 	}
 }
 
@@ -143,8 +143,8 @@ func TestTCPSegmentedExchangeWorks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Class != dnspath.OutcomePassCorrect {
-		t.Fatalf("segmented exchange must work against fixture, got %s", out.Class)
+	if out.Class != dnspath.OutcomeInconclusive {
+		t.Fatalf("segmented exchange should yield structurally valid detector evidence, got %s", out.Class)
 	}
 }
 
@@ -187,7 +187,7 @@ func TestRaceObserverDuplicateNotPoisoning(t *testing.T) {
 }
 
 func TestRaceNeverTrustsLastByOrder(t *testing.T) {
-	// two conflicting valid responses, no reference quorum → inconclusive,
+	// two conflicting valid responses, no reference quorum -> inconclusive,
 	// never "last wins"
 	obs := RaceObservation{Responses: []RaceResponse{
 		{ArrivalIndex: 0, Valid: true, Fingerprint: dnspath.ResponseFingerprint{AnswerDigest: "a", RCode: 0}},
@@ -217,8 +217,8 @@ func TestDoTProviderCertificateValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Class != dnspath.OutcomePassCorrect {
-		t.Fatalf("valid DoT fixture must PASS_CORRECT, got %s", out.Class)
+	if out.Class != dnspath.OutcomeInconclusive {
+		t.Fatalf("valid DoT evidence must remain INCONCLUSIVE until detector quorum, got %s", out.Class)
 	}
 }
 
@@ -248,6 +248,17 @@ func TestDoTRequiresBootstrap(t *testing.T) {
 	}
 }
 
+func TestDoHRequiresBootstrapForHostname(t *testing.T) {
+	p := NewDoHProvider("https://dns.example/dns-query", 0, "catalog-test")
+	if caps := p.Capabilities(); caps.State != dnspath.CapBlockedByBootstrap {
+		t.Fatalf("hostname DoH without bootstrap must be BLOCKED_BOOTSTRAP, got %s", caps.State)
+	}
+	p = NewDoHProviderWithBootstrap("https://dns.example/dns-query", []net.IP{net.ParseIP("192.0.2.53")}, 0, "catalog-test")
+	if caps := p.Capabilities(); caps.State != dnspath.CapAvailable {
+		t.Fatalf("hostname DoH with explicit bootstrap must be AVAILABLE, got %s", caps.State)
+	}
+}
+
 func TestDoHProviderStages(t *testing.T) {
 	fx, url, err := faultlab.StartDoH(faultlab.ModeValid, false)
 	if err != nil {
@@ -267,8 +278,8 @@ func TestDoHProviderStages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if out.Class != dnspath.OutcomePassCorrect {
-		t.Fatalf("valid DoH fixture must PASS_CORRECT, got %s", out.Class)
+	if out.Class != dnspath.OutcomeInconclusive {
+		t.Fatalf("valid DoH evidence must remain INCONCLUSIVE until detector quorum, got %s", out.Class)
 	}
 }
 
