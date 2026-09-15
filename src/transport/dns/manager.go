@@ -257,8 +257,8 @@ func (m *Manager) restoreLastGood(lastGood *DNSPathBinding) {
 // as last-good so production traffic remains valid throughout canary and can
 // be restored atomically on rollback.
 func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
-	if err := p.Valid(time.Now()); err != nil {
-		return fmt.Errorf("refusing stale/invalid profile: %w", err)
+	if err := p.Validated(time.Now()); err != nil {
+		return fmt.Errorf("refusing stale/invalid/unproven profile: %w", err)
 	}
 	m.mu.RLock()
 	networkCtx := m.networkCtx
@@ -281,8 +281,9 @@ func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 
 // Resolve serves one production query through the active binding with
 // bounded per-request fallback (§73/§74). Fast fallback only uses already
-// promoted/ready profile paths — never unvalidated candidates. Freshness is
-// checked on every request so an expired profile/binding cannot remain live.
+// promoted/ready profile paths — never unvalidated candidates. Freshness and
+// the canonical evidence chain are checked on every request so stale or
+// weakly-proven bindings cannot remain live.
 func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) {
 	now := time.Now()
 	m.mu.RLock()
@@ -308,8 +309,8 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 			return DNSResponse{}, errors.New("active DNS binding has no matching evidence profile")
 		}
 	}
-	if err := activeProfile.Valid(now); err != nil {
-		return DNSResponse{}, fmt.Errorf("active DNS profile is stale/invalid: %w", err)
+	if err := activeProfile.Validated(now); err != nil {
+		return DNSResponse{}, fmt.Errorf("active DNS profile is stale/invalid/unproven: %w", err)
 	}
 	if activeProfile.NetworkContextID != networkCtx || activeProfile.ConfigGeneration != generation || activeProfile.RuntimeEpoch != epoch {
 		return DNSResponse{}, errors.New("active DNS profile no longer matches runtime context")
@@ -326,7 +327,7 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 	if err == nil && !resp.Truncated {
 		return resp, nil
 	}
-	// bounded per-request fallback: one ready fallback attempt (§74)
+	// bounded per-request fallback: only already-ready validated paths.
 	for _, fb := range binding.Fallbacks {
 		if !m.pathReady(fb) {
 			continue
@@ -335,17 +336,17 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 		m.counters.FallbackTotal++
 		m.mu.Unlock()
 		m.trace("DNS_PATH_SELECTED", fb.Family)
-		if resp2, err2 := m.resolveVia(ctx, fb, q); err2 == nil {
+		if resp2, err2 := m.resolveVia(ctx, fb, q); err2 == nil && !resp2.Truncated {
 			return resp2, nil
 		}
 	}
+	m.mu.Lock()
+	m.counters.QueryFailures++
+	m.mu.Unlock()
 	if err != nil {
-		m.mu.Lock()
-		m.counters.QueryFailures++
-		m.mu.Unlock()
 		return DNSResponse{}, err
 	}
-	return resp, nil
+	return DNSResponse{}, errors.New("no complete DNS response: primary/fallback returned truncated or failed data")
 }
 
 func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (DNSResponse, error) {
@@ -371,8 +372,11 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 		}
 		resp := DNSResponse{Payload: payload, Fingerprint: e.Fingerprint, FromCache: true}
 		if meta, err := b4dns.InspectResponseMetadata(payload); err == nil {
+			if meta.Truncated {
+				return DNSResponse{}, errors.New("truncated DNS response found in cache partition")
+			}
 			resp.RCode = meta.RCode
-			resp.Truncated = meta.Truncated
+			resp.Truncated = false
 		}
 		return resp, nil
 	}
@@ -386,7 +390,13 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 	if err != nil {
 		return DNSResponse{}, err
 	}
+	if resp.Truncated {
+		return DNSResponse{}, errors.New("provider returned truncated DNS response as complete")
+	}
 	if meta, metaErr := b4dns.InspectResponseMetadata(resp.Payload); metaErr == nil {
+		if meta.Truncated {
+			return DNSResponse{}, errors.New("provider payload has TC=1 and cannot be returned as complete")
+		}
 		negative := meta.RCode == 3 || (meta.RCode == 0 && meta.AnswerCount == 0)
 		ttl := time.Duration(resp.Fingerprint.TTLMin) * time.Second
 		if negative {
@@ -460,8 +470,8 @@ func (m *Manager) NewBinding(scope string, ttl time.Duration) (*DNSPathBinding, 
 	if p == nil {
 		return nil, errors.New("no adopted profile")
 	}
-	if err := p.Valid(now); err != nil {
-		return nil, fmt.Errorf("cannot bind stale/invalid profile: %w", err)
+	if err := p.Validated(now); err != nil {
+		return nil, fmt.Errorf("cannot bind stale/invalid/unproven profile: %w", err)
 	}
 	validUntil := p.ValidUntil
 	if ttl > 0 {
@@ -521,7 +531,7 @@ func (m *Manager) HealthReport() HealthReport {
 	}
 	if activeProfile == nil {
 		axes[AxisFreshness] = AxisUnknown
-	} else if err := activeProfile.Valid(time.Now()); err != nil {
+	} else if err := activeProfile.Validated(time.Now()); err != nil {
 		axes[AxisFreshness] = AxisFailed
 	} else {
 		axes[AxisFreshness] = AxisHealthy
