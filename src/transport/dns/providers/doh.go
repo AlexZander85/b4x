@@ -97,12 +97,7 @@ func (p *DoHProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 		out.Class = dnspath.OutcomeMalformedDNS
 		return out, nil
 	}
-	out.Stage = dnspath.StageAnswer
-	out.RCode = obs.RCode
-	out.AnswerFingerprint = fp.AnswerDigest
-	out.CNAMEFingerprint = fp.CNAMEDigest
-	out.HTTPSFingerprint = fp.HTTPSDigest
-	out.Class = dnspath.OutcomePassCorrect
+	completeProbeEvidence(&out, body, q, obs, fp)
 	return out, nil
 }
 
