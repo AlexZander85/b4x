@@ -44,7 +44,7 @@ var allowedKeys = map[string]bool{
 	"lb_strategy": true, "lb_estimator": true,
 	"cache": true, "cache_size": true, "cache_neg_ttl": true,
 	"cert_refresh_concurrency": true, "ignore_system_dns": true,
-	"stamp": true,
+	"stamp":          true,
 	"query_log.file": false, "edns_client_subnet": false, // privacy defaults: intentionally unset
 }
 

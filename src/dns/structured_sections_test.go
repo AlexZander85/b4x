@@ -14,7 +14,7 @@ func testARecord(ip [4]byte) []byte {
 func TestStructuredResponseDoesNotFoldAdditionalGlueIntoAnswers(t *testing.T) {
 	msg := BuildQuery("example.com", 0x4242, 1)
 	binary.BigEndian.PutUint16(msg[2:4], 0x8180)
-	binary.BigEndian.PutUint16(msg[6:8], 1)  // one real answer
+	binary.BigEndian.PutUint16(msg[6:8], 1)   // one real answer
 	binary.BigEndian.PutUint16(msg[10:12], 1) // one additional/glue record
 	msg = append(msg, testARecord([4]byte{93, 184, 216, 34})...)
 	msg = append(msg, testARecord([4]byte{203, 0, 113, 99})...)

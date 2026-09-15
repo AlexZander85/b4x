@@ -211,7 +211,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 			result := &handler.DNSCanaryResult{
 				Promoted: false, ProfileID: profile.ProfileID,
 				PrimaryFamily: string(profile.Primary.Family),
-				Successes: canary.Successes, Failures: canary.Failures,
+				Successes:     canary.Successes, Failures: canary.Failures,
 				Reason: tx.Reason,
 			}
 			return result, fmt.Errorf("DNS canary/promotion aborted: %s", tx.Reason)
@@ -219,7 +219,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 		return &handler.DNSCanaryResult{
 			Promoted: true, ProfileID: profile.ProfileID,
 			PrimaryFamily: string(profile.Primary.Family),
-			Successes: canary.Successes, Failures: canary.Failures,
+			Successes:     canary.Successes, Failures: canary.Failures,
 		}, nil
 	})
 

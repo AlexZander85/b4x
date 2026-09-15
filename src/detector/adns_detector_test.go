@@ -78,7 +78,7 @@ func runQuorumDiagnosis(t *testing.T, providersList []dnspath.DNSPathProvider, d
 	t.Helper()
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
 		Providers: providersList, Policy: diagnosisPolicy(),
-		Suite: CanonicalSuite("example.com", "control.example.net"),
+		Suite:         CanonicalSuite("example.com", "control.example.net"),
 		AttemptsQuick: 2, AttemptsValid: 5, Deep: deep,
 		NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
 		CatalogVersion: "catalog-test", TTL: time.Hour,
@@ -195,7 +195,7 @@ func TestADNSDiagnosisDoesNotInventPrivacyClaims(t *testing.T) {
 	b := newScriptedADNSProvider(dnspath.DNSPathDoH, "r-b")
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
 		Providers: []dnspath.DNSPathProvider{a, b}, Policy: policy,
-		Suite: CanonicalSuite("example.com", "control.example.net"),
+		Suite:         CanonicalSuite("example.com", "control.example.net"),
 		AttemptsQuick: 2, NetworkContext: "wan-lab", Generation: 3,
 		RuntimeEpoch: "e1", CatalogVersion: "catalog-test", TTL: time.Hour,
 	})

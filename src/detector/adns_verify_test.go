@@ -52,7 +52,7 @@ func TestInsufficientQuorumIsNotPort53Blocked(t *testing.T) {
 	encrypted := dnspath.DNSPathID{Family: dnspath.DNSPathDoH, ResolverID: "r-encrypted", EndpointID: "e-e", IPFamily: "ipv4"}
 	paths := map[string]dnspath.DNSPathID{classic.Hash(): classic, encrypted.Hash(): encrypted}
 	stats := map[string]verifiedPathStats{
-		classic.Hash(): {Fail: 14}, // structurally valid but no independent quorum
+		classic.Hash():   {Fail: 14}, // structurally valid but no independent quorum
 		encrypted.Hash(): {Pass: 14, CorrectnessPass: true, ControlsPass: true},
 	}
 	_, _, _, port53Blocked, _, _ := classifyDiagnosisFlags(nil, paths, stats, 2)
@@ -66,7 +66,7 @@ func TestRepeatedClassicTransportFailureCanProvePort53Blocked(t *testing.T) {
 	encrypted := dnspath.DNSPathID{Family: dnspath.DNSPathDoH, ResolverID: "r-encrypted", EndpointID: "e-e", IPFamily: "ipv4"}
 	paths := map[string]dnspath.DNSPathID{classic.Hash(): classic, encrypted.Hash(): encrypted}
 	stats := map[string]verifiedPathStats{
-		classic.Hash(): {Fail: 2, TransportFailures: 2, Timeouts: 2},
+		classic.Hash():   {Fail: 2, TransportFailures: 2, Timeouts: 2},
 		encrypted.Hash(): {Pass: 14, CorrectnessPass: true, ControlsPass: true},
 	}
 	_, _, _, port53Blocked, _, _ := classifyDiagnosisFlags(nil, paths, stats, 2)

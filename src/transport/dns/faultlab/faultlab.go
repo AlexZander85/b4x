@@ -335,11 +335,11 @@ func soaRecord() []byte {
 	r = append(r, 0, 0, 0, 120) // RR TTL
 	rdata := append(encodeName("ns1.example"), encodeName("hostmaster.example")...)
 	tail := make([]byte, 20)
-	binary.BigEndian.PutUint32(tail[0:4], 1)     // serial
-	binary.BigEndian.PutUint32(tail[4:8], 3600)  // refresh
-	binary.BigEndian.PutUint32(tail[8:12], 600)  // retry
+	binary.BigEndian.PutUint32(tail[0:4], 1)       // serial
+	binary.BigEndian.PutUint32(tail[4:8], 3600)    // refresh
+	binary.BigEndian.PutUint32(tail[8:12], 600)    // retry
 	binary.BigEndian.PutUint32(tail[12:16], 86400) // expire
-	binary.BigEndian.PutUint32(tail[16:20], 60)  // minimum/negative TTL
+	binary.BigEndian.PutUint32(tail[16:20], 60)    // minimum/negative TTL
 	rdata = append(rdata, tail...)
 	r = append(r, byte(len(rdata)>>8), byte(len(rdata)))
 	return append(r, rdata...)

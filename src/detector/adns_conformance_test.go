@@ -10,8 +10,8 @@ func TestCanonicalConformanceSuiteRequiresAllControlledFixtures(t *testing.T) {
 
 func TestCanonicalConformanceSuiteIncludesSection54Cases(t *testing.T) {
 	suite, err := CanonicalConformanceSuite("target.example", "same.example", "other.example", ADNSConformanceFixtures{
-		SERVFAIL: "servfail.fixture",
-		Truncation: "large.fixture",
+		SERVFAIL:    "servfail.fixture",
+		Truncation:  "large.fixture",
 		MultiAnswer: "multi.fixture",
 		DNSSECValid: "valid-dnssec.fixture",
 		DNSSECBogus: "bogus-dnssec.fixture",

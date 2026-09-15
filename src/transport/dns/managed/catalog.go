@@ -82,9 +82,9 @@ func ParseCatalog(payload []byte, maxEntries int) (*Catalog, error) {
 		}
 		entry := CatalogEntry{
 			Name: strings.TrimSpace(fields[0]), Family: strings.TrimSpace(fields[1]),
-			NoLog: strings.TrimSpace(fields[2]) == "true",
+			NoLog:    strings.TrimSpace(fields[2]) == "true",
 			NoFilter: strings.TrimSpace(fields[3]) == "true",
-			DNSSEC: strings.TrimSpace(fields[4]) == "true",
+			DNSSEC:   strings.TrimSpace(fields[4]) == "true",
 		}
 		if len(fields) == 6 {
 			entry.Stamp = strings.TrimSpace(fields[5])

@@ -38,7 +38,7 @@ func TestAdoptionRejectsSinglePassProfileEvenWhenCallerWouldSetAllGates(t *testi
 		ProfileID: "dnsprof-single-pass", Status: ProfileStatusReady,
 		NetworkContextID: "wan-1", ConfigGeneration: 7, RuntimeEpoch: "epoch-1",
 		QuerySuiteVersion: "adns-suite-v1",
-		Primary: primary.id, Fallbacks: []DNSPathID{fallback.id},
+		Primary:           primary.id, Fallbacks: []DNSPathID{fallback.id},
 		CandidateOutcomes: []DNSPathProbeOutcome{
 			{PathID: primary.id, QuerySuiteID: "A", Attempt: 1, Class: OutcomePassCorrect},
 			{PathID: fallback.id, QuerySuiteID: "A", Attempt: 1, Class: OutcomePassCorrect},

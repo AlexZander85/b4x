@@ -34,9 +34,9 @@ func TestSecurityLabUDPInterceptionHasEncryptedBypassUnderDefaultPrivacyPolicy(t
 	policy := dnspath.DefaultAdaptivePolicy()
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
 		Providers: []dnspath.DNSPathProvider{victimUDP, victimTCP, managedA, managedB},
-		Policy: policy,
-		Suite: CanonicalSuiteWithControls("blocked.example", "www.blocked.example", "control.example"),
-		Deep: true, AttemptsQuick: 2, AttemptsValid: 3,
+		Policy:    policy,
+		Suite:     CanonicalSuiteWithControls("blocked.example", "www.blocked.example", "control.example"),
+		Deep:      true, AttemptsQuick: 2, AttemptsValid: 3,
 		NetworkContext: "wan-securitylab", Generation: 1, RuntimeEpoch: "test",
 		CatalogVersion: "catalog-set-test", PolicyDigest: policy.Digest(), TTL: time.Hour,
 	})

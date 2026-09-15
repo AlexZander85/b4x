@@ -75,7 +75,7 @@ func adoptTestProfile(t *testing.T, m *Manager, primary, fallback DNSPathID) *DN
 		Primary:           primary,
 		Fallbacks:         []DNSPathID{fallback},
 		CandidateOutcomes: fullPromotionOutcomes(primary, fallback),
-		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+		CreatedAt:         now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := p.Seal(); err != nil {
 		t.Fatal(err)

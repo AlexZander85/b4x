@@ -90,9 +90,9 @@ func TestSecurityLabUDPInterceptionSelectsTCPBypass(t *testing.T) {
 
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
 		Providers: []dnspath.DNSPathProvider{victimUDP, victimTCP, controlTCP},
-		Policy: policy,
-		Suite: CanonicalSuite("blocked.example", "control.example"),
-		Deep: true, AttemptsQuick: 2, AttemptsValid: 3,
+		Policy:    policy,
+		Suite:     CanonicalSuite("blocked.example", "control.example"),
+		Deep:      true, AttemptsQuick: 2, AttemptsValid: 3,
 		NetworkContext: "wan-securitylab", Generation: 1, RuntimeEpoch: "test",
 		CatalogVersion: "securitylab-test", PolicyDigest: policy.Digest(), TTL: time.Hour,
 	})

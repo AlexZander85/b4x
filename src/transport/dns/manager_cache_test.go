@@ -50,7 +50,7 @@ func TestManagerCachesValidatedResponseAndRewritesTransactionID(t *testing.T) {
 		NetworkContextID: "wan-1", ConfigGeneration: m.Generation(), RuntimeEpoch: "epoch-1",
 		QuerySuiteVersion: "adns-suite-v1", Primary: primary.id,
 		CandidateOutcomes: fullPromotionOutcomes(primary.id),
-		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+		CreatedAt:         now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := profile.Seal(); err != nil {
 		t.Fatal(err)
