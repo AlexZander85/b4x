@@ -29,11 +29,11 @@ const (
 // §19/§88). Default mode is "current": the manager exists for observability
 // but adaptive selection never runs implicitly on existing installs.
 //
-// The diagnosis provider set is derived only from the already-existing
-// system.checker.reference_dns list. No new public resolver is injected by
-// ADNS. Diagnosis/adoption alone never changes LAN DNS: selected paths are
-// prepared, then a real source-scoped LAN canary and Transaction.Run are
-// required before the NFQ dataplane sees the new binding.
+// The diagnosis provider set is derived only from the current system resolver
+// plus the already-existing system.checker.reference_dns list. No new public
+// resolver is injected by ADNS. Diagnosis/adoption alone never changes LAN
+// DNS: selected paths are prepared, then a real source-scoped LAN canary and
+// Transaction.Run are required before the NFQ dataplane sees the new binding.
 func initAdaptiveDNS(cfg *config.Config) {
 	mode := dnspath.DNSOperatingMode(cfg.DNSMode)
 	if mode == "" {
@@ -75,7 +75,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 			return nil, fmt.Errorf("adaptive dns diagnosis requires system.checker.reference_domain")
 		}
 		if independentResolverCount(diagnosisProviders) < 2 {
-			return nil, fmt.Errorf("adaptive dns diagnosis requires at least two independent configured reference DNS resolvers")
+			return nil, fmt.Errorf("adaptive dns diagnosis requires at least two independent configured/effective DNS resolver identities")
 		}
 		unrelated := adnsUnrelatedControl
 		if sameDNSName(target, unrelated) {
@@ -159,8 +159,8 @@ func initAdaptiveDNS(cfg *config.Config) {
 		if profile == nil {
 			return nil, fmt.Errorf("no adopted profile; diagnose first")
 		}
-		if err := profile.Valid(time.Now()); err != nil {
-			return nil, fmt.Errorf("profile not fresh: %w", err)
+		if err := profile.Validated(time.Now()); err != nil {
+			return nil, fmt.Errorf("profile not fresh/proven: %w", err)
 		}
 		// Refresh production readiness immediately before canary.
 		if err := manager.PrepareProfilePaths(ctx, profile); err != nil {
@@ -216,7 +216,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 		}, nil
 	})
 
-	log.Infof("adaptive dns: mode=%s adaptive=%v reference_resolvers=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders))
+	log.Infof("adaptive dns: mode=%s adaptive=%v resolver_identities=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders))
 }
 
 func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
@@ -232,10 +232,11 @@ func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
 
 func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
 	seen := map[netip.Addr]bool{}
-	out := make([]dnspath.DNSPathProvider, 0, len(cfg.System.Checker.ReferenceDNS)*2)
-	// Use the dedicated discovery mark for both UDP and TCP so the
+	out := make([]dnspath.DNSPathProvider, 0, 1+len(cfg.System.Checker.ReferenceDNS)*2)
+	// Use the dedicated discovery mark for system/UDP/TCP so a transport
 	// differential changes transport, not policy-routing identity.
 	mark := int(cfg.System.Checker.DiscoveryFlowMark)
+	out = append(out, providers.NewSystemForwardProvider("/etc/resolv.conf", nil, mark))
 	for _, raw := range cfg.System.Checker.ReferenceDNS {
 		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
 		if err != nil || !addr.IsValid() || seen[addr] {
@@ -253,6 +254,10 @@ func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
 func independentResolverCount(items []dnspath.DNSPathProvider) int {
 	seen := map[string]bool{}
 	for _, provider := range items {
+		caps := provider.Capabilities()
+		if caps.State != dnspath.CapAvailable && caps.State != dnspath.CapReady && caps.State != dnspath.CapDegraded {
+			continue
+		}
 		if id := provider.ID().ResolverID; id != "" {
 			seen[id] = true
 		}
@@ -266,7 +271,8 @@ func sameDNSName(a, b string) bool {
 }
 
 // adaptivePolicyFromConfig converts the config-schema mirror into the
-// runtime policy. Nil config yields the default-safe policy (§88).
+// runtime policy. Nil config yields the addendum defaults; existing installs
+// remain unaffected because DNS mode itself defaults to "current".
 func adaptivePolicyFromConfig(c *config.DNSAdaptiveConfig) dnspath.AdaptivePolicy {
 	if c == nil {
 		return dnspath.DefaultAdaptivePolicy()
