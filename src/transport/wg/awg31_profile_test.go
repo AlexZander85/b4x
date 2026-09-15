@@ -105,13 +105,13 @@ func TestAWG31BothEndFeaturesRejectedForStockWarp(t *testing.T) {
 func TestVanillaSafeRejectsAWG31WireFeatures(t *testing.T) {
 	r := func(lo, hi uint32) *Range { return &Range{Lo: lo, Hi: hi} }
 	cases := map[string]Profile{
-		"content-padding":       {ContentPadding: r(10, 20)},
-		"random-trailers":       {RandomTrailers: true},
-		"disable-cookies":       {DisableCookies: true},
-		"rekey-after-time":      {RekeyAfterTime: r(100, 120)},
-		"rekey-timeout":         {RekeyTimeout: r(3, 7)},
-		"reject-after-time":     {RejectAfterTime: r(150, 180)},
-		"keepalive-timeout":     {KeepaliveTimeout: r(5, 15)},
+		"content-padding":        {ContentPadding: r(10, 20)},
+		"random-trailers":        {RandomTrailers: true},
+		"disable-cookies":        {DisableCookies: true},
+		"rekey-after-time":       {RekeyAfterTime: r(100, 120)},
+		"rekey-timeout":          {RekeyTimeout: r(3, 7)},
+		"reject-after-time":      {RejectAfterTime: r(150, 180)},
+		"keepalive-timeout":      {KeepaliveTimeout: r(5, 15)},
 		"max-handshake-attempts": {MaxHandshakeAtt: r(15, 20)},
 	}
 	for name, p := range cases {
