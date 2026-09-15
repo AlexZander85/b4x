@@ -40,7 +40,20 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 
 	caseID := strings.ToUpper(q.SuiteCase)
 	switch caseID {
-	case "A", "AAAA", "CONTROL_SAME", "CONTROL_UNRELATED":
+	case "A", "AAAA":
+		if meta.RCode != 0 {
+			out.Class = dnspath.OutcomeRCodeMismatch
+			out.FailureCode = "expected_noerror_rcode"
+			return
+		}
+		// A/AAAA can legitimately be NODATA. Accept the absence only when
+		// the resolver supplies RFC2308-style authority SOA proof.
+		if fp.AnswerDigest == "" && fp.CNAMEDigest == "" && !meta.HasNegativeProof() {
+			out.Class = dnspath.OutcomeAnswerConflict
+			out.FailureCode = "address_nodata_without_authority_soa"
+			return
+		}
+	case "CONTROL_SAME", "CONTROL_UNRELATED":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
 			out.FailureCode = "expected_positive_rcode"
@@ -48,29 +61,29 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 		}
 		if fp.AnswerDigest == "" && fp.CNAMEDigest == "" {
 			out.Class = dnspath.OutcomeAnswerConflict
-			out.FailureCode = "expected_address_answer_missing"
+			out.FailureCode = "expected_control_answer_missing"
 			return
 		}
 	case "CNAME":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
-			out.FailureCode = "expected_positive_rcode"
+			out.FailureCode = "expected_noerror_rcode"
 			return
 		}
-		if fp.CNAMEDigest == "" {
+		if fp.CNAMEDigest == "" && !meta.HasNegativeProof() {
 			out.Class = dnspath.OutcomeAnswerConflict
-			out.FailureCode = "expected_cname_answer_missing"
+			out.FailureCode = "cname_nodata_without_authority_soa"
 			return
 		}
 	case "HTTPS":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
-			out.FailureCode = "expected_positive_rcode"
+			out.FailureCode = "expected_noerror_rcode"
 			return
 		}
-		if fp.HTTPSDigest == "" {
+		if fp.HTTPSDigest == "" && !meta.HasNegativeProof() {
 			out.Class = dnspath.OutcomeAnswerConflict
-			out.FailureCode = "expected_https_answer_missing"
+			out.FailureCode = "https_nodata_without_authority_soa"
 			return
 		}
 	case "NXDOMAIN":
