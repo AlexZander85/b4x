@@ -115,6 +115,7 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	}
 	stats := map[string]*pathStats{}
 	paths := map[string]dnspath.DNSPathID{}
+	capabilities := map[string]dnspath.DNSPathCapabilities{}
 
 	limit := len(in.Providers)
 	if limit > maxCandidates {
@@ -124,6 +125,7 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 		caps := prov.Capabilities()
 		id := prov.ID()
 		paths[id.Hash()] = id
+		capabilities[id.Hash()] = caps
 		st := &pathStats{}
 		stats[id.Hash()] = st
 		if caps.State == dnspath.CapUnsupported || caps.State.Terminal() {
@@ -191,6 +193,8 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 
 	// Build candidate evidence and rank deterministically. Correctness and
 	// controls are per-suite-case gates; aggregate pass counts are not enough.
+	// Trust/privacy claims are fail-closed: a path never gets DNSSEC/no-log/
+	// no-filter/catalog-trusted credit merely because the transport worked.
 	var candidates []dnspath.CandidateEvidence
 	for hash, st := range stats {
 		id := paths[hash]
@@ -205,6 +209,7 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 		}
 		timeoutRate := float64(st.timeouts) / float64(total)
 		v := verifiedStats[hash]
+		caps := capabilities[hash]
 		candidates = append(candidates, dnspath.CandidateEvidence{
 			Path:            id,
 			CorrectnessPass: v.CorrectnessPass,
@@ -212,10 +217,10 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			Stability:       stability,
 			Latency:         lat,
 			TimeoutRate:     timeoutRate,
-			DNSSEC:          true,
-			NoLogClaim:      true,
-			NoFilterClaim:   true,
-			CatalogTrusted:  true,
+			DNSSEC:          caps.DNSSEC,
+			NoLogClaim:      false,
+			NoFilterClaim:   false,
+			CatalogTrusted:  false,
 			CorrelatedGroup: correlatedGroup(id),
 		})
 	}
