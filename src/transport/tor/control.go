@@ -1,21 +1,8 @@
 package tor
 
-// Minimal tor control-protocol client (patch-plan §7.1, the torware canon:
-// cookie-auth + GETINFO + SIGNAL + SETCONF is a line protocol — a ~300-line
-// client beats a dependency). Transcript contract:
-//
-//	request:  "AUTHENTICATE <hex-cookie>\r\n"
-//	          "GETINFO key1 key2\r\n"
-//	          "SIGNAL NEWNYM\r\n"
-//	          "SETCONF key=value\r\n"
-//	reply:    "250 OK\r\n"                 — success
-//	          "250 key=value\r\n"           — single-line value
-//	          "250+key=\r\n...\r\n.\r\n"    — multiline value
-//	          "250-key=value\r\n"           — continued lines
-//	          "5xx human-readable\r\n"      — error with code
-//
-// Errors carry the 3-digit code so callers can distinguish "unsupported
-// option" (550) from "not authenticated" (514) without string matching.
+// Minimal tor control-protocol client (patch-plan §7.1): cookie-auth +
+// GETINFO + SIGNAL + SETCONF. The parser preserves multiline boundaries so
+// a `250+key=` data block can never swallow subsequent reply keys.
 
 import (
 	"bufio"
@@ -30,30 +17,20 @@ import (
 	"time"
 )
 
-// Control wire constants.
 const (
 	controlReplyOK     = 250
 	controlErrWildcard = '5'
 	controlReadTimeout = 10 * time.Second
 )
 
-// ControlClient is the injectable control-plane contract (tests feed
-// recorded transcripts).
 type ControlClient interface {
-	// Authenticate performs cookie authentication (hex-encoded).
 	Authenticate(cookie []byte) error
-	// GetInfo issues GETINFO for the given keys; the result map carries
-	// every key the tor answered.
 	GetInfo(keys ...string) (map[string]string, error)
-	// Signal issues SIGNAL (NEWNYM|ACTIVE|SHUTDOWN|...).
 	Signal(s string) error
-	// SetConf issues SETCONF with key=value pairs (conflux opportunistic).
 	SetConf(kv ...[2]string) error
-	// Close tears the connection down.
 	Close() error
 }
 
-// ControlError is a 5xx reply.
 type ControlError struct {
 	Code int
 	Line string
@@ -63,18 +40,14 @@ func (e *ControlError) Error() string {
 	return fmt.Sprintf("tor control %d: %s", e.Code, e.Line)
 }
 
-// ErrControlProtocol marks malformed transcripts.
 var ErrControlProtocol = errors.New("tor control protocol violation")
 
-// realControlClient speaks the wire protocol over a net.Conn.
 type realControlClient struct {
 	conn net.Conn
 	rw   *bufio.ReadWriter
 	mu   sync.Mutex
 }
 
-// DialControl connects to a control endpoint: "unix:<path>" or a plain
-// tcp address (127.0.0.1:port).
 func DialControl(ctx context.Context, network, addr string) (ControlClient, error) {
 	d := net.Dialer{Timeout: controlReadTimeout}
 	conn, err := d.DialContext(ctx, network, addr)
@@ -111,7 +84,7 @@ func (c *realControlClient) GetInfo(keys ...string) (map[string]string, error) {
 	lines := strings.Split(reply, "\n")
 	for i := 0; i < len(lines); i++ {
 		l := strings.TrimRight(lines[i], "\r")
-		if l == "" {
+		if l == "" || l == "." {
 			continue
 		}
 		code, rest, ok := splitReplyLine(l)
@@ -124,23 +97,25 @@ func (c *realControlClient) GetInfo(keys ...string) (map[string]string, error) {
 		if code == controlReplyOK && rest == "OK" {
 			continue
 		}
-		// multiline section: "250+key=" opens, "." closes — the body lines
-		// land under the key verbatim (joined).
 		if strings.HasPrefix(l, strconv.Itoa(controlReplyOK)+"+") {
 			key := strings.TrimSuffix(rest, "=")
 			var body []string
+			foundTerminator := false
 			i++
 			for ; i < len(lines); i++ {
 				ml := strings.TrimRight(lines[i], "\r")
 				if ml == "." {
+					foundTerminator = true
 					break
 				}
 				body = append(body, ml)
 			}
+			if !foundTerminator {
+				return nil, fmt.Errorf("%w: unterminated GETINFO multiline value %q", ErrControlProtocol, key)
+			}
 			out[key] = strings.Join(body, "\n")
 			continue
 		}
-		// "250 key=value" — key=value carries an '=' by protocol contract
 		if eq := strings.IndexByte(rest, '='); eq > 0 && code == controlReplyOK {
 			out[rest[:eq]] = rest[eq+1:]
 		}
@@ -179,8 +154,10 @@ func (c *realControlClient) SetConf(kv ...[2]string) error {
 
 func (c *realControlClient) Close() error { return c.conn.Close() }
 
-// roundtrip writes one command and reads the full reply block (single or
-// multiline) with a read deadline.
+// roundtrip writes one command and reads the complete reply block. For a
+// `250+` data block the terminating dot is deliberately retained in the
+// returned transcript; GetInfo uses it as the unambiguous boundary before
+// any following `250-` key/value lines.
 func (c *realControlClient) roundtrip(cmd string) (string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -208,7 +185,6 @@ func (c *realControlClient) roundtrip(cmd string) (string, error) {
 		if !ok {
 			return "", fmt.Errorf("%w: %q", ErrControlProtocol, line)
 		}
-		// multiline: "250+key=" opens, "." closes
 		if strings.HasPrefix(line, strconv.Itoa(controlReplyOK)+"+") {
 			for {
 				ml, err := c.rw.ReadString('\n')
@@ -216,14 +192,13 @@ func (c *realControlClient) roundtrip(cmd string) (string, error) {
 					return "", fmt.Errorf("tor control read multiline: %w", err)
 				}
 				ml = strings.TrimRight(ml, "\r\n")
+				lines = append(lines, ml)
 				if ml == "." {
 					break
 				}
-				lines = append(lines, ml)
 			}
 			continue
 		}
-		// "250-" lines continue; "250 " (space) or a bare "250" closes
 		if code == controlReplyOK && (strings.HasPrefix(line, strconv.Itoa(controlReplyOK)+" ") || line == strconv.Itoa(controlReplyOK)) {
 			break
 		}
@@ -235,7 +210,6 @@ func (c *realControlClient) roundtrip(cmd string) (string, error) {
 	return strings.Join(lines, "\n"), nil
 }
 
-// splitReply parses the FIRST line's code out of a reply block.
 func splitReply(block string) (int, string) {
 	first := block
 	if i := strings.IndexByte(block, '\n'); i >= 0 {
@@ -245,7 +219,6 @@ func splitReply(block string) (int, string) {
 	return code, rest
 }
 
-// splitReplyLine parses "250 rest" / "514 rest" / bare "250".
 func splitReplyLine(line string) (int, string, bool) {
 	if len(line) < 3 {
 		return 0, "", false
@@ -278,11 +251,6 @@ func hexEncode(b []byte) string {
 	return string(out)
 }
 
-// ParseBootstrapPhase decodes `GETINFO status/bootstrap-phase` values like
-//
-//	WARN/BOOTSTRAP PROGRESS=25 TAG=conn_tag SUMMARY="..."
-//
-// returning progress, tag and summary.
 func ParseBootstrapPhase(v string) (progress int, tag, summary string) {
 	for _, field := range strings.Fields(v) {
 		switch {
