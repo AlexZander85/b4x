@@ -203,10 +203,14 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 }
 
 // rankCurrentLocked samples literal node IPs on TCP/443 in parallel once per
-// serverlist freshness generation. The sample is a sort hint only. When a
-// custom HTTP client is injected we do not create an unexpected direct side
-// channel unless RTTDial was explicitly supplied (unit tests and embedded
-// callers keep deterministic network ownership).
+// serverlist freshness generation. Get calls it while holding sc.mu, but the
+// network work itself runs with the mutex released. The snapshot generation
+// is checked again before results are committed, so a late RTT batch cannot
+// reorder a newer server list (same generation discipline as runtime rollout).
+//
+// The sample is a sort hint only. When a custom HTTP client is injected we do
+// not create an unexpected direct side channel unless RTTDial was explicitly
+// supplied (unit tests and embedded callers keep deterministic ownership).
 func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	if sc.cur == nil || len(sc.cur.Nodes) < 2 || !sc.rttRankedAt.IsZero() {
 		return
@@ -217,17 +221,31 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	if sc.RTTDial == nil && sc.Client.HTTP != nil {
 		return
 	}
-	cands := make([]Candidate, 0, len(sc.cur.Nodes))
-	for _, n := range sc.cur.Nodes {
+
+	generation := sc.cur.FetchedAt
+	source := sc.cur.Source
+	nodes := append([]Node(nil), sc.cur.Nodes...)
+	dial := sc.RTTDial
+
+	// Reserve this generation before dropping the mutex so another caller
+	// does not start the same probe batch. Even an all-failed batch counts as
+	// sampled; repeated TCP noise every status/location call is undesirable.
+	sc.rttRankedAt = generation
+	sc.mu.Unlock()
+
+	cands := make([]Candidate, 0, len(nodes))
+	for _, n := range nodes {
 		cands = append(cands, Candidate{Node: n, Port: 443})
 	}
-	rtts := ProbeTCP443RTT(ctx, cands, sc.RTTDial)
+	rtts := ProbeTCP443RTT(ctx, cands, dial)
+
+	sc.mu.Lock()
+	if sc.cur == nil || !sc.cur.FetchedAt.Equal(generation) || sc.cur.Source != source {
+		return
+	}
 	for i := range sc.cur.Nodes {
 		sc.cur.Nodes[i].RTT = rtts[sc.cur.Nodes[i].EntryIP]
 	}
-	// Mark the generation sampled even when every TCP probe failed; repeated
-	// probing on every status/location request would be fingerprintable noise.
-	sc.rttRankedAt = sc.now()
 }
 
 // v1Detected reports whether the response came from the v1 fallback (the
