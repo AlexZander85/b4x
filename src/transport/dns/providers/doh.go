@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	b4dns "github.com/daniellavrushin/b4/dns"
@@ -14,35 +16,69 @@ import (
 
 // DoHProvider is the native DNS-over-HTTPS path (addendum §37): wire-format
 // application/dns-message, with HTTP status, TLS, DNS message and answer
-// correctness separated into explicit stages.
+// correctness separated into explicit stages. Hostname endpoints require
+// explicit bootstrap IPs so adaptive recovery never recursively depends on
+// the system DNS path it is trying to diagnose/replace.
 type DoHProvider struct {
 	URL        string // https:// endpoint, canonical identity
+	ServerName string // URL hostname retained for TLS SNI/certificate checks
+	Bootstrap  []net.IP
 	Mark       int
 	Timeout    time.Duration
 	CatalogVer string
 	id         dnspath.DNSPathID
 }
 
-func NewDoHProvider(url string, mark int, catalogVer string) *DoHProvider {
-	p := &DoHProvider{URL: url, Mark: mark, Timeout: 5 * time.Second, CatalogVer: catalogVer}
-	sum := sha256.Sum256([]byte(url))
+func NewDoHProvider(rawURL string, mark int, catalogVer string) *DoHProvider {
+	return NewDoHProviderWithBootstrap(rawURL, nil, mark, catalogVer)
+}
+
+func NewDoHProviderWithBootstrap(rawURL string, bootstrap []net.IP, mark int, catalogVer string) *DoHProvider {
+	p := &DoHProvider{URL: rawURL, Mark: mark, Timeout: 5 * time.Second, CatalogVer: catalogVer}
+	if u, err := url.Parse(rawURL); err == nil {
+		p.ServerName = u.Hostname()
+	}
+	p.Bootstrap = append([]net.IP(nil), bootstrap...)
+	sum := sha256.Sum256([]byte(rawURL))
 	p.id = dnspath.DNSPathID{
 		Family:         dnspath.DNSPathDoH,
 		ResolverID:     "r-doh-" + hex.EncodeToString(sum[:6]),
 		EndpointID:     "e-doh-" + hex.EncodeToString(sum[:6]),
-		IPFamily:       "ipv4",
+		IPFamily:       dohIPFamily(p.ServerName, p.Bootstrap),
 		CatalogVersion: catalogVer,
 	}
 	return p
 }
 
+func dohIPFamily(serverName string, bootstrap []net.IP) string {
+	if ip := net.ParseIP(serverName); ip != nil && ip.To4() == nil {
+		return "ipv6"
+	}
+	for _, ip := range bootstrap {
+		if ip != nil && ip.To4() == nil {
+			return "ipv6"
+		}
+	}
+	return "ipv4"
+}
+
 func (p *DoHProvider) ID() dnspath.DNSPathID { return p.id }
 
 func (p *DoHProvider) Capabilities() dnspath.DNSPathCapabilities {
-	if len(p.URL) < 8 || p.URL[:8] != "https://" {
-		return dnspath.DNSPathCapabilities{State: dnspath.CapUnsupported, Reason: "doh endpoint must be https://"}
+	u, err := url.Parse(p.URL)
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" {
+		return dnspath.DNSPathCapabilities{State: dnspath.CapUnsupported, Reason: "doh endpoint must be a valid https:// URL"}
 	}
-	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true}
+	if net.ParseIP(p.ServerName) == nil && len(p.Bootstrap) == 0 {
+		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByBootstrap, Reason: "hostname DoH requires explicit bootstrap address"}
+	}
+	caps := dnspath.DNSPathCapabilities{State: dnspath.CapAvailable}
+	if p.id.IPFamily == "ipv6" {
+		caps.IPv6 = true
+	} else {
+		caps.IPv4 = true
+	}
+	return caps
 }
 
 func (p *DoHProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
@@ -52,7 +88,7 @@ func (p *DoHProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) 
 	}
 	return dnspath.PreparedDNSPath{
 		PathID: p.id, Generation: req.Generation, PreparedAt: time.Now(),
-		Handle: b4dns.MarkedDoHClient(p.Mark, p.Timeout),
+		Handle: b4dns.MarkedDoHClientWithBootstrap(p.Mark, p.Timeout, p.ServerName, p.Bootstrap),
 	}, nil
 }
 
@@ -62,7 +98,7 @@ func (p *DoHProvider) client(prepared dnspath.PreparedDNSPath) *http.Client {
 	if c, ok := prepared.Handle.(*http.Client); ok && c != nil {
 		return c
 	}
-	return b4dns.MarkedDoHClient(p.Mark, p.Timeout)
+	return b4dns.MarkedDoHClientWithBootstrap(p.Mark, p.Timeout, p.ServerName, p.Bootstrap)
 }
 
 func (p *DoHProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSProbeQuery) (dnspath.DNSPathProbeOutcome, error) {
