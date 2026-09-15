@@ -183,14 +183,13 @@ func (m *Manager) ActiveBinding() *DNSPathBinding {
 	return m.active
 }
 
-// Profile returns the currently staged/adopted profile. During a transaction
-// this may be newer than the still-active binding; production Resolve keeps
-// using the evidence profile associated with that active binding until the
-// atomic promote/rollback decision completes.
+// Profile returns an isolated snapshot of the currently staged/adopted
+// evidence profile. The Manager owns its internal copy so a caller cannot
+// mutate already-validated receipts through a retained pointer.
 func (m *Manager) Profile() *DNSPathProfile {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	return m.profile
+	return cloneDNSPathProfile(m.profile)
 }
 
 // Cache exposes the generation cache for transactions.
@@ -257,25 +256,29 @@ func (m *Manager) restoreLastGood(lastGood *DNSPathBinding) {
 // as last-good so production traffic remains valid throughout canary and can
 // be restored atomically on rollback.
 func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
+	if p == nil {
+		return errors.New("profile required")
+	}
 	if err := p.Validated(time.Now()); err != nil {
 		return fmt.Errorf("refusing stale/invalid/unproven profile: %w", err)
 	}
+	owned := cloneDNSPathProfile(p)
 	m.mu.RLock()
 	networkCtx := m.networkCtx
 	generation := m.generation
 	epoch := m.epoch
 	m.mu.RUnlock()
-	if p.NetworkContextID != networkCtx || p.ConfigGeneration != generation || p.RuntimeEpoch != epoch {
+	if owned.NetworkContextID != networkCtx || owned.ConfigGeneration != generation || owned.RuntimeEpoch != epoch {
 		return errors.New("profile context/generation/epoch mismatch with runtime")
 	}
 	m.mu.Lock()
 	if profileMatchesBinding(m.profile, m.active) {
-		m.lastGoodProfile = m.profile
+		m.lastGoodProfile = cloneDNSPathProfile(m.profile)
 	}
-	m.profile = p
+	m.profile = owned
 	m.counters.ProfileCompiles++
 	m.mu.Unlock()
-	m.trace("PROFILE_COMPILED", p.Primary.Family)
+	m.trace("PROFILE_COMPILED", owned.Primary.Family)
 	return nil
 }
 
