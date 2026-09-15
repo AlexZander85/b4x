@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"fmt"
 	"strings"
 
 	b4dns "github.com/daniellavrushin/b4/dns"
@@ -61,4 +62,34 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 	// must compare attempts, controls and independent paths before promoting it
 	// to PASS_CORRECT/PASS_DIFFERENT_BUT_VALID.
 	out.Class = dnspath.OutcomeInconclusive
+}
+
+// validateProductionResponse is the last provider-side guard before a DNS
+// payload can reach the runtime manager/client. SERVFAIL/REFUSED are failures
+// (so the manager can use a validated fallback); NXDOMAIN and NODATA require
+// an authority SOA, preventing bare forged negative replies from becoming a
+// normal production answer or cache entry.
+func validateProductionResponse(payload []byte, obs b4dns.DNSObservation) error {
+	meta, err := b4dns.InspectResponseMetadata(payload)
+	if err != nil {
+		return err
+	}
+	if meta.Truncated {
+		return fmt.Errorf("truncated DNS response requires fallback")
+	}
+	switch meta.RCode {
+	case 0:
+		// A zero-answer NOERROR response is NODATA unless it carries CNAME or
+		// HTTPS/SVCB answer evidence. RFC 2308 negative caching requires SOA.
+		if meta.AnswerCount == 0 && len(obs.CNAMEs) == 0 && len(obs.HTTPSRecords) == 0 && !meta.HasNegativeProof() {
+			return fmt.Errorf("NODATA response lacks authority SOA")
+		}
+	case 3:
+		if !meta.HasNegativeProof() {
+			return fmt.Errorf("NXDOMAIN response lacks authority SOA")
+		}
+	default:
+		return fmt.Errorf("DNS rcode %d requires fallback", meta.RCode)
+	}
+	return nil
 }
