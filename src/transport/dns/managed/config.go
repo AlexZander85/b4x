@@ -26,6 +26,7 @@ type InstanceSpec struct {
 	Diagnostic      bool // diagnostic instance: cache off, ephemeral
 	RequireNoLog    bool
 	RequireNoFilter bool
+	RequireDNSSEC   bool
 }
 
 // allowedKeys is the pinned config key allowlist. The generator rejects
@@ -93,6 +94,7 @@ func GenerateConfig(s InstanceSpec) (string, error) {
 	fmt.Fprintf(&b, "http3 = %v\n", s.HTTP3)
 	fmt.Fprintf(&b, "require_nolog = %v\n", s.RequireNoLog)
 	fmt.Fprintf(&b, "require_nofilter = %v\n", s.RequireNoFilter)
+	fmt.Fprintf(&b, "require_dnssec = %v\n", s.RequireDNSSEC)
 	b.WriteString("# B4X owns causal selection; no hidden pool\n")
 	b.WriteString("lb_strategy = 'first'\n")
 	b.WriteString("lb_estimator = false\n")
