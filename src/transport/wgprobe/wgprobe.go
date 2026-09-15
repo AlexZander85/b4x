@@ -431,3 +431,33 @@ func KeyedBlake2s128(key [32]byte, data []byte) []byte {
 	h.Write(data)
 	return h.Sum(nil)
 }
+
+// StampReserved writes the cf-warp reserved routing bytes into packet
+// bytes [1:4] of a WG message (types 1..4). The MAC/mac1 covers ZEROED
+// bytes: stamping happens AFTER the packet (including its mac1) is built,
+// exactly where the engine's ReservedHook.PatchOutbound sits in Send().
+// Zero reserved = vanilla peer, bytes stay untouched.
+func StampReserved(packet []byte, reserved [3]byte) {
+	if len(packet) < 4 || reserved == ([3]byte{}) {
+		return
+	}
+	switch packet[0] {
+	case 1, 2, 3, 4:
+		packet[1] = reserved[0]
+		packet[2] = reserved[1]
+		packet[3] = reserved[2]
+	}
+}
+
+// ScrubReserved zeroes packet bytes [1:4] before the message is parsed or
+// authenticated (the cf-warp edge sends them SET while its MACs cover
+// zeros — the engine's AdjustInbound lineage). Vanilla peers are
+// unaffected: their [1:4] are already zero.
+func ScrubReserved(packet []byte) {
+	if len(packet) < 4 {
+		return
+	}
+	packet[1] = 0
+	packet[2] = 0
+	packet[3] = 0
+}

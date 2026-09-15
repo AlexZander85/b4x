@@ -159,11 +159,13 @@ func parseStructured(resp []byte, resolverID string, now time.Time) (b4dns.DNSOb
 	return obs, dnspath.FingerprintObservation(obs), nil
 }
 
-// outcomeFromError maps transport errors to normalized outcome classes.
+// outcomeFromError maps transport errors to normalized outcome classes. A
+// nil transport error proves only that the operation itself did not fail; it
+// never proves DNS correctness. PASS_CORRECT is reserved for detector quorum.
 func outcomeFromError(err error) dnspath.OutcomeClass {
 	switch {
 	case err == nil:
-		return dnspath.OutcomePassCorrect
+		return dnspath.OutcomeInconclusive
 	case errors.Is(err, errTxIDMismatch), errors.Is(err, errQuestionMismatch):
 		return dnspath.OutcomeQuestionMismatch
 	case errors.Is(err, b4dns.ErrMalformedResponse):

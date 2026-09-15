@@ -40,12 +40,16 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 	if meta.RCode == 3 && meta.Authoritative && meta.AuthorityCount == 0 {
 		out.EvidenceRefs = append(out.EvidenceRefs, "securitylab-aa-empty-authority")
 	}
+
+	caseID := strings.ToUpper(q.SuiteCase)
 	if meta.Truncated {
 		out.Class = dnspath.OutcomeTruncatedRequiresTCP
+		if caseID == "TRUNCATION" {
+			out.EvidenceRefs = append(out.EvidenceRefs, "expected-udp-truncation")
+		}
 		return
 	}
 
-	caseID := strings.ToUpper(q.SuiteCase)
 	switch caseID {
 	case "A", "AAAA":
 		if meta.RCode != 0 {
@@ -116,6 +120,46 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 			}
 			return
 		}
+	case "SERVFAIL":
+		if meta.RCode != 2 {
+			out.Class = dnspath.OutcomeRCodeMismatch
+			out.FailureCode = "expected_servfail"
+			return
+		}
+		out.EvidenceRefs = append(out.EvidenceRefs, "controlled-servfail")
+	case "MULTI":
+		if meta.RCode != 0 || meta.AnswerCount < 2 {
+			out.Class = dnspath.OutcomeAnswerConflict
+			out.FailureCode = "expected_multiple_answers"
+			return
+		}
+		out.EvidenceRefs = append(out.EvidenceRefs, "multi-answer")
+	case "DNSSEC_VALID":
+		if meta.RCode != 0 || !meta.AuthenticatedData {
+			out.Class = dnspath.OutcomeDNSSECInvalid
+			out.FailureCode = "dnssec_ad_missing"
+			return
+		}
+		out.DNSSECState = "validated-ad"
+		out.EvidenceRefs = append(out.EvidenceRefs, "dnssec-validating-resolver")
+	case "DNSSEC_BOGUS":
+		// For a controlled bogus-DNSSEC fixture, a validating recursive
+		// resolver is expected to return SERVFAIL. This proves failure-path
+		// handling but is not a substitute for a local cryptographic validator.
+		if meta.RCode != 2 {
+			out.Class = dnspath.OutcomeDNSSECInvalid
+			out.FailureCode = "dnssec_bogus_not_rejected"
+			return
+		}
+		out.DNSSECState = "bogus-rejected"
+		out.EvidenceRefs = append(out.EvidenceRefs, "dnssec-bogus-rejected")
+	case "TRUNCATION":
+		// A non-truncated answer does not satisfy the UDP truncation fixture.
+		// The expected TC=1 path returns above as TRUNCATED_REQUIRES_TCP and
+		// must be paired with a complete TCP result by the differential test.
+		out.Class = dnspath.OutcomeAnswerConflict
+		out.FailureCode = "expected_truncated_udp_response"
+		return
 	}
 
 	// This response is only a candidate correctness observation. The detector
