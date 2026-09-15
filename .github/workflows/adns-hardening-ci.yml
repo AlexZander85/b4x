@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   adns-test:
@@ -23,19 +23,6 @@ jobs:
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-      - name: Normalize adaptive DNS sources once
-        working-directory: src
-        shell: bash
-        run: |
-          set -euo pipefail
-          gofmt -w dns detector/adns_*.go transport/dns main_adns*.go
-          if ! git diff --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add dns detector/adns_*.go transport/dns main_adns*.go
-            git commit -m 'chore(dns): gofmt adaptive DNS hardening'
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
       - name: Prepare embedded UI placeholder
         working-directory: src
         run: |
