@@ -53,6 +53,18 @@ func managerFixture(t *testing.T) (*Manager, *stubProvider, *stubProvider) {
 	return m, primary, fallback
 }
 
+func fullPromotionOutcomes(paths ...DNSPathID) []DNSPathProbeOutcome {
+	out := make([]DNSPathProbeOutcome, 0, len(paths)*len(canonicalPromotionCases))
+	for _, path := range paths {
+		for _, caseID := range canonicalPromotionCases {
+			out = append(out, DNSPathProbeOutcome{
+				PathID: path, QuerySuiteID: caseID, Class: OutcomePassCorrect,
+			})
+		}
+	}
+	return out
+}
+
 func adoptTestProfile(t *testing.T, m *Manager, primary, fallback DNSPathID) *DNSPathProfile {
 	t.Helper()
 	now := time.Now()
@@ -62,10 +74,7 @@ func adoptTestProfile(t *testing.T, m *Manager, primary, fallback DNSPathID) *DN
 		QuerySuiteVersion: "adns-suite-v1",
 		Primary:           primary,
 		Fallbacks:         []DNSPathID{fallback},
-		CandidateOutcomes: []DNSPathProbeOutcome{
-			{PathID: primary, Class: OutcomePassCorrect},
-			{PathID: fallback, Class: OutcomePassCorrect},
-		},
+		CandidateOutcomes: fullPromotionOutcomes(primary, fallback),
 		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := p.Seal(); err != nil {
@@ -240,7 +249,7 @@ func TestFastFallbackOnlyReadyPaths(t *testing.T) {
 	}
 	m.PreparePath(ctx, primary, false)
 	m.PreparePath(ctx, fallback, false)
-	// fallback NOT marked ready → must not be used inline
+	// fallback NOT marked ready -> must not be used inline
 	m.MarkPathHealth(primary.id, DNSPathHealth{State: CapReady})
 	adoptTestProfile(t, m, primary.id, fallback.id)
 	binding, _ := m.NewBinding("lan", time.Hour)
@@ -259,7 +268,7 @@ func TestFastFallbackOnlyReadyPaths(t *testing.T) {
 	if _, err := m.Resolve(ctx, DNSQuery{Name: "example.com", QType: 1, TxID: 1}); err == nil {
 		t.Fatal("unready fallback must not serve inline")
 	}
-	// now mark fallback ready → fallback serves
+	// now mark fallback ready -> fallback serves
 	m.MarkPathHealth(fallback.id, DNSPathHealth{State: CapReady})
 	resp, err := m.Resolve(ctx, DNSQuery{Name: "example.com", QType: 1, TxID: 2})
 	if err != nil {
