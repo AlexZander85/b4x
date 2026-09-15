@@ -11,11 +11,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -28,7 +29,7 @@ const (
 	ModeEarlyInjection Mode = "early_injection" // forged early response + later valid
 	ModeUDPDrop        Mode = "udp_drop"        // UDP silence
 	ModeTruncation     Mode = "truncation"      // UDP TC=1, TCP complete
-	ModeFakeNXDOMAIN   Mode = "fake_nxdomain"   // positive name → NXDOMAIN
+	ModeFakeNXDOMAIN   Mode = "fake_nxdomain"   // positive name → bare forged NXDOMAIN
 	ModeStubIP         Mode = "stub_ip"         // block-page/stub IP answer
 	ModeCNAMEAltered   Mode = "cname_altered"   // altered CNAME chain
 	ModeAAAAOnly       Mode = "aaaa_only"       // only AAAA answers
@@ -62,7 +63,7 @@ func StartUDP(mode Mode) (*Fixture, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	f := &Fixture{Mode: mode, IP: net.ParseIP("93.184.216.34"), AAAA: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"), done: make(chan struct{})}
+	f := newFixture(mode)
 	f.udp = conn
 	go f.serveUDP()
 	return f, conn.LocalAddr().String(), nil
@@ -74,15 +75,32 @@ func StartTCP(mode Mode) (*Fixture, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	f := &Fixture{Mode: mode, IP: net.ParseIP("93.184.216.34"), AAAA: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"), done: make(chan struct{})}
+	f := newFixture(mode)
 	f.tcp = l
 	go f.serveTCP()
 	return f, l.Addr().String(), nil
 }
 
+func newFixture(mode Mode) *Fixture {
+	return &Fixture{
+		Mode: mode,
+		IP:   net.ParseIP("93.184.216.34"),
+		AAAA: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"),
+		done: make(chan struct{}),
+	}
+}
+
 // Close stops the fixture.
 func (f *Fixture) Close() {
-	close(f.done)
+	f.mu.Lock()
+	select {
+	case <-f.done:
+		f.mu.Unlock()
+		return
+	default:
+		close(f.done)
+	}
+	f.mu.Unlock()
 	if f.udp != nil {
 		f.udp.Close()
 	}
@@ -151,7 +169,7 @@ func (f *Fixture) serveTCP() {
 			frame := make([]byte, 2+len(resp))
 			binary.BigEndian.PutUint16(frame[:2], uint16(len(resp)))
 			copy(frame[2:], resp)
-			c.Write(frame)
+			_, _ = c.Write(frame)
 		}(conn)
 	}
 }
@@ -168,7 +186,10 @@ func readFull(c net.Conn, buf []byte) (int, error) {
 	return total, nil
 }
 
-// answer builds a DNS response according to the fixture mode.
+// answer builds a DNS response according to the fixture mode. ModeValid
+// emits a real authoritative negative (SOA in authority) for nonexistent.*
+// and a minimal HTTPS RR for type 65; ModeFakeNXDOMAIN deliberately omits the
+// SOA to model forged ISP/DPI NXDOMAIN injection.
 func (f *Fixture) answer(query []byte, ip, aaaa net.IP, flags uint16) []byte {
 	if len(query) < 12 {
 		return nil
@@ -178,7 +199,14 @@ func (f *Fixture) answer(query []byte, ip, aaaa net.IP, flags uint16) []byte {
 	off := 12
 	for i := 0; i < int(qdCount); i++ {
 		for off < len(query) && query[off] != 0 {
-			off += 1 + int(query[off])
+			labelLen := int(query[off])
+			if labelLen > 63 || off+1+labelLen > len(query) {
+				return nil
+			}
+			off += 1 + labelLen
+		}
+		if off+5 > len(query) {
+			return nil
 		}
 		off += 5 // null + qtype + qclass
 	}
@@ -194,39 +222,49 @@ func (f *Fixture) answer(query []byte, ip, aaaa net.IP, flags uint16) []byte {
 	binary.BigEndian.PutUint16(resp[2:4], 0x8000|0x0100|0x0080|flags)
 	binary.BigEndian.PutUint16(resp[4:6], qdCount)
 
-	var answers []byte
+	var answers, authority []byte
 	rcode := uint16(0)
-	switch f.Mode {
-	case ModeFakeNXDOMAIN:
+	if f.Mode == ModeFakeNXDOMAIN {
 		rcode = 3
-	case ModeStubIP:
+	} else if f.Mode == ModeValid && strings.HasPrefix(strings.ToLower(name), "nonexistent.") {
+		rcode = 3
+		authority = append(authority, soaRecord()...)
+	}
+	if f.Mode == ModeStubIP {
 		ip = net.ParseIP("198.18.0.1")
 	}
 	if rcode == 0 {
 		switch qtype {
 		case 1: // A
-			if f.Mode == ModeAAAAOnly {
-				break
+			if f.Mode != ModeAAAAOnly {
+				answers = append(answers, aRecord(ip)...)
 			}
-			answers = append(answers, aRecord(question, ip)...)
 		case 28: // AAAA
-			answers = append(answers, aaaaRecord(question, aaaa)...)
+			answers = append(answers, aaaaRecord(aaaa)...)
 		case 5: // CNAME
 			target := "cdn.example.com"
 			if f.Mode == ModeCNAMEAltered {
 				target = "evil.example.net"
 			}
-			answers = append(answers, cnameRecord(question, name, target)...)
+			answers = append(answers, cnameRecord(target)...)
+		case 65: // HTTPS
+			answers = append(answers, httpsRecord()...)
 		}
 	}
 	anCount := uint16(0)
 	if len(answers) > 0 {
 		anCount = 1
 	}
+	nsCount := uint16(0)
+	if len(authority) > 0 {
+		nsCount = 1
+	}
 	binary.BigEndian.PutUint16(resp[6:8], anCount)
+	binary.BigEndian.PutUint16(resp[8:10], nsCount)
 	binary.BigEndian.PutUint16(resp[2:4], binary.BigEndian.Uint16(resp[2:4])|rcode)
 	resp = append(resp, question...)
 	resp = append(resp, answers...)
+	resp = append(resp, authority...)
 	return resp
 }
 
@@ -251,7 +289,7 @@ func extractName(query []byte) string {
 // namePtr returns a compression pointer to the question name at offset 12.
 func namePtr() []byte { return []byte{0xc0, 0x0c} }
 
-func aRecord(question []byte, ip net.IP) []byte {
+func aRecord(ip net.IP) []byte {
 	if ip == nil {
 		ip = net.ParseIP("93.184.216.34")
 	}
@@ -262,7 +300,7 @@ func aRecord(question []byte, ip net.IP) []byte {
 	return append(r, ip.To4()...)
 }
 
-func aaaaRecord(question []byte, ip net.IP) []byte {
+func aaaaRecord(ip net.IP) []byte {
 	if ip == nil {
 		ip = net.ParseIP("2606:2800:220:1:248:1893:25c8:1946")
 	}
@@ -273,18 +311,50 @@ func aaaaRecord(question []byte, ip net.IP) []byte {
 	return append(r, ip.To16()...)
 }
 
-func cnameRecord(question []byte, name, target string) []byte {
+func cnameRecord(target string) []byte {
 	r := namePtr()
 	r = append(r, 0, 5, 0, 1)
 	r = append(r, 0, 0, 0, 60)
-	var enc []byte
-	for _, label := range splitLabels(target) {
-		enc = append(enc, byte(len(label)))
-		enc = append(enc, label...)
-	}
-	enc = append(enc, 0)
+	enc := encodeName(target)
 	r = append(r, byte(len(enc)>>8), byte(len(enc)))
 	return append(r, enc...)
+}
+
+func httpsRecord() []byte {
+	// HTTPS priority=1, TargetName=".", no SvcParams.
+	r := namePtr()
+	r = append(r, 0, 65, 0, 1)
+	r = append(r, 0, 0, 0, 60)
+	r = append(r, 0, 3)
+	return append(r, 0, 1, 0)
+}
+
+func soaRecord() []byte {
+	r := namePtr()
+	r = append(r, 0, 6, 0, 1)   // SOA IN
+	r = append(r, 0, 0, 0, 120) // RR TTL
+	rdata := append(encodeName("ns1.example"), encodeName("hostmaster.example")...)
+	tail := make([]byte, 20)
+	binary.BigEndian.PutUint32(tail[0:4], 1)     // serial
+	binary.BigEndian.PutUint32(tail[4:8], 3600)  // refresh
+	binary.BigEndian.PutUint32(tail[8:12], 600)  // retry
+	binary.BigEndian.PutUint32(tail[12:16], 86400) // expire
+	binary.BigEndian.PutUint32(tail[16:20], 60)  // minimum/negative TTL
+	rdata = append(rdata, tail...)
+	r = append(r, byte(len(rdata)>>8), byte(len(rdata)))
+	return append(r, rdata...)
+}
+
+func encodeName(name string) []byte {
+	if name == "" || name == "." {
+		return []byte{0}
+	}
+	var out []byte
+	for _, label := range splitLabels(name) {
+		out = append(out, byte(len(label)))
+		out = append(out, label...)
+	}
+	return append(out, 0)
 }
 
 func splitLabels(name string) []string {
@@ -292,7 +362,9 @@ func splitLabels(name string) []string {
 	cur := ""
 	for _, c := range name {
 		if c == '.' {
-			out = append(out, cur)
+			if cur != "" {
+				out = append(out, cur)
+			}
 			cur = ""
 			continue
 		}
@@ -326,18 +398,16 @@ func TLSFixtureCert(names ...string) (tls.Certificate, *x509.CertPool, error) {
 		return tls.Certificate{}, nil, err
 	}
 	cert := tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
-	pool := x509.NewCertPool()
-	pool.AddCert(&tmpl)
 	parsed, err := x509.ParseCertificate(der)
 	if err != nil {
 		return tls.Certificate{}, nil, err
 	}
-	pool = x509.NewCertPool()
+	pool := x509.NewCertPool()
 	pool.AddCert(parsed)
 	return cert, pool, nil
 }
 
-// StartDoT launches a DoT fixture. If corruptTLS is set the certificate is
+// StartDoT launches a DoT fixture. If wrongName is set the certificate is
 // valid for a different hostname (certificate failure fixture, §95).
 func StartDoT(mode Mode, serverName string, wrongName bool) (*Fixture, string, *x509.CertPool, error) {
 	certName := serverName
@@ -352,7 +422,7 @@ func StartDoT(mode Mode, serverName string, wrongName bool) (*Fixture, string, *
 	if err != nil {
 		return nil, "", nil, err
 	}
-	f := &Fixture{Mode: mode, IP: net.ParseIP("93.184.216.34"), AAAA: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"), done: make(chan struct{})}
+	f := newFixture(mode)
 	f.tcp = l
 	go f.serveTCP()
 	return f, l.Addr().String(), pool, nil
@@ -361,23 +431,16 @@ func StartDoT(mode Mode, serverName string, wrongName bool) (*Fixture, string, *
 // StartDoH launches an HTTP(S) DoH fixture. If corruptBody is set the
 // fixture returns a corrupted DNS body (§95).
 func StartDoH(mode Mode, corruptBody bool) (*Fixture, string, error) {
-	inner, _, err := StartUDP(mode)
-	if err != nil {
-		return nil, "", err
-	}
-	_ = inner
-	f := &Fixture{Mode: mode, IP: net.ParseIP("93.184.216.34"), AAAA: net.ParseIP("2606:2800:220:1:248:1893:25c8:1946"), done: make(chan struct{})}
+	f := newFixture(mode)
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := make([]byte, r.ContentLength)
 		readFullReader(r, body)
 		resp := f.answer(body, f.IP, f.AAAA, 0)
-		if corruptBody {
-			if len(resp) > 8 {
-				resp = resp[:len(resp)/2]
-			}
+		if corruptBody && len(resp) > 8 {
+			resp = resp[:len(resp)/2]
 		}
 		w.Header().Set("Content-Type", "application/dns-message")
-		w.Write(resp)
+		_, _ = w.Write(resp)
 	}))
 	go func() {
 		<-f.done
@@ -399,8 +462,11 @@ func readFullReader(r *http.Request, buf []byte) {
 
 // PortOf extracts the port from a host:port address.
 func PortOf(addr string) int {
-	var port int
-	fmt.Sscanf(addr, "127.0.0.1:%d", &port)
+	_, portText, err := net.SplitHostPort(addr)
+	if err != nil {
+		return 0
+	}
+	port, _ := strconv.Atoi(portText)
 	return port
 }
 
