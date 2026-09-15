@@ -12,6 +12,57 @@ import (
 	dnspath "github.com/daniellavrushin/b4/transport/dns"
 )
 
+type handlerTestProvider struct {
+	id dnspath.DNSPathID
+}
+
+func (p *handlerTestProvider) ID() dnspath.DNSPathID { return p.id }
+func (p *handlerTestProvider) Capabilities() dnspath.DNSPathCapabilities {
+	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true}
+}
+func (p *handlerTestProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
+	return dnspath.PreparedDNSPath{PathID: p.id, Generation: req.Generation, PreparedAt: time.Now()}, nil
+}
+func (p *handlerTestProvider) Probe(_ context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSProbeQuery) (dnspath.DNSPathProbeOutcome, error) {
+	return dnspath.DNSPathProbeOutcome{PathID: prepared.PathID, QuerySuiteID: q.SuiteCase, Class: dnspath.OutcomePassCorrect}, nil
+}
+func (p *handlerTestProvider) Resolve(_ context.Context, _ dnspath.PreparedDNSPath, _ dnspath.DNSQuery) (dnspath.DNSResponse, error) {
+	return dnspath.DNSResponse{}, nil
+}
+func (p *handlerTestProvider) Health(_ context.Context, _ dnspath.PreparedDNSPath) dnspath.DNSPathHealth {
+	return dnspath.DNSPathHealth{State: dnspath.CapReady}
+}
+func (p *handlerTestProvider) Retire(_ context.Context, _ dnspath.PreparedDNSPath) error { return nil }
+
+func handlerPromotionEvidence(paths ...dnspath.DNSPathID) []dnspath.DNSPathProbeOutcome {
+	cases := []string{"A", "AAAA", "CNAME", "HTTPS", "NXDOMAIN", "CONTROL_SAME", "CONTROL_UNRELATED"}
+	out := make([]dnspath.DNSPathProbeOutcome, 0, len(paths)*len(cases)*2)
+	for _, path := range paths {
+		for _, caseID := range cases {
+			for attempt := uint16(1); attempt <= 2; attempt++ {
+				receipt := dnspath.DNSPathProbeOutcome{
+					PathID: path, QuerySuiteID: caseID, Attempt: attempt,
+					Stage: dnspath.StageControl, Class: dnspath.OutcomePassCorrect,
+					ResponseCount: 1, ObservedAt: time.Now(),
+				}
+				switch caseID {
+				case "CNAME":
+					receipt.CNAMEFingerprint = "cname-fixture"
+				case "HTTPS":
+					receipt.HTTPSFingerprint = "https-fixture"
+				case "NXDOMAIN":
+					receipt.RCode = 3
+					receipt.EvidenceRefs = []string{"authority-soa", "independent-quorum"}
+				default:
+					receipt.AnswerFingerprint = "answer-fixture"
+				}
+				out = append(out, receipt)
+			}
+		}
+	}
+	return out
+}
+
 func testManager(t *testing.T) *dnspath.Manager {
 	t.Helper()
 	pol := dnspath.DefaultAdaptivePolicy()
@@ -25,15 +76,20 @@ func testManager(t *testing.T) *dnspath.Manager {
 		NetworkContextID: "wan-1", ConfigGeneration: 11, RuntimeEpoch: "epoch-1",
 		QuerySuiteVersion: "adns-suite-v1",
 		Primary:           primary, Fallbacks: []dnspath.DNSPathID{fallback},
-		CandidateOutcomes: []dnspath.DNSPathProbeOutcome{
-			{PathID: primary, Class: dnspath.OutcomePassCorrect},
-			{PathID: fallback, Class: dnspath.OutcomePassCorrect},
-		},
-		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+		CandidateOutcomes: handlerPromotionEvidence(primary, fallback),
+		CreatedAt:         now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := p.Seal(); err != nil {
 		t.Fatal(err)
 	}
+	if err := m.PreparePath(context.Background(), &handlerTestProvider{id: primary}, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.PreparePath(context.Background(), &handlerTestProvider{id: fallback}, false); err != nil {
+		t.Fatal(err)
+	}
+	m.MarkPathHealth(primary, dnspath.DNSPathHealth{State: dnspath.CapReady})
+	m.MarkPathHealth(fallback, dnspath.DNSPathHealth{State: dnspath.CapAvailable})
 	if err := m.AdoptProfile(p); err != nil {
 		t.Fatal(err)
 	}
@@ -43,15 +99,10 @@ func testManager(t *testing.T) *dnspath.Manager {
 	}
 	tx := &dnspath.Transaction{
 		Profile: p, Candidate: binding,
-		Gate: dnspath.PromotionGate{
-			FreshProfile: true, ProviderReady: true, CorrectnessSuite: true,
-			SameServiceControls: true, UnrelatedControls: true,
-			NoBlockingHardGate: true, MetricsParity: true,
-		},
 		Canary: func(context.Context, *dnspath.DNSPathBinding) error { return nil },
 	}
 	if err := tx.Run(context.Background(), m); err != nil {
-		t.Fatal(err)
+		t.Fatalf("promotion-grade test transaction failed: %v (%s)", err, tx.Reason)
 	}
 	return m
 }
