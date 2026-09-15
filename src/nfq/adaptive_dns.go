@@ -171,57 +171,46 @@ func adaptiveDNSResolverForClient(srcMAC string) (RawAdaptiveDNSResolver, *adapt
 // active global binding or a matching source-scoped canary is available.
 // Explicit per-set DNS redirects call this only after their own precedence has
 // been evaluated.
-func (w *Worker) tryAdaptiveDNSRedirect(vc *verdictCtx, ipVersion byte, payload, raw []byte, srcMAC string, set *config.SetConfig, cfg *config.Config) bool {
+func (w *Worker) tryAdaptiveDNSRedirect(vc *verdictCtx, ipVersion byte, clientPort uint16, payload, raw []byte, srcMAC string, set *config.SetConfig, cfg *config.Config) bool {
 	resolver, canary, ok := adaptiveDNSResolverForClient(srcMAC)
 	if !ok {
 		return false
 	}
+	var clientIP, originalDst net.IP
+	if ipVersion == IPv4 {
+		if len(raw) < 20 {
+			return false
+		}
+		clientIP = append(net.IP(nil), raw[12:16]...)
+		originalDst = append(net.IP(nil), raw[16:20]...)
+	} else {
+		if len(raw) < 40 {
+			return false
+		}
+		clientIP = append(net.IP(nil), raw[8:24]...)
+		originalDst = append(net.IP(nil), raw[24:40]...)
+	}
 	if _, _, _, valid := dns.ParseQuestion(payload); !valid {
 		// Once adaptive DNS owns this client path, unsupported/malformed DNS is
 		// failed closed rather than leaked to a potentially intercepted UDP/53.
-		var clientIP, originalDst net.IP
-		if ipVersion == IPv4 {
-			clientIP = append(net.IP(nil), raw[12:16]...)
-			originalDst = append(net.IP(nil), raw[16:20]...)
-		} else {
-			clientIP = append(net.IP(nil), raw[8:24]...)
-			originalDst = append(net.IP(nil), raw[24:40]...)
-		}
 		vc.drop()
-		w.sendDNSResponseToClient(ipVersion, originalDst, clientIP, 0, dns.BuildServfailResponse(payload))
+		w.sendDNSResponseToClient(ipVersion, originalDst, clientIP, clientPort, dns.BuildServfailResponse(payload))
 		if canary != nil {
 			canary.record(errors.New("unsupported DNS question shape"))
 		}
 		return true
 	}
 
-	var clientIP, originalDst net.IP
-	if ipVersion == IPv4 {
-		clientIP = append(net.IP(nil), raw[12:16]...)
-		originalDst = append(net.IP(nil), raw[16:20]...)
-	} else {
-		clientIP = append(net.IP(nil), raw[8:24]...)
-		originalDst = append(net.IP(nil), raw[24:40]...)
-	}
 	query := append([]byte(nil), payload...)
-	clientPort := uint16(0)
-	// processDnsPacket receives sport separately, but this helper intentionally
-	// has no hidden packet parsing. The caller sets the port in the wrapper
-	// below; zero is never used on the normal path.
-	_ = clientPort
-	_ = originalDst
-	_ = clientIP
-	_ = query
-	_ = set
-	_ = cfg
-	_ = resolver
-	_ = canary
-	return false
+	vc.drop()
+	w.wg.Add(1)
+	go func() {
+		defer w.wg.Done()
+		w.resolveAdaptiveDNSForClient(ipVersion, query, clientIP, clientPort, originalDst, srcMAC, set, cfg, resolver, canary)
+	}()
+	return true
 }
 
-// resolveAdaptiveDNSForClient is the actual asynchronous response path. It is
-// split from tryAdaptiveDNSRedirect so the caller can preserve the original
-// UDP source port explicitly.
 func (w *Worker) resolveAdaptiveDNSForClient(ipVersion byte, query []byte, clientIP net.IP, clientPort uint16, originalDst net.IP, srcMAC string, set *config.SetConfig, cfg *config.Config, resolver RawAdaptiveDNSResolver, canary *adaptiveDNSCanarySession) {
 	ctx, cancel := context.WithTimeout(w.ctx, dohRedirectTimeout)
 	defer cancel()
