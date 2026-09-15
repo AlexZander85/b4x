@@ -33,10 +33,9 @@ type adnsPathCase struct {
 // transport/message validity; correctness remains a differential decision.
 //
 // Exact answer equality is intentionally not required across independent
-// resolvers: legitimate CDN/geographic rotation may return different address
-// sets. We require the same semantic answer class from at least two resolver
-// identities. Exact fingerprint agreement earns PASS_CORRECT; semantic
-// agreement with a different fingerprint earns PASS_DIFFERENT_BUT_VALID.
+// resolvers for ordinary answer cases: legitimate CDN/geographic rotation may
+// return different address sets. CONTROL_SAME is deliberately stricter and
+// requires exact agreement, while CONTROL_UNRELATED may use coarse liveness.
 func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuiteCase, attempts int) ([]dnspath.DNSPathProbeOutcome, map[string]verifiedPathStats) {
 	if attempts < 1 {
 		attempts = 1
@@ -253,6 +252,11 @@ func isControlCase(id string) bool {
 func semanticOutcomeSignature(o dnspath.DNSPathProbeOutcome, caseID string) string {
 	negativeProof := hasEvidenceRef(o, "authority-soa")
 	switch strings.ToUpper(caseID) {
+	case "CONTROL_SAME":
+		// This control holds the queried service constant. Different answers
+		// here are evidence of path-dependent manipulation/divergence, not CDN
+		// diversity to be waved through.
+		return exactOutcomeSignature(o)
 	case "NXDOMAIN":
 		return fmt.Sprintf("nxdomain|r=%d|soa=%t", o.RCode, negativeProof)
 	case "CNAME":
