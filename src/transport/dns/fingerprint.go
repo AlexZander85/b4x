@@ -47,17 +47,13 @@ func FingerprintObservation(obs b4dns.DNSObservation) ResponseFingerprint {
 			seen[key] = true
 			fp.AnswerSet = append(fp.AnswerSet, key)
 		}
-		if a.TTLSeconds < fp.TTLMin {
-			fp.TTLMin = a.TTLSeconds
-		}
-		if a.TTLSeconds > fp.TTLMax {
-			fp.TTLMax = a.TTLSeconds
-		}
+		updateFingerprintTTL(&fp, a.TTLSeconds)
 	}
 	sort.Strings(fp.AnswerSet)
 	for _, c := range obs.CNAMEs {
 		fp.CNAMEChain = append(fp.CNAMEChain,
 			fmt.Sprintf("%s>%s", strings.ToLower(c.Name), strings.ToLower(c.Target)))
+		updateFingerprintTTL(&fp, c.TTLSeconds)
 	}
 	for _, h := range obs.HTTPSRecords {
 		params := make([]string, 0, len(h.Params))
@@ -70,14 +66,24 @@ func FingerprintObservation(obs b4dns.DNSObservation) ResponseFingerprint {
 		if h.HasECHConfig {
 			fp.HasECH = true
 		}
+		updateFingerprintTTL(&fp, h.TTLSeconds)
 	}
-	if len(fp.AnswerSet) == 0 {
+	if fp.TTLMin == ^uint32(0) {
 		fp.TTLMin = 0
 	}
 	fp.AnswerDigest = digestStrings(fp.AnswerSet)
 	fp.CNAMEDigest = digestStrings(fp.CNAMEChain)
 	fp.HTTPSDigest = digestStrings(fp.HTTPSParams)
 	return fp
+}
+
+func updateFingerprintTTL(fp *ResponseFingerprint, ttl uint32) {
+	if ttl < fp.TTLMin {
+		fp.TTLMin = ttl
+	}
+	if ttl > fp.TTLMax {
+		fp.TTLMax = ttl
+	}
 }
 
 func digestStrings(items []string) string {
