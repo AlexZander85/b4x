@@ -23,65 +23,78 @@ type verifiedPathStats struct {
 	ControlsPass      bool
 }
 
+type adnsPathCase struct {
+	path   string
+	caseID string
+}
+
 // verifyADNSOutcomes upgrades only independently corroborated, repeatable
-// observations to PASS_CORRECT. Providers are intentionally not allowed to
-// make this decision by themselves.
+// observations to PASS_CORRECT/PASS_DIFFERENT_BUT_VALID. Providers prove
+// transport/message validity; correctness remains a differential decision.
+//
+// Exact answer equality is intentionally not required across independent
+// resolvers: legitimate CDN/geographic rotation may return different address
+// sets. We require the same semantic answer class from at least two resolver
+// identities. Exact fingerprint agreement earns PASS_CORRECT; semantic
+// agreement with a different fingerprint earns PASS_DIFFERENT_BUT_VALID.
 func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuiteCase, attempts int) ([]dnspath.DNSPathProbeOutcome, map[string]verifiedPathStats) {
 	if attempts < 1 {
 		attempts = 1
 	}
 	verified := append([]dnspath.DNSPathProbeOutcome(nil), outcomes...)
-
-	type pathCase struct {
-		path   string
-		caseID string
-	}
-	indices := map[pathCase][]int{}
+	indices := map[adnsPathCase][]int{}
 	for i := range verified {
-		key := pathCase{path: verified[i].PathID.Hash(), caseID: verified[i].QuerySuiteID}
+		key := adnsPathCase{path: verified[i].PathID.Hash(), caseID: verified[i].QuerySuiteID}
 		indices[key] = append(indices[key], i)
 	}
 
-	// First require repeatability inside each path/case. A path that returns
-	// different answers across its own attempts cannot become reference truth.
-	stableSig := map[pathCase]string{}
+	// First require repeatability of the semantic result inside one path/case.
+	// Exact address changes across attempts are allowed for positive CDN answers
+	// as long as the semantic result remains positive and structurally valid.
+	stableSemantic := map[adnsPathCase]string{}
+	stableExact := map[adnsPathCase]string{}
 	for key, idxs := range indices {
-		var sig string
+		semantic := ""
+		exact := ""
 		valid := 0
-		stable := true
+		semanticStable := true
+		exactStable := true
 		for _, idx := range idxs {
 			o := verified[idx]
 			if o.Class != dnspath.OutcomeInconclusive {
 				continue
 			}
-			// CONTROL_SAME is an answer-integrity control and must match the
-			// full fingerprint. Only CONTROL_UNRELATED is a coarse liveness /
-			// resolver-policy control where different CDN answers are expected.
-			s := outcomeSignature(o, coarseControlCase(key.caseID))
-			if sig == "" {
-				sig = s
-			} else if sig != s {
-				stable = false
+			s := semanticOutcomeSignature(o, key.caseID)
+			e := exactOutcomeSignature(o)
+			if semantic == "" {
+				semantic = s
+			} else if semantic != s {
+				semanticStable = false
+			}
+			if exact == "" {
+				exact = e
+			} else if exact != e {
+				exactStable = false
 			}
 			valid++
 		}
-		if valid >= attempts && stable && sig != "" {
-			stableSig[key] = sig
+		if valid >= attempts && semanticStable && semantic != "" {
+			stableSemantic[key] = semantic
+			if exactStable {
+				stableExact[key] = exact
+			}
 			continue
 		}
-		if valid > 0 && !stable {
+		if valid > 0 && !semanticStable {
 			for _, idx := range idxs {
 				if verified[idx].Class == dnspath.OutcomeInconclusive {
 					verified[idx].Class = dnspath.OutcomeAnswerConflict
-					verified[idx].FailureCode = "unstable_repeated_answer"
+					verified[idx].FailureCode = "unstable_semantic_answer"
 				}
 			}
 		}
 	}
 
-	// For each suite case, choose a unique signature supported by at least two
-	// independent resolver identities. Same resolver over UDP/TCP is useful
-	// differential evidence, but it is not two independent truth sources.
 	caseIDs := make([]string, 0, len(suite))
 	seenCase := map[string]bool{}
 	for _, sc := range suite {
@@ -90,32 +103,36 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			caseIDs = append(caseIDs, sc.ID)
 		}
 	}
+
 	for _, caseID := range caseIDs {
-		groupsBySig := map[string]map[string]bool{}
-		for key, sig := range stableSig {
+		// Resolver identities, not transport paths, form the independent quorum.
+		groupsBySemantic := map[string]map[string]bool{}
+		exactGroups := map[string]map[string]bool{}
+		for key, semantic := range stableSemantic {
 			if key.caseID != caseID {
 				continue
 			}
-			var resolver string
-			for _, idx := range indices[key] {
-				resolver = verified[idx].PathID.ResolverID
-				if resolver != "" {
-					break
-				}
-			}
+			resolver := resolverForPathCase(verified, indices[key])
 			if resolver == "" {
 				continue
 			}
-			if groupsBySig[sig] == nil {
-				groupsBySig[sig] = map[string]bool{}
+			if groupsBySemantic[semantic] == nil {
+				groupsBySemantic[semantic] = map[string]bool{}
 			}
-			groupsBySig[sig][resolver] = true
+			groupsBySemantic[semantic][resolver] = true
+			if exact, ok := stableExact[key]; ok {
+				if exactGroups[exact] == nil {
+					exactGroups[exact] = map[string]bool{}
+				}
+				exactGroups[exact][resolver] = true
+			}
 		}
+
 		winner, winnerCount, tied := "", 0, false
-		for sig, groups := range groupsBySig {
+		for semantic, groups := range groupsBySemantic {
 			count := len(groups)
 			if count > winnerCount {
-				winner, winnerCount, tied = sig, count, false
+				winner, winnerCount, tied = semantic, count, false
 			} else if count == winnerCount && count > 0 {
 				tied = true
 			}
@@ -123,7 +140,8 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 		if winnerCount < 2 || tied {
 			continue
 		}
-		for key, sig := range stableSig {
+
+		for key, semantic := range stableSemantic {
 			if key.caseID != caseID {
 				continue
 			}
@@ -131,13 +149,19 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 				if verified[idx].Class != dnspath.OutcomeInconclusive {
 					continue
 				}
-				if sig == winner {
-					verified[idx].Class = dnspath.OutcomePassCorrect
-					verified[idx].Stage = dnspath.StageControl
-					verified[idx].EvidenceRefs = append(verified[idx].EvidenceRefs, "independent-quorum")
-				} else {
+				if semantic != winner {
 					verified[idx].Class = dnspath.OutcomeAnswerConflict
 					verified[idx].FailureCode = "independent_reference_conflict"
+					continue
+				}
+				verified[idx].Stage = dnspath.StageControl
+				verified[idx].EvidenceRefs = append(verified[idx].EvidenceRefs, "independent-quorum")
+				exact := exactOutcomeSignature(verified[idx])
+				if len(exactGroups[exact]) >= 2 {
+					verified[idx].Class = dnspath.OutcomePassCorrect
+				} else {
+					verified[idx].Class = dnspath.OutcomePassDifferentButValid
+					verified[idx].EvidenceRefs = append(verified[idx].EvidenceRefs, "cdn-answer-diversity")
 				}
 			}
 		}
@@ -170,9 +194,6 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			st.TransportFailures++
 			st.Fail++
 		default:
-			// INCONCLUSIVE due to insufficient independent corroboration is
-			// not a transport failure and must not be re-labelled as port-53
-			// blocking. It still prevents profile promotion via Fail.
 			st.Fail++
 		}
 		stats[h] = st
@@ -190,6 +211,15 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 		stats[hash] = st
 	}
 	return verified, stats
+}
+
+func resolverForPathCase(outcomes []dnspath.DNSPathProbeOutcome, idxs []int) string {
+	for _, idx := range idxs {
+		if idx >= 0 && idx < len(outcomes) && outcomes[idx].PathID.ResolverID != "" {
+			return outcomes[idx].PathID.ResolverID
+		}
+	}
+	return ""
 }
 
 func suiteCasesPass(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuiteCase, attempts int, controls bool) bool {
@@ -220,24 +250,33 @@ func isControlCase(id string) bool {
 	return id == "CONTROL_SAME" || id == "CONTROL_UNRELATED"
 }
 
-func coarseControlCase(id string) bool {
-	return id == "CONTROL_UNRELATED"
+func semanticOutcomeSignature(o dnspath.DNSPathProbeOutcome, caseID string) string {
+	negativeProof := hasEvidenceRef(o, "authority-soa")
+	switch strings.ToUpper(caseID) {
+	case "NXDOMAIN":
+		return fmt.Sprintf("nxdomain|r=%d|soa=%t", o.RCode, negativeProof)
+	case "CNAME":
+		return fmt.Sprintf("positive-cname|r=%d|present=%t", o.RCode, o.CNAMEFingerprint != "")
+	case "HTTPS":
+		return fmt.Sprintf("positive-https|r=%d|present=%t", o.RCode, o.HTTPSFingerprint != "")
+	default:
+		positive := o.AnswerFingerprint != "" || o.CNAMEFingerprint != "" || o.HTTPSFingerprint != ""
+		return fmt.Sprintf("positive|r=%d|present=%t", o.RCode, positive)
+	}
 }
 
-func outcomeSignature(o dnspath.DNSPathProbeOutcome, coarse bool) string {
-	negativeProof := false
+func exactOutcomeSignature(o dnspath.DNSPathProbeOutcome) string {
+	return fmt.Sprintf("r=%d|a=%s|c=%s|h=%s|neg=%t",
+		o.RCode, o.AnswerFingerprint, o.CNAMEFingerprint, o.HTTPSFingerprint, hasEvidenceRef(o, "authority-soa"))
+}
+
+func hasEvidenceRef(o dnspath.DNSPathProbeOutcome, want string) bool {
 	for _, ref := range o.EvidenceRefs {
-		if ref == "authority-soa" {
-			negativeProof = true
-			break
+		if ref == want {
+			return true
 		}
 	}
-	if coarse {
-		positiveEvidence := o.AnswerFingerprint != "" || o.CNAMEFingerprint != "" || o.HTTPSFingerprint != ""
-		return fmt.Sprintf("r=%d|p=%t|neg=%t", o.RCode, positiveEvidence, negativeProof)
-	}
-	return fmt.Sprintf("r=%d|a=%s|c=%s|h=%s|neg=%t",
-		o.RCode, o.AnswerFingerprint, o.CNAMEFingerprint, o.HTTPSFingerprint, negativeProof)
+	return false
 }
 
 func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[string]dnspath.DNSPathID, stats map[string]verifiedPathStats, attempts int) (poisoning, injection, udpDrop, port53Blocked, encryptedBlocked bool, filtered []dnspath.DNSPathFamily) {
@@ -268,9 +307,6 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 			if st.CorrectnessPass && st.ControlsPass {
 				classicPass = true
 			}
-			// Port-53 blocking is a transport attribution. Lack of quorum,
-			// malformed answers or answer disagreement are not evidence that
-			// the port itself is blocked.
 			if st.TransportFailures >= attempts && st.Pass == 0 && st.Conflicts == 0 && !st.Injection {
 				classicBlocked++
 			}
