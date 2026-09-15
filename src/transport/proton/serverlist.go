@@ -71,9 +71,14 @@ type ServerlistCache struct {
 	// OnEvent receives (event, source) notifications: nodes refreshes and
 	// stale-but-present announcements.
 	OnEvent func(event string, source string)
+	// RTTDial optionally overrides the direct TCP/443 sampler. Production
+	// leaves it nil and uses a plain direct net.Dialer. Tests/custom HTTP
+	// transports do not probe unless they explicitly provide this seam.
+	RTTDial RTTProbeDial
 
-	mu  sync.Mutex
-	cur *cachedServerlist
+	mu          sync.Mutex
+	cur         *cachedServerlist
+	rttRankedAt time.Time
 }
 
 // NewServerlistCache builds the cache, loading the persisted snapshot when
@@ -116,7 +121,7 @@ func (sc *ServerlistCache) effectiveTTL() time.Duration {
 	if _, err := io.ReadFull(r, b[:]); err == nil {
 		frac = float64(binary.LittleEndian.Uint64(b[:])%1_000_000) / 1_000_000
 	}
-	// ±22%: [0.78, 1.00) of 2x base — uniform over [1-0.22, 1+0.22].
+	// ±22%: [0.78, 1.22] of the base.
 	wobble := (1 - ServerlistJitter) + 2*ServerlistJitter*frac
 	return time.Duration(float64(ServerlistLoadsTTL) * wobble)
 }
@@ -130,10 +135,12 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 	now := sc.now()
 
 	if sc.cur != nil && now.Sub(sc.cur.FetchedAt) < sc.effectiveTTL() {
+		sc.rankCurrentLocked(ctx)
 		return sc.cur.Nodes, true, nil
 	}
 
-	// Offline mode (no client wired): stale/asset only.
+	// Offline mode (no client wired): stale/asset only. Deliberately no RTT
+	// probing here: offline means no extra network activity.
 	if sc.Client == nil {
 		return sc.offlineLocked(now)
 	}
@@ -141,8 +148,11 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 	resp, err := sc.Client.FetchLogicals(ctx, sess, sc.lastModifiedLocked())
 	switch {
 	case err == nil && resp == nil:
-		// 304: the stored snapshot is still fresh — refresh the mark.
+		// 304: the stored snapshot is still fresh — refresh the mark and
+		// re-sample latency for the new freshness window.
 		sc.cur.FetchedAt = now
+		sc.rttRankedAt = time.Time{}
+		sc.rankCurrentLocked(ctx)
 		sc.persistLocked()
 		sc.announce(EventNodesRefreshed, SourceMemCache)
 		return sc.cur.Nodes, true, nil
@@ -150,10 +160,16 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 		// Transport OR HTTP failure: stale-but-present beats a dead network
 		// for reserve-transport duty; the asset covers the rest.
 		if sc.cur != nil && len(sc.cur.Nodes) > 0 {
+			sc.rankCurrentLocked(ctx)
 			sc.announce(EventNodesRefreshed, SourceStale)
 			return sc.cur.Nodes, true, nil
 		}
-		return sc.assetLocked(now)
+		nodes, cached, aerr := sc.assetLocked(now)
+		if aerr == nil {
+			sc.rankCurrentLocked(ctx)
+			nodes = sc.cur.Nodes
+		}
+		return nodes, cached, aerr
 	}
 
 	nodes := FreeNodes(resp)
@@ -161,7 +177,12 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 		// Free tier vanished (paid-only answer): honest proton-no-nodes
 		// class + the asset keeps the transport usable.
 		sc.announce(ClassNoNodes, SourceAsset)
-		return sc.assetLocked(now)
+		nodes, cached, aerr := sc.assetLocked(now)
+		if aerr == nil {
+			sc.rankCurrentLocked(ctx)
+			nodes = sc.cur.Nodes
+		}
+		return nodes, cached, aerr
 	}
 	source := SourceLiveV2
 	if sc.v1Detected() {
@@ -174,9 +195,62 @@ func (sc *ServerlistCache) Get(ctx context.Context, sess *Session) ([]Node, bool
 		Source:       source,
 		Nodes:        nodes,
 	}
+	sc.rttRankedAt = time.Time{}
+	sc.rankCurrentLocked(ctx)
 	sc.persistLocked()
 	sc.announce(EventNodesRefreshed, source)
 	return sc.cur.Nodes, false, nil
+}
+
+// rankCurrentLocked samples literal node IPs on TCP/443 in parallel once per
+// serverlist freshness generation. Get calls it while holding sc.mu, but the
+// network work itself runs with the mutex released. The snapshot generation
+// is checked again before results are committed, so a late RTT batch cannot
+// reorder a newer server list (same generation discipline as runtime rollout).
+//
+// The sample is a sort hint only. When a custom HTTP client is injected we do
+// not create an unexpected direct side channel unless RTTDial was explicitly
+// supplied (unit tests and embedded callers keep deterministic ownership).
+func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
+	if sc.cur == nil || len(sc.cur.Nodes) < 2 || !sc.rttRankedAt.IsZero() {
+		return
+	}
+	if sc.Client == nil {
+		return
+	}
+	if sc.RTTDial == nil && sc.Client.HTTP != nil {
+		return
+	}
+
+	generation := sc.cur.FetchedAt
+	source := sc.cur.Source
+	nodes := append([]Node(nil), sc.cur.Nodes...)
+	dial := sc.RTTDial
+
+	// Reserve this generation before dropping the mutex so another caller
+	// does not start the same probe batch. Even an all-failed batch counts as
+	// sampled; repeated TCP noise every status/location call is undesirable.
+	sc.rttRankedAt = sc.now()
+	sc.mu.Unlock()
+
+	cands := make([]Candidate, 0, len(nodes))
+	for _, n := range nodes {
+		cands = append(cands, Candidate{Node: n, Port: 443})
+	}
+	rtts := ProbeTCP443RTT(ctx, cands, dial)
+	for i := range nodes {
+		nodes[i].RTT = rtts[nodes[i].EntryIP]
+	}
+
+	sc.mu.Lock()
+	if sc.cur == nil || !sc.cur.FetchedAt.Equal(generation) || sc.cur.Source != source {
+		return
+	}
+	// Publish a replacement slice instead of mutating cur.Nodes in place.
+	// A concurrent caller that returned the previous snapshot while this
+	// probe batch was running keeps an immutable slice and cannot race with
+	// RTT application.
+	sc.cur.Nodes = nodes
 }
 
 // v1Detected reports whether the response came from the v1 fallback (the
@@ -216,6 +290,7 @@ func (sc *ServerlistCache) assetLocked(now time.Time) ([]Node, bool, error) {
 		Source:    SourceAsset,
 		Nodes:     nodes,
 	}
+	sc.rttRankedAt = time.Time{}
 	sc.persistLocked()
 	sc.announce(EventNodesRefreshed, SourceAsset)
 	return nodes, false, nil

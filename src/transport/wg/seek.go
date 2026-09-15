@@ -20,7 +20,7 @@ import (
 )
 
 // Seek budgets (design §5: handshake 5 s, per-attempt ~7 s, overall
-// 80–120 s; cooldown 300 s after two strikes).
+// 80–120 s; cooldown 300 s after two strikes for the shared/default path).
 // PATCH-12 (WG MINOR 7): the KPI §1.3 budget is PER ENDPOINT —
 // DefaultSeekPerEndpointDeadline bounds ONE candidate's ladder; the TOTAL
 // derives from it (n candidates) unless explicitly overridden.
@@ -136,7 +136,7 @@ type SeekerConfig struct {
 	TotalDeadline       time.Duration // 0 = derived: PerEndpointDeadline x candidates
 	PerEndpointDeadline time.Duration // PATCH-12: per-candidate ladder budget; default 90 s (KPI §1.3)
 	Cooldown            time.Duration // default 300 s
-	StrikesToCooldown   int           // default 2
+	StrikesToCooldown   int           // default 1 for Proton, 2 for other targets
 
 	Now func() time.Time
 
@@ -189,7 +189,15 @@ func (c *SeekerConfig) fillDefaults() {
 		c.Cooldown = DefaultSeekCooldown
 	}
 	if c.StrikesToCooldown == 0 {
-		c.StrikesToCooldown = DefaultSeekStrikes
+		// Nova field behavior: after a real Proton candidate attempt fails,
+		// an immediate reconnect must move away from that exact endpoint.
+		// Keep the historical two-strike policy for WARP/AWG because one
+		// transient loss there is not enough evidence to blacklist the edge.
+		if c.Target == TargetProton {
+			c.StrikesToCooldown = 1
+		} else {
+			c.StrikesToCooldown = DefaultSeekStrikes
+		}
 	}
 	if c.Now == nil {
 		c.Now = time.Now
