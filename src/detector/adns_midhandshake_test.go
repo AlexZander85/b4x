@@ -12,10 +12,45 @@ import (
 	"github.com/daniellavrushin/b4/transport/dns/providers"
 )
 
+// relabeledProbeProvider gives a second controlled fixture an independent
+// resolver identity while preserving the real provider implementation. The
+// fixtures are separate server instances; only their loopback address is the
+// same, which would otherwise collapse NewUDPProvider's identity hash.
+type relabeledProbeProvider struct {
+	inner dnspath.DNSPathProvider
+	id    dnspath.DNSPathID
+}
+
+func (p *relabeledProbeProvider) ID() dnspath.DNSPathID { return p.id }
+func (p *relabeledProbeProvider) Capabilities() dnspath.DNSPathCapabilities {
+	return p.inner.Capabilities()
+}
+func (p *relabeledProbeProvider) Prepare(ctx context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
+	prepared, err := p.inner.Prepare(ctx, req)
+	if err == nil {
+		prepared.PathID = p.id
+	}
+	return prepared, err
+}
+func (p *relabeledProbeProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSProbeQuery) (dnspath.DNSPathProbeOutcome, error) {
+	out, err := p.inner.Probe(ctx, prepared, q)
+	out.PathID = p.id
+	return out, err
+}
+func (p *relabeledProbeProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSQuery) (dnspath.DNSResponse, error) {
+	return p.inner.Resolve(ctx, prepared, q)
+}
+func (p *relabeledProbeProvider) Health(ctx context.Context, prepared dnspath.PreparedDNSPath) dnspath.DNSPathHealth {
+	return p.inner.Health(ctx, prepared)
+}
+func (p *relabeledProbeProvider) Retire(ctx context.Context, prepared dnspath.PreparedDNSPath) error {
+	return p.inner.Retire(ctx, prepared)
+}
+
 // The 2026-08 DPI family filter: TCP connects, RST after TLS ClientHello on
-// the DoT path, while plaintext UDP to the same resolver IP stays alive.
-// Diagnosis must mark the DoT family as mid-handshake filtered and still
-// promote the UDP path — never collapse into "no DNS".
+// the DoT path, while plaintext UDP stays alive. Diagnosis must mark the DoT
+// family as mid-handshake filtered and still promote independently corroborated
+// UDP paths — never collapse into "no DNS" and never weaken quorum to do so.
 func TestADNSDiagnosisMidHandshakeFilteredDoTFallsBackToUDP(t *testing.T) {
 	fxTCP, addrTCP, err := faultlab.StartTCP(faultlab.ModeTCPResetAfterAccept)
 	if err != nil {
@@ -27,6 +62,11 @@ func TestADNSDiagnosisMidHandshakeFilteredDoTFallsBackToUDP(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fxUDP.Close()
+	fxUDP2, addrUDP2, err := faultlab.StartUDP(faultlab.ModeValid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fxUDP2.Close()
 
 	_, portTCP, _ := net.SplitHostPort(addrTCP)
 	var portTCPNum int
@@ -39,9 +79,15 @@ func TestADNSDiagnosisMidHandshakeFilteredDoTFallsBackToUDP(t *testing.T) {
 	ip, _ := netip.ParseAddr("127.0.0.1")
 	udp := providers.NewUDPProvider(ip, faultlab.PortOf(addrUDP), 0, "catalog-test")
 	udp.Timeout = time.Second
+	udp2Inner := providers.NewUDPProvider(ip, faultlab.PortOf(addrUDP2), 0, "catalog-test")
+	udp2Inner.Timeout = time.Second
+	udp2ID := udp2Inner.ID()
+	udp2ID.ResolverID = "r-independent-udp"
+	udp2ID.EndpointID = "e-independent-udp"
+	udp2 := &relabeledProbeProvider{inner: udp2Inner, id: udp2ID}
 
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-		Providers:     []dnspath.DNSPathProvider{dot, udp},
+		Providers:     []dnspath.DNSPathProvider{dot, udp, udp2},
 		Policy:        diagnosisPolicy(),
 		Suite:         CanonicalSuite("example.com", "control.example.net"),
 		AttemptsQuick: 2, AttemptsValid: 5,
@@ -80,7 +126,7 @@ func TestADNSDiagnosisMidHandshakeFilteredDoTFallsBackToUDP(t *testing.T) {
 		t.Fatal("no TLS_MID_HANDSHAKE_RESET outcome for dot path")
 	}
 
-	// Plaintext UDP to the same resolver stays a valid candidate and wins.
+	// Plaintext UDP remains a valid candidate only after independent quorum.
 	if diag.Profile == nil {
 		t.Fatal("profile must be compiled")
 	}
