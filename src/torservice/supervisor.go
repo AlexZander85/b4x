@@ -95,7 +95,15 @@ func (r *Runtime) currentEntry() string {
 		return r.entry
 	}
 	if r.mixedTried {
-		return ""
+		// Defensive fallback. nextEntry normally selects an explicit
+		// sequential candidate as soon as mixed-set fails, but never return an
+		// empty transport if state is recovered from an interrupted attempt.
+		for _, cand := range LadderOrder {
+			if !r.entryUnsupportedByPolicy(cand) {
+				return cand
+			}
+		}
+		return ladderWebtunnel
 	}
 	return "auto-mixed"
 }
@@ -305,6 +313,7 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	r.mu.Lock()
 	proc := r.proc
 	state := r.state
+	entry := r.entry
 	r.mu.Unlock()
 	if proc == nil || state != StateBootstrapping {
 		return
@@ -313,12 +322,20 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	if err != nil {
 		return
 	}
-	info, err := ctl.GetInfo("net/listeners/socks")
-	if err == nil {
+	// Ownership of a successfully authenticated control connection does not
+	// depend on the SOCKS listener already being published. Save it now so
+	// winner attribution and shutdown remain available during early startup.
+	r.mu.Lock()
+	oldCtl := r.ctl
+	r.ctl = ctl
+	r.mu.Unlock()
+	if oldCtl != nil && oldCtl != ctl {
+		_ = oldCtl.Close()
+	}
+	if info, err := ctl.GetInfo("net/listeners/socks"); err == nil {
 		if addr := info["net/listeners/socks"]; addr != "" {
 			r.mu.Lock()
 			r.socksAddr = addr
-			r.ctl = ctl
 			r.mu.Unlock()
 		}
 	}
@@ -327,7 +344,7 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 		bcfg = tor.DefaultBootstrapConfig()
 	}
 	started := r.opts.Now()
-	final, err := tor.BootstrapWatchCfg(ctx, ctl, ladderEntryName(r.entry), bcfg, r.opts.Now, func(ph tor.BootstrapPhase) {
+	final, err := tor.BootstrapWatchCfg(ctx, ctl, ladderEntryName(entry), bcfg, r.opts.Now, func(ph tor.BootstrapPhase) {
 		r.mu.Lock()
 		prev := r.bootstrap
 		r.bootstrap = ph
@@ -344,10 +361,9 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	elapsed := r.opts.Now().Sub(started)
 	r.mu.Lock()
 	r.state = StateEstablished
-	r.ctl = ctl
 	r.bootstrap = final
 	r.mu.Unlock()
-	r.recordEntryWon(r.entry, elapsed)
+	r.recordEntryWon(entry, elapsed)
 }
 
 func (r *Runtime) connectControl(ctx context.Context) (tor.ControlClient, error) {
@@ -395,9 +411,6 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 		return
 	}
 	now := r.opts.Now()
-	// The 30s grace is a real clock condition, independent of the 60s probe
-	// cadence. Supervisor ticks can therefore retire the process as soon as
-	// the grace has elapsed without waiting for a fifth network probe.
 	if fails >= livenessTeardownAt && !deadSince.IsZero() && now.Sub(deadSince) >= livenessGrace {
 		r.teardown("liveness-dead")
 		r.restartFromWinner()
@@ -567,11 +580,6 @@ func (r *Runtime) handleDeath(ctx context.Context) {
 	_ = ctx
 }
 
-// retireCurrentProcess is the only path for stopping a LIVE owned C-Tor.
-// The handle remains installed until Stop returns, so ensureProcess cannot
-// spawn a replacement concurrently. Production ProcessHandle exposes Alive;
-// if ownership-safe Stop could not retire it, we keep the handle and enter
-// backoff rather than creating an orphan/second Tor.
 func (r *Runtime) retireCurrentProcess(reason string) bool {
 	r.mu.Lock()
 	if r.retiring {
@@ -711,15 +719,14 @@ func (r *Runtime) nextEntry(failed string) {
 	if failed != "" && failed != "auto-mixed" {
 		if !contains(mem.Failed, failed) {
 			_ = r.entryMem.RecordFail(entryRealName(failed), r.opts.Now)
+			mem.Failed = append(mem.Failed, entryRealName(failed))
 		}
 	}
 	if failed == "auto-mixed" {
 		r.mixedTried = true
-		r.entry = ""
-		return
 	}
 	candidates := append([]string(nil), LadderOrder...)
-	if r.winner != "" {
+	if failed != "auto-mixed" && r.winner != "" {
 		candidates = append([]string{r.winner}, candidates...)
 	}
 	for _, cand := range candidates {
@@ -825,12 +832,10 @@ func (r *Runtime) winningTransport() string {
 }
 
 func entryRealName(entry string) string {
-	switch {
-	case entry == "meek":
+	if entry == "meek" {
 		return "meek_lite"
-	default:
-		return entry
 	}
+	return entry
 }
 
 func ladderEntryName(entry string) string {
