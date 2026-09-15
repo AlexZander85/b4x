@@ -36,7 +36,7 @@ func newScriptedADNSProvider(family dnspath.DNSPathFamily, resolver string) *scr
 
 func (p *scriptedADNSProvider) ID() dnspath.DNSPathID { return p.id }
 func (p *scriptedADNSProvider) Capabilities() dnspath.DNSPathCapabilities {
-	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true}
+	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true, DNSSEC: true}
 }
 func (p *scriptedADNSProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
 	p.prepared = true
@@ -184,6 +184,26 @@ func TestADNSDiagnosisDeterministic(t *testing.T) {
 	d2 := run()
 	if d1.Profile.Primary.Canonical() != d2.Profile.Primary.Canonical() {
 		t.Fatal("identical inputs must produce identical primary (no random shuffle)")
+	}
+}
+
+func TestADNSDiagnosisDoesNotInventPrivacyClaims(t *testing.T) {
+	policy := diagnosisPolicy()
+	policy.RequireNoLogClaim = true
+	policy.RequireNoFilterClaim = true
+	a := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+	b := newScriptedADNSProvider(dnspath.DNSPathDoH, "r-b")
+	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
+		Providers: []dnspath.DNSPathProvider{a, b}, Policy: policy,
+		Suite: CanonicalSuite("example.com", "control.example.net"),
+		AttemptsQuick: 2, NetworkContext: "wan-lab", Generation: 3,
+		RuntimeEpoch: "e1", CatalogVersion: "catalog-test", TTL: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diag.Profile == nil || diag.Profile.Status != dnspath.ProfileStatusInvalid {
+		t.Fatalf("unproven no-log/no-filter claims must not satisfy strict policy: %+v", diag.Profile)
 	}
 }
 
