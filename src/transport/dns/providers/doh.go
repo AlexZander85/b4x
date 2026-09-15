@@ -115,6 +115,9 @@ func (p *DoHProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSP
 	if err != nil {
 		return dnspath.DNSResponse{}, err
 	}
+	if err := validateProductionResponse(body, obs); err != nil {
+		return dnspath.DNSResponse{}, err
+	}
 	return dnspath.DNSResponse{
 		Payload: body, Fingerprint: fp, RCode: obs.RCode,
 		Latency: time.Since(start), ResponseCount: 1,
