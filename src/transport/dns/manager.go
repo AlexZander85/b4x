@@ -313,8 +313,13 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 		m.mu.Lock()
 		m.counters.CacheHits++
 		m.mu.Unlock()
-		resp := DNSResponse{Payload: e.Payload, Fingerprint: e.Fingerprint, FromCache: true}
-		if meta, err := b4dns.InspectResponseMetadata(e.Payload); err == nil {
+		payload := append([]byte(nil), e.Payload...)
+		if len(payload) >= 2 {
+			payload[0] = byte(q.TxID >> 8)
+			payload[1] = byte(q.TxID)
+		}
+		resp := DNSResponse{Payload: payload, Fingerprint: e.Fingerprint, FromCache: true}
+		if meta, err := b4dns.InspectResponseMetadata(payload); err == nil {
 			resp.RCode = meta.RCode
 			resp.Truncated = meta.Truncated
 		}
