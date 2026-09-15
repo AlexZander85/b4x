@@ -176,7 +176,7 @@ func (c *pionTCPConnShim) CloseWrite() error {
 	return nil
 }
 
-func (c *pionTCPConnShim) ReadFrom(r io.Reader) (int64, error) { return io.Copy(c.Conn, r) }
+func (c *pionTCPConnShim) ReadFrom(r io.Reader) (int64, error)      { return io.Copy(c.Conn, r) }
 func (c *pionTCPConnShim) SetLinger(sec int) error                  { return nil }
 func (c *pionTCPConnShim) SetKeepAlive(keepalive bool) error        { return nil }
 func (c *pionTCPConnShim) SetKeepAlivePeriod(d time.Duration) error { return nil }

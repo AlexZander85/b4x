@@ -13,7 +13,7 @@ import (
 // renderer invariants; this test asks the real C-Tor parser. It is opt-in so
 // ordinary developer/CI runs never require Entware/Tor or network access.
 //
-//   B4X_TOR_INTEGRATION=1 [B4X_TOR_BINARY=/opt/bin/tor] go test ./transport/tor -run VerifyConfig
+//	B4X_TOR_INTEGRATION=1 [B4X_TOR_BINARY=/opt/bin/tor] go test ./transport/tor -run VerifyConfig
 func TestTorrcVerifyConfig(t *testing.T) {
 	if os.Getenv("B4X_TOR_INTEGRATION") == "" {
 		t.Skip("set B4X_TOR_INTEGRATION=1 to verify rendered torrc with real Tor")

@@ -282,7 +282,7 @@ gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/lyrebird/transpor
 ## explicit; go 1.21
 gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/safelog
 gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil/utls
-# gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.11.0 => ../tools/snowflake
+# gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 v2.14.1 => ../tools/snowflake
 ## explicit; go 1.24.0
 gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/client/lib
 gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/amp

@@ -42,7 +42,7 @@ type fakeProcess struct {
 func newFakeProcess(pid int) *fakeProcess {
 	return &fakeProcess{pid: pid, death: make(chan tor.ProcessDeath, 2)}
 }
-func (f *fakeProcess) PID() int { return f.pid }
+func (f *fakeProcess) PID() int                       { return f.pid }
 func (f *fakeProcess) Death() <-chan tor.ProcessDeath { return f.death }
 func (f *fakeProcess) Alive() bool {
 	f.mu.Lock()
@@ -128,6 +128,7 @@ func (f *fakeControl) SetConf(kv ...[2]string) error {
 func (f *fakeControl) Close() error { return nil }
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
+
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func ph(progress int, tag string) string {
@@ -162,7 +163,7 @@ func newRuntimeTestBed(t *testing.T, tc config.TorConfig) *runtimeTestBed {
 	bed := &runtimeTestBed{t: t, dataDir: dataDir}
 	bed.ctl = &fakeControl{
 		bootstrap: []string{ph(10, "conn_done"), ph(45, "handshake"), ph(100, "done")},
-		socks: "127.0.0.1:9050",
+		socks:     "127.0.0.1:9050",
 	}
 	fastBoot := tor.DefaultBootstrapConfig()
 	fastBoot.PollInterval = 5 * time.Millisecond
@@ -188,7 +189,7 @@ func newRuntimeTestBed(t *testing.T, tc config.TorConfig) *runtimeTestBed {
 			bed.procs = append(bed.procs, p)
 			return p, nil
 		},
-		DialControl: func(ctx context.Context, network, addr string) (tor.ControlClient, error) { return bed.ctl, nil },
+		DialControl:   func(ctx context.Context, network, addr string) (tor.ControlClient, error) { return bed.ctl, nil },
 		LivenessProbe: func(ctx context.Context, socksAddr string) error { return nil },
 		ExitProbe: func(ctx context.Context, socksAddr string) (ExitInfo, error) {
 			return ExitInfo{IP: "199.9.14.1", Country: "US", IsTor: true}, nil
@@ -210,27 +211,41 @@ func newRuntimeTestBed(t *testing.T, tc config.TorConfig) *runtimeTestBed {
 
 func (b *runtimeTestBed) ensure() { b.rt.ensure(context.Background()) }
 func (b *runtimeTestBed) state() string {
-	b.rt.mu.Lock(); defer b.rt.mu.Unlock(); return b.rt.state
+	b.rt.mu.Lock()
+	defer b.rt.mu.Unlock()
+	return b.rt.state
 }
 func (b *runtimeTestBed) currentProc() *fakeProcess {
-	b.mu.Lock(); defer b.mu.Unlock()
-	if len(b.procs) == 0 { return nil }
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if len(b.procs) == 0 {
+		return nil
+	}
 	return b.procs[len(b.procs)-1]
 }
 func (b *runtimeTestBed) spawnCount() int { b.mu.Lock(); defer b.mu.Unlock(); return len(b.procs) }
 func (b *runtimeTestBed) hasEvent(name string) bool {
-	b.rt.mu.Lock(); defer b.rt.mu.Unlock()
-	for _, ev := range b.rt.events { if ev.Name == name { return true } }
+	b.rt.mu.Lock()
+	defer b.rt.mu.Unlock()
+	for _, ev := range b.rt.events {
+		if ev.Name == name {
+			return true
+		}
+	}
 	return false
 }
 func (b *runtimeTestBed) storeBridges(lines ...string) {
 	f := tor.BridgesFile{Schema: 1, UpdatedAt: time.Now().UnixMilli(), Source: "test"}
 	for _, line := range lines {
 		br, err := tor.ParseBridgeLine(line)
-		if err != nil { b.t.Fatalf("parse %q: %v", line, err) }
+		if err != nil {
+			b.t.Fatalf("parse %q: %v", line, err)
+		}
 		f.Bridges = append(f.Bridges, tor.StoredBridge{Transport: br.Transport, Line: br.Line, Endpoint: br.AddrPort, Fingerprint: br.Fingerprint})
 	}
-	if err := b.rt.store.Save(f); err != nil { b.t.Fatal(err) }
+	if err := b.rt.store.Save(f); err != nil {
+		b.t.Fatal(err)
+	}
 }
 
 func TestTorPinnedBootstrapSuccess(t *testing.T) {
@@ -238,7 +253,9 @@ func TestTorPinnedBootstrapSuccess(t *testing.T) {
 	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "obfs4"}})
 	bed.storeBridges(obfs4Line)
 	bed.ensure()
-	if bed.state() != StateEstablished { t.Fatalf("state=%s", bed.state()) }
+	if bed.state() != StateEstablished {
+		t.Fatalf("state=%s", bed.state())
+	}
 	st := bed.rt.Status()
 	if !st.Listening || st.Entry.Winner != "obfs4" || st.Entry.WinnerBridge == "" {
 		t.Fatalf("status=%+v", st)
@@ -251,7 +268,9 @@ func TestTorAutoMixedWinnerPersistsBridgeIdentity(t *testing.T) {
 	bed.storeBridges(webtunnelLine, obfs4Line)
 	bed.ctl.orconn = "45.66.35.35:443 CONNECTED"
 	bed.ensure()
-	if bed.state() != StateEstablished { t.Fatalf("state=%s", bed.state()) }
+	if bed.state() != StateEstablished {
+		t.Fatalf("state=%s", bed.state())
+	}
 	st := bed.rt.Status()
 	if st.Entry.Winner != "obfs4" || !strings.Contains(st.Entry.WinnerBridge, "obfs4|") {
 		t.Fatalf("winner=%+v", st.Entry)
@@ -268,7 +287,9 @@ func TestTorAutoMixedUnknownWinnerDoesNotLearn(t *testing.T) {
 	bed.storeBridges(webtunnelLine, obfs4Line)
 	bed.ctl.orconn = "$FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF CONNECTED"
 	bed.ensure()
-	if bed.state() != StateEstablished { t.Fatalf("state=%s", bed.state()) }
+	if bed.state() != StateEstablished {
+		t.Fatalf("state=%s", bed.state())
+	}
 	st := bed.rt.Status()
 	if st.Entry.Winner != "" || st.Entry.WinnerBridge != "" {
 		t.Fatalf("unknown attribution must not fabricate winner: %+v", st.Entry)
@@ -301,24 +322,30 @@ func TestTorMixedRaceWindowGlobalAndMeekManualOnly(t *testing.T) {
 	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "auto", RaceWindow: 2}, Bridges: config.TorBridgesConfig{BuiltinSnowflake: false}})
 	bed.storeBridges(webtunnelLine, obfs4Line, snowflakeLine, meekLine)
 	set, ok := bed.rt.assembleSet("auto-mixed")
-	if !ok || len(set) != 2 { t.Fatalf("set=%+v ok=%t", set, ok) }
+	if !ok || len(set) != 2 {
+		t.Fatalf("set=%+v ok=%t", set, ok)
+	}
 	for _, br := range set {
-		if br.Transport == "meek_lite" { t.Fatal("meek_lite must remain manual-only") }
+		if br.Transport == "meek_lite" {
+			t.Fatal("meek_lite must remain manual-only")
+		}
 	}
 }
 
 func TestTorPinnedSnowflakeFailsClosed(t *testing.T) {
 	cleanupLeaksAfterStop(t)
 	bed := newRuntimeTestBed(t, config.TorConfig{
-		Entry: config.TorEntryConfig{Mode: "snowflake"},
-		Egress: config.TorEgressConfig{Through: "proton"},
+		Entry:   config.TorEntryConfig{Mode: "snowflake"},
+		Egress:  config.TorEgressConfig{Through: "proton"},
 		Bridges: config.TorBridgesConfig{BuiltinSnowflake: true},
 	})
 	bed.ensure()
 	if bed.state() != StateBackoff || bed.spawnCount() != 0 {
 		t.Fatalf("pinned Snowflake must fail closed: state=%s spawns=%d", bed.state(), bed.spawnCount())
 	}
-	if !bed.hasEvent(tor.EventTorCarrierUnsupported) { t.Fatal("carrier-unsupported event missing") }
+	if !bed.hasEvent(tor.EventTorCarrierUnsupported) {
+		t.Fatal("carrier-unsupported event missing")
+	}
 }
 
 func TestTorLivenessUsesRealGraceAndRetiresBeforeRestart(t *testing.T) {
@@ -334,18 +361,28 @@ func TestTorLivenessUsesRealGraceAndRetiresBeforeRestart(t *testing.T) {
 		bed.rt.mu.Unlock()
 		bed.ensure()
 	}
-	if old.stopped() != 0 { t.Fatal("4th failure must start grace, not teardown immediately") }
+	if old.stopped() != 0 {
+		t.Fatal("4th failure must start grace, not teardown immediately")
+	}
 	bed.rt.mu.Lock()
 	bed.rt.livenessDeadSince = time.Now().Add(-livenessGrace - time.Second)
 	bed.rt.mu.Unlock()
 	bed.ensure()
-	if old.stopped() != 1 { t.Fatalf("old process stopCount=%d", old.stopped()) }
-	if bed.spawnCount() != 1 { t.Fatalf("replacement must not spawn in same retirement pass: %d", bed.spawnCount()) }
+	if old.stopped() != 1 {
+		t.Fatalf("old process stopCount=%d", old.stopped())
+	}
+	if bed.spawnCount() != 1 {
+		t.Fatalf("replacement must not spawn in same retirement pass: %d", bed.spawnCount())
+	}
 	bed.rt.opts.LivenessProbe = func(ctx context.Context, socksAddr string) error { return nil }
 	bed.ctl.bootstrap = []string{ph(100, "done")}
 	bed.ensure()
-	if bed.spawnCount() != 2 { t.Fatalf("replacement spawn count=%d", bed.spawnCount()) }
-	if bed.currentProc() == old { t.Fatal("replacement process must differ from retired process") }
+	if bed.spawnCount() != 2 {
+		t.Fatalf("replacement spawn count=%d", bed.spawnCount())
+	}
+	if bed.currentProc() == old {
+		t.Fatal("replacement process must differ from retired process")
+	}
 }
 
 func TestTorManualRestartRetiresOldProcessFirst(t *testing.T) {
@@ -355,9 +392,13 @@ func TestTorManualRestartRetiresOldProcessFirst(t *testing.T) {
 	bed.ensure()
 	old := bed.currentProc()
 	bed.rt.RestartNow(context.Background())
-	if old.stopped() != 1 { t.Fatalf("old process was not retired: %d", old.stopped()) }
+	if old.stopped() != 1 {
+		t.Fatalf("old process was not retired: %d", old.stopped())
+	}
 	bed.ensure()
-	if bed.spawnCount() != 2 { t.Fatalf("spawn count=%d", bed.spawnCount()) }
+	if bed.spawnCount() != 2 {
+		t.Fatalf("spawn count=%d", bed.spawnCount())
+	}
 }
 
 func TestTorProcessDeathTriggersRestart(t *testing.T) {
@@ -368,8 +409,12 @@ func TestTorProcessDeathTriggersRestart(t *testing.T) {
 	p := bed.currentProc()
 	p.kill(errors.New("segfault"))
 	bed.rt.handleDeath(context.Background())
-	if p.stopped() != 0 { t.Fatal("already-dead process must not be stopped again") }
-	if !bed.hasEvent(tor.EventTorProcessDied) { t.Fatal("process-died event missing") }
+	if p.stopped() != 0 {
+		t.Fatal("already-dead process must not be stopped again")
+	}
+	if !bed.hasEvent(tor.EventTorProcessDied) {
+		t.Fatal("process-died event missing")
+	}
 }
 
 func TestTorConfluxAndResourceStatus(t *testing.T) {
@@ -384,20 +429,26 @@ func TestTorConfluxAndResourceStatus(t *testing.T) {
 		t.Fatalf("conflux=%s", joined)
 	}
 	st := bed.rt.Status()
-	if st.Resources.ConfluxUX != "throughput" { t.Fatalf("resources=%+v", st.Resources) }
+	if st.Resources.ConfluxUX != "throughput" {
+		t.Fatalf("resources=%+v", st.Resources)
+	}
 }
 
 func TestTorDirectEntryNoBridges(t *testing.T) {
 	cleanupLeaksAfterStop(t)
 	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "direct"}})
 	bed.ensure()
-	if bed.state() != StateEstablished { t.Fatalf("state=%s", bed.state()) }
+	if bed.state() != StateEstablished {
+		t.Fatalf("state=%s", bed.state())
+	}
 }
 
 func TestTorDisabledBuildRefused(t *testing.T) {
 	cfg := config.NewConfig()
 	cfg.System.Tor.Enabled = false
-	if _, err := Build(&cfg, Options{}); err == nil { t.Fatal("disabled Build must refuse") }
+	if _, err := Build(&cfg, Options{}); err == nil {
+		t.Fatal("disabled Build must refuse")
+	}
 }
 
 func TestTorTorrcFileWritten(t *testing.T) {
@@ -406,7 +457,9 @@ func TestTorTorrcFileWritten(t *testing.T) {
 	bed.storeBridges(obfs4Line)
 	bed.ensure()
 	raw, err := os.ReadFile(filepath.Join(bed.dataDir, "torrc"))
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	doc := string(raw)
 	if !strings.Contains(doc, "ClientOnly 1") || !strings.Contains(doc, fmt.Sprintf("__OwningControllerProcess %d", os.Getpid())) {
 		t.Fatalf("torrc content wrong:\n%s", doc)

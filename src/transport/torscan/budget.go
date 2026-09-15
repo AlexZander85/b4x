@@ -22,7 +22,7 @@ const (
 
 type probeLedger struct {
 	Version  int              `json:"version"`
-	Last     map[string]int64  `json:"last_probe_ms"`
+	Last     map[string]int64 `json:"last_probe_ms"`
 	Attempts []int64          `json:"attempt_ms,omitempty"`
 }
 

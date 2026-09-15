@@ -19,7 +19,7 @@ func (r *Runtime) Status() Status {
 	st := Status{
 		Enabled: r.cfg.Enabled, Running: r.running,
 		Listening: r.state == StateEstablished && r.socksAddr != "",
-		State: r.state, Hint: r.hint,
+		State:     r.state, Hint: r.hint,
 		Entry: EntryView{
 			Mode: r.cfg.EffectiveEntryMode(), Active: entryRealName(r.entry),
 			Winner: r.winner, WinnerBridge: r.winnerBridge,
@@ -29,10 +29,10 @@ func (r *Runtime) Status() Status {
 			LastError: r.lastCollectFail,
 		},
 		Bootstrap: BootstrapView{Progress: r.bootstrap.Progress, Tag: r.bootstrap.Tag},
-		Egress: EgressView{Through: r.cfg.EffectiveEgressThrough(), Bait: r.cfg.EffectiveBaitProfile()},
-		Exit: ExitView{IP: r.exit.IP, Country: r.exit.Country, IsTor: r.exit.IsTor, CheckedAt: isoTime(r.exitAt)},
-		Version: r.version,
-		Events: append([]tor.TorEvent(nil), r.events...),
+		Egress:    EgressView{Through: r.cfg.EffectiveEgressThrough(), Bait: r.cfg.EffectiveBaitProfile()},
+		Exit:      ExitView{IP: r.exit.IP, Country: r.exit.Country, IsTor: r.exit.IsTor, CheckedAt: isoTime(r.exitAt)},
+		Version:   r.version,
+		Events:    append([]tor.TorEvent(nil), r.events...),
 	}
 	r.mu.Unlock()
 	st.Bridges.Source = r.storeSource()

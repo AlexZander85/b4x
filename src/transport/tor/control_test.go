@@ -129,7 +129,7 @@ func TestControlGetInfoSingleAndMultiline(t *testing.T) {
 func TestControlErrorCarriesCode(t *testing.T) {
 	srv := newFakeControl(t, map[string][]string{
 		"SETCONF ConfluxEnabled": {"552 Unrecognized option ConfluxEnabled"},
-		"SIGNAL": {"250 OK"},
+		"SIGNAL":                 {"250 OK"},
 	})
 	ctl, err := DialControl(context.Background(), "tcp", srv.ln.Addr().String())
 	if err != nil {
@@ -156,8 +156,8 @@ func TestParseBootstrapPhase(t *testing.T) {
 func testTorrcInput() TorrcInput {
 	return TorrcInput{
 		DataPath: "/opt/etc/b4/tor", OwningPID: 4242,
-		SocksPort: "127.0.0.1:auto",
-		ControlSocket: "/opt/etc/b4/tor/data/control.sock",
+		SocksPort:       "127.0.0.1:auto",
+		ControlSocket:   "/opt/etc/b4/tor/data/control.sock",
 		EgressProxyAddr: "127.0.0.1:40001", EgressProxyUsername: "u", EgressProxyPassword: "p",
 		Entry: entryVanilla, Padding: paddingReduced,
 	}

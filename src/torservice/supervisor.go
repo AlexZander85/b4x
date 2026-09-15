@@ -25,7 +25,7 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 		r.appendEvent(tor.TorEvent{
 			Name: tor.EventTorCarrierUnsupported, Class: tor.ClassTorCarrierPolicy,
 			Detail: fmt.Sprintf("entry=%s requires UDP but through=%s is a TCP-only pinned carrier", entry, r.cfg.EffectiveEgressThrough()),
-			At: r.opts.Now(),
+			At:     r.opts.Now(),
 		})
 		if r.cfg.EffectiveEntryMode() == "auto" {
 			r.nextEntry(entry)
@@ -292,7 +292,7 @@ func (r *Runtime) torrcInput(entry string, set []tor.Bridge) tor.TorrcInput {
 	in := tor.TorrcInput{
 		DataPath: r.cfg.EffectiveDataPath(), OwningPID: os.Getpid(), SocksPort: "127.0.0.1:auto",
 		ControlSocket: filepath.Join(r.cfg.EffectiveDataPath(), "data", "control.sock"),
-		Padding: r.cfg.EffectivePadding(), GeoIP: r.cfg.Speed.GeoIP, Isolation: r.cfg.EffectiveIsolation(),
+		Padding:       r.cfg.EffectivePadding(), GeoIP: r.cfg.Speed.GeoIP, Isolation: r.cfg.EffectiveIsolation(),
 		Bridges: set, UseBridges: entry != "direct", Entry: entry,
 	}
 	if entry == ladderVanilla || entry == "direct" {

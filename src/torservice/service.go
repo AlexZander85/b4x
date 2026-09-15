@@ -51,14 +51,14 @@ type ProcessController interface {
 }
 
 type Options struct {
-	Now           func() time.Time
-	Spawn         func(ctx context.Context, binaryPath, torrcPath, dataPath string) (ProcessController, error)
-	DialControl   func(ctx context.Context, network, addr string) (tor.ControlClient, error)
-	LivenessProbe func(ctx context.Context, socksAddr string) error
-	ExitProbe     func(ctx context.Context, socksAddr string) (ExitInfo, error)
-	Resolve       tor.ResolveFunc
-	SuperviseTick time.Duration
-	Bootstrap     tor.BootstrapConfig
+	Now              func() time.Time
+	Spawn            func(ctx context.Context, binaryPath, torrcPath, dataPath string) (ProcessController, error)
+	DialControl      func(ctx context.Context, network, addr string) (tor.ControlClient, error)
+	LivenessProbe    func(ctx context.Context, socksAddr string) error
+	ExitProbe        func(ctx context.Context, socksAddr string) (ExitInfo, error)
+	Resolve          tor.ResolveFunc
+	SuperviseTick    time.Duration
+	Bootstrap        tor.BootstrapConfig
 	CollectorFactory func(store *tor.BridgesStore, dial tor.ProbeDial, now func() time.Time) *tor.Collector
 }
 
@@ -154,45 +154,45 @@ type Runtime struct {
 	snowflake    *torsnowflake.SnowflakeAdapter
 	hostResolve  tor.ResolveFunc
 
-	mu        sync.Mutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	loopDone  chan struct{}
-	running   bool
-	stopped   bool
-	retiring  bool
-	state     string
-	hint      string
-	entry     string
-	activeSet []tor.Bridge
-	entryIdx  int
-	mixedTried bool
-	winner       string
-	winnerBridge string
-	proc          ProcessController
-	ctl           tor.ControlClient
-	socksAddr     string
-	bootstrap     tor.BootstrapPhase
+	mu                sync.Mutex
+	ctx               context.Context
+	cancel            context.CancelFunc
+	loopDone          chan struct{}
+	running           bool
+	stopped           bool
+	retiring          bool
+	state             string
+	hint              string
+	entry             string
+	activeSet         []tor.Bridge
+	entryIdx          int
+	mixedTried        bool
+	winner            string
+	winnerBridge      string
+	proc              ProcessController
+	ctl               tor.ControlClient
+	socksAddr         string
+	bootstrap         tor.BootstrapPhase
 	livenessFails     int
 	lastLiveness      time.Time
 	livenessDeadSince time.Time
 	newnymSent        bool
-	lastExitProbe time.Time
-	exit          ExitInfo
-	exitAt        time.Time
-	version       string
-	confluxDone   bool
-	confluxUX     string
-	strikes       map[string]int
-	strikeUntil   map[string]time.Time
-	restarts      []time.Time
-	cooldown      time.Time
-	events        []tor.TorEvent
-	scanning      bool
-	nextScanAt    time.Time
-	collecting    bool
-	collectDone     chan struct{}
-	lastCollectFail string
+	lastExitProbe     time.Time
+	exit              ExitInfo
+	exitAt            time.Time
+	version           string
+	confluxDone       bool
+	confluxUX         string
+	strikes           map[string]int
+	strikeUntil       map[string]time.Time
+	restarts          []time.Time
+	cooldown          time.Time
+	events            []tor.TorEvent
+	scanning          bool
+	nextScanAt        time.Time
+	collecting        bool
+	collectDone       chan struct{}
+	lastCollectFail   string
 }
 
 func Build(cfg *config.Config, opts Options) (*Runtime, error) {
