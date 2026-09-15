@@ -344,7 +344,12 @@ func runB4(cmd *cobra.Command, args []string) error {
                 tables.RoutingSyncConfig(c)
         })
         handler.SetDiscoveryRuntime(discoveryRT)
-        nfq.RoutingHandleDNSFunc = tables.RoutingHandleDNS
+        // Async seam (upstream b4 #296 lesson): the nfq reader goroutine must
+        // never wait on ip/ipset/nft subprocesses. DNS-response routing and
+        // the escalation path both go through this hook, so the async entry
+        // removes the whole exec cost from the packet path; the sync entry
+        // stays available for apply-time and tests.
+        nfq.RoutingHandleDNSFunc = tables.RoutingHandleDNSAsync
         nfq.RoutingLearnIPFunc = tables.RoutingLearnIP
 
         if err := initLogging(&cfg); err != nil {

@@ -1,143 +1,143 @@
 package tables
 
 import (
-	"bytes"
-	"fmt"
-	"os/exec"
-	"path/filepath"
-	"regexp"
-	"strconv"
-	"strings"
-	"sync"
+        "bytes"
+        "fmt"
+        "os/exec"
+        "path/filepath"
+        "regexp"
+        "strconv"
+        "strings"
+        "sync"
 
-	"github.com/daniellavrushin/b4/config"
-	"github.com/daniellavrushin/b4/log"
+        "github.com/daniellavrushin/b4/config"
+        "github.com/daniellavrushin/b4/log"
 )
 
 const (
-	backendNFTables        = "nftables"
-	backendIPTables        = "iptables"
-	backendIP6Tables       = "ip6tables"
-	backendIPTablesLegacy  = "iptables-legacy"
-	backendIP6TablesLegacy = "ip6tables-legacy"
+        backendNFTables        = "nftables"
+        backendIPTables        = "iptables"
+        backendIP6Tables       = "ip6tables"
+        backendIPTablesLegacy  = "iptables-legacy"
+        backendIP6TablesLegacy = "ip6tables-legacy"
 )
 
 var modulesLoaded sync.Once
 
 func AddRules(cfg *config.Config) error {
-	if cfg.System.Tables.SkipSetup {
-		return nil
-	}
+        if cfg.System.Tables.SkipSetup {
+                return nil
+        }
 
-	backend := detectFirewallBackend(cfg)
-	log.Tracef("Detected firewall backend: %s", backend)
+        backend := detectFirewallBackend(cfg)
+        log.Tracef("Detected firewall backend: %s", backend)
 
-	if backend == backendNFTables {
-		nft := NewNFTablesManager(cfg)
-		if err := nft.Apply(); err != nil {
-			return err
-		}
-		// BLK-7 tail: reinstall learned-IP drop rules after the rebuild and
-		// trigger an immediate entry reassert (fail-open on error).
-		ensureAdBlockLearnRulesTail(cfg)
-		return nil
-	}
+        if backend == backendNFTables {
+                nft := NewNFTablesManager(cfg)
+                if err := nft.Apply(); err != nil {
+                        return err
+                }
+                // BLK-7 tail: reinstall learned-IP drop rules after the rebuild and
+                // trigger an immediate entry reassert (fail-open on error).
+                ensureAdBlockLearnRulesTail(cfg)
+                return nil
+        }
 
-	ipt := NewIPTablesManager(cfg, backend == backendIPTablesLegacy)
+        ipt := NewIPTablesManager(cfg, backend == backendIPTablesLegacy)
 
-	if err := ipt.Apply(); err != nil {
-		return err
-	}
-	ensureAdBlockLearnRulesTail(cfg)
-	return nil
+        if err := ipt.Apply(); err != nil {
+                return err
+        }
+        ensureAdBlockLearnRulesTail(cfg)
+        return nil
 }
 
 func ClearRules(cfg *config.Config) error {
-	if cfg.System.Tables.SkipSetup {
-		return nil
-	}
+        if cfg.System.Tables.SkipSetup {
+                return nil
+        }
 
-	backend := detectFirewallBackend(cfg)
+        backend := detectFirewallBackend(cfg)
 
-	if backend == backendNFTables {
-		nft := NewNFTablesManager(cfg)
-		return nft.Clear()
-	}
+        if backend == backendNFTables {
+                nft := NewNFTablesManager(cfg)
+                return nft.Clear()
+        }
 
-	ipt := NewIPTablesManager(cfg, backend == backendIPTablesLegacy)
-	return ipt.Clear()
+        ipt := NewIPTablesManager(cfg, backend == backendIPTablesLegacy)
+        return ipt.Clear()
 }
 
 func DetectBackend(cfg *config.Config) string {
-	return detectFirewallBackend(cfg)
+        return detectFirewallBackend(cfg)
 }
 
 func ApplyMasqueradeOnly(cfg *config.Config) error {
-	if !cfg.System.Tables.Masquerade.Enabled {
-		return nil
-	}
-	loadKernelModules()
-	backend := detectFirewallBackend(cfg)
-	if backend == backendNFTables {
-		nft := NewNFTablesManager(cfg)
-		nft.ClearMasquerade()
-		return nft.ApplyMasquerade()
-	}
-	return NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ApplyMasquerade()
+        if !cfg.System.Tables.Masquerade.Enabled {
+                return nil
+        }
+        loadKernelModules()
+        backend := detectFirewallBackend(cfg)
+        if backend == backendNFTables {
+                nft := NewNFTablesManager(cfg)
+                nft.ClearMasquerade()
+                return nft.ApplyMasquerade()
+        }
+        return NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ApplyMasquerade()
 }
 
 func ApplyConntrackSysctls() {
-	for _, s := range b4SysctlSettings() {
-		s.Apply()
-	}
+        for _, s := range b4SysctlSettings() {
+                s.Apply()
+        }
 }
 
 func RevertConntrackSysctls() {
-	for _, s := range b4SysctlSettings() {
-		s.RevertBack()
-	}
+        for _, s := range b4SysctlSettings() {
+                s.RevertBack()
+        }
 }
 
 func ClearMasqueradeOnly(cfg *config.Config) {
-	if !cfg.System.Tables.Masquerade.Enabled {
-		return
-	}
-	backend := detectFirewallBackend(cfg)
-	if backend == backendNFTables {
-		NewNFTablesManager(cfg).ClearMasquerade()
-		return
-	}
-	NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ClearMasquerade()
+        if !cfg.System.Tables.Masquerade.Enabled {
+                return
+        }
+        backend := detectFirewallBackend(cfg)
+        if backend == backendNFTables {
+                NewNFTablesManager(cfg).ClearMasquerade()
+                return
+        }
+        NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ClearMasquerade()
 }
 
 func hasMSSClamp(cfg *config.Config) bool {
-	global, _ := cfg.HasGlobalMSSClamp()
-	return global || len(cfg.CollectDeviceMSSClamps()) > 0 || len(cfg.CollectSetMSSClamps()) > 0
+        global, _ := cfg.HasGlobalMSSClamp()
+        return global || len(cfg.CollectDeviceMSSClamps()) > 0 || len(cfg.CollectSetMSSClamps()) > 0
 }
 
 func ApplyMSSClampOnly(cfg *config.Config) error {
-	if !hasMSSClamp(cfg) {
-		return nil
-	}
-	loadKernelModules()
-	backend := detectFirewallBackend(cfg)
-	if backend == backendNFTables {
-		nft := NewNFTablesManager(cfg)
-		if err := nft.createTable(); err != nil {
-			return err
-		}
-		return nft.ApplyMSSClamp()
-	}
-	return NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ApplyMSSClamp()
+        if !hasMSSClamp(cfg) {
+                return nil
+        }
+        loadKernelModules()
+        backend := detectFirewallBackend(cfg)
+        if backend == backendNFTables {
+                nft := NewNFTablesManager(cfg)
+                if err := nft.createTable(); err != nil {
+                        return err
+                }
+                return nft.ApplyMSSClamp()
+        }
+        return NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ApplyMSSClamp()
 }
 
 func ClearMSSClampOnly(cfg *config.Config) {
-	backend := detectFirewallBackend(cfg)
-	if backend == backendNFTables {
-		NewNFTablesManager(cfg).ClearMSSClamp()
-		return
-	}
-	NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ClearMSSClamp()
+        backend := detectFirewallBackend(cfg)
+        if backend == backendNFTables {
+                NewNFTablesManager(cfg).ClearMSSClamp()
+                return
+        }
+        NewIPTablesManager(cfg, backend == backendIPTablesLegacy).ClearMSSClamp()
 }
 
 var iptWaitSupport sync.Map
@@ -145,183 +145,195 @@ var iptWaitSupport sync.Map
 var iptVersionRe = regexp.MustCompile(`v(\d+)\.(\d+)(?:\.(\d+))?`)
 
 func isIPTablesBinary(name string) bool {
-	base := filepath.Base(name)
-	return strings.HasPrefix(base, "iptables") || strings.HasPrefix(base, "ip6tables")
+        base := filepath.Base(name)
+        return strings.HasPrefix(base, "iptables") || strings.HasPrefix(base, "ip6tables")
 }
 
 func iptablesSupportsWait(bin string) bool {
-	if v, ok := iptWaitSupport.Load(bin); ok {
-		return v.(bool)
-	}
-	supported := true
-	out, err := exec.Command(bin, "--version").CombinedOutput()
-	if err == nil {
-		if m := iptVersionRe.FindStringSubmatch(string(out)); m != nil {
-			maj, _ := strconv.Atoi(m[1])
-			min, _ := strconv.Atoi(m[2])
-			patch := 0
-			if m[3] != "" {
-				patch, _ = strconv.Atoi(m[3])
-			}
-			if maj < 1 || (maj == 1 && (min < 4 || (min == 4 && patch < 20))) {
-				supported = false
-			}
-		}
-	}
-	iptWaitSupport.Store(bin, supported)
-	if !supported {
-		log.Warnf("IPTABLES[%s]: this iptables is too old for the '-w' lock flag (need >= 1.4.20); running without it", bin)
-	}
-	return supported
+        if v, ok := iptWaitSupport.Load(bin); ok {
+                return v.(bool)
+        }
+        supported := true
+        out, err := exec.Command(bin, "--version").CombinedOutput()
+        if err == nil {
+                if m := iptVersionRe.FindStringSubmatch(string(out)); m != nil {
+                        maj, _ := strconv.Atoi(m[1])
+                        min, _ := strconv.Atoi(m[2])
+                        patch := 0
+                        if m[3] != "" {
+                                patch, _ = strconv.Atoi(m[3])
+                        }
+                        if maj < 1 || (maj == 1 && (min < 4 || (min == 4 && patch < 20))) {
+                                supported = false
+                        }
+                }
+        }
+        iptWaitSupport.Store(bin, supported)
+        if !supported {
+                log.Warnf("IPTABLES[%s]: this iptables is too old for the '-w' lock flag (need >= 1.4.20); running without it", bin)
+        }
+        return supported
 }
 
 func dropWaitFlag(args []string) []string {
-	out := make([]string, 0, len(args))
-	for _, a := range args {
-		if a == "-w" || a == "--wait" {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
+        out := make([]string, 0, len(args))
+        for _, a := range args {
+                if a == "-w" || a == "--wait" {
+                        continue
+                }
+                out = append(out, a)
+        }
+        return out
 }
 
 func WaitArgs(bin string) []string {
-	if iptablesSupportsWait(bin) {
-		return []string{"-w"}
-	}
-	return nil
+        if iptablesSupportsWait(bin) {
+                return []string{"-w"}
+        }
+        return nil
 }
 
 func run(args ...string) (string, error) {
-	if len(args) > 1 && isIPTablesBinary(args[0]) && !iptablesSupportsWait(args[0]) {
-		args = dropWaitFlag(args)
-	}
-	var out bytes.Buffer
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdout = &out
-	cmd.Stderr = &out
-	err := cmd.Run()
-	if err != nil {
-		output := strings.TrimSpace(out.String())
-		cmdStr := strings.Join(args, " ")
-		if output != "" {
-			return output, fmt.Errorf("command [%s] failed: %w (%s)", cmdStr, err, output)
-		}
-		return output, fmt.Errorf("command [%s] failed: %w", cmdStr, err)
-	}
-	return out.String(), nil
+        if len(args) > 1 && isIPTablesBinary(args[0]) && !iptablesSupportsWait(args[0]) {
+                args = dropWaitFlag(args)
+        }
+        var out bytes.Buffer
+        cmd := exec.Command(args[0], args[1:]...)
+        cmd.Stdout = &out
+        cmd.Stderr = &out
+        err := cmd.Run()
+        if err != nil {
+                output := strings.TrimSpace(out.String())
+                cmdStr := strings.Join(args, " ")
+                if output != "" {
+                        return output, fmt.Errorf("command [%s] failed: %w (%s)", cmdStr, err, output)
+                }
+                return output, fmt.Errorf("command [%s] failed: %w", cmdStr, err)
+        }
+        return out.String(), nil
 }
 
 func setSysctlOrProc(name, val string) {
-	_, _ = run("sh", "-c", "sysctl -w "+name+"="+val+" || echo "+val+" > /proc/sys/"+strings.ReplaceAll(name, ".", "/"))
+        _, _ = run("sh", "-c", "sysctl -w "+name+"="+val+" || echo "+val+" > /proc/sys/"+strings.ReplaceAll(name, ".", "/"))
 }
 
 func getSysctlOrProc(name string) string {
-	out, _ := run("sh", "-c", "sysctl -n "+name+" 2>/dev/null || cat /proc/sys/"+strings.ReplaceAll(name, ".", "/"))
-	return strings.TrimSpace(out)
+        out, _ := run("sh", "-c", "sysctl -n "+name+" 2>/dev/null || cat /proc/sys/"+strings.ReplaceAll(name, ".", "/"))
+        return strings.TrimSpace(out)
 }
 
 func detectFirewallBackend(cfg *config.Config) string {
-	if b := cfg.System.Tables.Engine; b != "" {
-		switch strings.ToLower(b) {
-		case backendNFTables, "nft":
-			return backendNFTables
-		case backendIPTables:
-			return backendIPTables
-		case backendIPTablesLegacy:
-			return backendIPTablesLegacy
-		default:
-			log.Warnf("Unknown tables backend %q in config, auto-detecting", b)
-		}
-	}
+        if b := cfg.System.Tables.Engine; b != "" {
+                switch strings.ToLower(b) {
+                case backendNFTables, "nft":
+                        return backendNFTables
+                case backendIPTables:
+                        return backendIPTables
+                case backendIPTablesLegacy:
+                        return backendIPTablesLegacy
+                default:
+                        log.Warnf("Unknown tables backend %q in config, auto-detecting", b)
+                }
+        }
 
-	if nftWorking() {
-		return backendNFTables
-	}
+        if nftWorking() {
+                return backendNFTables
+        }
 
-	if hasBinary(backendIPTables) {
-		out, _ := run(backendIPTables, "--version")
-		if strings.Contains(out, "nf_tables") {
-			if hasBinary(backendIPTablesLegacy) {
-				log.Infof("nftables not functional, iptables is nft-variant; using %s", backendIPTablesLegacy)
-				return backendIPTablesLegacy
-			}
-			log.Warnf("nftables not functional and %s not found; attempting iptables (nft-variant)", backendIPTablesLegacy)
-		}
-		return backendIPTables
-	}
+        if hasBinary(backendIPTables) {
+                out, _ := run(backendIPTables, "--version")
+                if strings.Contains(out, "nf_tables") {
+                        if hasBinary(backendIPTablesLegacy) {
+                                log.Infof("nftables not functional, iptables is nft-variant; using %s", backendIPTablesLegacy)
+                                return backendIPTablesLegacy
+                        }
+                        log.Warnf("nftables not functional and %s not found; attempting iptables (nft-variant)", backendIPTablesLegacy)
+                }
+                return backendIPTables
+        }
 
-	if hasBinary(backendIPTablesLegacy) {
-		return backendIPTablesLegacy
-	}
+        if hasBinary(backendIPTablesLegacy) {
+                return backendIPTablesLegacy
+        }
 
-	return backendIPTables
+        return backendIPTables
 }
 
 func nftWorking() bool {
-	if !hasBinary("nft") {
-		return false
-	}
-	_, err := run("nft", "add", "table", "inet", "_b4_test")
-	if err != nil {
-		log.Tracef("nftables functional test failed: %v", err)
-		return false
-	}
-	_, _ = run("nft", "delete", "table", "inet", "_b4_test")
-	return true
+        if !hasBinary("nft") {
+                return false
+        }
+        _, err := run("nft", "add", "table", "inet", "_b4_test")
+        if err != nil {
+                log.Tracef("nftables functional test failed: %v", err)
+                return false
+        }
+        _, _ = run("nft", "delete", "table", "inet", "_b4_test")
+        return true
 }
 
+// hasBinaryCache memoizes exec.LookPath per binary name (upstream b4 #296
+// lesson): the DNS packet path consults hasBinary("ip") on every matched
+// response, and LookPath is a PATH scan + stat storm on hot hardware.
+// binfmt does not change under a running daemon often enough to matter; a
+// wrong "present" verdict self-heals on the next rule-application error.
+var hasBinaryCache sync.Map
+
 func hasBinary(name string) bool {
-	_, err := exec.LookPath(name)
-	return err == nil
+        if v, ok := hasBinaryCache.Load(name); ok {
+                return v.(bool)
+        }
+        _, err := exec.LookPath(name)
+        present := err == nil
+        hasBinaryCache.Store(name, present)
+        return present
 }
 
 func runLogged(op string, args ...string) {
-	out, err := run(args...)
-	if err != nil {
-		msg := strings.TrimSpace(out)
-		if strings.Contains(msg, "File exists") || strings.Contains(msg, "already exists") {
-			return
-		}
-		if strings.Contains(msg, "No such file or directory") || strings.Contains(msg, "FIB table does not exist") ||
-			strings.Contains(msg, "The set with the given name does not exist") || strings.Contains(msg, "No such process") {
-			log.Tracef("%s: %s | cmd=%s", op, msg, strings.Join(args, " "))
-			return
-		}
-		log.Warnf("%s failed: %v | cmd=%s | out=%s", op, err, strings.Join(args, " "), strings.TrimSpace(out))
-	}
+        out, err := run(args...)
+        if err != nil {
+                msg := strings.TrimSpace(out)
+                if strings.Contains(msg, "File exists") || strings.Contains(msg, "already exists") {
+                        return
+                }
+                if strings.Contains(msg, "No such file or directory") || strings.Contains(msg, "FIB table does not exist") ||
+                        strings.Contains(msg, "The set with the given name does not exist") || strings.Contains(msg, "No such process") {
+                        log.Tracef("%s: %s | cmd=%s", op, msg, strings.Join(args, " "))
+                        return
+                }
+                log.Warnf("%s failed: %v | cmd=%s | out=%s", op, err, strings.Join(args, " "), strings.TrimSpace(out))
+        }
 }
 
 func runEnsure(args ...string) error {
-	out, err := run(args...)
-	if err == nil {
-		return nil
-	}
-	msg := strings.TrimSpace(out)
-	if strings.Contains(msg, "File exists") || strings.Contains(msg, "already exists") {
-		return nil
-	}
-	return fmt.Errorf("%v: %s", err, msg)
+        out, err := run(args...)
+        if err == nil {
+                return nil
+        }
+        msg := strings.TrimSpace(out)
+        if strings.Contains(msg, "File exists") || strings.Contains(msg, "already exists") {
+                return nil
+        }
+        return fmt.Errorf("%v: %s", err, msg)
 }
 
 func loadKernelModules() {
-	modulesLoaded.Do(func() {
-		_, _ = run("sh", "-c", "modprobe -q nfnetlink 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nf_conntrack 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nf_conntrack_netlink 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q xt_connbytes 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nfnetlink_queue 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q xt_NFQUEUE 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q xt_multiport 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nf_tables 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nft_queue 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nft_ct 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nf_nat 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nft_masq 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nft_tproxy 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q nft_socket 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q xt_MASQUERADE 2>/dev/null || true")
-		_, _ = run("sh", "-c", "modprobe -q xt_set 2>/dev/null || true")
-	})
+        modulesLoaded.Do(func() {
+                _, _ = run("sh", "-c", "modprobe -q nfnetlink 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nf_conntrack 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nf_conntrack_netlink 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q xt_connbytes 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nfnetlink_queue 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q xt_NFQUEUE 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q xt_multiport 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nf_tables 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nft_queue 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nft_ct 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nf_nat 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nft_masq 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nft_tproxy 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q nft_socket 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q xt_MASQUERADE 2>/dev/null || true")
+                _, _ = run("sh", "-c", "modprobe -q xt_set 2>/dev/null || true")
+        })
 }
