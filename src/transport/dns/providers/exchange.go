@@ -78,6 +78,36 @@ func parseQuestion(query []byte) (name string, qtype, qclass uint16, err error) 
 	return name, qtype, qclass, nil
 }
 
+// productionQueryWire returns the exact client wire query when available.
+// The semantic fields are checked against the payload before forwarding so a
+// malformed caller cannot poison manager cache partitioning. Without a raw
+// payload, diagnostic/legacy callers get the historical synthesized query.
+func productionQueryWire(q dnspath.DNSQuery) ([]byte, error) {
+	if len(q.Payload) == 0 {
+		return b4dns.BuildQuery(q.Name, q.TxID, q.QType), nil
+	}
+	if len(q.Payload) < 12 {
+		return nil, fmt.Errorf("raw DNS query truncated")
+	}
+	name, qtype, qclass, err := parseQuestion(q.Payload)
+	if err != nil {
+		return nil, err
+	}
+	if qclass != 1 {
+		return nil, fmt.Errorf("unsupported DNS qclass %d", qclass)
+	}
+	if q.Name != "" && !equalFoldName(strings.TrimSuffix(q.Name, "."), strings.TrimSuffix(name, ".")) {
+		return nil, errQuestionMismatch
+	}
+	if q.QType != 0 && q.QType != qtype {
+		return nil, errQuestionMismatch
+	}
+	if q.TxID != 0 && binary.BigEndian.Uint16(q.Payload[:2]) != q.TxID {
+		return nil, errTxIDMismatch
+	}
+	return append([]byte(nil), q.Payload...), nil
+}
+
 // validateResponse enforces transaction-ID and question equality
 // (addendum §33: no response is accepted without structural validation).
 func validateResponse(query, resp []byte) error {
