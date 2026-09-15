@@ -3,10 +3,11 @@ package detector
 import dnspath "github.com/daniellavrushin/b4/transport/dns"
 
 // applyTransportDifferentialEvidence refines transport-level attribution after
-// semantic quorum. A UDP timeout/conflict is not called interception merely
-// because UDP failed: TCP to the same apparent resolver must itself have
-// passed the full correctness+control suite. This is the decisive controlled
-// variable in the transparent UDP/53 interception scenario.
+// semantic quorum. Repeated UDP timeouts remain a coarse UDP-drop observation
+// even when no same-resolver TCP control exists. Calling that observation
+// resolver-specific interception, however, still requires TCP to the same
+// apparent resolver to pass the full correctness+control suite. This keeps the
+// useful failure signal without overstating its cause.
 func applyTransportDifferentialEvidence(outcomes []dnspath.DNSPathProbeOutcome, paths map[string]dnspath.DNSPathID, stats map[string]verifiedPathStats, attempts int) (annotated []dnspath.DNSPathProbeOutcome, udpInterference, sameResolverConflict bool) {
 	if attempts < 1 {
 		attempts = 1
@@ -32,11 +33,14 @@ func applyTransportDifferentialEvidence(outcomes []dnspath.DNSPathProbeOutcome, 
 		if id.ResolverID == "" || (id.Family != dnspath.DNSPathUDP && id.Family != dnspath.DNSPathSystemForward) {
 			continue
 		}
-		if !tcpGoodByResolver[id.ResolverID] {
-			continue
-		}
+		// A repeated timeout is still valuable evidence that the UDP path is
+		// unavailable. The same-resolver TCP control below is only required for
+		// stronger causal attribution to UDP-specific filtering/interception.
 		if st.Timeouts >= attempts && st.Pass == 0 {
 			udpInterference = true
+		}
+		if !tcpGoodByResolver[id.ResolverID] {
+			continue
 		}
 		if st.Conflicts >= attempts && st.Pass == 0 {
 			sameResolverConflict = true
