@@ -2,19 +2,17 @@ package tor
 
 // torrc renderer (patch-plan §7.3, design §7.4): a PURE function of the
 // render input — regenerated on every start, validated before it ever
-// touches disk. The tessera/torware canon encoded here:
+// touches disk. The renderer follows the actual torrc(5) contracts:
 //
-//   - CRLF is forbidden anywhere (a config-file injection);
-//   - `\`, `#`, `"` are forbidden (the bridge parser already rejects them
-//     in lines; ValidateRendered re-checks the WHOLE rendered output);
-//   - every Bridge line goes back through ParseBridgeLine (the admission
-//     gate is absolute — even for our own rendering);
-//   - transport tokens on Bridge lines must equal the registered PT names;
-//   - paths ride argv, only the owning-controller pid and functional
-//     directives live in the file;
-//   - GeoIP lines only when Speed.GeoIP is on (26 MB of parsing otherwise);
-//   - Socks5Proxy only for vanilla/direct sets (PT legs dial themselves);
-//   - PT plugin lines only for PT entries in the set.
+//   - ControlSocket takes a filesystem path (the "unix:" prefix belongs to
+//     ControlPort, not ControlSocket);
+//   - Socks5Proxy takes host:port while RFC1929 credentials are separate
+//     Socks5ProxyUsername/Socks5ProxyPassword directives;
+//   - a vanilla bridge is rendered address-first; a leading transport token
+//     means a pluggable transport to Tor and therefore must never be "vanilla";
+//   - CRLF/unsafe characters are rejected before the file reaches Tor;
+//   - every Bridge line goes back through ParseBridgeLine;
+//   - GeoIP/PT directives are emitted only when required.
 
 import (
 	"fmt"
@@ -40,22 +38,31 @@ type TorrcInput struct {
 	OwningPID int
 	// SocksPort is the resolved socks listener ("127.0.0.1:auto").
 	SocksPort string
-	// ControlSocket is the unix control socket path ("unix:<path>") or
-	// empty when a ControlPort is used instead.
+	// ControlSocket is the unix control socket filesystem path. For
+	// compatibility with the pre-review service layer, a leading "unix:"
+	// is accepted here and stripped before rendering.
 	ControlSocket string
 	// ControlPort is the resolved TCP control listener (used when unix
 	// sockets are unavailable).
 	ControlPort string
-	// EgressProxy is the "user:pass@127.0.0.1:port" of the egress bridge
-	// (empty = no Socks5Proxy directive — PT-only sets).
+
+	// EgressProxyAddr/User/Password are the loopback SOCKS5 egress bridge
+	// parameters. Tor requires the address and RFC1929 credentials in
+	// separate directives.
+	EgressProxyAddr     string
+	EgressProxyUsername string
+	EgressProxyPassword string
+	// EgressProxy is the deprecated pre-review combined form
+	// "user:pass@host:port". It is parsed for compatibility, never emitted
+	// verbatim.
 	EgressProxy string
+
 	// PTProxyPort is the loopback PT proxy port for the
 	// ClientTransportPlugin directives (0 = no PT in the set).
 	PTProxyPort int
 	// Bridges is the active bridge set (already admission-parsed).
 	Bridges []Bridge
-	// UseBridges: 1 when the set is non-empty (vanilla/direct carry it too
-	// — vanilla relays ARE bridges here), 0 for the direct entry.
+	// UseBridges: 1 when the set is non-empty, 0 for the direct entry.
 	UseBridges bool
 	// Entry selects per-transport rendering policy.
 	Entry string // entryVanilla | entryDirect | PT kinds
@@ -69,6 +76,9 @@ type TorrcInput struct {
 	GeoIPv6File string
 	// Isolation adds the SocksPort isolation flags (per-destination opt-in).
 	Isolation string // ""|TorIsolationPerDestination
+	// Optional explicit resource guards. Zero leaves Tor defaults intact.
+	ConnLimit      int
+	MaxMemInQueues string
 }
 
 // RenderTorrc renders the torrc document (pure function).
@@ -87,7 +97,8 @@ func RenderTorrc(in TorrcInput) string {
 	b.WriteString("SocksPolicy accept 127.0.0.0/8\n")
 	b.WriteString("SocksPolicy reject *\n")
 	if in.ControlSocket != "" {
-		b.WriteString("ControlSocket " + in.ControlSocket + "\n")
+		path := strings.TrimPrefix(in.ControlSocket, "unix:")
+		b.WriteString("ControlSocket " + path + "\n")
 	} else if in.ControlPort != "" {
 		b.WriteString("ControlPort " + in.ControlPort + "\n")
 	}
@@ -96,6 +107,12 @@ func RenderTorrc(in TorrcInput) string {
 	b.WriteString("DormantCanceledByStartup 1\n")
 	b.WriteString("NumEntryGuards 1\n")
 	b.WriteString("LearnCircuitBuildTimeout 0\n")
+	if in.ConnLimit > 0 {
+		b.WriteString(fmt.Sprintf("ConnLimit %d\n", in.ConnLimit))
+	}
+	if in.MaxMemInQueues != "" {
+		b.WriteString("MaxMemInQueues " + in.MaxMemInQueues + "\n")
+	}
 	padding := in.Padding
 	if padding == "" {
 		padding = paddingReduced
@@ -111,11 +128,22 @@ func RenderTorrc(in TorrcInput) string {
 	} else {
 		b.WriteString("UseBridges 0\n")
 	}
+
 	// Socks5Proxy: only for vanilla/direct sets — the PT legs dial through
 	// the in-process PT proxy and never touch the egress bridge.
-	if in.EgressProxy != "" && (in.Entry == entryVanilla || in.Entry == entryDirect) {
-		b.WriteString("Socks5Proxy " + in.EgressProxy + "\n")
+	if in.Entry == entryVanilla || in.Entry == entryDirect {
+		addr, user, pass := proxyParts(in)
+		if addr != "" {
+			b.WriteString("Socks5Proxy " + addr + "\n")
+			if user != "" {
+				b.WriteString("Socks5ProxyUsername " + user + "\n")
+			}
+			if pass != "" {
+				b.WriteString("Socks5ProxyPassword " + pass + "\n")
+			}
+		}
 	}
+
 	// PT plugin lines: one per DISTINCT transport present in the set.
 	if in.PTProxyPort > 0 {
 		seen := map[string]bool{}
@@ -131,7 +159,7 @@ func RenderTorrc(in TorrcInput) string {
 		}
 	}
 	for _, br := range in.Bridges {
-		b.WriteString("Bridge " + br.Line + "\n")
+		b.WriteString("Bridge " + br.TorrcLine() + "\n")
 	}
 	if in.GeoIP && in.GeoIPFile != "" {
 		b.WriteString("GeoIPFile " + in.GeoIPFile + "\n")
@@ -145,6 +173,26 @@ func RenderTorrc(in TorrcInput) string {
 	return b.String()
 }
 
+func proxyParts(in TorrcInput) (addr, user, pass string) {
+	addr, user, pass = in.EgressProxyAddr, in.EgressProxyUsername, in.EgressProxyPassword
+	if addr != "" || in.EgressProxy == "" {
+		return addr, user, pass
+	}
+	legacy := in.EgressProxy
+	at := strings.LastIndexByte(legacy, '@')
+	if at < 0 {
+		return legacy, "", ""
+	}
+	addr = legacy[at+1:]
+	creds := legacy[:at]
+	if colon := strings.IndexByte(creds, ':'); colon >= 0 {
+		user, pass = creds[:colon], creds[colon+1:]
+	} else {
+		user = creds
+	}
+	return addr, user, pass
+}
+
 // ValidateRendered re-checks the rendered document against the injection
 // contract (tessera canon: validation is a separate pass, testable against
 // `tor --verify-config`).
@@ -154,7 +202,7 @@ func ValidateRendered(s string) error {
 	}
 	// full-line comments are the torrc convention (our own header uses
 	// one); the character ban covers DIRECTIVE lines only — a value
-	// carrying '\', '#' or '"' is an injection, a comment is a comment.
+	// carrying '\\', '#' or '"' is an injection, a comment is a comment.
 	for _, line := range strings.Split(s, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
@@ -176,12 +224,12 @@ func ValidateRendered(s string) error {
 			if rest == "" {
 				return fmt.Errorf("torrc validation: empty Bridge line")
 			}
-			b, err := ParseBridgeLine(rest)
+			br, err := ParseBridgeLine(rest)
 			if err != nil {
 				return fmt.Errorf("torrc validation: Bridge line rejected: %v", err)
 			}
-			if b.Transport != "vanilla" && !KnownTransport(b.Transport) {
-				return fmt.Errorf("torrc validation: transport %q has no plugin", b.Transport)
+			if br.Transport != "vanilla" && !KnownTransport(br.Transport) {
+				return fmt.Errorf("torrc validation: transport %q has no plugin", br.Transport)
 			}
 		}
 	}
