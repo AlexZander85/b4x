@@ -141,6 +141,18 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			RuntimeEpoch: in.RuntimeEpoch, Diagnostic: true,
 		})
 		if err != nil {
+			// Preparation/bootstrap failure is explicit negative evidence, not
+			// absence of evidence. Record every suite case so required-case
+			// validation cannot accidentally treat the path as merely untested.
+			for _, sc := range in.Suite {
+				for attempt := 1; attempt <= attempts; attempt++ {
+					st.outcomes = append(st.outcomes, dnspath.DNSPathProbeOutcome{
+						PathID: id, QuerySuiteID: sc.ID, Attempt: uint16(attempt),
+						Stage: dnspath.StageRouteBootstrap, Class: dnspath.OutcomeObserverUnavailable,
+						FailureCode: "provider_prepare_error", Attribution: err.Error(), ObservedAt: in.Now(),
+					})
+				}
+			}
 			continue
 		}
 		for _, sc := range in.Suite {
