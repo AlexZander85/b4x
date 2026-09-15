@@ -230,7 +230,7 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	// Reserve this generation before dropping the mutex so another caller
 	// does not start the same probe batch. Even an all-failed batch counts as
 	// sampled; repeated TCP noise every status/location call is undesirable.
-	sc.rttRankedAt = generation
+	sc.rttRankedAt = sc.now()
 	sc.mu.Unlock()
 
 	cands := make([]Candidate, 0, len(nodes))
@@ -238,14 +238,19 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 		cands = append(cands, Candidate{Node: n, Port: 443})
 	}
 	rtts := ProbeTCP443RTT(ctx, cands, dial)
+	for i := range nodes {
+		nodes[i].RTT = rtts[nodes[i].EntryIP]
+	}
 
 	sc.mu.Lock()
 	if sc.cur == nil || !sc.cur.FetchedAt.Equal(generation) || sc.cur.Source != source {
 		return
 	}
-	for i := range sc.cur.Nodes {
-		sc.cur.Nodes[i].RTT = rtts[sc.cur.Nodes[i].EntryIP]
-	}
+	// Publish a replacement slice instead of mutating cur.Nodes in place.
+	// A concurrent caller that returned the previous snapshot while this
+	// probe batch was running keeps an immutable slice and cannot race with
+	// RTT application.
+	sc.cur.Nodes = nodes
 }
 
 // v1Detected reports whether the response came from the v1 fallback (the
