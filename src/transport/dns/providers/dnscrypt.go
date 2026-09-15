@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/netip"
 	"strconv"
+	"strings"
 	"time"
 
 	dnspath "github.com/daniellavrushin/b4/transport/dns"
@@ -60,6 +61,12 @@ func (p *ManagedProvider) Capabilities() dnspath.DNSPathCapabilities {
 	if err := managed.ValidateSpec(p.Spec); err != nil {
 		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByPolicy, Reason: err.Error()}
 	}
+	if strings.TrimSpace(p.CatalogVer) == "" {
+		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByDependency, Reason: "managed resolver has no verified catalog version"}
+	}
+	if strings.TrimSpace(p.Spec.ServerStamp) == "" || !strings.HasPrefix(strings.TrimSpace(p.Spec.ServerStamp), "sdns://") {
+		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByBootstrap, Reason: "managed resolver requires a signed self-contained DNS stamp"}
+	}
 	// Privacy/DNSSEC claims are explicit inputs derived by the caller from a
 	// reviewed signed catalog. Unknown never becomes true implicitly.
 	return dnspath.DNSPathCapabilities{
@@ -69,7 +76,7 @@ func (p *ManagedProvider) Capabilities() dnspath.DNSPathCapabilities {
 		DNSSEC:          p.Spec.RequireDNSSEC,
 		NoLogClaim:      p.Spec.RequireNoLog,
 		NoFilterClaim:   p.Spec.RequireNoFilter,
-		CatalogTrusted:  p.CatalogVer != "",
+		CatalogTrusted:  true,
 		Anonymized:      p.Spec.Family == "anonymized-dnscrypt" || p.Spec.Family == "odoh",
 		ProviderVersion: "dnscrypt-proxy@" + managed.PinnedCommit[:7],
 	}
@@ -83,6 +90,10 @@ type managedHandle struct {
 // Prepare starts (or adopts) the managed instance and waits for functional
 // readiness; readiness is a real query through the listener, never PID/sleep.
 func (p *ManagedProvider) Prepare(ctx context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
+	caps := p.Capabilities()
+	if caps.State != dnspath.CapAvailable && caps.State != dnspath.CapReady {
+		return dnspath.PreparedDNSPath{}, fmt.Errorf("managed provider not preparable: %s: %s", caps.State, caps.Reason)
+	}
 	if p.NewSupervisor == nil {
 		return dnspath.PreparedDNSPath{}, fmt.Errorf("managed provider: supervisor factory missing")
 	}
@@ -97,6 +108,7 @@ func (p *ManagedProvider) Prepare(ctx context.Context, req dnspath.DNSPrepareReq
 	}
 	loopback, err := netip.ParseAddr("127.0.0.1")
 	if err != nil {
+		_ = sup.Retire(ctx)
 		return dnspath.PreparedDNSPath{}, err
 	}
 	_, port, err := splitHostPort(spec.ListenAddr)
