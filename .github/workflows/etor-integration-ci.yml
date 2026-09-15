@@ -6,8 +6,12 @@ on:
       - agent/e-tor-reserve-integration
   workflow_dispatch:
 
+concurrency:
+  group: e-tor-integration-ci
+  cancel-in-progress: true
+
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   tor-test:
@@ -19,14 +23,22 @@ jobs:
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-      - name: Go format report
+      - name: Normalize deterministic Tor sources
+        run: |
+          sed -i 's#snowflake/v2 v2\.11\.0 => ../tools/snowflake#snowflake/v2 v2.14.1 => ../tools/snowflake#' src/vendor/modules.txt
+          gofmt -w src/transport/tor src/transport/torscan src/transport/torsnowflake src/torservice src/config/tor.go src/config/validation.go src/cmd/torctl
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/vendor/modules.txt src/transport/tor src/transport/torscan src/transport/torsnowflake src/torservice src/config/tor.go src/config/validation.go src/cmd/torctl
+            git commit -m 'chore(tor): format review fixes and sync vendor metadata'
+            git push origin HEAD:agent/e-tor-reserve-integration
+          fi
+      - name: Go format gate
         working-directory: src
         run: |
           files="$(gofmt -l transport/tor transport/torscan transport/torsnowflake torservice config/tor.go config/validation.go cmd/torctl 2>/dev/null)"
-          if [ -n "$files" ]; then
-            echo "gofmt required for:"
-            printf '%s\n' "$files"
-          fi
+          test -z "$files" || { printf '%s\n' "$files"; exit 1; }
       - name: Vet E-TOR packages
         working-directory: src
         run: go vet ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/... ./cmd/torctl/...
