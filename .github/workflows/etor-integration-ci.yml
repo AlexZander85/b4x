@@ -22,7 +22,12 @@ jobs:
       - name: Go format gate
         working-directory: src
         run: |
-          test -z "$(gofmt -l transport/tor transport/torscan transport/torsnowflake torservice config/tor.go config/validation.go cmd/torctl 2>/dev/null)"
+          files="$(gofmt -l transport/tor transport/torscan transport/torsnowflake torservice config/tor.go config/validation.go cmd/torctl 2>/dev/null)"
+          if [ -n "$files" ]; then
+            echo "gofmt required for:"
+            printf '%s\n' "$files"
+            exit 1
+          fi
       - name: Vet E-TOR packages
         working-directory: src
         run: go vet ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/... ./cmd/torctl/...
