@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/reserve"
-	"go.uber.org/goleak"
 )
 
 // TT3 DoD (patch-plan §4): fake-carrier policy tests (direct / through /
@@ -65,7 +64,7 @@ func fakeLookup(entries ...*fakeCarrier) CarrierLookup {
 var ipTarget = netip.MustParseAddrPort("93.184.216.34:443")
 
 func TestEgressPolicyDirect(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	srv := startDirectEcho(t)
 	defer srv.Close()
 	d := NewDialer(EgressPolicy{Through: "none", Now: time.Now}, nil, nil, nil)
@@ -82,7 +81,7 @@ func TestEgressPolicyDirect(t *testing.T) {
 }
 
 func TestEgressPolicyThroughCarrier(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	fc := &fakeCarrier{kind: reserve.KindProton}
 	d := NewDialer(EgressPolicy{Through: "proton", Now: time.Now}, fakeLookup(fc), nil, nil)
 	conn, err := d.Dial(context.Background(), ClassBridgeVanilla, ipTarget.Addr().String(), 443)
@@ -102,7 +101,7 @@ func TestEgressPolicyThroughCarrier(t *testing.T) {
 }
 
 func TestEgressPolicyAutoFailoverToCarrier(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	// auto with a resolver that always fails: direct also unreachable
 	// (TEST-NET-3 addr dials nothing fast) — carrier catches.
 	fc := &fakeCarrier{kind: reserve.KindOpera}
@@ -117,7 +116,7 @@ func TestEgressPolicyAutoFailoverToCarrier(t *testing.T) {
 }
 
 func TestEgressNegativeCacheAndSelfHeal(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	fc := &fakeCarrier{kind: reserve.KindFxvpn}
 	d := NewDialer(EgressPolicy{Through: "auto", Now: time.Now}, fakeLookup(fc), nil, nil)
 
@@ -157,7 +156,7 @@ func TestEgressNegativeCacheAndSelfHeal(t *testing.T) {
 }
 
 func TestEgressSelfLoopRefused(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	srv := startDirectEcho(t)
 	defer srv.Close()
 	port := uint16(srvPort(t, srv))
@@ -179,7 +178,7 @@ func TestEgressSelfLoopErrorsIs(t *testing.T) {
 }
 
 func TestEgressResolverCacheAndAntiSSRF(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	var calls atomic.Int64
 	resolve := func(ctx context.Context, host string) ([]netip.Addr, error) {
 		calls.Add(1)
@@ -254,7 +253,7 @@ func TestEgressRendezvousNeverPinnedCarrier(t *testing.T) {
 }
 
 func TestEgressDialAnyCarrierExcludesTor(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	torCarrier := &fakeCarrier{kind: reserve.KindTor}
 	other := &fakeCarrier{kind: reserve.KindWarp}
 	d := NewDialer(EgressPolicy{Through: "auto", Now: time.Now}, fakeLookup(torCarrier, other), nil, nil)

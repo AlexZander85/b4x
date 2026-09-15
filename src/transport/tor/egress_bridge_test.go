@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"testing"
 	"time"
-
-	"go.uber.org/goleak"
 )
 
 // TT3 DoD: egress-bridge RFC 1929 cases (mandatory auth, wrong creds
@@ -115,7 +113,7 @@ func newTestBridgeDialer(t *testing.T) *Dialer {
 }
 
 func TestEgressBridgeWrongCredsRefused(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	d := newTestBridgeDialer(t)
 	b, err := NewEgressBridge(d, nil)
 	if err != nil {
@@ -136,7 +134,7 @@ func TestEgressBridgeWrongCredsRefused(t *testing.T) {
 }
 
 func TestEgressBridgeNoAuthRefused(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	d := newTestBridgeDialer(t)
 	b, err := NewEgressBridge(d, nil)
 	if err != nil {
@@ -164,7 +162,7 @@ func TestEgressBridgeNoAuthRefused(t *testing.T) {
 }
 
 func TestEgressBridgeConnectRelay(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	echo := startDirectEcho(t)
 	defer echo.Close()
 	port := uint16(srvPort(t, echo))
@@ -198,7 +196,7 @@ func TestEgressBridgeConnectRelay(t *testing.T) {
 }
 
 func TestEgressBridgeClassAttribution(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	echo := startDirectEcho(t)
 	defer echo.Close()
 	port := uint16(srvPort(t, echo))
@@ -225,7 +223,7 @@ func TestEgressBridgeClassAttribution(t *testing.T) {
 }
 
 func TestEgressBridgeCredsRandomPerStart(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	d := newTestBridgeDialer(t)
 	b1, err := NewEgressBridge(d, nil)
 	if err != nil {
@@ -249,7 +247,7 @@ func TestEgressBridgeCredsRandomPerStart(t *testing.T) {
 }
 
 func TestEgressBridgeHalfClose(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	// a server that echoes then half-closes its write side
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -306,7 +304,7 @@ func TestEgressBridgeHalfClose(t *testing.T) {
 }
 
 func TestEgressBridgeDialFailure(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	d := newTestBridgeDialer(t)
 	b, err := NewEgressBridge(d, nil)
 	if err != nil {
@@ -326,7 +324,7 @@ func TestEgressBridgeDialFailure(t *testing.T) {
 }
 
 func TestEgressBridgeLoopGuardIntegration(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	defer verifyNoLeaks(t)
 	d := newTestBridgeDialer(t)
 	loops := func() []string { return nil }
 	d.loops = loops

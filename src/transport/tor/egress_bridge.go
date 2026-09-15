@@ -242,7 +242,7 @@ func (b *EgressBridge) handleConnect(conn net.Conn) error {
 	_ = conn.SetDeadline(time.Time{})
 
 	class := b.classFor(host, port)
-	ctx, cancel := context.WithTimeout(b.ctx, egressDirectTimeout*4)
+	ctx, cancel := context.WithTimeout(b.ctx, EgressDirectTimeout*4)
 	defer cancel()
 	remote, err := b.dialer.Dial(ctx, class, host, port)
 	if err != nil {
@@ -275,7 +275,9 @@ func (b *EgressBridge) classFor(host string, port uint16) ConnClass {
 }
 
 func normalizeEndpoint(t string) (string, error) {
-	host, port, err := net.SplitHostPort(t)
+	// splitBridgeHostPort also understands bare-IPv6-with-port endpoints
+	// (the bridge-line canonical form before normalization).
+	host, port, err := splitBridgeHostPort(t)
 	if err != nil {
 		return "", err
 	}

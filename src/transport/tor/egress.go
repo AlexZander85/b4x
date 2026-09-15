@@ -7,10 +7,10 @@ package tor
 // protected dial). Every dial is classified, self-loop guarded, resolved
 // through DoH (no ISP DNS leak for hostname bridges) and routed by policy:
 //
-//	direct          marked net.Dialer (SO_MARK MarkTorEgress)
-//	through:<kind>  reserve.Lookup(kind).Carrier.DialStream (composition)
-//	auto            operaservice failover canon: direct 5s → negative cache
-//	                60s after 2 fails → carrier-first + self-heal probe
+//      direct          marked net.Dialer (SO_MARK MarkTorEgress)
+//      through:<kind>  reserve.Lookup(kind).Carrier.DialStream (composition)
+//      auto            operaservice failover canon: direct 5s → negative cache
+//                      60s after 2 fails → carrier-first + self-heal probe
 //
 // Rendezvous (snowflake broker/AMP) and bootstrap sources (onionoo, Moat,
 // collector mirrors) NEVER honor a pinned carrier and never travel through
@@ -79,9 +79,19 @@ type EgressPolicy struct {
 	Now func() time.Time
 }
 
+// EgressDialFunc is the egress dial seam shared by the service layer and
+// the snowflake adapter (production: the runtime's egress Dialer.Dial).
+type EgressDialFunc func(ctx context.Context, class ConnClass, host string, port uint16) (net.Conn, error)
+
+// MarkControlFunc is the platform SO_MARK seam (nil in sandboxes without
+// CAP_NET_ADMIN).
+type MarkControlFunc func(network, address string, c syscall.RawConn) error
+
 // Failover canon constants (operaservice §H2 — the same numbers).
 const (
-	egressDirectTimeout = 5 * time.Second
+	// EgressDirectTimeout bounds a direct egress dial (5s — the OS-level
+	// ~2min black hole is a price no data dial should ever pay).
+	EgressDirectTimeout = 5 * time.Second
 	egressDirectFailCap = 2
 	egressDirectDeadTTL = 60 * time.Second
 	egressDNSFailTTL    = 60 * time.Second
@@ -330,7 +340,7 @@ func (d *Dialer) isSelfLoop(host string, port uint16) bool {
 // control because the socks5 package is config-coupled and importing it
 // from here would close an import cycle).
 func (d *Dialer) dialDirect(ctx context.Context, target netip.AddrPort) (net.Conn, error) {
-	nd := net.Dialer{Timeout: egressDirectTimeout, KeepAlive: 30 * time.Second}
+	nd := net.Dialer{Timeout: EgressDirectTimeout, KeepAlive: 30 * time.Second}
 	nd.Control = d.markCtl // nil in mark-less sandboxes (tests)
 	return nd.DialContext(ctx, "tcp", target.String())
 }
