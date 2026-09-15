@@ -93,7 +93,7 @@ func (p *TCPProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) 
 func (p *TCPProvider) Retire(_ context.Context, _ dnspath.PreparedDNSPath) error { return nil }
 
 func (p *TCPProvider) exchange(ctx context.Context, query []byte) ([]byte, time.Duration, error) {
-	d := net.Dialer{Timeout: p.Timeout}
+	d := markedDialer(p.Mark, p.Timeout)
 	addr := net.JoinHostPort(p.ResolverIP.String(), fmt.Sprintf("%d", p.Port))
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
@@ -157,12 +157,7 @@ func (p *TCPProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 		out.Stage = dnspath.StageDNSMessage
 		return out, nil
 	}
-	out.Stage = dnspath.StageAnswer
-	out.RCode = obs.RCode
-	out.AnswerFingerprint = fp.AnswerDigest
-	out.CNAMEFingerprint = fp.CNAMEDigest
-	out.HTTPSFingerprint = fp.HTTPSDigest
-	out.Class = dnspath.OutcomePassCorrect
+	completeProbeEvidence(&out, resp, q, obs, fp)
 	return out, nil
 }
 
