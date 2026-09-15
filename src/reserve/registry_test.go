@@ -84,3 +84,28 @@ func TestRegisterNilIsNoop(t *testing.T) {
 		t.Fatalf("nil registration produced %d entries", got)
 	}
 }
+
+// E-TOR (design §9.1): tor registers strictly below proton — the carrier of
+// last resort — and the priority seam stays honest for unknown kinds.
+func TestTorIsStrictlyLastPriority(t *testing.T) {
+	Reset()
+	t.Cleanup(Reset)
+
+	for _, k := range []Kind{KindTor, KindProton, KindFxvpn, KindOpera, KindH3, KindMasque, KindWarp} {
+		Register(&fakeCarrier{kind: k})
+	}
+	got := List()
+	if len(got) != 7 {
+		t.Fatalf("List() = %d entries, want 7", len(got))
+	}
+	tail := got[len(got)-1]
+	if tail.Kind != KindTor {
+		t.Fatalf("tail = %s, want tor (strictly below proton)", tail.Kind)
+	}
+	if tail.Priority != PriorityTor || PriorityTor != 5 {
+		t.Fatalf("tor priority = %d, want 5", tail.Priority)
+	}
+	if PriorityTor >= PriorityProton {
+		t.Fatalf("PriorityTor %d must be < PriorityProton %d", PriorityTor, PriorityProton)
+	}
+}
