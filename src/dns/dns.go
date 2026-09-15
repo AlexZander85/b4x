@@ -3,6 +3,7 @@ package dns
 import (
 	"encoding/binary"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/daniellavrushin/b4/classifier"
@@ -42,6 +43,30 @@ func ParseTransactionID(payload []byte) (uint16, bool) {
 		return 0, false
 	}
 	return binary.BigEndian.Uint16(payload[:2]), true
+}
+
+// ParseQuestion extracts the single IN-class question needed for adaptive
+// production forwarding. It preserves the original wire query separately;
+// this helper only provides stable cache/routing metadata. Multi-question or
+// non-IN queries are intentionally not represented by DNSPathManager v1.
+func ParseQuestion(payload []byte) (name string, qtype uint16, txid uint16, ok bool) {
+	if len(payload) < 12 || binary.BigEndian.Uint16(payload[4:6]) != 1 {
+		return "", 0, 0, false
+	}
+	qend, ok := skipDNSName(payload, 12)
+	if !ok || qend+4 > len(payload) {
+		return "", 0, 0, false
+	}
+	name, ok = ParseQueryDomain(payload)
+	if !ok {
+		return "", 0, 0, false
+	}
+	qtype = binary.BigEndian.Uint16(payload[qend : qend+2])
+	qclass := binary.BigEndian.Uint16(payload[qend+2 : qend+4])
+	if qclass != 1 {
+		return "", 0, 0, false
+	}
+	return strings.TrimSuffix(strings.ToLower(name), "."), qtype, binary.BigEndian.Uint16(payload[:2]), true
 }
 
 func BuildBlockResponse(query []byte) []byte {
