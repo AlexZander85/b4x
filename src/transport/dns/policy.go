@@ -51,14 +51,17 @@ type AdaptivePolicy struct {
 	PinnedFallbacks         []string      `json:"pinned_fallbacks"`
 }
 
-// DefaultAdaptivePolicy returns the default-safe policy: adaptive disabled,
-// conservative bounds for constrained routers (addendum §51).
+// DefaultAdaptivePolicy mirrors addendum §21. Existing installations remain
+// default-off because DNSMode defaults to "current"; the policy itself is
+// ready to operate once the owner explicitly selects Adaptive. Managed
+// DNSCrypt is allowed by default but still cannot run unless the pinned
+// binary, signed catalog and provider readiness gates are satisfied.
 func DefaultAdaptivePolicy() AdaptivePolicy {
 	return AdaptivePolicy{
-		Enabled:                 false,
+		Enabled:                 true,
 		AllowNativeClassic:      true,
 		AllowNativeEncrypted:    true,
-		AllowManagedDNSCrypt:    false,
+		AllowManagedDNSCrypt:    true,
 		AllowAnonymizedDNSCrypt: false,
 		AllowODoH:               false,
 		AllowPQDNSCrypt:         false,

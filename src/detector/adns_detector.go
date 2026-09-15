@@ -214,6 +214,7 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			if o.PathID.Hash() == hash {
 				st.outcomes = append(st.outcomes, o)
 			}
+		}
 	}
 
 	// Build candidate evidence and rank deterministically. Correctness and

@@ -28,6 +28,14 @@ import (
 // (client_config.py:39-49 via the design §1.8 decision).
 var ProtonPortCatalog = []uint16{443, 88, 1224, 51820, 500, 4500}
 
+// RTT sample provenance for the 3-tier ranking (handshake_rank.go):
+// a handshake-verified sample outranks any TCP hint, and RTTs of
+// different probe kinds are never compared directly.
+const (
+	RTTSourceHandshake = "handshake"
+	RTTSourceTCP       = "tcp"
+)
+
 // Node is one connectable free-tier endpoint.
 type Node struct {
 	Name       string
@@ -37,10 +45,13 @@ type Node struct {
 	PeerPubKey string
 	Load       int
 	Score      float64
-	// RTT is an in-process TCP/443 connect sample used only for ordering.
-	// It is deliberately not persisted in serverlist.json: a stale network
+	// RTT is an in-process probe sample used only for ordering. It is
+	// deliberately not persisted in serverlist.json: a stale network
 	// measurement must not survive a process/network change.
 	RTT time.Duration `json:"-"`
+	// RTTSource marks which probe produced RTT ("" | "tcp" |
+	// "handshake"); the queue sort is tiered on it.
+	RTTSource string `json:"-"`
 }
 
 // AddrPort renders the node onto the WG endpoint for port.
@@ -130,12 +141,16 @@ func NewQueue(nodes []Node, portOverride uint16) *Queue {
 	return q
 }
 
-// sortForQueue orders the node list. When RTT samples exist, measured nodes
-// are preferred and lower RTT wins; Load/Score are tie-breakers. Without RTT
-// the historical Load/Score behavior is unchanged. The asset (all-zero Load,
-// no RTT) keeps its authored order. The final country interleave preserves
-// geographic diversity in auto mode while retaining RTT order inside each
-// country.
+// sortForQueue orders the node list by the 3-tier probe ranking
+// (handshake_rank.go): handshake-verified first, then TCP-measured, then
+// unmeasured. RTTs of different probe kinds are never compared across
+// tiers (a handshake RTT includes the full round-trip + crypto work, a
+// TCP/443 sample only the connect — comparing them directly would rank a
+// healthy node below a fluke). Within a tier lower RTT wins; Load/Score
+// stay tie-breakers; without any samples the historical Load/Score
+// behavior is unchanged and the asset (all-zero Load, no RTT) keeps its
+// authored order. The final country interleave preserves geographic
+// diversity in auto mode while retaining RTT order inside each country.
 func (q *Queue) sortForQueue() {
 	hasRTT := false
 	live := false
@@ -148,12 +163,27 @@ func (q *Queue) sortForQueue() {
 		}
 	}
 	if hasRTT || live {
+		tier := func(n Node) int {
+			switch n.RTTSource {
+			case RTTSourceHandshake:
+				return 0
+			case RTTSourceTCP:
+				return 1
+			}
+			// Legacy PR #4 samples carry RTT without provenance; they
+			// stay measured (TCP-shaped: a bare connect sample).
+			if n.RTT > 0 {
+				return 1
+			}
+			return 2
+		}
 		sort.SliceStable(q.nodes, func(i, j int) bool {
-			ri, rj := q.nodes[i].RTT, q.nodes[j].RTT
-			if ri > 0 || rj > 0 {
-				if (ri > 0) != (rj > 0) {
-					return ri > 0
-				}
+			ti, tj := tier(q.nodes[i]), tier(q.nodes[j])
+			if ti != tj {
+				return ti < tj
+			}
+			if ti < 2 {
+				ri, rj := q.nodes[i].RTT, q.nodes[j].RTT
 				if ri != rj {
 					return ri < rj
 				}
