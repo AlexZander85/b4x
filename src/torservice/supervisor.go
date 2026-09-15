@@ -1,9 +1,5 @@
 package torservice
 
-// Supervisor passes: bridge set assembly (the entry ladder, design §2/§8),
-// process spawn + bootstrap, liveness, exit probe, conflux, strikes and
-// the restart guard. Everything under r.mu unless noted.
-
 import (
 	"context"
 	"fmt"
@@ -16,17 +12,32 @@ import (
 	"github.com/daniellavrushin/b4/transport/tor"
 )
 
-// ensureBridges assembles the active set for the current entry, running
-// the collector when the store cannot serve the entry (snowflake skips
-// the wait entirely — builtin sets, TOR-1).
 func (r *Runtime) ensureBridges(ctx context.Context) {
 	r.mu.Lock()
-	if r.state == StateBinaryMissing || r.collecting {
+	if r.state == StateBinaryMissing || r.collecting || r.retiring {
 		r.mu.Unlock()
 		return
 	}
 	entry := r.currentEntry()
 	r.mu.Unlock()
+
+	if r.entryUnsupportedByPolicy(entry) {
+		r.appendEvent(tor.TorEvent{
+			Name: tor.EventTorCarrierUnsupported, Class: tor.ClassTorCarrierPolicy,
+			Detail: fmt.Sprintf("entry=%s requires UDP but through=%s is a TCP-only pinned carrier", entry, r.cfg.EffectiveEgressThrough()),
+			At: r.opts.Now(),
+		})
+		if r.cfg.EffectiveEntryMode() == "auto" {
+			r.nextEntry(entry)
+			return
+		}
+		r.mu.Lock()
+		r.state = StateBackoff
+		r.cooldown = r.opts.Now().Add(300 * time.Second)
+		r.hint = "snowflake needs direct/auto packet egress; named carriers are strict TCP-only"
+		r.mu.Unlock()
+		return
+	}
 
 	set, ok := r.assembleSet(entry)
 	if ok {
@@ -39,8 +50,6 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 		return
 	}
 
-	// The store cannot serve this entry: run the conveyor once (async,
-	// bounded; bridges-wait in the meantime).
 	r.mu.Lock()
 	if r.state == StateStarting || r.state == StateBridgesWait {
 		r.state = StateBridgesWait
@@ -74,9 +83,10 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 	}()
 }
 
-// currentEntry resolves the entry the current attempt uses:
-// pinned mode → the pin; auto → mixed-set first, then the sequential
-// ladder (memory-excluded), the winner always at the head.
+func (r *Runtime) entryUnsupportedByPolicy(entry string) bool {
+	return entry == ladderSnowflake && tor.IsPinnedCarrierPolicy(r.cfg.EffectiveEgressThrough())
+}
+
 func (r *Runtime) currentEntry() string {
 	if r.cfg.EffectiveEntryMode() != "auto" {
 		return r.cfg.EffectiveEntryMode()
@@ -85,12 +95,14 @@ func (r *Runtime) currentEntry() string {
 		return r.entry
 	}
 	if r.mixedTried {
-		return "" // ladder picks below
+		return ""
 	}
 	return "auto-mixed"
 }
 
-// assembleSet builds the bridge set for an entry (true when usable).
+// assembleSet gives RaceWindow one global meaning: maximum total heads in
+// the mixed torrc. It round-robins WT/obfs4/snowflake so no transport can
+// consume the whole FD budget. meek_lite remains manual-only as designed.
 func (r *Runtime) assembleSet(entry string) ([]tor.Bridge, bool) {
 	if entry == "direct" {
 		return nil, true
@@ -103,27 +115,44 @@ func (r *Runtime) assembleSet(entry string) ([]tor.Bridge, bool) {
 
 	switch entry {
 	case "auto-mixed":
-		// design §2.1: webtunnel(2) + obfs4(2) + snowflake(set) racing in
-		// ONE torrc; the RaceWindow caps parallel heads.
-		window := r.cfg.EffectiveRaceWindow()
+		if r.cfg.Bridges.BuiltinSnowflake && !tor.IsPinnedCarrierPolicy(r.cfg.EffectiveEgressThrough()) {
+			all = append(all, tor.BuiltinSnowflake("cdn77")...)
+		}
+		transports := []string{ladderWebtunnel, ladderObfs4}
+		if !tor.IsPinnedCarrierPolicy(r.cfg.EffectiveEgressThrough()) {
+			transports = append(transports, ladderSnowflake)
+		}
+		budget := r.cfg.EffectiveRaceWindow()
 		var set []tor.Bridge
-		for _, tr := range []string{ladderWebtunnel, ladderObfs4, ladderSnowflake, "meek_lite"} {
-			set = append(set, takeBridges(all, tr, window)...)
+		for round := 0; len(set) < budget; round++ {
+			progress := false
+			for _, tr := range transports {
+				if len(set) >= budget {
+					break
+				}
+				cand := takeBridges(all, tr, round+1)
+				if len(cand) <= round {
+					continue
+				}
+				set = append(set, cand[round])
+				progress = true
+			}
+			if !progress {
+				break
+			}
 		}
-		if r.cfg.Bridges.BuiltinSnowflake {
-			set = append(set, tor.BuiltinSnowflake("cdn77")...)
-		}
-		return tor.Dedup(set), len(set) > 0
+		set = tor.Dedup(set)
+		return set, len(set) > 0
 	default:
 		set := takeBridges(all, entry, 40)
-		if entry == ladderSnowflake && r.cfg.Bridges.BuiltinSnowflake {
+		if entry == ladderSnowflake && r.cfg.Bridges.BuiltinSnowflake && !tor.IsPinnedCarrierPolicy(r.cfg.EffectiveEgressThrough()) {
 			set = append(set, tor.BuiltinSnowflake("cdn77")...)
 		}
-		return tor.Dedup(set), len(set) > 0
+		set = tor.Dedup(set)
+		return set, len(set) > 0
 	}
 }
 
-// candidateBridges merges stored + owner lines, strike-filtered.
 func (r *Runtime) candidateBridges(stored tor.BridgesFile) []tor.Bridge {
 	var all []tor.Bridge
 	now := r.opts.Now()
@@ -161,10 +190,9 @@ func takeBridges(all []tor.Bridge, transport string, n int) []tor.Bridge {
 	return out
 }
 
-// ensureProcess spawns tor when the set is ready and none runs.
 func (r *Runtime) ensureProcess(ctx context.Context) {
 	r.mu.Lock()
-	if r.state == StateBinaryMissing || r.proc != nil || r.state == StateBridgesWait {
+	if r.state == StateBinaryMissing || r.proc != nil || r.state == StateBridgesWait || r.retiring {
 		r.mu.Unlock()
 		return
 	}
@@ -173,10 +201,17 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 		return
 	}
 	entry := r.currentEntry()
-	set := r.activeSet
+	set := append([]tor.Bridge(nil), r.activeSet...)
 	r.mu.Unlock()
 
-	// render + validate the torrc
+	res := r.resourceSnapshot()
+	if res.FDLimit > 0 && res.FDLimit < 512 {
+		r.appendEvent(tor.TorEvent{
+			Name: tor.EventTorResourceWarning, Class: tor.ClassTorResourceLimit,
+			Detail: fmt.Sprintf("RLIMIT_NOFILE=%d; monitor Tor/PT FD pressure", res.FDLimit), At: r.opts.Now(),
+		})
+	}
+
 	in := r.torrcInput(entry, set)
 	torrcDoc := tor.RenderTorrc(in)
 	if err := tor.ValidateRendered(torrcDoc); err != nil {
@@ -215,12 +250,19 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 		return
 	}
 	r.mu.Lock()
+	if r.proc != nil || r.retiring {
+		r.mu.Unlock()
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		proc.Stop(stopCtx, nil)
+		return
+	}
 	r.proc = proc
 	r.state = StateBootstrapping
 	r.entry = entry
+	r.hint = ""
 	r.mu.Unlock()
 	r.recordEntryAttempt(entry, "start")
-	// version detect (best-effort, once)
 	if r.version == "" {
 		go func() {
 			vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -234,27 +276,22 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 	}
 }
 
-// torrcInput assembles the render input from the runtime state.
 func (r *Runtime) torrcInput(entry string, set []tor.Bridge) tor.TorrcInput {
 	r.mu.Lock()
 	eb := r.egressBridge
 	pp := r.ptProxy
 	r.mu.Unlock()
 	in := tor.TorrcInput{
-		DataPath:      r.cfg.EffectiveDataPath(),
-		OwningPID:     os.Getpid(),
-		SocksPort:     "127.0.0.1:auto",
-		ControlSocket: "unix:" + filepath.Join(r.cfg.EffectiveDataPath(), "data", "control.sock"),
-		Padding:       r.cfg.EffectivePadding(),
-		GeoIP:         r.cfg.Speed.GeoIP,
-		Isolation:     r.cfg.EffectiveIsolation(),
-		Bridges:       set,
-		UseBridges:    entry != "direct",
-		Entry:         entry,
+		DataPath: r.cfg.EffectiveDataPath(), OwningPID: os.Getpid(), SocksPort: "127.0.0.1:auto",
+		ControlSocket: filepath.Join(r.cfg.EffectiveDataPath(), "data", "control.sock"),
+		Padding: r.cfg.EffectivePadding(), GeoIP: r.cfg.Speed.GeoIP, Isolation: r.cfg.EffectiveIsolation(),
+		Bridges: set, UseBridges: entry != "direct", Entry: entry,
 	}
 	if entry == ladderVanilla || entry == "direct" {
 		if eb != nil {
-			in.EgressProxy = eb.Creds() + "@" + eb.Addr()
+			in.EgressProxyAddr = eb.Addr()
+			in.EgressProxyUsername = eb.Username()
+			in.EgressProxyPassword = eb.Password()
 		}
 	}
 	if pp != nil {
@@ -264,9 +301,6 @@ func (r *Runtime) torrcInput(entry string, set []tor.Bridge) tor.TorrcInput {
 	return in
 }
 
-// ensureBootstrap waits for bootstrap completion over the control
-// connection (the patient-cookie discipline: the socket file appears when
-// tor is ready).
 func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	r.mu.Lock()
 	proc := r.proc
@@ -275,12 +309,10 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	if proc == nil || state != StateBootstrapping {
 		return
 	}
-
 	ctl, err := r.connectControl(ctx)
 	if err != nil {
-		return // patient: next tick retries
+		return
 	}
-	// learn the actual socks listener
 	info, err := ctl.GetInfo("net/listeners/socks")
 	if err == nil {
 		if addr := info["net/listeners/socks"]; addr != "" {
@@ -318,12 +350,10 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	r.recordEntryWon(r.entry, elapsed)
 }
 
-// connectControl dials + authenticates (cookie from the data dir).
 func (r *Runtime) connectControl(ctx context.Context) (tor.ControlClient, error) {
 	dial := r.opts.DialControl
 	network, addr := "unix", filepath.Join(r.cfg.EffectiveDataPath(), "data", "control.sock")
 	if dial == nil {
-		// try the unix socket, fall back to the tcp control port
 		c, err := tor.DialControl(ctx, network, addr)
 		if err == nil {
 			if err := r.authenticate(c); err == nil {
@@ -352,23 +382,27 @@ func (r *Runtime) authenticate(c tor.ControlClient) error {
 	return c.Authenticate(cookie)
 }
 
-// ensureLiveness runs the SOCKS5-through-tor probe (design §4.4): 2
-// failures → SIGNAL ACTIVE + NEWNYM; 4 + 30s grace → teardown + restart
-// from the last working entry.
 func (r *Runtime) ensureLiveness(ctx context.Context) {
 	r.mu.Lock()
 	state := r.state
 	socks := r.socksAddr
 	ctl := r.ctl
 	last := r.lastLiveness
+	fails := r.livenessFails
+	deadSince := r.livenessDeadSince
 	r.mu.Unlock()
-	// liveness keeps counting in ROTATING too: NEWNYM is a recovery
-	// ATTEMPT, not a success — the failure ladder (2→NEWNYM, 4→teardown)
-	// continues through it (design §4.4).
 	if (state != StateEstablished && state != StateRotating) || socks == "" {
 		return
 	}
 	now := r.opts.Now()
+	// The 30s grace is a real clock condition, independent of the 60s probe
+	// cadence. Supervisor ticks can therefore retire the process as soon as
+	// the grace has elapsed without waiting for a fifth network probe.
+	if fails >= livenessTeardownAt && !deadSince.IsZero() && now.Sub(deadSince) >= livenessGrace {
+		r.teardown("liveness-dead")
+		r.restartFromWinner()
+		return
+	}
 	if now.Sub(last) < livenessInterval {
 		return
 	}
@@ -381,8 +415,6 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 		probe = func(ctx context.Context, socksAddr string) error {
 			cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
 			defer cancel()
-			// SOCKS5 CONNECT through tor: success = the exit opened TCP.
-			// Not HTTP 200 — CF challenges Tor exits (G165).
 			conn, err := socksDialUpstream(cctx, socksAddr, "1.1.1.1", 443)
 			if err != nil {
 				return err
@@ -394,7 +426,11 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 	if err := probe(ctx, socks); err == nil {
 		r.mu.Lock()
 		r.livenessFails = 0
+		r.livenessDeadSince = time.Time{}
 		r.newnymSent = false
+		if r.state == StateRotating {
+			r.state = StateEstablished
+		}
 		r.mu.Unlock()
 		observability.Default().Metrics.Inc(observability.MetricTorStreamsTotal, map[string]string{"result": "ok"}, 1)
 		return
@@ -403,9 +439,12 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 	observability.Default().Metrics.Inc(observability.MetricTorStreamsTotal, map[string]string{"result": "fail"}, 1)
 	r.mu.Lock()
 	r.livenessFails++
-	fails := r.livenessFails
+	fails = r.livenessFails
+	if fails >= livenessTeardownAt && r.livenessDeadSince.IsZero() {
+		r.livenessDeadSince = now
+	}
 	r.mu.Unlock()
-	r.appendEvent(tor.TorEvent{Name: tor.EventTorRotated, Class: tor.ClassTorLivenessFailed, Detail: fmt.Sprintf("liveness failure %d", fails), At: r.opts.Now()})
+	r.appendEvent(tor.TorEvent{Name: tor.EventTorRotated, Class: tor.ClassTorLivenessFailed, Detail: fmt.Sprintf("liveness failure %d", fails), At: now})
 
 	if fails == livenessNEWNYMAfter && !r.newnymSent {
 		r.mu.Lock()
@@ -416,20 +455,10 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 			_ = ctl.Signal("ACTIVE")
 			_ = ctl.Signal("NEWNYM")
 		}
-		r.appendEvent(tor.TorEvent{Name: tor.EventTorRotated, Detail: "SIGNAL ACTIVE + NEWNYM after 2 liveness failures", At: r.opts.Now()})
-	}
-	if fails >= livenessTeardownAt {
-		// 30s grace before teardown: transient network blips recover
-		if grace, ok := ctx.Deadline(); !ok || time.Now().Add(livenessGrace).Before(grace) {
-			_ = grace
-		}
-		r.teardown("liveness-dead")
-		r.restartFromWinner()
+		r.appendEvent(tor.TorEvent{Name: tor.EventTorRotated, Detail: "SIGNAL ACTIVE + NEWNYM after 2 liveness failures", At: now})
 	}
 }
 
-// ensureExitProbe runs the 30-min exit verification (IsTor=true expected;
-// a mismatch is informational — mismatch ≠ jail).
 func (r *Runtime) ensureExitProbe(ctx context.Context) {
 	r.mu.Lock()
 	state := r.state
@@ -446,7 +475,6 @@ func (r *Runtime) ensureExitProbe(ctx context.Context) {
 	r.mu.Lock()
 	r.lastExitProbe = now
 	r.mu.Unlock()
-
 	probe := r.opts.ExitProbe
 	if probe == nil {
 		probe = func(ctx context.Context, socksAddr string) (ExitInfo, error) {
@@ -470,8 +498,6 @@ func (r *Runtime) ensureExitProbe(ctx context.Context) {
 	}
 }
 
-// ensureConflux applies the speed profile once after establishment
-// (SETCONF is soft on old tor — honest degradation).
 func (r *Runtime) ensureConflux(ctx context.Context) {
 	r.mu.Lock()
 	state := r.state
@@ -488,58 +514,136 @@ func (r *Runtime) ensureConflux(ctx context.Context) {
 	if ux == "off" {
 		return
 	}
-	switch ux {
-	case "throughput", "latency":
-	default:
-		ux = "throughput" // auto → throughput
+	if ux == "auto" || ux == "" {
+		if r.resourceSnapshot().LowMemory {
+			ux = "throughput_lowmem"
+		} else {
+			ux = "throughput"
+		}
 	}
+	switch ux {
+	case "throughput", "latency", "throughput_lowmem", "latency_lowmem":
+	default:
+		ux = "throughput"
+	}
+	r.mu.Lock()
+	r.confluxUX = ux
+	r.mu.Unlock()
 	if err := ctl.SetConf([2]string{"ConfluxEnabled", "1"}, [2]string{"ConfluxClientUX", ux}); err != nil {
 		r.appendEvent(tor.TorEvent{Name: tor.EventTorConfluxUnavailable, Class: tor.ClassTorControlError, Detail: err.Error(), At: r.opts.Now()})
 		return
 	}
 	r.appendEvent(tor.TorEvent{Name: tor.EventTorConfluxEnabled, Detail: ux, At: r.opts.Now()})
+	_ = ctx
 }
 
-// handleDeath reacts to a tor process death (event + restart guard).
 func (r *Runtime) handleDeath(ctx context.Context) {
 	r.mu.Lock()
-	proc := r.proc
-	r.proc = nil
-	r.mu.Unlock()
-	if proc == nil {
+	if r.retiring {
+		r.mu.Unlock()
 		return
 	}
-	r.appendEvent(tor.TorEvent{Name: tor.EventTorProcessDied, Class: tor.ClassTorProcessDied, At: r.opts.Now()})
-	r.teardown("process-died")
-	r.restartFromWinner()
-}
-
-// teardown closes the control connection and clears the process state
-// (the process itself is already dead or stopped by the caller).
-func (r *Runtime) teardown(reason string) {
-	r.mu.Lock()
+	proc := r.proc
 	ctl := r.ctl
-	r.ctl = nil
+	if proc == nil {
+		r.mu.Unlock()
+		return
+	}
 	r.proc = nil
+	r.ctl = nil
 	r.socksAddr = ""
 	r.state = StateStarting
 	r.livenessFails = 0
+	r.livenessDeadSince = time.Time{}
 	r.newnymSent = false
 	r.confluxDone = false
+	r.confluxUX = ""
 	r.mu.Unlock()
 	if ctl != nil {
 		_ = ctl.Close()
 	}
-	_ = reason
+	r.appendEvent(tor.TorEvent{Name: tor.EventTorProcessDied, Class: tor.ClassTorProcessDied, At: r.opts.Now()})
+	r.restartFromWinner()
+	_ = ctx
 }
 
-// restartFromWinner applies the restartGuard then resets the ladder to
-// the last working entry (TOR-2: restart from the winner, seconds not
-// minutes).
+// retireCurrentProcess is the only path for stopping a LIVE owned C-Tor.
+// The handle remains installed until Stop returns, so ensureProcess cannot
+// spawn a replacement concurrently. Production ProcessHandle exposes Alive;
+// if ownership-safe Stop could not retire it, we keep the handle and enter
+// backoff rather than creating an orphan/second Tor.
+func (r *Runtime) retireCurrentProcess(reason string) bool {
+	r.mu.Lock()
+	if r.retiring {
+		r.mu.Unlock()
+		return false
+	}
+	proc := r.proc
+	ctl := r.ctl
+	if proc == nil {
+		r.ctl = nil
+		r.socksAddr = ""
+		r.state = StateStarting
+		r.livenessFails = 0
+		r.livenessDeadSince = time.Time{}
+		r.newnymSent = false
+		r.confluxDone = false
+		r.confluxUX = ""
+		r.mu.Unlock()
+		if ctl != nil {
+			_ = ctl.Close()
+		}
+		return true
+	}
+	r.retiring = true
+	r.mu.Unlock()
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	proc.Stop(stopCtx, ctl)
+	cancel()
+	if ctl != nil {
+		_ = ctl.Close()
+	}
+	if a, ok := proc.(interface{ Alive() bool }); ok && a.Alive() {
+		r.mu.Lock()
+		r.retiring = false
+		r.state = StateBackoff
+		r.cooldown = r.opts.Now().Add(300 * time.Second)
+		r.hint = "owned Tor could not be retired safely; refusing replacement spawn"
+		r.mu.Unlock()
+		r.appendEvent(tor.TorEvent{Name: tor.EventTorProcessDied, Class: tor.ClassTorProcessDied, Detail: "retire refused/failed: " + reason, At: r.opts.Now()})
+		return false
+	}
+
+	r.mu.Lock()
+	if r.proc == proc {
+		r.proc = nil
+	}
+	if r.ctl == ctl {
+		r.ctl = nil
+	}
+	r.socksAddr = ""
+	if !r.stopped {
+		r.state = StateStarting
+	}
+	r.livenessFails = 0
+	r.livenessDeadSince = time.Time{}
+	r.newnymSent = false
+	r.confluxDone = false
+	r.confluxUX = ""
+	r.retiring = false
+	r.mu.Unlock()
+	return true
+}
+
+func (r *Runtime) teardown(reason string) {
+	_ = r.retireCurrentProcess(reason)
+}
+
 func (r *Runtime) restartFromWinner() {
 	r.mu.Lock()
 	now := r.opts.Now()
-	if now.Before(r.cooldown) {
+	if r.retiring || now.Before(r.cooldown) {
 		r.state = StateBackoff
 		r.mu.Unlock()
 		return
@@ -562,8 +666,8 @@ func (r *Runtime) restartFromWinner() {
 	r.restarts = append(r.restarts, now)
 	observability.Default().Metrics.Inc(observability.MetricTorProcessRestartsTotal, nil, 1)
 	winner := r.winner
-	if winner != "" {
-		r.entry = winner // restart from the last working entry
+	if winner != "" && !(winner == ladderSnowflake && tor.IsPinnedCarrierPolicy(r.cfg.EffectiveEgressThrough())) {
+		r.entry = winner
 	} else {
 		r.entry = ""
 		r.mixedTried = false
@@ -571,16 +675,16 @@ func (r *Runtime) restartFromWinner() {
 	r.mu.Unlock()
 }
 
-// failAttempt records a failed bootstrap attempt: strike the set bridges,
-// advance the ladder (or reset when exhausted).
 func (r *Runtime) failAttempt(err error) {
+	r.mu.Lock()
 	entry := r.entry
+	set := append([]tor.Bridge(nil), r.activeSet...)
+	r.mu.Unlock()
 	r.appendEvent(tor.TorEvent{Name: tor.EventTorEntryFailed, Class: tor.ClassTorEntryFailed, Detail: fmt.Sprintf("%s: %v", entry, err), At: r.opts.Now()})
 	r.recordEntryAttempt(entry, "failed")
 
-	// strike every bridge of the attempted set (threshold 2 → cooldown)
 	r.mu.Lock()
-	for _, b := range r.activeSet {
+	for _, b := range set {
 		key := tor.DedupKey(b)
 		r.strikes[key]++
 		if r.strikes[key] >= bridgeStrikeThreshold {
@@ -590,20 +694,19 @@ func (r *Runtime) failAttempt(err error) {
 	}
 	r.mu.Unlock()
 
-	r.teardown("attempt-failed")
+	if !r.retireCurrentProcess("attempt-failed") {
+		return
+	}
 	r.nextEntry(entry)
 }
 
-// nextEntry advances the entry ladder.
 func (r *Runtime) nextEntry(failed string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.cfg.EffectiveEntryMode() != "auto" {
-		// pinned entry: restart budget governs the retry cadence
 		r.entry = ""
 		return
 	}
-	// record the failure in the entry memory (30-min window)
 	mem := r.entryMem.Load(r.opts.Now)
 	if failed != "" && failed != "auto-mixed" {
 		if !contains(mem.Failed, failed) {
@@ -615,80 +718,114 @@ func (r *Runtime) nextEntry(failed string) {
 		r.entry = ""
 		return
 	}
-	// sequential ladder: next entry not in memory-failed
 	candidates := append([]string(nil), LadderOrder...)
 	if r.winner != "" {
 		candidates = append([]string{r.winner}, candidates...)
 	}
 	for _, cand := range candidates {
-		if cand == failed || contains(mem.Failed, cand) {
+		if cand == failed || contains(mem.Failed, cand) || r.entryUnsupportedByPolicy(cand) {
 			continue
 		}
 		r.entry = cand
 		return
 	}
-	// ladder exhausted: reset the memory and start the circle over
 	_ = r.entryMem.Clear()
 	r.entry = ""
 	r.mixedTried = false
 }
 
-// recordEntryWon: bootstrap 100 → read the winning bridge from
-// orconn-status → transport → entry memory (design §8.3).
 func (r *Runtime) recordEntryWon(entry string, elapsed time.Duration) {
 	transport := entryRealName(entry)
+	bridgeID := ""
 	if entry == "auto-mixed" {
-		transport = r.winningTransport()
+		br, ok := r.winningBridge()
+		if !ok {
+			observability.Default().Metrics.Set(observability.MetricTorBootstrapSeconds, nil, uint64(elapsed.Seconds()))
+			r.appendEvent(tor.TorEvent{Name: tor.EventTorEntryAttributionUnknown, Class: tor.ClassTorControlError, Detail: "bootstrap reached 100 but active bridge could not be attributed", At: r.opts.Now()})
+			r.appendEvent(tor.TorEvent{Name: tor.EventTorEstablished, At: r.opts.Now()})
+			return
+		}
+		transport = br.Transport
+		bridgeID = tor.DedupKey(br)
+	} else {
+		r.mu.Lock()
+		for _, br := range r.activeSet {
+			if br.Transport == transport {
+				bridgeID = tor.DedupKey(br)
+				break
+			}
+		}
+		r.mu.Unlock()
 	}
+
 	r.mu.Lock()
 	r.winner = transport
+	r.winnerBridge = bridgeID
 	r.mu.Unlock()
-	_ = r.entryMem.Clear()
-	_ = r.entryMem.RecordWin(transport, r.opts.Now)
+	if r.cfg.EffectiveEntryMode() == "auto" {
+		_ = r.entryMem.Clear()
+		_ = r.entryMem.RecordWinBridge(transport, bridgeID, r.opts.Now)
+	}
 	observability.Default().Metrics.Set(observability.MetricTorBootstrapSeconds, nil, uint64(elapsed.Seconds()))
 	r.appendEvent(tor.TorEvent{Name: tor.EventTorEntryWon, Detail: transport, At: r.opts.Now()})
 	r.appendEvent(tor.TorEvent{Name: tor.EventTorEstablished, At: r.opts.Now()})
 }
 
-// winningTransport asks the control port for the actually-connected
-// bridge and maps it back to a transport (GETINFO orconn-status; the
-// bridge address matches the active set).
-func (r *Runtime) winningTransport() string {
+func (r *Runtime) winningBridge() (tor.Bridge, bool) {
 	r.mu.Lock()
 	ctl := r.ctl
-	set := r.activeSet
+	set := append([]tor.Bridge(nil), r.activeSet...)
 	r.mu.Unlock()
 	if ctl == nil {
-		return ""
+		return tor.Bridge{}, false
 	}
 	info, err := ctl.GetInfo("orconn-status", "entry-guards")
-	if err == nil {
-		for _, line := range strings.Split(info["orconn-status"], "\n") {
-			fields := strings.Fields(line)
-			if len(fields) == 0 {
-				continue
-			}
-			for _, b := range set {
-				if strings.HasPrefix(fields[0], b.AddrPort) || strings.HasPrefix(b.AddrPort, fields[0]) {
-					return b.Transport
-				}
-				if b.Fingerprint != "" && strings.HasPrefix(fields[0], "$"+b.Fingerprint) {
-					return b.Transport
-				}
+	if err != nil {
+		return tor.Bridge{}, false
+	}
+	matches := map[string]tor.Bridge{}
+	for _, line := range strings.Split(info["orconn-status"], "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		id := fields[0]
+		for _, br := range set {
+			if bridgeMatchesORConn(br, id) {
+				matches[tor.DedupKey(br)] = br
 			}
 		}
 	}
-	// attribution failed: the set's head beats a hardcoded ladder guess
-	if len(set) > 0 {
-		return set[0].Transport
+	if len(matches) != 1 {
+		return tor.Bridge{}, false
 	}
-	return ladderWebtunnel
+	for _, br := range matches {
+		return br, true
+	}
+	return tor.Bridge{}, false
+}
+
+func bridgeMatchesORConn(b tor.Bridge, id string) bool {
+	if id == b.AddrPort || strings.HasPrefix(id, b.AddrPort+"~") {
+		return true
+	}
+	if b.Fingerprint == "" {
+		return false
+	}
+	fp := strings.ToUpper(b.Fingerprint)
+	upper := strings.ToUpper(id)
+	return strings.HasPrefix(upper, "$"+fp) || strings.HasPrefix(upper, fp)
+}
+
+func (r *Runtime) winningTransport() string {
+	if br, ok := r.winningBridge(); ok {
+		return br.Transport
+	}
+	return ""
 }
 
 func entryRealName(entry string) string {
 	switch {
-	case strings.HasPrefix(entry, "auto"):
-		return ladderWebtunnel
 	case entry == "meek":
 		return "meek_lite"
 	default:
@@ -698,7 +835,7 @@ func entryRealName(entry string) string {
 
 func ladderEntryName(entry string) string {
 	if entry == ladderSnowflake {
-		return ladderSnowflake // the 300s cap branch
+		return ladderSnowflake
 	}
 	return entry
 }
@@ -712,7 +849,6 @@ func contains(xs []string, v string) bool {
 	return false
 }
 
-// recordEntryAttempt bumps the entry-attempts metric.
 func (r *Runtime) recordEntryAttempt(entry, result string) {
 	observability.Default().Metrics.Inc(observability.MetricTorEntryAttemptsTotal,
 		map[string]string{"entry": entryRealName(entry), "result": result}, 1)
@@ -723,7 +859,6 @@ func (r *Runtime) recordControlError(err error) {
 	_ = err
 }
 
-// appendEvent adds to the bounded ring (cap 32) with a fan-out hook.
 func (r *Runtime) appendEvent(ev tor.TorEvent) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -734,8 +869,6 @@ func (r *Runtime) appendEvent(ev tor.TorEvent) {
 	}
 }
 
-// atomicWriteFile: tmp + rename (the torrc canon — regenerated on every
-// start, never partially visible).
 func atomicWriteFile(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".torrc-*.tmp")
@@ -773,9 +906,6 @@ func splitHostPort(addr string) (string, int) {
 	return addr[:i], port
 }
 
-// ensureRelayScan runs the background scan when enabled and the cache is
-// stale (6 h freshness; design §4.3 — the scan is background, never
-// blocking the start when lines already exist).
 func (r *Runtime) ensureRelayScan(ctx context.Context) {
 	if !r.cfg.RelayScan.Enabled {
 		return
@@ -800,4 +930,5 @@ func (r *Runtime) ensureRelayScan(ctx context.Context) {
 			r.appendEvent(tor.TorEvent{Name: tor.EventTorEntryFailed, Class: tor.ClassTorNoBridges, Detail: "relay-scan: " + err.Error(), At: r.opts.Now()})
 		}
 	}()
+	_ = ctx
 }
