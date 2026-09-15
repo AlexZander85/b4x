@@ -38,11 +38,39 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 		return
 	}
 
-	switch strings.ToUpper(q.SuiteCase) {
-	case "A", "AAAA", "CNAME", "HTTPS", "CONTROL_SAME", "CONTROL_UNRELATED":
+	caseID := strings.ToUpper(q.SuiteCase)
+	switch caseID {
+	case "A", "AAAA", "CONTROL_SAME", "CONTROL_UNRELATED":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
 			out.FailureCode = "expected_positive_rcode"
+			return
+		}
+		if fp.AnswerDigest == "" && fp.CNAMEDigest == "" {
+			out.Class = dnspath.OutcomeAnswerConflict
+			out.FailureCode = "expected_address_answer_missing"
+			return
+		}
+	case "CNAME":
+		if meta.RCode != 0 {
+			out.Class = dnspath.OutcomeRCodeMismatch
+			out.FailureCode = "expected_positive_rcode"
+			return
+		}
+		if fp.CNAMEDigest == "" {
+			out.Class = dnspath.OutcomeAnswerConflict
+			out.FailureCode = "expected_cname_answer_missing"
+			return
+		}
+	case "HTTPS":
+		if meta.RCode != 0 {
+			out.Class = dnspath.OutcomeRCodeMismatch
+			out.FailureCode = "expected_positive_rcode"
+			return
+		}
+		if fp.HTTPSDigest == "" {
+			out.Class = dnspath.OutcomeAnswerConflict
+			out.FailureCode = "expected_https_answer_missing"
 			return
 		}
 	case "NXDOMAIN":
