@@ -8,10 +8,11 @@
 // logical share the address and the key — take one"), otherwise the list
 // bloats with copies.
 //
-// The queue orders candidates of the requested location: Load ascending for
-// the live list, country-interleaved so the head never comes from a single
-// country (the asset ships pre-interleaved and keeps its order offline);
-// ports rotate round-robin across candidates [443, 88, 1224, 51820, 500,
+// The queue orders candidates of the requested location: measured TCP/443
+// RTT first when available, then Load/Score; countries remain interleaved so
+// auto mode does not collapse onto one geography. The RTT is only a ranking
+// hint — the AWG/WireGuard trust gate decides whether a node actually works.
+// Ports rotate round-robin across candidates [443, 88, 1224, 51820, 500,
 // 4500] with a config override pinning ONE port.
 package proton
 
@@ -20,6 +21,7 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+	"time"
 )
 
 // ProtonPortCatalog is the vanilla-WG port catalog of the free edge
@@ -35,6 +37,10 @@ type Node struct {
 	PeerPubKey string
 	Load       int
 	Score      float64
+	// RTT is an in-process TCP/443 connect sample used only for ordering.
+	// It is deliberately not persisted in serverlist.json: a stale network
+	// measurement must not survive a process/network change.
+	RTT time.Duration `json:"-"`
 }
 
 // AddrPort renders the node onto the WG endpoint for port.
@@ -124,20 +130,34 @@ func NewQueue(nodes []Node, portOverride uint16) *Queue {
 	return q
 }
 
-// sortForQueue orders the node list: live lists rank by Load (ascending,
-// ties by Score); the asset (all-zero Load) keeps its order — it is already
-// country-interleaved by construction. Either way the result is interleaved
-// across countries so the head of the queue never sits in one country.
+// sortForQueue orders the node list. When RTT samples exist, measured nodes
+// are preferred and lower RTT wins; Load/Score are tie-breakers. Without RTT
+// the historical Load/Score behavior is unchanged. The asset (all-zero Load,
+// no RTT) keeps its authored order. The final country interleave preserves
+// geographic diversity in auto mode while retaining RTT order inside each
+// country.
 func (q *Queue) sortForQueue() {
+	hasRTT := false
 	live := false
 	for _, n := range q.nodes {
+		if n.RTT > 0 {
+			hasRTT = true
+		}
 		if n.Load > 0 {
 			live = true
-			break
 		}
 	}
-	if live {
+	if hasRTT || live {
 		sort.SliceStable(q.nodes, func(i, j int) bool {
+			ri, rj := q.nodes[i].RTT, q.nodes[j].RTT
+			if ri > 0 || rj > 0 {
+				if (ri > 0) != (rj > 0) {
+					return ri > 0
+				}
+				if ri != rj {
+					return ri < rj
+				}
+			}
 			if q.nodes[i].Load != q.nodes[j].Load {
 				return q.nodes[i].Load < q.nodes[j].Load
 			}
