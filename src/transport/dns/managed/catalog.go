@@ -15,14 +15,35 @@ import (
 // provenance verification (zero-tolerance gate dns_unsigned_catalog_applied_total).
 var ErrUnsignedCatalog = errors.New("resolver catalog signature verification failed")
 
-// CatalogEntry is one validated resolver entry.
+// CatalogEntry is one validated resolver entry. Stamp is optional for legacy
+// v1 catalogs, but production managed providers require it so generated
+// dnscrypt-proxy instances are self-contained and cannot silently select a
+// resolver from an external/default source list.
 type CatalogEntry struct {
 	Name        string `json:"name"`
-	Family      string `json:"family"` // dnscrypt | doh | odoh | relay
+	Family      string `json:"family"` // dnscrypt | pqdnscrypt | doh | odoh | relay
 	NoLog       bool   `json:"nolog"`
 	NoFilter    bool   `json:"nofilter"`
 	DNSSEC      bool   `json:"dnssec"`
+	Stamp       string `json:"stamp,omitempty"`
 	Description string `json:"description,omitempty"`
+}
+
+// ProductionReady reports whether the signed entry carries the minimum
+// material needed to instantiate one deterministic managed upstream.
+func (e CatalogEntry) ProductionReady() bool {
+	if strings.TrimSpace(e.Name) == "" || strings.TrimSpace(e.Stamp) == "" {
+		return false
+	}
+	if !strings.HasPrefix(strings.TrimSpace(e.Stamp), "sdns://") {
+		return false
+	}
+	switch e.Family {
+	case "dnscrypt", "pqdnscrypt", "doh":
+		return true
+	default:
+		return false
+	}
 }
 
 // Catalog is a bounded, signed resolver list.
@@ -33,9 +54,10 @@ type Catalog struct {
 	LoadedAt time.Time      `json:"loaded_at"`
 }
 
-// ParseCatalog parses and bounds a catalog payload. Payload format (v1):
-// line-based "name|family|nolog|nofilter|dnssec" with a header line
-// "version|<id>".
+// ParseCatalog parses and bounds a catalog payload. Legacy v1 lines use
+// "name|family|nolog|nofilter|dnssec". The self-contained form appends a
+// sixth `stamp` field. Legacy entries remain parseable for rollback/history,
+// but ProductionReady() is false until a signed stamp is present.
 func ParseCatalog(payload []byte, maxEntries int) (*Catalog, error) {
 	if maxEntries <= 0 {
 		maxEntries = 512
@@ -49,19 +71,28 @@ func ParseCatalog(payload []byte, maxEntries int) (*Catalog, error) {
 		}
 		fields := strings.Split(line, "|")
 		if fields[0] == "version" && len(fields) == 2 {
-			c.Version = fields[1]
+			c.Version = strings.TrimSpace(fields[1])
 			continue
 		}
-		if len(fields) != 5 {
+		if len(fields) != 5 && len(fields) != 6 {
 			return nil, fmt.Errorf("malformed catalog line %q", line)
 		}
 		if len(c.Entries) >= maxEntries {
 			return nil, fmt.Errorf("catalog exceeds bound %d", maxEntries)
 		}
-		c.Entries = append(c.Entries, CatalogEntry{
-			Name: fields[0], Family: fields[1],
-			NoLog: fields[2] == "true", NoFilter: fields[3] == "true", DNSSEC: fields[4] == "true",
-		})
+		entry := CatalogEntry{
+			Name: strings.TrimSpace(fields[0]), Family: strings.TrimSpace(fields[1]),
+			NoLog: strings.TrimSpace(fields[2]) == "true",
+			NoFilter: strings.TrimSpace(fields[3]) == "true",
+			DNSSEC: strings.TrimSpace(fields[4]) == "true",
+		}
+		if len(fields) == 6 {
+			entry.Stamp = strings.TrimSpace(fields[5])
+			if entry.Stamp != "" && !strings.HasPrefix(entry.Stamp, "sdns://") {
+				return nil, fmt.Errorf("catalog entry %q has invalid resolver stamp", entry.Name)
+			}
+		}
+		c.Entries = append(c.Entries, entry)
 	}
 	if c.Version == "" {
 		return nil, fmt.Errorf("catalog version header missing")
