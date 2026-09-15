@@ -60,6 +60,35 @@ func SetDNSDiagnoser(d DNSDiagnoser) {
 	dnsManagerMu.Unlock()
 }
 
+// DNSCanaryRequest identifies an actual LAN source and the minimum fresh DNS
+// samples required before a candidate binding may be promoted.
+type DNSCanaryRequest struct {
+	ClientMAC      string `json:"client_mac"`
+	MinimumQueries int    `json:"minimum_queries,omitempty"`
+	WindowSeconds  int    `json:"window_seconds,omitempty"`
+}
+
+// DNSCanaryResult intentionally does not echo the client MAC.
+type DNSCanaryResult struct {
+	Promoted      bool   `json:"promoted"`
+	ProfileID     string `json:"profile_id,omitempty"`
+	PrimaryFamily string `json:"primary_family,omitempty"`
+	Successes     int    `json:"successes"`
+	Failures      int    `json:"failures"`
+	Reason        string `json:"reason,omitempty"`
+}
+
+type DNSCanaryRunner func(ctx context.Context, req DNSCanaryRequest) (*DNSCanaryResult, error)
+
+var dnsCanaryRunner DNSCanaryRunner
+
+// SetDNSCanaryRunner wires the source-scoped NFQ canary/transaction path.
+func SetDNSCanaryRunner(r DNSCanaryRunner) {
+	dnsManagerMu.Lock()
+	dnsCanaryRunner = r
+	dnsManagerMu.Unlock()
+}
+
 func (api *API) RegisterAdaptiveDNSApi() {
 	api.mux.HandleFunc("/api/dns/v1/config", api.handleDNSConfig)
 	api.mux.HandleFunc("/api/dns/v1/status", api.handleDNSStatus)
@@ -277,13 +306,46 @@ func (api *API) handleDNSCanary(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	// Canary execution is owned by the transaction layer; the API reports
-	// readiness only.
 	if m.Profile() == nil {
-		writeDNSJSON(w, map[string]any{"canary_ready": false, "reason": "no adopted profile"})
+		http.Error(w, `{"error":"no adopted profile; diagnose first"}`, http.StatusPreconditionFailed)
 		return
 	}
-	writeDNSJSON(w, map[string]any{"canary_ready": true, "profile_id": m.Profile().ProfileID})
+	var req DNSCanaryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.ClientMAC) == "" {
+		http.Error(w, `{"error":"client_mac is required"}`, http.StatusBadRequest)
+		return
+	}
+	if req.MinimumQueries == 0 {
+		req.MinimumQueries = 3
+	}
+	if req.MinimumQueries < 1 || req.MinimumQueries > 20 {
+		http.Error(w, `{"error":"minimum_queries must be between 1 and 20"}`, http.StatusBadRequest)
+		return
+	}
+	if req.WindowSeconds == 0 {
+		req.WindowSeconds = 30
+	}
+	if req.WindowSeconds < 5 || req.WindowSeconds > 120 {
+		http.Error(w, `{"error":"window_seconds must be between 5 and 120"}`, http.StatusBadRequest)
+		return
+	}
+	dnsManagerMu.RLock()
+	runner := dnsCanaryRunner
+	dnsManagerMu.RUnlock()
+	if runner == nil {
+		http.Error(w, `{"error":"source-scoped LAN canary runner not wired"}`, http.StatusServiceUnavailable)
+		return
+	}
+	result, err := runner(r.Context(), req)
+	if err != nil {
+		status := http.StatusPreconditionFailed
+		if result == nil {
+			status = http.StatusInternalServerError
+		}
+		http.Error(w, `{"error":"`+err.Error()+`"}`, status)
+		return
+	}
+	writeDNSJSON(w, result)
 }
 
 func (api *API) handleDNSRollback(w http.ResponseWriter, r *http.Request) {
