@@ -52,6 +52,13 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	if err := os.Chmod(torrcPath, 0o600); err != nil {
 		return nil, fmt.Errorf("torrc chmod: %w", err)
 	}
+	// Prevent distribution/service defaults from silently changing the E-TOR
+	// runtime contract. The supported Tor CLI spelling is --defaults-torrc;
+	// DefaultsTorrcFile is not a torrc/CLI option in current C-Tor.
+	defaultsFile := filepath.Join(dataPath, "torrc-defaults")
+	if err := os.WriteFile(defaultsFile, nil, 0o600); err != nil {
+		return nil, fmt.Errorf("torrc-defaults: %w", err)
+	}
 
 	pidFile := filepath.Join(dataPath, "tor.pid")
 	nativePID := filepath.Join(dataPath, "tor-native.pid")
@@ -59,12 +66,8 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	_ = os.Remove(nativePID)
 
 	expectedExe := canonicalExecutable(binaryPath)
-	// Use the explicit torrc only. Tor's supported CLI spelling for a defaults
-	// file is not the torrc option name "DefaultsTorrcFile"; passing that name
-	// as --DefaultsTorrcFile makes current C-Tor reject startup. E-TOR renders
-	// every required client option into torrc, so no separate defaults file is
-	// needed or desirable here.
 	cmd := exec.Command(binaryPath,
+		"--defaults-torrc", defaultsFile,
 		"-f", torrcPath,
 		"--DataDirectory", filepath.Join(dataPath, "data"),
 		"--PidFile", nativePID,
