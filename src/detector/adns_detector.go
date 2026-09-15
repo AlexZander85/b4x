@@ -193,6 +193,29 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 		diag.Port53Blocked, diag.EncryptedPathBlocked, diag.EncryptedFamiliesFiltered =
 		classifyDiagnosisFlags(verifiedOutcomes, paths, verifiedStats, attempts)
 
+	// Refine transport attribution with a controlled variable: UDP failure is
+	// called interference/drop only when TCP to the same apparent resolver has
+	// independently passed the full suite. This prevents generic resolver/WAN
+	// outages from being mislabeled as UDP-specific filtering.
+	var sameResolverConflict bool
+	verifiedOutcomes, diag.UDPDropDetected, sameResolverConflict =
+		applyTransportDifferentialEvidence(verifiedOutcomes, paths, verifiedStats, attempts)
+	if sameResolverConflict {
+		diag.PoisoningDetected = true
+	}
+	// Likewise, a port-53 block requires corroborated UDP+TCP failure and a
+	// working independently validated encrypted path.
+	diag.Port53Blocked = corroboratedPort53Block(paths, verifiedStats, attempts)
+
+	// Rebind per-path outcome slices after evidence annotation.
+	for hash, st := range stats {
+		st.outcomes = st.outcomes[:0]
+		for _, o := range verifiedOutcomes {
+			if o.PathID.Hash() == hash {
+				st.outcomes = append(st.outcomes, o)
+			}
+	}
+
 	// Build candidate evidence and rank deterministically. Correctness and
 	// controls are per-suite-case gates; aggregate pass counts are not enough.
 	// Trust/privacy claims are fail-closed and originate in provider/catalog
