@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	adnsRuntimeEpoch       = "boot"
-	adnsNetworkContext     = "wan-unknown"
-	adnsReferenceCatalog   = "runtime-reference-dns-v1"
-	adnsUnrelatedControl   = "example.com"
-	adnsUnrelatedControl2  = "example.net"
+	adnsRuntimeEpoch      = "boot"
+	adnsNetworkContext    = "wan-unknown"
+	adnsReferenceCatalog  = "runtime-reference-dns-v1"
+	adnsUnrelatedControl  = "example.com"
+	adnsUnrelatedControl2 = "example.net"
 )
 
 // initAdaptiveDNS wires the global adaptive DNS control plane (addendum
@@ -28,8 +28,9 @@ const (
 //
 // The diagnosis provider set is derived only from the already-existing
 // system.checker.reference_dns list. No new public resolvers are injected by
-// ADNS. Diagnosis remains evidence-only: this closure never adopts/promotes
-// the compiled profile.
+// ADNS. A READY diagnosis may be adopted/prepared as pre-canary state, but
+// this function never promotes a production binding: canary + transaction
+// remain mandatory.
 func initAdaptiveDNS(cfg *config.Config) {
 	mode := dnspath.DNSOperatingMode(cfg.DNSMode)
 	if mode == "" {
@@ -64,12 +65,20 @@ func initAdaptiveDNS(cfg *config.Config) {
 			control = adnsUnrelatedControl2
 		}
 		livePolicy := manager.Policy()
+		attemptsValid := cfg.System.Checker.ValidationTries
+		if attemptsValid < 2 {
+			attemptsValid = 5
+		}
+		if attemptsValid > 10 {
+			attemptsValid = 10
+		}
 		diag, err := detector.RunADNSDiagnosis(ctx, detector.ADNSDiagnosisInput{
 			Providers:      diagnosisProviders,
 			Policy:         livePolicy,
 			Suite:          detector.CanonicalSuite(target, control),
+			Deep:           true,
 			AttemptsQuick:  2,
-			AttemptsValid:  5,
+			AttemptsValid:  attemptsValid,
 			NetworkContext: manager.NetworkContext(),
 			Generation:     manager.Generation(),
 			RuntimeEpoch:   adnsRuntimeEpoch,
@@ -89,6 +98,12 @@ func initAdaptiveDNS(cfg *config.Config) {
 			result.ProfileID = diag.Profile.ProfileID
 			result.Confidence = diag.Profile.Confidence.Score
 			if diag.Profile.Status == dnspath.ProfileStatusReady {
+				// AdoptProfile changes only the validated selection basis; it does
+				// not install/promote a production binding. That remains owned by
+				// the transaction/canary path.
+				if err := manager.AdoptProfile(diag.Profile); err != nil {
+					return nil, fmt.Errorf("adopt validated DNS profile: %w", err)
+				}
 				result.PrimaryFamily = string(diag.Profile.Primary.Family)
 				for _, fb := range diag.Profile.Fallbacks {
 					result.FallbackFamilies = append(result.FallbackFamilies, string(fb.Family))
@@ -117,7 +132,9 @@ func initAdaptiveDNS(cfg *config.Config) {
 func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
 	seen := map[netip.Addr]bool{}
 	out := make([]dnspath.DNSPathProvider, 0, len(cfg.System.Checker.ReferenceDNS)*2)
-	mark := int(cfg.Queue.Mark)
+	// Use the dedicated discovery mark for both UDP and TCP so the
+	// differential changes transport, not policy-routing identity.
+	mark := int(cfg.System.Checker.DiscoveryFlowMark)
 	for _, raw := range cfg.System.Checker.ReferenceDNS {
 		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
 		if err != nil || !addr.IsValid() || seen[addr] {
