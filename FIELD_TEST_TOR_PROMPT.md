@@ -9,11 +9,15 @@
 
 ## 0. Контекст и цель
 
-Ветка `agent/classifier-v2.3-capture-envelope` (HEAD — взять свежий, после
-коммита `3525acf` с дизайном), реализация E-TOR по `tor-reserve-design.md` /
-`tor-reserve-patch-plan.md` (этапы TT1–TT10 должны быть закрыты; если ревью
-`tor-reserve-review.md` наложило P0 — сначала убедись, что они закрыты в
-собираемом HEAD).
+Ветка `agent/e-tor-reserve` (от `agent/classifier-v2.3-capture-envelope`;
+HEAD — взять свежий после коммита TT9 `146c1e2` и последующих), реализация
+E-TOR по `tor-reserve-design.md` / `tor-reserve-patch-plan.md` — этапы
+TT1–TT10 закрыты (config/parser/egress/collector/PT-proxy/control/process/
+torrc/bootstrap/torservice/carrier/API/CLI/scanner/licenses). Сборка:
+`make build` (arm64 docker-канон, CGO_ENABLED=0); `torctl` — внутри
+бинаря b4 (подкоманда), отдельного бинаря нет — CLI-команды ниже выполняются
+через HTTP API демона (curl) или напрямую `curl -H "Authorization: Bearer
+$TOKEN" http://127.0.0.1:8055/api/tor/...`.
 
 E-TOR — Tor-резерв: внешний tor (Entware `opkg install tor`) + все PT
 внутри бинаря b4 (obfs4/webtunnel/meek_lite — lyrebird; snowflake — форк) +
@@ -185,7 +189,7 @@ PASS: прохождение лестницы, честные классы от�
 повторного старта.
 
 ### Шаг 5 — relay-scanner (vanilla-материал)
-`POST /api/tor/scan` (или `b4 torctl scan`): наблюдать `tor_scan_relays_found`,
+`POST /api/tor/scan` (или `torctl scan` — отдельный бинарь из src/cmd/torctl): наблюдать `tor_scan_relays_found`,
 время, found ≥ goal; выборка релеев в bridges.json. Проверить 2-3 найденных
 релея через `egress.through=none` TCP-connect вручную (сверка достижимости).
 Оценить: не триггерит ли сканер IDS провайдера (замечания владельца по
