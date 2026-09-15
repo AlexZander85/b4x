@@ -214,6 +214,10 @@ func (m *Manager) Events() []TraceEvent {
 	return out
 }
 
+func profileMatchesBinding(p *DNSPathProfile, b *DNSPathBinding) bool {
+	return p != nil && b != nil && p.ProfileID == b.ProfileID && p.Primary.Hash() == b.Primary.Hash()
+}
+
 // promote atomically swaps the active binding, retaining last-good (§76).
 func (m *Manager) promote(candidate, lastGood *DNSPathBinding) {
 	m.mu.Lock()
@@ -236,7 +240,7 @@ func (m *Manager) promote(candidate, lastGood *DNSPathBinding) {
 func (m *Manager) restoreLastGood(lastGood *DNSPathBinding) {
 	m.mu.Lock()
 	m.active = lastGood
-	if lastGood != nil && m.lastGoodProfile != nil && m.lastGoodProfile.ProfileID == lastGood.ProfileID {
+	if profileMatchesBinding(m.lastGoodProfile, lastGood) {
 		m.profile = m.lastGoodProfile
 	}
 	m.counters.RollbackTotal++
@@ -265,7 +269,7 @@ func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 		return errors.New("profile context/generation/epoch mismatch with runtime")
 	}
 	m.mu.Lock()
-	if m.active != nil && m.profile != nil && m.active.ProfileID == m.profile.ProfileID {
+	if profileMatchesBinding(m.profile, m.active) {
 		m.lastGoodProfile = m.profile
 	}
 	m.profile = p
@@ -297,8 +301,8 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 		return DNSResponse{}, errors.New("no active DNS path binding")
 	}
 	activeProfile := profile
-	if activeProfile == nil || activeProfile.ProfileID != binding.ProfileID {
-		if lastGoodProfile != nil && lastGoodProfile.ProfileID == binding.ProfileID {
+	if !profileMatchesBinding(activeProfile, binding) {
+		if profileMatchesBinding(lastGoodProfile, binding) {
 			activeProfile = lastGoodProfile
 		} else {
 			return DNSResponse{}, errors.New("active DNS binding has no matching evidence profile")
@@ -309,9 +313,6 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 	}
 	if activeProfile.NetworkContextID != networkCtx || activeProfile.ConfigGeneration != generation || activeProfile.RuntimeEpoch != epoch {
 		return DNSResponse{}, errors.New("active DNS profile no longer matches runtime context")
-	}
-	if binding.Primary.Hash() != activeProfile.Primary.Hash() {
-		return DNSResponse{}, errors.New("active DNS binding no longer matches its evidence profile")
 	}
 	if !binding.CompatibleWith(generation, epoch, now) {
 		return DNSResponse{}, errors.New("active DNS binding is stale or expired")
@@ -515,10 +516,8 @@ func (m *Manager) HealthReport() HealthReport {
 	binding := m.active
 	m.mu.RUnlock()
 	activeProfile := profile
-	if binding != nil && (activeProfile == nil || activeProfile.ProfileID != binding.ProfileID) {
-		if lastGoodProfile != nil && lastGoodProfile.ProfileID == binding.ProfileID {
-			activeProfile = lastGoodProfile
-		}
+	if binding != nil && !profileMatchesBinding(activeProfile, binding) && profileMatchesBinding(lastGoodProfile, binding) {
+		activeProfile = lastGoodProfile
 	}
 	if activeProfile == nil {
 		axes[AxisFreshness] = AxisUnknown
