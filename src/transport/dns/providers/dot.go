@@ -146,11 +146,7 @@ func (p *DoTProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 		out.Stage = dnspath.StageDNSMessage
 		return out, nil
 	}
-	out.RCode = obs.RCode
-	out.AnswerFingerprint = fp.AnswerDigest
-	out.CNAMEFingerprint = fp.CNAMEDigest
-	out.HTTPSFingerprint = fp.HTTPSDigest
-	out.Class = dnspath.OutcomePassCorrect
+	completeProbeEvidence(&out, resp, q, obs, fp)
 	return out, nil
 }
 
