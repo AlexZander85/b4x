@@ -29,9 +29,10 @@ const (
 // §19/§88). Default mode is "current": the manager exists for observability
 // but adaptive selection never runs implicitly on existing installs.
 //
-// The diagnosis provider set is derived only from the current system resolver
-// plus the already-existing system.checker.reference_dns list. No new public
-// resolver is injected by ADNS. Diagnosis/adoption alone never changes LAN
+// The diagnosis provider set is derived from the current system resolver,
+// already-existing system.checker.reference_dns entries and, when explicitly
+// provisioned, verified managed dnscrypt-proxy catalog entries. Runtime
+// download is never performed. Diagnosis/adoption alone never changes LAN
 // DNS: selected paths are prepared, then a real source-scoped LAN canary and
 // Transaction.Run are required before the NFQ dataplane sees the new binding.
 func initAdaptiveDNS(cfg *config.Config) {
@@ -42,7 +43,11 @@ func initAdaptiveDNS(cfg *config.Config) {
 	policy := adaptivePolicyFromConfig(cfg.DNSAdaptive)
 	manager := dnspath.NewManager(mode, policy, 1, adnsRuntimeEpoch, adnsNetworkContext)
 
-	diagnosisProviders := buildADNSReferenceProviders(cfg)
+	// The built-in reference list is a local config source with a stable
+	// version. If a verified managed catalog is loaded it adds its own version
+	// to the same allowlist.
+	dnspath.KnownCatalogVersions[adnsReferenceCatalog] = true
+	diagnosisProviders := buildADNSReferenceProviders(cfg, policy)
 	for _, provider := range diagnosisProviders {
 		manager.RegisterProvider(provider)
 		manager.MarkPathHealth(provider.ID(), dnspath.DNSPathHealth{State: provider.Capabilities().State})
@@ -216,7 +221,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 		}, nil
 	})
 
-	log.Infof("adaptive dns: mode=%s adaptive=%v resolver_identities=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders))
+	log.Infof("adaptive dns: mode=%s adaptive=%v resolver_identities=%d providers=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders), len(diagnosisProviders))
 }
 
 func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
@@ -230,9 +235,9 @@ func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
 	}, nil
 }
 
-func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
+func buildADNSReferenceProviders(cfg *config.Config, policy dnspath.AdaptivePolicy) []dnspath.DNSPathProvider {
 	seen := map[netip.Addr]bool{}
-	out := make([]dnspath.DNSPathProvider, 0, 1+len(cfg.System.Checker.ReferenceDNS)*2)
+	out := make([]dnspath.DNSPathProvider, 0, 1+len(cfg.System.Checker.ReferenceDNS)*2+managedDNSMaxCandidates)
 	// Use the dedicated discovery mark for system/UDP/TCP so a transport
 	// differential changes transport, not policy-routing identity.
 	mark := int(cfg.System.Checker.DiscoveryFlowMark)
@@ -248,6 +253,7 @@ func buildADNSReferenceProviders(cfg *config.Config) []dnspath.DNSPathProvider {
 			providers.NewTCPProvider(addr, 53, mark, adnsReferenceCatalog),
 		)
 	}
+	out = append(out, buildADNSManagedProviders(policy, cfg.System.Checker.ReferenceDomain)...)
 	return out
 }
 
