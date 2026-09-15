@@ -32,6 +32,9 @@ package transportwg
 
 import (
         "fmt"
+        "hash/fnv"
+        mrand "math/rand/v2"
+        "net/netip"
         "sort"
 )
 
@@ -109,7 +112,11 @@ type ProfileTemplate struct {
         // Initial generator before IpcSet (design §3.4). Build() tolerates the
         // empty I1 on such templates — vanilla profiles have empty I-chains too.
         RuntimeI1 bool
-        build     func() Profile
+        // FieldLibrary marks templates loaded from an external field library
+        // (profiles_loader.go): their junk triple is part of a MEASURED shape —
+        // per-endpoint diversification (DiversifyJunkFor) must never touch them.
+        FieldLibrary bool
+        build         func() Profile
 }
 
 // Build renders the template into a validated Profile instance.
@@ -308,6 +315,65 @@ func LookupProfile(id string) (ProfileTemplate, error) {
                 }
         }
         return ProfileTemplate{}, fmt.Errorf("transportwg: unknown catalog profile %q", id)
+}
+
+// The measured junk-diversification envelope (Nova verified-seed set,
+// 2026-08-10: 50 profiles field-proven on-device — distribution of Jc
+// {4:10, 5:7, 6:7, 7:11, 8:15}, Jmin 30..70, Jmax = Jmin+20..Jmin+80
+// capped at 150). Everything inside this envelope held a session with full
+// probe coverage; the N25 heavy-junk experiment (Jc 110-125, Jmax~1000)
+// bought nothing and cost ~60 KB per handshake, and ZERO junk never
+// established a session at all (N2).
+const (
+        diversifyJunkCountLo  = 3
+        diversifyJunkCountHi  = 8 // inclusive
+        diversifyJunkMinLo    = 30
+        diversifyJunkMinSpan  = 41 // 30..70 inclusive
+        diversifyJunkMaxLo    = 20 // Jmax = Jmin + 20..80
+        diversifyJunkMaxSpan  = 61
+        diversifyJunkMaxCap   = 150
+        diversifyJunkMaxEntry = 150 // templates with Jmax beyond this stay as measured
+)
+
+// DiversifyJunkFor deterministically jitters the junk triple of a BUILT-IN
+// cf-warp profile for one candidate endpoint (Nova 1.31.x lineage: "у
+// каждого из 50 свои параметры маскировки, поэтому набор не опознаётся как
+// один"). Every endpoint of the walk draws its own (Jc, Jmin, Jmax) inside
+// the measured envelope — a fleet of deployments (or one deployment's
+// multi-endpoint probing) no longer shares a single fixed junk signature.
+//
+// Rules (red lines):
+//   - the seed is the ENDPOINT STRING: the same endpoint always re-derives
+//     the same triple (last-good reconnects stay byte-stable);
+//   - profiles with JunkCount == 0 (vanilla / runtime-I1 quic) are untouched
+//     — their shape IS the zero-junk decision;
+//   - profiles whose JunkMax exceeds the envelope cap (the aggressive
+//     Aether lineage) are untouched — measured values are not "improved"
+//     by an unmeasured reshape;
+//   - the I1 chain (the family character) never changes — only the junk
+//     sizing around it.
+func DiversifyJunkFor(candidate netip.AddrPort, prof *Profile) {
+        if prof == nil || prof.JunkCount == 0 {
+                return
+        }
+        if prof.JunkMax > diversifyJunkMaxEntry {
+                return // measured aggressive shape — leave the field values alone
+        }
+        h := fnv.New64a()
+        _, _ = h.Write([]byte(candidate.String()))
+        rng := mrand.New(mrand.NewPCG(h.Sum64(), 0x626f78)) // "box"
+        jc := diversifyJunkCountLo + rng.IntN(diversifyJunkCountHi-diversifyJunkCountLo+1)
+        jmin := diversifyJunkMinLo + rng.IntN(diversifyJunkMinSpan)
+        jmax := jmin + diversifyJunkMaxLo + rng.IntN(diversifyJunkMaxSpan)
+        if jmax > diversifyJunkMaxCap {
+                jmax = diversifyJunkMaxCap
+        }
+        if jmax < jmin {
+                jmax = jmin // validator: jmin <= jmax
+        }
+        prof.JunkCount = uint32(jc)
+        prof.JunkMin = uint32(jmin)
+        prof.JunkMax = uint32(jmax)
 }
 
 // CatalogIDs returns sorted IDs (test/diagnostics helper).

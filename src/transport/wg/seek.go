@@ -388,6 +388,14 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 				s.emit(rec)
 				continue
 			}
+			// Per-endpoint junk diversification (Nova 1.31.x): every
+			// candidate draws its OWN (Jc, Jmin, Jmax) inside the measured
+			// envelope — the walk must not read as one fixed signature at
+			// DPI. Built-in cf-warp seeds only: field-library shapes and
+			// the proton family keep their measured triples.
+			if s.cfg.Target == TargetCfWarp && !tpl.FieldLibrary {
+				DiversifyJunkFor(cand, &prof)
+			}
 
 			outcome := s.attempt(candCtx, cand, prof)
 			switch {
