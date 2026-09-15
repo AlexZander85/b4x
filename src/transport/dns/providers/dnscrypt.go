@@ -5,7 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/netip"
+	"strconv"
 	"time"
 
 	dnspath "github.com/daniellavrushin/b4/transport/dns"
@@ -99,10 +101,15 @@ func (p *ManagedProvider) Prepare(ctx context.Context, req dnspath.DNSPrepareReq
 }
 
 func splitHostPort(addr string) (string, int, error) {
-	var host string
-	var port int
-	_, err := fmt.Sscanf(addr, "%[^:]:%d", &host, &port)
-	return host, port, err
+	host, portText, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid listen address %q: %w", addr, err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return "", 0, fmt.Errorf("invalid listen port %q", portText)
+	}
+	return host, port, nil
 }
 
 func (p *ManagedProvider) handle(prepared dnspath.PreparedDNSPath) (*managedHandle, error) {
