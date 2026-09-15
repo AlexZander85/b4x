@@ -33,12 +33,17 @@ type DNSProbeQuery struct {
 	ObserveRace bool          `json:"observe_race,omitempty"`
 }
 
-// DNSQuery is a production resolution request.
+// DNSQuery is a production resolution request. Payload optionally carries
+// the original client wire query. Production forwarding preserves it verbatim
+// so EDNS(0), DNSSEC DO/CD bits, cookies and other client options are not lost
+// when only the transport/path is changed. Diagnostic callers may omit it and
+// providers will synthesize the simple Name/QType/TxID query instead.
 type DNSQuery struct {
 	Name     string `json:"-"`
 	NameHash string `json:"name_hash"`
 	QType    uint16 `json:"qtype"`
 	TxID     uint16 `json:"txid"`
+	Payload  []byte `json:"-"`
 }
 
 // DNSResponse is the normalized provider response envelope.
