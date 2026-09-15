@@ -27,46 +27,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          warp = Path('src/transport/warp/nonru_test.go')
-          text = warp.read_text()
-          old = '''\twaitUntil(t, "revoked on provider-ru", func() bool { return g.Status().CloseReason == CloseProviderRU })
-\tst := g.Status()
-'''
-          new = '''\twaitUntil(t, "revoked on provider-ru", func() bool { return g.Status().CloseReason == CloseProviderRU })
-\t// CloseReason and the event sink are published on the same controller
-\t// iteration but not under one lock. Wait for the causal event explicitly
-\t// instead of racing the synchronous sink callback.
-\twaitUntil(t, "fail-closed event", func() bool { return log.count(EvNonRUFailClosed) > 0 })
-\tst := g.Status()
-'''
-          if old not in text:
-              raise SystemExit('WARP test anchor not found')
-          warp.write_text(text.replace(old, new, 1))
-
-          wg = Path('src/transport/wg/interop_test.go')
-          text = wg.read_text()
-          old = '''func TestKernelTUNOpenManualGate(t *testing.T) {
-\tif runtime.GOOS != "linux" {
-\t\tt.Skip("linux only")
-\t}
-\tif _, err := os.Stat("/dev/net/tun"); err != nil {
-'''
-          new = '''func TestKernelTUNOpenManualGate(t *testing.T) {
-\tif runtime.GOOS != "linux" {
-\t\tt.Skip("linux only")
-\t}
-\tif os.Getenv("B4X_WG_KERNEL_TUN_TEST") != "1" {
-\t\tt.Skip("manual privileged gate; set B4X_WG_KERNEL_TUN_TEST=1 and grant /dev/net/tun + CAP_NET_ADMIN")
-\t}
-\tif _, err := os.Stat("/dev/net/tun"); err != nil {
-'''
-          if old not in text:
-              raise SystemExit('WG manual-gate anchor not found')
-          wg.write_text(text.replace(old, new, 1))
-          PY
+          python3 -c 'from pathlib import Path; p=Path("src/transport/warp/nonru_test.go"); s=p.read_text(); old="\twaitUntil(t, \"revoked on provider-ru\", func() bool { return g.Status().CloseReason == CloseProviderRU })\n\tst := g.Status()\n"; new="\twaitUntil(t, \"revoked on provider-ru\", func() bool { return g.Status().CloseReason == CloseProviderRU })\n\twaitUntil(t, \"fail-closed event\", func() bool { return log.count(EvNonRUFailClosed) > 0 })\n\tst := g.Status()\n"; assert old in s; p.write_text(s.replace(old, new, 1))'
+          python3 -c 'from pathlib import Path; p=Path("src/transport/wg/interop_test.go"); s=p.read_text(); old="func TestKernelTUNOpenManualGate(t *testing.T) {\n\tif runtime.GOOS != \"linux\" {\n\t\tt.Skip(\"linux only\")\n\t}\n\tif _, err := os.Stat(\"/dev/net/tun\"); err != nil {\n"; new="func TestKernelTUNOpenManualGate(t *testing.T) {\n\tif runtime.GOOS != \"linux\" {\n\t\tt.Skip(\"linux only\")\n\t}\n\tif os.Getenv(\"B4X_WG_KERNEL_TUN_TEST\") != \"1\" {\n\t\tt.Skip(\"manual privileged gate; set B4X_WG_KERNEL_TUN_TEST=1 and grant /dev/net/tun + CAP_NET_ADMIN\")\n\t}\n\tif _, err := os.Stat(\"/dev/net/tun\"); err != nil {\n"; assert old in s; p.write_text(s.replace(old, new, 1))'
           gofmt -w src/transport/warp/nonru_test.go src/transport/wg/interop_test.go
           if ! git diff --quiet; then
             git config user.name 'github-actions[bot]'
