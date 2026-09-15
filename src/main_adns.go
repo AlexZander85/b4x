@@ -48,6 +48,8 @@ func initAdaptiveDNS(cfg *config.Config) {
 	// to the same allowlist.
 	dnspath.KnownCatalogVersions[adnsReferenceCatalog] = true
 	diagnosisProviders := buildADNSReferenceProviders(cfg, policy)
+	profileCatalogVersion := combinedADNSCatalogVersion(diagnosisProviders)
+	dnspath.KnownCatalogVersions[profileCatalogVersion] = true
 	for _, provider := range diagnosisProviders {
 		manager.RegisterProvider(provider)
 		manager.MarkPathHealth(provider.ID(), dnspath.DNSPathHealth{State: provider.Capabilities().State})
@@ -104,7 +106,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 			NetworkContext: manager.NetworkContext(),
 			Generation:     manager.Generation(),
 			RuntimeEpoch:   adnsRuntimeEpoch,
-			CatalogVersion: adnsReferenceCatalog,
+			CatalogVersion: profileCatalogVersion,
 			PolicyDigest:   livePolicy.Digest(),
 			TTL:            livePolicy.ProfileTTL,
 		})
@@ -221,7 +223,7 @@ func initAdaptiveDNS(cfg *config.Config) {
 		}, nil
 	})
 
-	log.Infof("adaptive dns: mode=%s adaptive=%v resolver_identities=%d providers=%d", mode, policy.Enabled, independentResolverCount(diagnosisProviders), len(diagnosisProviders))
+	log.Infof("adaptive dns: mode=%s adaptive=%v resolver_identities=%d providers=%d catalog=%s", mode, policy.Enabled, independentResolverCount(diagnosisProviders), len(diagnosisProviders), profileCatalogVersion)
 }
 
 func adaptiveDNSQueryFromWire(raw []byte) (dnspath.DNSQuery, error) {
