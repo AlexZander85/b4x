@@ -60,14 +60,13 @@ func (p *ManagedProvider) Capabilities() dnspath.DNSPathCapabilities {
 	if err := managed.ValidateSpec(p.Spec); err != nil {
 		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByPolicy, Reason: err.Error()}
 	}
-	// RequireNoLog/RequireNoFilter are generated from reviewed catalog policy,
-	// not guessed by the provider. CatalogTrusted is true only when a concrete
-	// signed catalog version was supplied by the caller.
+	// Privacy/DNSSEC claims are explicit inputs derived by the caller from a
+	// reviewed signed catalog. Unknown never becomes true implicitly.
 	return dnspath.DNSPathCapabilities{
 		State:           dnspath.CapAvailable,
 		IPv4:            p.Spec.IPv4,
 		IPv6:            p.Spec.IPv6,
-		DNSSEC:          true, // generated dnscrypt-proxy config requires DNSSEC-capable upstreams
+		DNSSEC:          p.Spec.RequireDNSSEC,
 		NoLogClaim:      p.Spec.RequireNoLog,
 		NoFilterClaim:   p.Spec.RequireNoFilter,
 		CatalogTrusted:  p.CatalogVer != "",
