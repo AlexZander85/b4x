@@ -1,18 +1,6 @@
 package tor
 
-// Bridge storage and entry memory (design §7.1, patch-plan §3.2):
-//
-//   bridges.json   — the collection result (public facts, no secrets —
-//                    AtomicFile canon regardless: tmp 0644 + fsync + rename,
-//                    corrupt files quarantined as *.corrupt);
-//   entry_memory   — the auto-ladder progress (Nova TorAutoEntryProgress):
-//                    failed entries are excluded from auto until the TTL
-//                    lapses, the winner becomes the ladder head; a stale
-//                    record reads as empty and deletes itself.
-//
-// The failed-run rule (design §4.1): an unsuccessful collection KEEPS the
-// previous list — the store Save happens only on a conveyor outcome the
-// caller decided to persist.
+// Bridge storage and entry memory (design §7.1, patch-plan §3.2).
 
 import (
 	"encoding/json"
@@ -25,19 +13,10 @@ import (
 	"time"
 )
 
-// BridgesFileSchema is the on-disk version of bridges.json.
 const BridgesFileSchema = 1
-
-// MaxBridgesPerKindCap is the trim ceiling per transport kind (design §4.1:
-// trim-keeping-every-kind to 40 — otherwise rare kinds get crowded out,
-// "a button that silently never connects").
 const MaxBridgesPerKindCap = 40
-
-// EntryMemoryTTL bounds the auto-ladder memory (design §8.3: 30 min).
 const EntryMemoryTTL = 30 * time.Minute
 
-// StoredBridge is the persistence shape of one bridge (the line stays the
-// unit of exchange; transport/endpoint/fingerprint are projections).
 type StoredBridge struct {
 	Transport   string `json:"transport"`
 	Line        string `json:"line"`
@@ -45,29 +24,23 @@ type StoredBridge struct {
 	Fingerprint string `json:"fingerprint,omitempty"`
 }
 
-// BridgesFile is the bridges.json document.
 type BridgesFile struct {
 	Schema    int            `json:"version"`
-	UpdatedAt int64          `json:"updated_at"` // epoch ms
+	UpdatedAt int64          `json:"updated_at"`
 	Source    string         `json:"source,omitempty"`
 	Bridges   []StoredBridge `json:"bridges"`
 	LastError string         `json:"last_error,omitempty"`
 }
 
-// BridgesStore persists the collection result at Path (AtomicFile canon).
 type BridgesStore struct {
 	Path string
-
-	mu sync.Mutex
+	mu   sync.Mutex
 }
 
-// NewBridgesStore builds the store for the slot layout path.
 func NewBridgesStore(dataPath string) *BridgesStore {
 	return &BridgesStore{Path: filepath.Join(dataPath, "bridges.json")}
 }
 
-// Load reads bridges.json; a missing file is an empty store (first run),
-// a corrupt file is quarantined and reported (never a runtime crash).
 func (s *BridgesStore) Load() (BridgesFile, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -90,7 +63,6 @@ func (s *BridgesStore) Load() (BridgesFile, error) {
 	return f, nil
 }
 
-// Save writes bridges.json atomically (tmp + fsync + rename).
 func (s *BridgesStore) Save(f BridgesFile) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -102,6 +74,9 @@ func (s *BridgesStore) Save(f BridgesFile) error {
 		return err
 	}
 	dir := filepath.Dir(s.Path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(dir, ".bridges-*.tmp")
 	if err != nil {
 		return err
@@ -115,8 +90,6 @@ func (s *BridgesStore) Save(f BridgesFile) error {
 		cleanup()
 		return err
 	}
-	// Public facts, no secrets — readable for field diagnostics (design
-	// §7.1: "bridges.json — публичные факты").
 	_ = tmp.Chmod(0o644)
 	if err := tmp.Sync(); err != nil {
 		cleanup()
@@ -133,13 +106,10 @@ func (s *BridgesStore) Save(f BridgesFile) error {
 	return nil
 }
 
-// DedupKey is the collection identity of a bridge (design §4.1:
-// transport|fingerprint|endpoint).
 func DedupKey(b Bridge) string {
 	return b.Transport + "|" + b.Fingerprint + "|" + b.AddrPort
 }
 
-// Dedup collapses a bridge slice by DedupKey keeping the first occurrence.
 func Dedup(bridges []Bridge) []Bridge {
 	seen := make(map[string]bool, len(bridges))
 	out := make([]Bridge, 0, len(bridges))
@@ -154,10 +124,6 @@ func Dedup(bridges []Bridge) []Bridge {
 	return out
 }
 
-// TrimKeepingEveryKind rounds the set down to cap per transport kind,
-// cycling across kinds so rare transports survive (design §4.1 — the
-// Nova trim canon). Order within a kind is preserved (probe-ranked lists
-// stay probe-ranked).
 func TrimKeepingEveryKind(bridges []Bridge, cap int) []Bridge {
 	if cap <= 0 {
 		cap = MaxBridgesPerKindCap
@@ -170,8 +136,6 @@ func TrimKeepingEveryKind(bridges []Bridge, cap int) []Bridge {
 		}
 		byKind[b.Transport] = append(byKind[b.Transport], b)
 	}
-	// round-robin: one bridge per kind per pass until caps exhaust —
-	// every kind survives with its head, the fat kinds cap at `cap`.
 	out := make([]Bridge, 0, len(bridges))
 	remaining := make(map[string]int, len(kinds))
 	for _, k := range kinds {
@@ -194,30 +158,25 @@ func TrimKeepingEveryKind(bridges []Bridge, cap int) []Bridge {
 	return out
 }
 
-// EntryMemoryState is the decoded auto-ladder progress.
+// EntryMemoryState carries transport-level ladder state plus an optional
+// stable bridge identity. The bridge identity is diagnostic/learning data;
+// the ladder continues to key on transport so existing files remain valid.
 type EntryMemoryState struct {
-	At     time.Time
-	Failed []string // transports that failed in this window
-	Winner string   // the transport that won ("" until one does)
+	At           time.Time
+	Failed       []string
+	Winner       string
+	WinnerBridge string
 }
 
-// EntryMemory persists the auto-ladder progress at <dataPath>/entry_memory.txt:
-// line 1 = epoch-ms of the window start; then "failed <transport>" lines and
-// at most one "winner <transport>" line. TTL 30 min: a stale record reads
-// as empty and deletes the file (Nova TorAutoEntryProgress canon).
 type EntryMemory struct {
 	Path string
-
-	mu sync.Mutex
+	mu   sync.Mutex
 }
 
-// NewEntryMemory builds the memory for the slot layout path.
 func NewEntryMemory(dataPath string) *EntryMemory {
 	return &EntryMemory{Path: filepath.Join(dataPath, "entry_memory.txt")}
 }
 
-// Load reads the memory; stale (TTL exceeded) or corrupt records read as
-// empty and remove the file so the ladder starts a fresh window.
 func (m *EntryMemory) Load(now func() time.Time) EntryMemoryState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -225,36 +184,9 @@ func (m *EntryMemory) Load(now func() time.Time) EntryMemoryState {
 	if err != nil {
 		return EntryMemoryState{}
 	}
-	lines := strings.Split(strings.TrimSpace(string(blob)), "\n")
-	if len(lines) < 1 {
-		_ = os.Remove(m.Path)
-		return EntryMemoryState{}
-	}
-	ms, err := strconv.ParseInt(strings.TrimSpace(lines[0]), 10, 64)
-	if err != nil || ms <= 0 {
-		_ = os.Remove(m.Path)
-		return EntryMemoryState{}
-	}
-	at := time.UnixMilli(ms)
-	if now().Sub(at) > EntryMemoryTTL {
-		_ = os.Remove(m.Path)
-		return EntryMemoryState{} // window lapsed: fresh ladder
-	}
-	st := EntryMemoryState{At: at}
-	for _, l := range lines[1:] {
-		l = strings.TrimSpace(l)
-		switch {
-		case strings.HasPrefix(l, "failed "):
-			st.Failed = append(st.Failed, strings.TrimSpace(strings.TrimPrefix(l, "failed ")))
-		case strings.HasPrefix(l, "winner "):
-			st.Winner = strings.TrimSpace(strings.TrimPrefix(l, "winner "))
-		}
-	}
-	return st
+	return m.parseLocked(blob, now, true)
 }
 
-// RecordFail appends a failed transport to the current window (creating
-// the window when absent) and persists atomically.
 func (m *EntryMemory) RecordFail(transport string, now func() time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -263,22 +195,30 @@ func (m *EntryMemory) RecordFail(transport string, now func() time.Time) error {
 	return m.writeLocked(st)
 }
 
-// RecordWin sets the winner (the ladder head for the next start) and
-// persists atomically. A winner replaces any previous one.
+// RecordWin keeps the legacy API and records only a transport winner.
 func (m *EntryMemory) RecordWin(transport string, now func() time.Time) error {
+	return m.RecordWinBridge(transport, "", now)
+}
+
+// RecordWinBridge records a winner only when the supervisor has actual
+// attribution evidence. bridgeID is normally DedupKey(bridge).
+func (m *EntryMemory) RecordWinBridge(transport, bridgeID string, now func() time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	st := m.readLocked(now)
 	st.Winner = transport
+	st.WinnerBridge = bridgeID
 	return m.writeLocked(st)
 }
 
-// Clear removes the memory (first successful stream / manual entry change —
-// design §8.3).
 func (m *EntryMemory) Clear() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return os.Remove(m.Path)
+	err := os.Remove(m.Path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 func (m *EntryMemory) readLocked(now func() time.Time) EntryMemoryState {
@@ -286,17 +226,41 @@ func (m *EntryMemory) readLocked(now func() time.Time) EntryMemoryState {
 	if err != nil {
 		return EntryMemoryState{At: now()}
 	}
-	lines := strings.Split(strings.TrimSpace(string(blob)), "\n")
-	ms, err := strconv.ParseInt(strings.TrimSpace(lines[0]), 10, 64)
-	if err != nil || ms <= 0 || now().Sub(time.UnixMilli(ms)) > EntryMemoryTTL {
-		return EntryMemoryState{At: now()}
+	st := m.parseLocked(blob, now, false)
+	if st.At.IsZero() {
+		st.At = now()
 	}
-	st := EntryMemoryState{At: time.UnixMilli(ms)}
+	return st
+}
+
+func (m *EntryMemory) parseLocked(blob []byte, now func() time.Time, removeBad bool) EntryMemoryState {
+	lines := strings.Split(strings.TrimSpace(string(blob)), "\n")
+	if len(lines) < 1 || strings.TrimSpace(lines[0]) == "" {
+		if removeBad {
+			_ = os.Remove(m.Path)
+		}
+		return EntryMemoryState{}
+	}
+	ms, err := strconv.ParseInt(strings.TrimSpace(lines[0]), 10, 64)
+	if err != nil || ms <= 0 {
+		if removeBad {
+			_ = os.Remove(m.Path)
+		}
+		return EntryMemoryState{}
+	}
+	at := time.UnixMilli(ms)
+	if now().Sub(at) > EntryMemoryTTL {
+		_ = os.Remove(m.Path)
+		return EntryMemoryState{}
+	}
+	st := EntryMemoryState{At: at}
 	for _, l := range lines[1:] {
 		l = strings.TrimSpace(l)
 		switch {
 		case strings.HasPrefix(l, "failed "):
 			st.Failed = append(st.Failed, strings.TrimSpace(strings.TrimPrefix(l, "failed ")))
+		case strings.HasPrefix(l, "winner_bridge "):
+			st.WinnerBridge = strings.TrimSpace(strings.TrimPrefix(l, "winner_bridge "))
 		case strings.HasPrefix(l, "winner "):
 			st.Winner = strings.TrimSpace(strings.TrimPrefix(l, "winner "))
 		}
@@ -305,6 +269,9 @@ func (m *EntryMemory) readLocked(now func() time.Time) EntryMemoryState {
 }
 
 func (m *EntryMemory) writeLocked(st EntryMemoryState) error {
+	if st.At.IsZero() {
+		st.At = time.Now()
+	}
 	var b strings.Builder
 	b.WriteString(strconv.FormatInt(st.At.UnixMilli(), 10))
 	b.WriteByte('\n')
@@ -318,7 +285,15 @@ func (m *EntryMemory) writeLocked(st EntryMemoryState) error {
 		b.WriteString(st.Winner)
 		b.WriteByte('\n')
 	}
+	if st.WinnerBridge != "" {
+		b.WriteString("winner_bridge ")
+		b.WriteString(st.WinnerBridge)
+		b.WriteByte('\n')
+	}
 	dir := filepath.Dir(m.Path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
 	tmp, err := os.CreateTemp(dir, ".entrymemory-*.tmp")
 	if err != nil {
 		return err
