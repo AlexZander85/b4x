@@ -33,6 +33,13 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 	if meta.HasNegativeProof() {
 		out.EvidenceRefs = append(out.EvidenceRefs, "authority-soa")
 	}
+	// SecurityLab/Bitshield interception signature: an unexpected
+	// authoritative NXDOMAIN with no Authority section/negative proof. This
+	// hint is never sufficient by itself; detector corroboration with TCP and
+	// independent resolvers is still required before poisoning attribution.
+	if meta.RCode == 3 && meta.Authoritative && meta.AuthorityCount == 0 {
+		out.EvidenceRefs = append(out.EvidenceRefs, "securitylab-aa-empty-authority")
+	}
 	if meta.Truncated {
 		out.Class = dnspath.OutcomeTruncatedRequiresTCP
 		return
@@ -43,7 +50,11 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 	case "A", "AAAA":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
-			out.FailureCode = "expected_noerror_rcode"
+			if meta.RCode == 3 && meta.Authoritative && meta.AuthorityCount == 0 {
+				out.FailureCode = "forged_nxdomain_aa_empty_authority"
+			} else {
+				out.FailureCode = "expected_noerror_rcode"
+			}
 			return
 		}
 		// A/AAAA can legitimately be NODATA. Accept the absence only when
@@ -56,7 +67,11 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 	case "CONTROL_SAME", "CONTROL_UNRELATED":
 		if meta.RCode != 0 {
 			out.Class = dnspath.OutcomeRCodeMismatch
-			out.FailureCode = "expected_positive_rcode"
+			if meta.RCode == 3 && meta.Authoritative && meta.AuthorityCount == 0 {
+				out.FailureCode = "forged_nxdomain_aa_empty_authority"
+			} else {
+				out.FailureCode = "expected_positive_rcode"
+			}
 			return
 		}
 		if fp.AnswerDigest == "" && fp.CNAMEDigest == "" {
@@ -94,7 +109,11 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 		}
 		if !meta.HasNegativeProof() {
 			out.Class = dnspath.OutcomeAnswerConflict
-			out.FailureCode = "negative_without_authority_soa"
+			if meta.Authoritative && meta.AuthorityCount == 0 {
+				out.FailureCode = "forged_nxdomain_aa_empty_authority"
+			} else {
+				out.FailureCode = "negative_without_authority_soa"
+			}
 			return
 		}
 	}
@@ -127,6 +146,9 @@ func validateProductionResponse(payload []byte, obs b4dns.DNSObservation) error 
 		}
 	case 3:
 		if !meta.HasNegativeProof() {
+			if meta.Authoritative && meta.AuthorityCount == 0 {
+				return fmt.Errorf("forged NXDOMAIN signature: AA set with empty authority")
+			}
 			return fmt.Errorf("NXDOMAIN response lacks authority SOA")
 		}
 	default:
