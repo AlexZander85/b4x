@@ -20,112 +20,170 @@ func diagnosisPolicy() dnspath.AdaptivePolicy {
 	return p
 }
 
-func TestADNSDiagnosisPrefersTCPWhenUDPInjected(t *testing.T) {
-	fxUDP, addrUDP, err := faultlab.StartUDP(faultlab.ModeUDPDrop)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fxUDP.Close()
-	fxTCP, addrTCP, err := faultlab.StartTCP(faultlab.ModeValid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer fxTCP.Close()
+type scriptedADNSProvider struct {
+	id       dnspath.DNSPathID
+	fail     dnspath.OutcomeClass
+	calls    int
+	prepared bool
+}
 
-	ip, _ := netip.ParseAddr("127.0.0.1")
-	udp := providers.NewUDPProvider(ip, faultlab.PortOf(addrUDP), 0, "catalog-test")
-	udp.Timeout = 300 * time.Millisecond
-	tcp := providers.NewTCPProvider(ip, faultlab.PortOf(addrTCP), 0, "catalog-test")
-	tcp.Timeout = time.Second
+func newScriptedADNSProvider(family dnspath.DNSPathFamily, resolver string) *scriptedADNSProvider {
+	return &scriptedADNSProvider{id: dnspath.DNSPathID{
+		Family: family, ResolverID: resolver, EndpointID: "e-" + resolver,
+		IPFamily: "ipv4", CatalogVersion: "catalog-test",
+	}}
+}
 
+func (p *scriptedADNSProvider) ID() dnspath.DNSPathID { return p.id }
+func (p *scriptedADNSProvider) Capabilities() dnspath.DNSPathCapabilities {
+	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true}
+}
+func (p *scriptedADNSProvider) Prepare(_ context.Context, req dnspath.DNSPrepareRequest) (dnspath.PreparedDNSPath, error) {
+	p.prepared = true
+	return dnspath.PreparedDNSPath{PathID: p.id, Generation: req.Generation, PreparedAt: time.Now()}, nil
+}
+func (p *scriptedADNSProvider) Probe(_ context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSProbeQuery) (dnspath.DNSPathProbeOutcome, error) {
+	p.calls++
+	out := dnspath.DNSPathProbeOutcome{
+		PathID: prepared.PathID, QuerySuiteID: q.SuiteCase,
+		Stage: dnspath.StageAnswer, Class: dnspath.OutcomeInconclusive,
+		Latency: 10 * time.Millisecond, ResponseCount: 1, ObservedAt: time.Now(),
+	}
+	if p.fail != "" {
+		out.Class = p.fail
+		return out, nil
+	}
+	switch q.SuiteCase {
+	case "NXDOMAIN":
+		out.RCode = 3
+		out.EvidenceRefs = []string{"authority-soa"}
+	case "CNAME":
+		out.CNAMEFingerprint = "cname-good"
+	case "HTTPS":
+		out.HTTPSFingerprint = "https-good"
+	default:
+		out.AnswerFingerprint = "addr-good"
+	}
+	return out, nil
+}
+func (p *scriptedADNSProvider) Resolve(_ context.Context, _ dnspath.PreparedDNSPath, _ dnspath.DNSQuery) (dnspath.DNSResponse, error) {
+	return dnspath.DNSResponse{}, nil
+}
+func (p *scriptedADNSProvider) Health(_ context.Context, _ dnspath.PreparedDNSPath) dnspath.DNSPathHealth {
+	return dnspath.DNSPathHealth{State: dnspath.CapReady}
+}
+func (p *scriptedADNSProvider) Retire(_ context.Context, _ dnspath.PreparedDNSPath) error { return nil }
+
+func runQuorumDiagnosis(t *testing.T, providersList []dnspath.DNSPathProvider, deep bool) *ADNSDiagnosis {
+	t.Helper()
 	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-		Providers:     []dnspath.DNSPathProvider{udp, tcp},
-		Policy:        diagnosisPolicy(),
-		Suite:         CanonicalSuite("example.com", "control.example.net"),
-		AttemptsQuick: 2, AttemptsValid: 5,
+		Providers: providersList, Policy: diagnosisPolicy(),
+		Suite: CanonicalSuite("example.com", "control.example.net"),
+		AttemptsQuick: 2, AttemptsValid: 5, Deep: deep,
 		NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
 		CatalogVersion: "catalog-test", TTL: time.Hour,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diag.Profile == nil {
-		t.Fatal("profile must be compiled")
+	return diag
+}
+
+func TestADNSDiagnosisRequiresIndependentResolverQuorum(t *testing.T) {
+	only := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+	diag := runQuorumDiagnosis(t, []dnspath.DNSPathProvider{only}, false)
+	if diag.Profile == nil || diag.Profile.Status != dnspath.ProfileStatusInvalid {
+		t.Fatalf("one structurally valid resolver must not produce READY profile: %+v", diag.Profile)
 	}
-	if diag.Profile.Primary.Family != dnspath.DNSPathTCP {
-		t.Fatalf("dropped UDP must yield TCP primary, got %s", diag.Profile.Primary.Family)
+	for _, out := range diag.Outcomes {
+		if out.Class.Pass() {
+			t.Fatalf("single-resolver evidence must remain unpromoted: %+v", out)
+		}
 	}
-	if !diag.UDPDropDetected {
-		t.Fatal("repeated UDP timeouts must set udp drop evidence")
+}
+
+func TestADNSDiagnosisBuildsReadyProfileAfterIndependentQuorum(t *testing.T) {
+	a := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+	b := newScriptedADNSProvider(dnspath.DNSPathDoH, "r-b")
+	diag := runQuorumDiagnosis(t, []dnspath.DNSPathProvider{a, b}, false)
+	if diag.Profile == nil || diag.Profile.Status != dnspath.ProfileStatusReady {
+		t.Fatalf("independent matching resolvers must produce READY profile: %+v", diag.Profile)
 	}
 	if err := diag.Profile.Valid(time.Now()); err != nil {
-		t.Fatalf("compiled profile must be valid: %v", err)
+		t.Fatalf("compiled quorum profile must be valid: %v", err)
 	}
-	// UDP path must not be primary-capable
-	for _, o := range diag.Outcomes {
-		if o.PathID.Family == dnspath.DNSPathUDP && o.Class.Pass() {
-			t.Fatal("dropped UDP path must not produce passing outcomes")
+	if diag.Profile.Confidence.Supports == 0 || diag.Profile.Confidence.Contradictions != 0 {
+		t.Fatalf("unexpected confidence: %+v", diag.Profile.Confidence)
+	}
+	for _, out := range diag.Outcomes {
+		if !out.Class.Pass() {
+			t.Fatalf("quorum-confirmed canonical suite must pass, got %+v", out)
 		}
 	}
 }
 
-func TestADNSDiagnosisDeterministic(t *testing.T) {
-	run := func() *ADNSDiagnosis {
-		fx, addr, err := faultlab.StartTCP(faultlab.ModeValid)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer fx.Close()
-		ip, _ := netip.ParseAddr("127.0.0.1")
-		tcp := providers.NewTCPProvider(ip, faultlab.PortOf(addr), 0, "catalog-test")
-		tcp.Timeout = time.Second
-		diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-			Providers:      []dnspath.DNSPathProvider{tcp},
-			Policy:         diagnosisPolicy(),
-			Suite:          CanonicalSuite("example.com", "control.example.net"),
-			AttemptsQuick:  2,
-			NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
-			CatalogVersion: "catalog-test", TTL: time.Hour,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return diag
+func TestADNSDiagnosisPrefersValidatedTCPWhenUDPBlocked(t *testing.T) {
+	udp := newScriptedADNSProvider(dnspath.DNSPathUDP, "r-u")
+	udp.fail = dnspath.OutcomeTimeout
+	a := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+	b := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-b")
+	diag := runQuorumDiagnosis(t, []dnspath.DNSPathProvider{udp, a, b}, false)
+	if diag.Profile.Status != dnspath.ProfileStatusReady || diag.Profile.Primary.Family != dnspath.DNSPathTCP {
+		t.Fatalf("blocked UDP with validated TCP quorum must yield TCP primary: %+v", diag.Profile)
 	}
-	d1 := run()
-	d2 := run()
-	if d1.Profile.Primary.Canonical() != d2.Profile.Primary.Canonical() {
-		t.Fatal("identical inputs must produce identical primary (no random shuffle)")
+	if !diag.UDPDropDetected {
+		t.Fatal("repeated UDP timeouts must set udp-drop evidence")
 	}
 }
 
-func TestADNSDiagnosisNoBlindFirstSuccess(t *testing.T) {
-	// A provider that fails controls must not become primary even if A query passes.
+func TestADNSDiagnosisFakeNXDOMAINNeverBecomesCorrectnessProof(t *testing.T) {
 	fx, addr, err := faultlab.StartTCP(faultlab.ModeFakeNXDOMAIN)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer fx.Close()
-	ip, _ := netip.ParseAddr("127.0.0.1")
+	ip := netip.MustParseAddr("127.0.0.1")
 	tcp := providers.NewTCPProvider(ip, faultlab.PortOf(addr), 0, "catalog-test")
 	tcp.Timeout = time.Second
-	diag, err := RunADNSDiagnosis(context.Background(), ADNSDiagnosisInput{
-		Providers:      []dnspath.DNSPathProvider{tcp},
-		Policy:         diagnosisPolicy(),
-		Suite:          CanonicalSuite("example.com", "control.example.net"),
-		AttemptsQuick:  2,
-		NetworkContext: "wan-lab", Generation: 3, RuntimeEpoch: "e1",
-		CatalogVersion: "catalog-test", TTL: time.Hour,
-	})
-	if err != nil {
-		t.Fatal(err)
+
+	diag := runQuorumDiagnosis(t, []dnspath.DNSPathProvider{tcp}, false)
+	if diag.Profile.Status != dnspath.ProfileStatusInvalid {
+		t.Fatalf("forged NXDOMAIN resolver must not be promotable: %+v", diag.Profile)
 	}
-	// FakeNXDOMAIN answers everything with NXDOMAIN; A case rcode=3 still
-	// parses as structurally valid response — outcomes are PASS_CORRECT at
-	// structural level, but correctness comparison belongs to four-way
-	// control analysis. Profile must at least carry outcomes for inspection.
-	if len(diag.Outcomes) == 0 {
-		t.Fatal("outcomes must be recorded")
+	sawNegativeProofFailure := false
+	for _, out := range diag.Outcomes {
+		if out.Class.Pass() {
+			t.Fatalf("forged NXDOMAIN must never be PASS_CORRECT: %+v", out)
+		}
+		if out.QuerySuiteID == "NXDOMAIN" && out.FailureCode == "negative_without_authority_soa" {
+			sawNegativeProofFailure = true
+		}
+	}
+	if !sawNegativeProofFailure {
+		t.Fatal("NXDOMAIN without authority SOA must be recorded as proof failure")
+	}
+}
+
+func TestADNSDiagnosisDeepUsesValidationAttemptBudget(t *testing.T) {
+	a := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+	b := newScriptedADNSProvider(dnspath.DNSPathDoH, "r-b")
+	_ = runQuorumDiagnosis(t, []dnspath.DNSPathProvider{a, b}, true)
+	want := len(CanonicalSuite("example.com", "control.example.net")) * 5
+	if a.calls != want || b.calls != want {
+		t.Fatalf("deep validation must use AttemptsValid: calls=(%d,%d) want=%d", a.calls, b.calls, want)
+	}
+}
+
+func TestADNSDiagnosisDeterministic(t *testing.T) {
+	run := func() *ADNSDiagnosis {
+		a := newScriptedADNSProvider(dnspath.DNSPathTCP, "r-a")
+		b := newScriptedADNSProvider(dnspath.DNSPathDoH, "r-b")
+		return runQuorumDiagnosis(t, []dnspath.DNSPathProvider{a, b}, false)
+	}
+	d1 := run()
+	d2 := run()
+	if d1.Profile.Primary.Canonical() != d2.Profile.Primary.Canonical() {
+		t.Fatal("identical inputs must produce identical primary (no random shuffle)")
 	}
 }
 
