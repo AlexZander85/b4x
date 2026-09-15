@@ -144,6 +144,10 @@ func (w *Worker) processDnsPacket(vc *verdictCtx, ipVersion byte, sport uint16, 
 				useDoH := set.DNS.DoHURL != ""
 
 				if !(set.DNS.Enabled && (set.DNS.TargetDNS != "" || useDoH)) {
+					if w.tryAdaptiveDNSRedirect(vc, ipVersion, sport, payload, raw, srcMac, set, cfg) {
+						log.Tracef("adaptive DNS: intercepting %s for matched set %s", domain, set.Name)
+						return 0
+					}
 					log.Tracef("DNS redirect: %s matched set %s but no redirect target configured, passing through", domain, set.Name)
 					return vc.accept()
 				}
@@ -190,6 +194,13 @@ func (w *Worker) processDnsPacket(vc *verdictCtx, ipVersion byte, sport uint16, 
 				}(set, cfg)
 				return 0
 			}
+		}
+
+		// Global adaptive DNS is intentionally lower precedence than explicit
+		// per-set block/redirect rules, but it also covers unmatched domains.
+		cfg := w.getConfig()
+		if w.tryAdaptiveDNSRedirect(vc, ipVersion, sport, payload, raw, srcMac, nil, cfg) {
+			return 0
 		}
 	}
 
