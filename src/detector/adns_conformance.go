@@ -22,16 +22,20 @@ type ADNSConformanceFixtures struct {
 // silently dropping mutation/error cases; production diagnosis may keep using
 // CanonicalSuiteWithControls until such reviewed fixtures are provisioned.
 func CanonicalConformanceSuite(target, sameServiceControl, unrelatedControl string, f ADNSConformanceFixtures) ([]ADNSSuiteCase, error) {
+	required := []struct {
+		id    string
+		value string
+	}{
+		{"SERVFAIL", f.SERVFAIL},
+		{"TRUNCATION", f.Truncation},
+		{"MULTI", f.MultiAnswer},
+		{"DNSSEC_VALID", f.DNSSECValid},
+		{"DNSSEC_BOGUS", f.DNSSECBogus},
+	}
 	missing := make([]string, 0)
-	for name, value := range map[string]string{
-		"SERVFAIL": f.SERVFAIL,
-		"TRUNCATION": f.Truncation,
-		"MULTI": f.MultiAnswer,
-		"DNSSEC_VALID": f.DNSSECValid,
-		"DNSSEC_BOGUS": f.DNSSECBogus,
-	} {
-		if strings.TrimSpace(value) == "" {
-			missing = append(missing, name)
+	for _, item := range required {
+		if strings.TrimSpace(item.value) == "" {
+			missing = append(missing, item.id)
 		}
 	}
 	if len(missing) != 0 {
