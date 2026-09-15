@@ -55,6 +55,10 @@ var ErrTorSelfLoop = errors.New("tor egress self-loop refused")
 // Sentinel: no carrier of the requested kind is registered.
 var ErrCarrierUnavailable = errors.New("tor egress carrier unavailable")
 
+// ErrNotListening: the tor SOCKS listener is not up (pre-bootstrap or
+// torn down) — the carrier refuses honestly instead of hanging.
+var ErrNotListening = errors.New("tor socks listener not up")
+
 // CarrierLookup is the injected registry seam (production: reserve.Lookup;
 // tests: a fake with dial counters).
 type CarrierLookup func(kind reserve.Kind) (reserve.Entry, bool)
@@ -150,6 +154,14 @@ func NewDialer(policy EgressPolicy, lookup CarrierLookup, resolve ResolveFunc, l
 
 // Policy exposes the resolved policy (status projection).
 func (d *Dialer) Policy() EgressPolicy { return d.policy }
+
+// SetLoops wires the self-loop guard's listener set (the service layer
+// installs it once the loopback listeners exist).
+func (d *Dialer) SetLoops(loops LoopAddrs) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.loops = loops
+}
 
 // Dial dials one classified outbound connection (design §3.2). The
 // self-loop guard runs BEFORE resolution: a loopback listener target is
