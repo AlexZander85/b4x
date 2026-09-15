@@ -165,21 +165,24 @@ func (p *UDPProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 		out.Stage = dnspath.StageDNSMessage
 		return out, nil
 	}
-	out.Stage = dnspath.StageAnswer
-	out.RCode = obs.RCode
-	out.Truncated = obs.Truncated
-	out.AnswerFingerprint = fp.AnswerDigest
-	out.CNAMEFingerprint = fp.CNAMEDigest
-	out.HTTPSFingerprint = fp.HTTPSDigest
-	if obs.Truncated {
-		out.Class = dnspath.OutcomeTruncatedRequiresTCP
-		return out, nil
+	completeProbeEvidence(&out, responses[len(responses)-1], q, obs, fp)
+	if len(responses) > 1 && out.Class == dnspath.OutcomeInconclusive {
+		base := fp
+		conflicting := false
+		for _, payload := range responses[:len(responses)-1] {
+			_, other, err := parseStructured(payload, p.id.ResolverID, time.Now())
+			if err != nil || other.RCode != base.RCode || other.AnswerDigest != base.AnswerDigest || other.CNAMEDigest != base.CNAMEDigest || other.HTTPSDigest != base.HTTPSDigest {
+				conflicting = true
+				break
+			}
+		}
+		if conflicting {
+			out.Class = dnspath.OutcomeEarlyInjectionSuspected
+			out.FailureCode = "conflicting_multi_response_race"
+		} else {
+			out.EvidenceRefs = append(out.EvidenceRefs, "duplicate-response")
+		}
 	}
-	if len(responses) > 1 {
-		out.Class = dnspath.OutcomeInconclusive // multi-response: race observer classifies
-		return out, nil
-	}
-	out.Class = dnspath.OutcomePassCorrect
 	return out, nil
 }
 
