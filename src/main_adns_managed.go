@@ -158,11 +158,13 @@ func managedCatalogFamily(family string) dnspath.DNSPathFamily {
 		return dnspath.DNSPathDNSCrypt
 	case "pqdnscrypt":
 		return dnspath.DNSPathPQDNSCrypt
-	case "doh":
-		return dnspath.DNSPathDoH
 	default:
-		// Anonymized DNSCrypt/ODoH need an explicit signed relay stamp and
-		// route identity; until that producer exists they remain inapplicable.
+		// Managed DoH has native family identity and would bypass the explicit
+		// max-two managed-instance resource budget. Until provider-source
+		// identity is part of DNSPathID, keep it inapplicable here and use the
+		// native bootstrap-pinned DoH provider instead. Anonymized DNSCrypt and
+		// ODoH likewise remain inapplicable until signed relay identity/stamps
+		// are represented end-to-end.
 		return ""
 	}
 }
