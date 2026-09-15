@@ -57,9 +57,43 @@ jobs:
         run: |
           mkdir -p http/ui/dist
           printf '<!doctype html><title>ci-placeholder</title>\n' > http/ui/dist/index.html
-          go test -run '^$' ./...
-          GOOS=linux GOARCH=amd64 go build -o /tmp/b4-amd64 .
-          GOOS=linux GOARCH=arm64 go build -o /tmp/b4-arm64 .
-          GOOS=linux GOARCH=arm GOARM=6 go build -o /tmp/b4-armv6 .
-          GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o /tmp/b4-mips .
-          GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -o /tmp/b4-mipsle .
+
+          log="$GITHUB_WORKSPACE/artifacts/etor-ci-compile-failure.log"
+          mkdir -p "$(dirname "$log")"
+          : > "$log"
+
+          run_compile() {
+            label="$1"
+            shift
+            printf '== %s ==\n' "$label" | tee -a "$log"
+            set +e
+            "$@" 2>&1 | tee -a "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+            if [ "$status" -ne 0 ]; then
+              printf 'FAILED: %s (exit %s)\n' "$label" "$status" | tee -a "$log"
+              return "$status"
+            fi
+          }
+
+          failed=0
+          run_compile 'go test compile-only ./...' go test -run '^$' ./... || failed=1
+          if [ "$failed" -eq 0 ]; then run_compile 'linux/amd64' env GOOS=linux GOARCH=amd64 go build -o /tmp/b4-amd64 . || failed=1; fi
+          if [ "$failed" -eq 0 ]; then run_compile 'linux/arm64' env GOOS=linux GOARCH=arm64 go build -o /tmp/b4-arm64 . || failed=1; fi
+          if [ "$failed" -eq 0 ]; then run_compile 'linux/armv6' env GOOS=linux GOARCH=arm GOARM=6 go build -o /tmp/b4-armv6 . || failed=1; fi
+          if [ "$failed" -eq 0 ]; then run_compile 'linux/mips softfloat' env GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o /tmp/b4-mips . || failed=1; fi
+          if [ "$failed" -eq 0 ]; then run_compile 'linux/mipsle softfloat' env GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -o /tmp/b4-mipsle . || failed=1; fi
+
+          if [ "$failed" -ne 0 ]; then
+            cd "$GITHUB_WORKSPACE"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f artifacts/etor-ci-compile-failure.log
+            if ! git diff --cached --quiet; then
+              git commit -m 'ci(etor): capture compile failure'
+              git push origin HEAD:${GITHUB_REF_NAME}
+            fi
+            exit 1
+          fi
+
+          rm -f "$log"
