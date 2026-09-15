@@ -1,66 +1,60 @@
 package torscan
 
-// Deep relay probe (design §4.3/§1.6 — the ValdikSS TCPSocketConnectChecker
-// canon): the probe proves BOTH "a live Tor node" AND "the DPI lets the
-// TLS application stage through", in four steps:
+// Modern relay probe (Tor link protocols 4/5). The old implementation was
+// copied from a legacy scanner and treated command 0x04 as CREATED; in the
+// Tor protocol 0x04 is DESTROY, CREATED is deprecated command 2, and modern
+// relays use CREATE2/CREATED2 for circuits. A relay liveness/DPI probe does
+// not need to build a circuit at all: completing the authenticated channel
+// handshake through the responder's CERTS/AUTH_CHALLENGE/NETINFO sequence is
+// already a Tor-specific application-stage proof.
 //
-//	1. TLS handshake with a RANDOM SNI www.<4-25 base32>.org (CERT_NONE —
-//	   imitating the Tor client fingerprint);
-//	2. VERSIONS cell  00 00 07 00 | 06 00 03 00 04 00 05  — the answer
-//	   MUST start with 00 00 07;
-//	3. NETINFO (00 00 00 01 08 … + zeros) followed by N dummy CREATE
-//	   cells (00 00 00 05 | 01 + 509 zero bytes);
-//	4. the answer MUST be a CREATED cell: 00 00 00 05 | 04.
+// Stages, on one bounded connection:
+//   1. TLS handshake with a random SNI (CERT_NONE: endpoint liveness, not
+//      WebPKI identity);
+//   2. VERSIONS negotiation for link v4/v5;
+//   3. parse bounded Tor variable/fixed cells until CERTS,
+//      AUTH_CHALLENGE and NETINFO have all arrived;
+//   4. send our well-formed NETINFO to finish the client side.
 //
-// A TCP connect alone proves nothing (a censor's RST-on-Tor-SNI would
-// still pass); this probe walks the protocol until only a real,
-// DPI-transparent Tor ORPort can answer.
+// No CREATE/CREATE_FAST cells are sent. That avoids obsolete handshakes and
+// reduces the scanner's active footprint while still proving that a live Tor
+// OR endpoint survived TLS and application framing through the DPI path.
 
 import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 )
 
-// Cell wire constants (research-tor-tooling §1).
-var (
-	versionsCell = []byte{
-		0x00, 0x00, 0x07, 0x00, // circid=0, cmd=7 (VERSIONS)
-		0x06, 0x00, 0x03, 0x00, 0x04, 0x00, 0x05, // link versions 3..6
-	}
-	netinfoCell = []byte{
-		0x00, 0x00, 0x00, 0x01, // circid=0, cmd=1 (NETINFO)
-		0x08,       // cell body: timestamp len + addr len minimal form
-		0, 0, 0, 0, // timestamp placeholder
-	}
-	createCellHeader = []byte{
-		0x00, 0x00, 0x00, 0x05, // circid=5, cmd=5 (CREATE)
-		0x01, // CREATE (short form)
-	}
-	// createCellPadLen: the full CREATE cell is 514 bytes (5 header + 1 cmd + 509 pad? —
-	// the canonical scanner form: 509 zero bytes after the command byte,
-	// filling the fixed cell size).
-	createCellPadLen = 509
+const (
+	ProbeTimeout        = 6 * time.Second
+	maxHandshakeCells   = 12
+	maxVariableCellBody = 64 << 10
+	cellBodyLen         = 509
 
-	answerVersionsPrefix = []byte{0x00, 0x00, 0x07}
-	answerCreatedHeader  = []byte{0x00, 0x00, 0x00, 0x05, 0x04}
+	cmdVersions      = 7
+	cmdNetinfo       = 8
+	cmdVPadding      = 128
+	cmdCerts         = 129
+	cmdAuthChallenge = 130
 )
 
-// ProbeTimeout bounds one deep probe.
-const ProbeTimeout = 6 * time.Second
+var versionsCell = []byte{
+	0x00, 0x00, cmdVersions, 0x00, 0x04,
+	0x00, 0x04, 0x00, 0x05,
+}
 
-// Dialer opens the raw TCP stream (production: through the egress dialer;
-// tests: local stands).
 type Dialer func(ctx context.Context, network, addr string) (net.Conn, error)
 
-// RandomSNI renders www.<4-25 base32 chars>.org (the Tor-client imitation).
 func RandomSNI() string {
 	const alphabet = "abcdefghijklmnopqrstuvwxyz234567"
-	n := 4 + int(randomByte()%22) // 4..25
+	n := 4 + int(randomByte()%22)
 	buf := make([]byte, n)
 	for i := range buf {
 		buf[i] = alphabet[randomByte()%32]
@@ -74,12 +68,10 @@ func randomByte() byte {
 	return b[0]
 }
 
-// DeepProbe runs the full four-step probe against addr. createCount is
-// the number of dummy CREATE cells (default 8 per the scanner).
-func DeepProbe(ctx context.Context, dial Dialer, addr string, createCount int) error {
-	if createCount <= 0 {
-		createCount = 8
-	}
+// DeepProbe keeps the historical createCount parameter for source/API
+// compatibility; modern probing deliberately ignores it because no circuit
+// creation is needed for a liveness/DPI verdict.
+func DeepProbe(ctx context.Context, dial Dialer, addr string, _ int) error {
 	cctx, cancel := context.WithTimeout(ctx, ProbeTimeout)
 	defer cancel()
 
@@ -89,10 +81,9 @@ func DeepProbe(ctx context.Context, dial Dialer, addr string, createCount int) e
 	}
 	defer raw.Close()
 
-	// step 1: TLS with a random SNI, no verification (liveness, not WebPKI)
 	tc := tls.Client(raw, &tls.Config{
 		ServerName:         RandomSNI(),
-		InsecureSkipVerify: true,
+		InsecureSkipVerify: true, // probe identity comes from Tor cells
 		MinVersion:         tls.VersionTLS12,
 	})
 	if err := tc.HandshakeContext(cctx); err != nil {
@@ -100,81 +91,228 @@ func DeepProbe(ctx context.Context, dial Dialer, addr string, createCount int) e
 	}
 	_ = tc.SetDeadline(time.Now().Add(ProbeTimeout))
 
-	// step 2: VERSIONS → answer must start 00 00 07
 	if _, err := tc.Write(versionsCell); err != nil {
 		return fmt.Errorf("write versions: %w", err)
 	}
-	// VERSIONS answer: [00 00 07] [len:2] [body:len]
-	vhead := make([]byte, 5)
-	if _, err := ioReadFull(tc, vhead); err != nil {
-		return fmt.Errorf("read versions answer: %w", err)
+	peerVersions, err := readVersions(tc)
+	if err != nil {
+		return fmt.Errorf("versions: %w", err)
 	}
-	if string(vhead[:3]) != string(answerVersionsPrefix) {
-		return fmt.Errorf("versions answer %#x, want prefix 000007", vhead[:3])
-	}
-	bodyLen := int(binary.BigEndian.Uint16(vhead[3:5]))
-	if bodyLen > 0 {
-		if err := drainCellBody(tc, uint16(bodyLen)); err != nil {
-			return fmt.Errorf("versions body: %w", err)
-		}
+	linkVersion := negotiateVersion(peerVersions, []uint16{4, 5})
+	if linkVersion == 0 {
+		return fmt.Errorf("versions: no common modern link protocol (peer=%v)", peerVersions)
 	}
 
-	// step 3: NETINFO + N dummy CREATEs
-	if _, err := tc.Write(netinfoCell); err != nil {
-		return fmt.Errorf("write netinfo: %w", err)
-	}
-	create := append(append([]byte{}, createCellHeader...), make([]byte, createCellPadLen)...)
-	for i := 0; i < createCount; i++ {
-		if _, err := tc.Write(create); err != nil {
-			return fmt.Errorf("write create %d: %w", i, err)
+	var sawCerts, sawChallenge, sawNetinfo bool
+	for i := 0; i < maxHandshakeCells && !sawNetinfo; i++ {
+		cmd, body, err := readCell(tc, linkVersion)
+		if err != nil {
+			return fmt.Errorf("channel cell %d: %w", i, err)
+		}
+		switch cmd {
+		case cmdVPadding:
+			continue
+		case cmdCerts:
+			if err := validateCertsCell(body); err != nil {
+				return fmt.Errorf("CERTS: %w", err)
+			}
+			sawCerts = true
+		case cmdAuthChallenge:
+			if len(body) < 34 { // 32-byte challenge + uint16 method count
+				return fmt.Errorf("AUTH_CHALLENGE too short: %d", len(body))
+			}
+			n := int(binary.BigEndian.Uint16(body[32:34]))
+			if 34+2*n > len(body) {
+				return fmt.Errorf("AUTH_CHALLENGE methods overflow: n=%d len=%d", n, len(body))
+			}
+			sawChallenge = true
+		case cmdNetinfo:
+			if err := validateNetinfo(body); err != nil {
+				return fmt.Errorf("NETINFO: %w", err)
+			}
+			sawNetinfo = true
+		default:
+			return fmt.Errorf("unexpected handshake command %d", cmd)
 		}
 	}
-
-	// step 4: the answer must be a CREATED cell (circid=5, cmd=4)
-	reply := make([]byte, len(answerCreatedHeader))
-	if _, err := ioReadFull(tc, reply); err != nil {
-		return fmt.Errorf("read created answer: %w", err)
+	if !sawCerts || !sawChallenge || !sawNetinfo {
+		return fmt.Errorf("incomplete Tor channel handshake: certs=%t challenge=%t netinfo=%t", sawCerts, sawChallenge, sawNetinfo)
 	}
-	if string(reply) != string(answerCreatedHeader) {
-		return fmt.Errorf("answer %#x, want CREATED 0000000504", reply)
+
+	if _, err := tc.Write(buildNetinfo(linkVersion, raw.RemoteAddr())); err != nil {
+		return fmt.Errorf("write NETINFO: %w", err)
 	}
 	return nil
 }
 
-func ioReadFull(c net.Conn, buf []byte) (int, error) {
-	total := 0
-	for total < len(buf) {
-		n, err := c.Read(buf[total:])
-		total += n
-		if err != nil {
-			return total, err
-		}
+func readVersions(r io.Reader) ([]uint16, error) {
+	header := make([]byte, 5) // VERSIONS is always link v=0: 2-byte CircID
+	if _, err := io.ReadFull(r, header); err != nil {
+		return nil, err
 	}
-	return total, nil
+	if header[0] != 0 || header[1] != 0 || header[2] != cmdVersions {
+		return nil, fmt.Errorf("bad VERSIONS header %#x", header)
+	}
+	n := int(binary.BigEndian.Uint16(header[3:5]))
+	if n == 0 || n%2 != 0 || n > 256 {
+		return nil, fmt.Errorf("bad VERSIONS length %d", n)
+	}
+	body := make([]byte, n)
+	if _, err := io.ReadFull(r, body); err != nil {
+		return nil, err
+	}
+	out := make([]uint16, 0, n/2)
+	for i := 0; i < n; i += 2 {
+		out = append(out, binary.BigEndian.Uint16(body[i:i+2]))
+	}
+	return out, nil
 }
 
-// drainCellBody skips len bytes of a cell body.
-func drainCellBody(c net.Conn, bodyLen uint16) error {
-	buf := make([]byte, 512)
-	for remaining := int(bodyLen); remaining > 0; {
-		n := remaining
-		if n > len(buf) {
-			n = len(buf)
+func negotiateVersion(peer, ours []uint16) uint16 {
+	set := make(map[uint16]bool, len(ours))
+	for _, v := range ours {
+		set[v] = true
+	}
+	var best uint16
+	for _, v := range peer {
+		if set[v] && v > best {
+			best = v
 		}
-		read, err := ioReadFull(c, buf[:n])
-		remaining -= read
+	}
+	return best
+}
+
+func readCell(r io.Reader, linkVersion uint16) (byte, []byte, error) {
+	circLen := 2
+	if linkVersion >= 4 {
+		circLen = 4
+	}
+	header := make([]byte, circLen+1)
+	if _, err := io.ReadFull(r, header); err != nil {
+		return 0, nil, err
+	}
+	for _, b := range header[:circLen] {
+		if b != 0 {
+			return 0, nil, errors.New("handshake cell has non-zero CircID")
+		}
+	}
+	cmd := header[circLen]
+	if cmd == cmdVersions || cmd >= 128 {
+		lenBuf := make([]byte, 2)
+		if _, err := io.ReadFull(r, lenBuf); err != nil {
+			return 0, nil, err
+		}
+		n := int(binary.BigEndian.Uint16(lenBuf))
+		if n > maxVariableCellBody {
+			return 0, nil, fmt.Errorf("variable cell %d too large: %d", cmd, n)
+		}
+		body := make([]byte, n)
+		_, err := io.ReadFull(r, body)
+		return cmd, body, err
+	}
+	body := make([]byte, cellBodyLen)
+	_, err := io.ReadFull(r, body)
+	return cmd, body, err
+}
+
+func validateCertsCell(body []byte) error {
+	if len(body) < 1 {
+		return errors.New("empty body")
+	}
+	n := int(body[0])
+	if n == 0 {
+		return errors.New("no certificates")
+	}
+	off := 1
+	seen := map[byte]bool{}
+	for i := 0; i < n; i++ {
+		if off+3 > len(body) {
+			return errors.New("truncated certificate header")
+		}
+		typ := body[off]
+		ln := int(binary.BigEndian.Uint16(body[off+1 : off+3]))
+		off += 3
+		if ln <= 0 || off+ln > len(body) {
+			return fmt.Errorf("certificate %d length %d invalid", i, ln)
+		}
+		if seen[typ] {
+			return fmt.Errorf("duplicate certificate type %d", typ)
+		}
+		seen[typ] = true
+		off += ln
+	}
+	return nil
+}
+
+func validateNetinfo(body []byte) error {
+	if len(body) < 7 { // time + ATYPE + ALEN + NMYADDR at minimum
+		return fmt.Errorf("body too short: %d", len(body))
+	}
+	off := 4
+	_, next, err := consumeAddress(body, off)
+	if err != nil {
+		return err
+	}
+	off = next
+	if off >= len(body) {
+		return errors.New("missing NMYADDR")
+	}
+	n := int(body[off])
+	off++
+	for i := 0; i < n; i++ {
+		_, next, err = consumeAddress(body, off)
 		if err != nil {
-			if read >= n {
-				return nil // short body: tolerated, the probe continues
-			}
 			return err
 		}
+		off = next
 	}
 	return nil
 }
 
-// PlainDial is the standard-library dialer (test stands and direct
-// egress when no policy applies).
+func consumeAddress(body []byte, off int) ([]byte, int, error) {
+	if off+2 > len(body) {
+		return nil, off, errors.New("truncated address header")
+	}
+	typ, ln := body[off], int(body[off+1])
+	off += 2
+	if off+ln > len(body) {
+		return nil, off, errors.New("truncated address value")
+	}
+	if (typ == 4 && ln != 4) || (typ == 6 && ln != 16) {
+		return nil, off, fmt.Errorf("address type=%d has invalid length=%d", typ, ln)
+	}
+	return body[off : off+ln], off + ln, nil
+}
+
+func buildNetinfo(linkVersion uint16, remote net.Addr) []byte {
+	circLen := 2
+	if linkVersion >= 4 {
+		circLen = 4
+	}
+	cell := make([]byte, circLen+1+cellBodyLen)
+	cell[circLen] = cmdNetinfo
+	body := cell[circLen+1:]
+	binary.BigEndian.PutUint32(body[:4], uint32(time.Now().Unix()))
+	off := 4
+	ip := net.IPv4zero
+	if ta, ok := remote.(*net.TCPAddr); ok && ta.IP != nil {
+		ip = ta.IP
+	}
+	if v4 := ip.To4(); v4 != nil {
+		body[off] = 4
+		body[off+1] = 4
+		copy(body[off+2:off+6], v4)
+		off += 6
+	} else if v6 := ip.To16(); v6 != nil {
+		body[off] = 6
+		body[off+1] = 16
+		copy(body[off+2:off+18], v6)
+		off += 18
+	}
+	body[off] = 0 // NMYADDR: clients need not advertise a relay address
+	return cell
+}
+
 func PlainDial(ctx context.Context, network, addr string) (net.Conn, error) {
 	var d net.Dialer
 	return d.DialContext(ctx, network, addr)
