@@ -210,7 +210,10 @@ type Runtime struct {
 	restarts      []time.Time
 	cooldown      time.Time
 	events        []tor.TorEvent
-	collecting    bool
+	// scanning/nextScanAt gate the background relay scan (6h freshness).
+	scanning   bool
+	nextScanAt time.Time
+	collecting bool
 	// collectDone signals the async conveyor pass completion (Stop waits
 	// on it so a temp-dir teardown never races an in-flight collection).
 	collectDone     chan struct{}
@@ -516,5 +519,6 @@ func (r *Runtime) ensure(ctx context.Context) {
 	r.ensureLiveness(ctx)
 	r.ensureExitProbe(ctx)
 	r.ensureConflux(ctx)
+	r.ensureRelayScan(ctx)
 	r.exportState()
 }

@@ -772,3 +772,32 @@ func splitHostPort(addr string) (string, int) {
 	fmt.Sscanf(addr[i+1:], "%d", &port)
 	return addr[:i], port
 }
+
+// ensureRelayScan runs the background scan when enabled and the cache is
+// stale (6 h freshness; design §4.3 — the scan is background, never
+// blocking the start when lines already exist).
+func (r *Runtime) ensureRelayScan(ctx context.Context) {
+	if !r.cfg.RelayScan.Enabled {
+		return
+	}
+	r.mu.Lock()
+	if r.scanning || r.opts.Now().Before(r.nextScanAt) {
+		r.mu.Unlock()
+		return
+	}
+	r.scanning = true
+	r.nextScanAt = r.opts.Now().Add(6 * time.Hour)
+	r.mu.Unlock()
+	go func() {
+		defer func() {
+			r.mu.Lock()
+			r.scanning = false
+			r.mu.Unlock()
+		}()
+		sctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.cfg.EffectiveScanTimeoutSec())*time.Second)
+		defer cancel()
+		if _, err := r.ScanNow(sctx); err != nil {
+			r.appendEvent(tor.TorEvent{Name: tor.EventTorEntryFailed, Class: tor.ClassTorNoBridges, Detail: "relay-scan: " + err.Error(), At: r.opts.Now()})
+		}
+	}()
+}

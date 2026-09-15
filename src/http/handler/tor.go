@@ -39,6 +39,7 @@ func (api *API) RegisterTorApi() {
 	api.mux.HandleFunc("/api/tor/entry", api.handleTorEntry)
 	api.mux.HandleFunc("/api/tor/bridges", api.handleTorBridges)
 	api.mux.HandleFunc("/api/tor/bridges/refresh", api.handleTorBridgesRefresh)
+	api.mux.HandleFunc("/api/tor/scan", api.handleTorScan)
 }
 
 // torDisabledStatus is the truthful minimal shape (nil runtime / config off).
@@ -249,4 +250,36 @@ func (api *API) handleTorBridgesRefresh(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	sendResponse(w, f)
+}
+
+// @Summary Run the vanilla relay scanner
+// @Description One bounded scan run: onionoo fallback chain + deep probes + bandwidth ranking; vanilla lines persisted
+// @Tags tor
+// @Produce json
+// @Success 200 {object} torscan.Result
+// @Failure 409 {object} ErrorResponse
+// @Failure 503 {object} ErrorResponse
+// @Security BearerAuth
+// @Router /tor/scan [post]
+func (api *API) handleTorScan(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, torErr(http.StatusMethodNotAllowed, "method", "POST only"))
+		return
+	}
+	cfg := api.cfgPtr.Load().System.Tor
+	if !cfg.Enabled {
+		writeAPIError(w, torErr(http.StatusConflict, "disabled", "tor disabled"))
+		return
+	}
+	rt := torRuntimeLoad()
+	if rt == nil {
+		writeAPIError(w, torErr(http.StatusServiceUnavailable, "unavailable", "tor runtime not wired"))
+		return
+	}
+	res, err := rt.ScanNow(r.Context())
+	if err != nil {
+		writeAPIError(w, ErrInternal("scan: "+err.Error()))
+		return
+	}
+	sendResponse(w, res)
 }

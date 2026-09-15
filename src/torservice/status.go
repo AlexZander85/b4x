@@ -4,12 +4,17 @@ package torservice
 
 import (
 	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
 
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/transport/tor"
+	"github.com/daniellavrushin/b4/transport/torscan"
 )
 
 // Status renders the API projection (nil-safe on stopped runtimes).
@@ -215,4 +220,80 @@ func (r *Runtime) BridgesList() tor.BridgesFile {
 // collector's own budgets).
 func (r *Runtime) RefreshBridges(ctx context.Context) (tor.BridgesFile, error) {
 	return r.collector.Collect(ctx, r.cfg.Bridges.BuiltinSnowflake, r.cfg.Bridges.Lines, r.cfg.EffectiveCountry(), r.cfg.Bridges.CollectURLs)
+}
+
+// ScanNow runs one bounded relay scan on demand (API/CLI endpoint). The
+// scanner rides the egress dialer (bootstrap-source class — never through
+// tor itself) and writes vanilla lines into the store when it finds any.
+func (r *Runtime) ScanNow(ctx context.Context) (torscan.Result, error) {
+	fetch := torscan.HTTPFetcher(&http.Client{Timeout: torscan.FetchTimeout})
+	// the sources ride the egress dialer through a custom transport
+	tr := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, portStr, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			port := 0
+			if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+				return nil, err
+			}
+			return r.dialer.Dial(ctx, tor.ClassBootstrapSrc, host, uint16(port))
+		},
+	}
+	fetch = torscan.HTTPFetcher(&http.Client{Transport: tr, Timeout: torscan.FetchTimeout})
+	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, portStr, err := net.SplitHostPort(addr)
+		if err != nil {
+			return nil, err
+		}
+		port := 0
+		if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+			return nil, err
+		}
+		return r.dialer.Dial(ctx, tor.ClassBridgeVanilla, host, uint16(port))
+	}
+	s := torscan.NewScanner(fetch, dial)
+	cfg := torscan.ScanConfig{
+		Ports:     r.cfg.EffectiveScanPorts(),
+		Countries: r.cfg.RelayScan.Countries,
+		Goal:      r.cfg.EffectiveScanGoal(),
+		Timeout:   time.Duration(r.cfg.EffectiveScanTimeoutSec()) * time.Second,
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = 90 * time.Second
+	}
+	res, err := s.Scan(ctx, cfg, r.cfg.Bridges.CollectURLs, filepath.Join(r.cfg.EffectiveDataPath(), "onionoo-cache.json"))
+	if err != nil {
+		return res, err
+	}
+	// persist the vanilla lines into the store (merge with the old set)
+	lines := res.BridgeLines()
+	if len(lines) > 0 {
+		prev, _ := r.store.Load()
+		merged := map[string]bool{}
+		for _, sb := range prev.Bridges {
+			if sb.Transport == "vanilla" {
+				merged[sb.Line] = true
+			}
+		}
+		f := tor.BridgesFile{
+			Schema:    tor.BridgesFileSchema,
+			UpdatedAt: r.opts.Now().UnixMilli(),
+			Source:    "relay-scan",
+		}
+		for line := range merged {
+			f.Bridges = append(f.Bridges, tor.StoredBridge{Transport: "vanilla", Line: line})
+		}
+		for _, line := range lines {
+			if _, ok := merged[line]; !ok {
+				f.Bridges = append(f.Bridges, tor.StoredBridge{Transport: "vanilla", Line: line})
+			}
+		}
+		if err := r.store.Save(f); err != nil {
+			return res, fmt.Errorf("persist scan result: %w", err)
+		}
+		observability.Default().Metrics.Set(observability.MetricTorScanRelaysFound, nil, uint64(len(res.Relays)))
+	}
+	return res, nil
 }
