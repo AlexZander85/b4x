@@ -10,16 +10,17 @@ import (
 )
 
 type verifiedPathStats struct {
-	Pass            int
-	Fail            int
-	Latency         time.Duration
-	LatencyN        int
-	Timeouts        int
-	Conflicts       int
-	Injection       bool
-	MidHandshake    bool
-	CorrectnessPass bool
-	ControlsPass    bool
+	Pass              int
+	Fail              int
+	Latency           time.Duration
+	LatencyN          int
+	Timeouts          int
+	TransportFailures int
+	Conflicts         int
+	Injection         bool
+	MidHandshake      bool
+	CorrectnessPass   bool
+	ControlsPass      bool
 }
 
 // verifyADNSOutcomes upgrades only independently corroborated, repeatable
@@ -32,7 +33,7 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 	verified := append([]dnspath.DNSPathProbeOutcome(nil), outcomes...)
 
 	type pathCase struct {
-		path string
+		path   string
 		caseID string
 	}
 	indices := map[pathCase][]int{}
@@ -53,7 +54,10 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			if o.Class != dnspath.OutcomeInconclusive {
 				continue
 			}
-			s := outcomeSignature(o, isControlCase(key.caseID))
+			// CONTROL_SAME is an answer-integrity control and must match the
+			// full fingerprint. Only CONTROL_UNRELATED is a coarse liveness /
+			// resolver-policy control where different CDN answers are expected.
+			s := outcomeSignature(o, coarseControlCase(key.caseID))
 			if sig == "" {
 				sig = s
 			} else if sig != s {
@@ -150,6 +154,10 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			st.LatencyN++
 		case o.Class == dnspath.OutcomeTimeout:
 			st.Timeouts++
+			st.TransportFailures++
+			st.Fail++
+		case o.Class == dnspath.OutcomeConnectionRefused:
+			st.TransportFailures++
 			st.Fail++
 		case o.Class == dnspath.OutcomeAnswerConflict || o.Class == dnspath.OutcomeRCodeMismatch:
 			st.Conflicts++
@@ -159,8 +167,12 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			st.Fail++
 		case o.Class == dnspath.OutcomeTLSMidHandshakeReset:
 			st.MidHandshake = true
+			st.TransportFailures++
 			st.Fail++
 		default:
+			// INCONCLUSIVE due to insufficient independent corroboration is
+			// not a transport failure and must not be re-labelled as port-53
+			// blocking. It still prevents profile promotion via Fail.
 			st.Fail++
 		}
 		stats[h] = st
@@ -172,6 +184,7 @@ func verifyADNSOutcomes(outcomes []dnspath.DNSPathProbeOutcome, suite []ADNSSuit
 			if o.PathID.Hash() == hash {
 				pathOutcomes = append(pathOutcomes, o)
 			}
+		}
 		st.ControlsPass = suiteCasesPass(pathOutcomes, suite, attempts, true)
 		st.CorrectnessPass = suiteCasesPass(pathOutcomes, suite, attempts, false)
 		stats[hash] = st
@@ -207,6 +220,10 @@ func isControlCase(id string) bool {
 	return id == "CONTROL_SAME" || id == "CONTROL_UNRELATED"
 }
 
+func coarseControlCase(id string) bool {
+	return id == "CONTROL_UNRELATED"
+}
+
 func outcomeSignature(o dnspath.DNSPathProbeOutcome, coarse bool) string {
 	negativeProof := false
 	for _, ref := range o.EvidenceRefs {
@@ -227,7 +244,7 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 	if attempts < 1 {
 		attempts = 1
 	}
-	classicFailures := 0
+	classicBlocked := 0
 	classicPaths := 0
 	encryptedPass := false
 	classicPass := false
@@ -242,7 +259,7 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 			poisoning = true
 		}
 		if id.Family == dnspath.DNSPathUDP || id.Family == dnspath.DNSPathSystemForward {
-			if st.Timeouts >= attempts {
+			if st.Timeouts >= attempts && st.Pass == 0 {
 				udpDrop = true
 			}
 		}
@@ -250,8 +267,12 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 			classicPaths++
 			if st.CorrectnessPass && st.ControlsPass {
 				classicPass = true
-			} else if st.Timeouts+st.Conflicts >= attempts || st.Fail >= attempts {
-				classicFailures++
+			}
+			// Port-53 blocking is a transport attribution. Lack of quorum,
+			// malformed answers or answer disagreement are not evidence that
+			// the port itself is blocked.
+			if st.TransportFailures >= attempts && st.Pass == 0 && st.Conflicts == 0 && !st.Injection {
+				classicBlocked++
 			}
 		}
 		if id.Family.Encrypted() && st.CorrectnessPass && st.ControlsPass {
@@ -261,7 +282,7 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 			filteredSet[id.Family] = true
 		}
 	}
-	port53Blocked = classicPaths > 0 && classicFailures == classicPaths && encryptedPass
+	port53Blocked = classicPaths > 0 && classicBlocked == classicPaths && encryptedPass
 	for _, o := range outcomes {
 		if !o.PathID.Family.Encrypted() {
 			continue
