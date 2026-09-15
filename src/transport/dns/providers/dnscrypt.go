@@ -60,8 +60,20 @@ func (p *ManagedProvider) Capabilities() dnspath.DNSPathCapabilities {
 	if err := managed.ValidateSpec(p.Spec); err != nil {
 		return dnspath.DNSPathCapabilities{State: dnspath.CapBlockedByPolicy, Reason: err.Error()}
 	}
-	caps := dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: p.Spec.IPv4, IPv6: p.Spec.IPv6, ProviderVersion: "dnscrypt-proxy@" + managed.PinnedCommit[:7]}
-	return caps
+	// RequireNoLog/RequireNoFilter are generated from reviewed catalog policy,
+	// not guessed by the provider. CatalogTrusted is true only when a concrete
+	// signed catalog version was supplied by the caller.
+	return dnspath.DNSPathCapabilities{
+		State:           dnspath.CapAvailable,
+		IPv4:            p.Spec.IPv4,
+		IPv6:            p.Spec.IPv6,
+		DNSSEC:          true, // generated dnscrypt-proxy config requires DNSSEC-capable upstreams
+		NoLogClaim:      p.Spec.RequireNoLog,
+		NoFilterClaim:   p.Spec.RequireNoFilter,
+		CatalogTrusted:  p.CatalogVer != "",
+		Anonymized:      p.Spec.Family == "anonymized-dnscrypt" || p.Spec.Family == "odoh",
+		ProviderVersion: "dnscrypt-proxy@" + managed.PinnedCommit[:7],
+	}
 }
 
 type managedHandle struct {
