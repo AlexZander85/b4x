@@ -5,11 +5,10 @@ package tor
 // paths, an empty DefaultsTorrcFile and the owning-controller pid in the
 // rendered torrc (b4 death = tor death, the reverse never holds).
 //
-// Identification discipline (the Nova lesson): a tor pid is only OURS when
-// BOTH the pid matches AND /proc/<pid>/exe equals the expected binary —
-// killing by process NAME is forbidden (the router may legitimately run
-// an Entware tor service of its own). Stop is the graded ladder:
-// SIGNAL SHUTDOWN → 3s → SIGTERM → 3s → SIGKILL.
+// Identification discipline: a tor pid is only OURS when BOTH the pid
+// matches AND /proc/<pid>/exe resolves to the expected binary. Stop is the
+// graded ladder SIGNAL SHUTDOWN → SIGTERM → SIGKILL, and the ownership
+// check is repeated immediately before every OS signal.
 
 import (
 	"context"
@@ -27,29 +26,24 @@ import (
 	"github.com/daniellavrushin/b4/log"
 )
 
-// Process supervision constants (design §7.2).
 const (
 	ProcessShutdownGrace = 3 * time.Second
 	ProcessTermGrace     = 3 * time.Second
-	// OOM-suspect window: three immediate deaths in a row.
-	ProcessOOMDeaths = 3
+	ProcessOOMDeaths     = 3
 )
 
-// ErrProcessNotOurs refuses an operation on a pid that fails the pid+exe
-// pair check.
 var ErrProcessNotOurs = errors.New("tor process identification failed (pid+exe mismatch)")
 
-// ProcessDeath carries the wait result of a dead tor.
 type ProcessDeath struct {
 	Err  error
 	Exit int
 }
 
-// ProcessHandle is one supervised tor process.
 type ProcessHandle struct {
-	binaryPath string
+	binaryPath string // canonical expected /proc/<pid>/exe when resolvable
 	dataPath   string
-	pidFile    string
+	pidFile    string // b4 ownership metadata, not Tor's native PidFile
+	nativePID  string // Tor-owned one-line pid file
 	cmd        *exec.Cmd
 
 	mu        sync.Mutex
@@ -57,9 +51,6 @@ type ProcessHandle struct {
 	deathOnce sync.Once
 }
 
-// SpawnTor starts the tor binary with the rendered torrc (paths on argv:
-// -f torrc --DefaultsTorrcFile <empty> --DataDirectory <data>). The
-// environment is minimal (PATH only — tor needs nothing else).
 func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*ProcessHandle, error) {
 	if _, err := os.Stat(binaryPath); err != nil {
 		return nil, fmt.Errorf("tor binary %q: %w", binaryPath, err)
@@ -67,50 +58,66 @@ func SpawnTor(ctx context.Context, binaryPath, torrcPath, dataPath string) (*Pro
 	if err := os.MkdirAll(filepath.Join(dataPath, "data"), 0o700); err != nil {
 		return nil, fmt.Errorf("tor data dir: %w", err)
 	}
-	torrcFile := torrcPath
-	if err := os.Chmod(torrcFile, 0o600); err != nil {
+	if err := os.Chmod(torrcPath, 0o600); err != nil {
 		return nil, fmt.Errorf("torrc chmod: %w", err)
 	}
 
-	// The cookie file is written by tor at start under data/; nothing to
-	// pre-create. The pid file records OUR identification pair.
+	// DefaultsTorrcFile MUST exist before exec. Starting Tor and only then
+	// creating this file was a race that could fail before supervision came
+	// online.
+	defaultsFile := filepath.Join(dataPath, "torrc-defaults")
+	if err := os.WriteFile(defaultsFile, nil, 0o600); err != nil {
+		return nil, fmt.Errorf("torrc-defaults: %w", err)
+	}
+
+	// Tor and b4 must not write different formats to the same pid file.
+	// tor-native.pid belongs to Tor; tor.pid is b4's {pid,exe} ownership
+	// record used by field tooling and guarded escalation.
 	pidFile := filepath.Join(dataPath, "tor.pid")
+	nativePID := filepath.Join(dataPath, "tor-native.pid")
 	_ = os.Remove(pidFile)
+	_ = os.Remove(nativePID)
+
+	expectedExe := binaryPath
+	if resolved, err := filepath.EvalSymlinks(binaryPath); err == nil {
+		expectedExe = resolved
+	}
+	if abs, err := filepath.Abs(expectedExe); err == nil {
+		expectedExe = abs
+	}
 
 	cmd := exec.Command(binaryPath,
-		"-f", torrcFile,
-		"--DefaultsTorrcFile", filepath.Join(dataPath, "torrc-defaults"),
+		"-f", torrcPath,
+		"--DefaultsTorrcFile", defaultsFile,
 		"--DataDirectory", filepath.Join(dataPath, "data"),
-		"--PidFile", pidFile,
+		"--PidFile", nativePID,
 	)
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
 	cmd.Stdout = torLogWriter{tag: "tor"}
 	cmd.Stderr = torLogWriter{tag: "tor-err"}
 
 	h := &ProcessHandle{
-		binaryPath: binaryPath,
+		binaryPath: expectedExe,
 		dataPath:   dataPath,
 		pidFile:    pidFile,
+		nativePID:  nativePID,
 		cmd:        cmd,
 		death:      make(chan ProcessDeath, 1),
 	}
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("tor spawn: %w", err)
 	}
-	// empty defaults file (the "no foreign defaults" contract)
-	if err := os.WriteFile(filepath.Join(dataPath, "torrc-defaults"), nil, 0o600); err != nil {
+	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n%s\n", cmd.Process.Pid, expectedExe)), 0o600); err != nil {
+		// Ownership metadata is a safety primitive. If it cannot be recorded,
+		// kill the just-created child while we still have the direct handle.
 		_ = cmd.Process.Kill()
-		return nil, fmt.Errorf("torrc-defaults: %w", err)
-	}
-	// record the identification pair
-	if err := os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n%s\n", cmd.Process.Pid, binaryPath)), 0o600); err != nil {
-		log.Tracef("[tor] pid file write: %v", err)
+		_, _ = cmd.Process.Wait()
+		return nil, fmt.Errorf("tor ownership pid file: %w", err)
 	}
 	go h.wait()
 	return h, nil
 }
 
-// wait reaps the process exactly once and broadcasts the death.
 func (h *ProcessHandle) wait() {
 	err := h.cmd.Wait()
 	exit := 0
@@ -125,21 +132,17 @@ func (h *ProcessHandle) wait() {
 	})
 }
 
-// PID returns the spawned process id (0 after death).
 func (h *ProcessHandle) PID() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.cmd.Process == nil {
+	if h.cmd == nil || h.cmd.Process == nil {
 		return 0
 	}
 	return h.cmd.Process.Pid
 }
 
-// Death returns the death notification channel.
 func (h *ProcessHandle) Death() <-chan ProcessDeath { return h.death }
 
-// OwnsPID verifies the pid+exe pair against the expected binary — the
-// ONLY sanctioned way to attribute a tor process to us before a kill.
 func OwnsPID(pid int, expectedBinary string) bool {
 	if pid <= 0 || expectedBinary == "" {
 		return false
@@ -148,23 +151,37 @@ func OwnsPID(pid int, expectedBinary string) bool {
 	if err != nil {
 		return false
 	}
-	// the kernel suffixes deleted binaries with " (deleted)"
 	if strings.HasSuffix(exe, " (deleted)") {
 		exe = strings.TrimSuffix(exe, " (deleted)")
 	}
-	return exe == expectedBinary
+	expected := expectedBinary
+	if resolved, err := filepath.EvalSymlinks(expectedBinary); err == nil {
+		expected = resolved
+	}
+	if abs, err := filepath.Abs(expected); err == nil {
+		expected = abs
+	}
+	return exe == expected
 }
 
-// Stop runs the graded shutdown ladder; the ctx bounds the total wait.
+// Stop runs the graded shutdown ladder. It never uses process-name matching
+// and refuses TERM/KILL if the pid+exe ownership proof fails.
 func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
 	h.mu.Lock()
 	proc := h.cmd.Process
+	pid := 0
+	if proc != nil {
+		pid = proc.Pid
+	}
 	h.mu.Unlock()
 	if proc == nil {
 		return
 	}
+	defer func() {
+		_ = os.Remove(h.pidFile)
+		_ = os.Remove(h.nativePID)
+	}()
 
-	// grade 1: SIGNAL SHUTDOWN (clean drain)
 	if ctl != nil {
 		if err := ctl.Signal("SHUTDOWN"); err != nil {
 			log.Tracef("[tor] SHUTDOWN signal: %v", err)
@@ -173,15 +190,22 @@ func (h *ProcessHandle) Stop(ctx context.Context, ctl ControlClient) {
 			return
 		}
 	}
-	// grade 2: SIGTERM
+
+	if !OwnsPID(pid, h.binaryPath) {
+		log.Tracef("[tor] refusing SIGTERM for pid=%d: %v", pid, ErrProcessNotOurs)
+		return
+	}
 	_ = proc.Signal(syscall.SIGTERM)
 	if h.awaitDeath(ctx, ProcessTermGrace) {
 		return
 	}
-	// grade 3: SIGKILL
+
+	if !OwnsPID(pid, h.binaryPath) {
+		log.Tracef("[tor] refusing SIGKILL for pid=%d: %v", pid, ErrProcessNotOurs)
+		return
+	}
 	_ = proc.Kill()
-	h.awaitDeath(ctx, ProcessShutdownGrace)
-	_ = os.Remove(h.pidFile)
+	_ = h.awaitDeath(ctx, ProcessShutdownGrace)
 }
 
 func (h *ProcessHandle) awaitDeath(parent context.Context, grace time.Duration) bool {
@@ -195,7 +219,6 @@ func (h *ProcessHandle) awaitDeath(parent context.Context, grace time.Duration) 
 	}
 }
 
-// ReadPidFile decodes the recorded identification pair.
 func ReadPidFile(path string) (pid int, exe string, err error) {
 	blob, err := os.ReadFile(path)
 	if err != nil {
@@ -209,15 +232,12 @@ func ReadPidFile(path string) (pid int, exe string, err error) {
 	if err != nil {
 		return 0, "", fmt.Errorf("pid file pid: %w", err)
 	}
-	exe = ""
 	if len(lines) > 1 {
 		exe = strings.TrimSpace(lines[1])
 	}
 	return pid, exe, nil
 }
 
-// DetectTorVersion shells `tor --version` (honest binary-missing state is
-// the CALLER's concern; a version probe failure is not fatal).
 func DetectTorVersion(ctx context.Context, binaryPath string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -232,7 +252,6 @@ func DetectTorVersion(ctx context.Context, binaryPath string) (string, error) {
 	return first, nil
 }
 
-// torLogWriter funnels tor's own stdout/stderr into our trace log.
 type torLogWriter struct{ tag string }
 
 func (w torLogWriter) Write(p []byte) (int, error) {
