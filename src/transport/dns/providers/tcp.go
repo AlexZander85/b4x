@@ -171,6 +171,9 @@ func (p *TCPProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSP
 	if err != nil {
 		return dnspath.DNSResponse{}, err
 	}
+	if err := validateProductionResponse(resp, obs); err != nil {
+		return dnspath.DNSResponse{}, err
+	}
 	return dnspath.DNSResponse{
 		Payload: resp, Fingerprint: fp, RCode: obs.RCode, Latency: latency, ResponseCount: 1,
 	}, nil
