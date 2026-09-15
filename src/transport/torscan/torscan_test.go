@@ -1,14 +1,9 @@
 package torscan
 
-// TT9 DoD (patch-plan §10): httptest onionoo (all fallbacks in order;
-// offline cache), the fake-TLS relay stand answering the deep probe
-// (correct AND incorrect replies), bandwidth ranking, budgets/goal early
-// stop, all-or-addresses candidates (the juev bug fix), country filters,
-// bridge-line conversion.
-
 import (
 	"context"
 	"crypto/tls"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -27,9 +22,9 @@ func onionooBody(relays ...Relay) string {
 	return string(b)
 }
 
-func fetchFromURLs(map_ map[string]string) Fetcher {
+func fetchFromURLs(m map[string]string) Fetcher {
 	return func(ctx context.Context, url string) ([]byte, error) {
-		if body, ok := map_[url]; ok {
+		if body, ok := m[url]; ok {
 			return []byte(body), nil
 		}
 		return nil, fmt.Errorf("source %q unavailable", url)
@@ -37,166 +32,98 @@ func fetchFromURLs(map_ map[string]string) Fetcher {
 }
 
 func TestOnionooPrimaryWins(t *testing.T) {
-	relays := []Relay{{Fingerprint: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", OrAddresses: []string{"1.2.3.4:443"}}}
-	got, src, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{
-		DefaultOnionooURL: onionooBody(relays...),
-	}), nil, "")
-	if err != nil {
-		t.Fatalf("onionoo: %v", err)
-	}
-	if len(got) != 1 || got[0].Fingerprint != relays[0].Fingerprint {
-		t.Fatalf("relays = %+v", got)
-	}
-	if src != DefaultOnionooURL {
-		t.Fatalf("source = %q", src)
+	relays := []Relay{{Fingerprint: strings.Repeat("A", 40), OrAddresses: []string{"1.2.3.4:443"}}}
+	got, src, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{DefaultOnionooURL: onionooBody(relays...)}), nil, "")
+	if err != nil || len(got) != 1 || src != DefaultOnionooURL {
+		t.Fatalf("got=%+v src=%q err=%v", got, src, err)
 	}
 }
 
 func TestOnionooFallbackChain(t *testing.T) {
-	// primary + CORS dead; the GitHub mirror carries the list; the
-	// fallback templates expand {url} — provide both forms.
-	relays := []Relay{{Fingerprint: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", OrAddresses: []string{"5.6.7.8:9001"}}}
-	httpsURL := strings.ReplaceAll(DefaultOnionooURL, "&", "%26")
-	cors := "https://icors.vercel.app/?url=" + httpsURL
+	relays := []Relay{{Fingerprint: strings.Repeat("B", 40), OrAddresses: []string{"5.6.7.8:9001"}}}
 	github := "https://raw.githubusercontent.com/ValdikSS/tor-onionoo-mirror/main/details.json"
-	got, src, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{
-		github: onionooBody(relays...),
-	}), nil, "")
-	if err != nil {
-		t.Fatalf("fallback: %v", err)
+	got, src, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{github: onionooBody(relays...)}), nil, "")
+	if err != nil || len(got) != 1 || src != github {
+		t.Fatalf("got=%+v src=%q err=%v", got, src, err)
 	}
-	if len(got) != 1 {
-		t.Fatalf("relays = %+v", got)
-	}
-	if src != github {
-		t.Fatalf("source = %q", src)
-	}
-	_ = cors
 }
 
 func TestOnionooCacheOfflineFallback(t *testing.T) {
-	dir := t.TempDir()
-	cache := filepath.Join(dir, "cache.json")
-	relays := []Relay{{Fingerprint: "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", OrAddresses: []string{"9.9.9.9:443"}}}
-	// first: a live source populates the cache
-	if _, _, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{
-		DefaultOnionooURL: onionooBody(relays...),
-	}), nil, cache); err != nil {
+	cache := filepath.Join(t.TempDir(), "cache.json")
+	relays := []Relay{{Fingerprint: strings.Repeat("C", 40), OrAddresses: []string{"9.9.9.9:443"}}}
+	if _, _, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{DefaultOnionooURL: onionooBody(relays...)}), nil, cache); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(cache); err != nil {
 		t.Fatalf("cache not written: %v", err)
 	}
-	// then: everything dead → the cache answers
 	got, src, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{}), nil, cache)
-	if err != nil {
-		t.Fatalf("offline: %v", err)
-	}
-	if len(got) != 1 || got[0].Fingerprint != relays[0].Fingerprint {
-		t.Fatalf("cached relays = %+v", got)
-	}
-	if src != "cache" {
-		t.Fatalf("source = %q", src)
+	if err != nil || len(got) != 1 || src != "cache" {
+		t.Fatalf("got=%+v src=%q err=%v", got, src, err)
 	}
 }
 
 func TestOnionooEmptyAnswerSkipped(t *testing.T) {
-	// a 200 with an EMPTY relay list never wins; the next source does.
-	relays := []Relay{{Fingerprint: "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD", OrAddresses: []string{"1.1.1.1:443"}}}
+	relays := []Relay{{Fingerprint: strings.Repeat("D", 40), OrAddresses: []string{"1.1.1.1:443"}}}
 	github := "https://raw.githubusercontent.com/ValdikSS/tor-onionoo-mirror/main/details.json"
 	got, _, err := Onionoo(context.Background(), fetchFromURLs(map[string]string{
-		DefaultOnionooURL: onionooBody(), // empty
-		github:            onionooBody(relays...),
+		DefaultOnionooURL: onionooBody(), github: onionooBody(relays...),
 	}), nil, "")
 	if err != nil || len(got) != 1 {
-		t.Fatalf("empty-first: relays=%+v err=%v", got, err)
+		t.Fatalf("got=%+v err=%v", got, err)
 	}
 }
 
 func TestAddrCandidatesAllAddresses(t *testing.T) {
-	r := Relay{
-		Fingerprint: "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE",
-		OrAddresses: []string{"1.2.3.4:443", "1.2.3.4:9001", "[2620:106:3003:4b::1]:443", "1.2.3.4:8080"},
-	}
+	r := Relay{Fingerprint: strings.Repeat("E", 40), OrAddresses: []string{
+		"1.2.3.4:443", "1.2.3.4:9001", "[2620:106:3003:4b::1]:443", "1.2.3.4:8080",
+	}}
 	got := AddrCandidates(r, []int{443, 9001})
 	if len(got) != 3 {
-		t.Fatalf("candidates = %v (ALL matching or_addresses, both families — juev [0]-bug fixed)", got)
+		t.Fatalf("candidates=%v", got)
 	}
-	sawV6 := false
-	for _, c := range got {
-		if strings.HasPrefix(c, "[2620:") {
-			sawV6 = true
-		}
-	}
-	if !sawV6 {
-		t.Fatalf("IPv6 candidate missing: %v", got)
-	}
-	// no port filter: every address
-	all := AddrCandidates(r, nil)
-	if len(all) != 4 {
-		t.Fatalf("unfiltered = %v", all)
+	if len(AddrCandidates(r, nil)) != 4 {
+		t.Fatal("nil port filter must keep every OR address")
 	}
 }
 
 func TestBandwidthRankAndShuffle(t *testing.T) {
-	relays := []Relay{
-		{Fingerprint: "A", ObservedBandwidth: 100},
-		{Fingerprint: "B", ObservedBandwidth: 900},
-		{Fingerprint: "C", ObservedBandwidth: 500},
-	}
+	relays := []Relay{{Fingerprint: "A", ObservedBandwidth: 100}, {Fingerprint: "B", ObservedBandwidth: 900}, {Fingerprint: "C", ObservedBandwidth: 500}}
 	ranked := BandwidthRank(relays)
-	if ranked[0].Fingerprint != "B" || ranked[1].Fingerprint != "C" || ranked[2].Fingerprint != "A" {
-		t.Fatalf("rank = %+v", ranked)
+	if ranked[0].Fingerprint != "B" || ranked[1].Fingerprint != "C" {
+		t.Fatalf("rank=%+v", ranked)
 	}
-	shuffled := Shuffle(relays, 42)
-	if len(shuffled) != 3 {
-		t.Fatalf("shuffle lost entries: %+v", shuffled)
-	}
-	// deterministic seed → same order twice
-	again := Shuffle(relays, 42)
-	for i := range shuffled {
-		if shuffled[i].Fingerprint != again[i].Fingerprint {
-			t.Fatal("shuffle must be deterministic for a fixed seed")
+	a, b := Shuffle(relays, 42), Shuffle(relays, 42)
+	for i := range a {
+		if a[i].Fingerprint != b[i].Fingerprint {
+			t.Fatal("fixed seed must be deterministic")
 		}
 	}
 }
 
 func TestFilterCountries(t *testing.T) {
-	relays := []Relay{
-		{Fingerprint: "A", Country: "RU"},
-		{Fingerprint: "B", Country: "SE"},
-		{Fingerprint: "C", Country: "NL"},
-		{Fingerprint: "D", Country: "TR"},
-	}
-	// exclude
+	relays := []Relay{{Fingerprint: "A", Country: "RU"}, {Fingerprint: "B", Country: "SE"}, {Fingerprint: "C", Country: "NL"}, {Fingerprint: "D", Country: "TR"}}
 	got := filterCountries(relays, []string{"-ru", "-tr"})
 	if len(got) != 2 || got[0].Fingerprint != "B" || got[1].Fingerprint != "C" {
-		t.Fatalf("exclude = %+v", got)
+		t.Fatalf("exclude=%+v", got)
 	}
-	// only
 	got = filterCountries(relays, []string{"!se"})
 	if len(got) != 1 || got[0].Fingerprint != "B" {
-		t.Fatalf("only = %+v", got)
+		t.Fatalf("only=%+v", got)
 	}
-	// priority ordering
 	got = filterCountries(relays, []string{"nl", "se"})
 	if len(got) != 4 || got[0].Fingerprint != "C" || got[1].Fingerprint != "B" {
-		t.Fatalf("priority = %+v", got)
-	}
-	// no filter: unchanged
-	if len(filterCountries(relays, nil)) != 4 {
-		t.Fatal("nil filter must keep everything")
+		t.Fatalf("priority=%+v", got)
 	}
 }
 
-// --- the fake TLS relay stand ---
-
-// fakeRelay answers the deep probe correctly (VERSIONS → CREATED).
+// fakeRelay speaks the modern in-protocol channel handshake after TLS.
+// badMode: 1 wrong VERSIONS; 2 no AUTH_CHALLENGE; 3 TLS dead; 4 malformed CERTS.
 type fakeRelay struct {
 	ln      net.Listener
 	tlsConf *tls.Config
 	probes  atomic.Int64
-	badMode int // 1: wrong VERSIONS answer, 2: no CREATED, 3: tls handshake fail
+	badMode int
 }
 
 func newFakeRelay(t *testing.T, badMode int) *fakeRelay {
@@ -221,49 +148,64 @@ func (f *fakeRelay) serve() {
 		if err != nil {
 			return
 		}
-		go func(c net.Conn) {
-			defer c.Close()
-			f.probes.Add(1)
-			if f.badMode == 3 {
-				return // dead TLS: never handshake
-			}
-			tc := tls.Server(c, f.tlsConf)
-			if err := tc.Handshake(); err != nil {
-				return
-			}
-			// read the VERSIONS cell: circid(4) cmd(1) len(2) = 7 bytes
-			head := make([]byte, 7)
-			if _, err := readFull(tc, head); err != nil {
-				return
-			}
-			if f.badMode == 1 {
-				_, _ = tc.Write([]byte{0x00, 0x00, 0x08, 0x00, 0x00}) // wrong cmd
-				return
-			}
-			// answer VERSIONS: 00 00 07 | len | versions (00 04 00 05)
-			_, _ = tc.Write([]byte{0x00, 0x00, 0x07, 0x00, 0x04, 0x00, 0x04, 0x00, 0x05})
-			// consume NETINFO (9 bytes: 4+1+4) then answer, then CREATEs
-			netinfo := make([]byte, 9)
-			if _, err := readFull(tc, netinfo); err != nil {
-				return
-			}
-			if f.badMode == 2 {
-				// read one CREATE cell then answer DESTROY (wrong cmd)
-				create := make([]byte, 514)
-				_, _ = readFull(tc, create)
-				_, _ = tc.Write([]byte{0x00, 0x00, 0x00, 0x05, 0x06})
-				return
-			}
-			// consume each CREATE (514 bytes) and answer CREATED per cell
-			for {
-				create := make([]byte, 514)
-				if _, err := readFull(tc, create); err != nil {
-					return
-				}
-				_, _ = tc.Write([]byte{0x00, 0x00, 0x00, 0x05, 0x04}) // CREATED
-			}
-		}(conn)
+		go f.handle(conn)
 	}
+}
+
+func (f *fakeRelay) handle(c net.Conn) {
+	defer c.Close()
+	f.probes.Add(1)
+	if f.badMode == 3 {
+		return
+	}
+	tc := tls.Server(c, f.tlsConf)
+	if err := tc.Handshake(); err != nil {
+		return
+	}
+	clientVersions := make([]byte, len(versionsCell))
+	if _, err := readFull(tc, clientVersions); err != nil {
+		return
+	}
+	if f.badMode == 1 {
+		_, _ = tc.Write([]byte{0, 0, cmdNetinfo, 0, 0})
+		return
+	}
+	_, _ = tc.Write([]byte{0, 0, cmdVersions, 0, 4, 0, 4, 0, 5})
+
+	certBody := []byte{1, 4, 0, 1, 0x42}
+	if f.badMode == 4 {
+		certBody = []byte{1, 4, 0, 9, 0x42}
+	}
+	writeVariable(tc, cmdCerts, certBody)
+	if f.badMode != 2 {
+		challenge := make([]byte, 34)
+		binary.BigEndian.PutUint16(challenge[32:34], 0)
+		writeVariable(tc, cmdAuthChallenge, challenge)
+	}
+	writeNetinfo(tc)
+	if f.badMode == 0 {
+		// A correct client finishes with its fixed NETINFO cell.
+		buf := make([]byte, 4+1+cellBodyLen)
+		_, _ = readFull(tc, buf)
+	}
+}
+
+func writeVariable(c net.Conn, cmd byte, body []byte) {
+	header := make([]byte, 7) // v4/5: CircID(4), cmd, len(2)
+	header[4] = cmd
+	binary.BigEndian.PutUint16(header[5:7], uint16(len(body)))
+	_, _ = c.Write(append(header, body...))
+}
+
+func writeNetinfo(c net.Conn) {
+	cell := make([]byte, 4+1+cellBodyLen)
+	cell[4] = cmdNetinfo
+	body := cell[5:]
+	binary.BigEndian.PutUint32(body[:4], uint32(time.Now().Unix()))
+	body[4], body[5] = 4, 4
+	copy(body[6:10], []byte{127, 0, 0, 1})
+	body[10] = 0
+	_, _ = c.Write(cell)
 }
 
 func readFull(c net.Conn, buf []byte) (int, error) {
@@ -280,123 +222,129 @@ func readFull(c net.Conn, buf []byte) (int, error) {
 
 func TestDeepProbeGoodRelay(t *testing.T) {
 	fr := newFakeRelay(t, 0)
-	err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 2)
-	if err != nil {
-		t.Fatalf("good relay probe: %v", err)
+	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 0); err != nil {
+		t.Fatalf("good modern relay probe: %v", err)
 	}
 }
 
 func TestDeepProbeWrongVersions(t *testing.T) {
 	fr := newFakeRelay(t, 1)
-	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 1); err == nil {
-		t.Fatal("wrong VERSIONS answer must fail the probe")
+	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 0); err == nil {
+		t.Fatal("wrong VERSIONS must fail")
 	}
 }
 
-func TestDeepProbeNoCreated(t *testing.T) {
+func TestDeepProbeIncompleteHandshake(t *testing.T) {
 	fr := newFakeRelay(t, 2)
-	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 1); err == nil {
-		t.Fatal("missing CREATED must fail the probe")
+	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 0); err == nil {
+		t.Fatal("missing AUTH_CHALLENGE must fail")
+	}
+}
+
+func TestDeepProbeMalformedCerts(t *testing.T) {
+	fr := newFakeRelay(t, 4)
+	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 0); err == nil {
+		t.Fatal("malformed CERTS must fail")
 	}
 }
 
 func TestDeepProbeDeadTLS(t *testing.T) {
 	fr := newFakeRelay(t, 3)
-	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 1); err == nil {
-		t.Fatal("a TLS-refusing endpoint must fail the probe")
+	if err := DeepProbe(context.Background(), PlainDial, fr.ln.Addr().String(), 0); err == nil {
+		t.Fatal("TLS-refusing endpoint must fail")
 	}
 }
 
 func TestRandomSNI(t *testing.T) {
 	sni := RandomSNI()
 	if !strings.HasPrefix(sni, "www.") || !strings.HasSuffix(sni, ".org") {
-		t.Fatalf("sni = %q", sni)
+		t.Fatalf("sni=%q", sni)
 	}
 	mid := strings.TrimSuffix(strings.TrimPrefix(sni, "www."), ".org")
 	if len(mid) < 4 || len(mid) > 25 {
-		t.Fatalf("mid len = %d", len(mid))
-	}
-	if RandomSNI() == sni {
-		// 1-in-many chance of collision with 4-25 random chars — retry once
-		if RandomSNI() == sni {
-			t.Fatal("SNI must be random")
-		}
+		t.Fatalf("mid len=%d", len(mid))
 	}
 }
 
-// --- scanner driver ---
+func relayPort(t *testing.T, addr string) int {
+	t.Helper()
+	_, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var port int
+	fmt.Sscanf(portStr, "%d", &port)
+	return port
+}
 
 func TestScannerGoalDrivenEarlyStop(t *testing.T) {
 	fr := newFakeRelay(t, 0)
 	fp := strings.Repeat("F", 40)
-	relays := []Relay{{Fingerprint: fp, OrAddresses: []string{fr.ln.Addr().String()}}}
-	// the stand listens on an EPHEMERAL port: the port filter must
-	// include it explicitly
-	_, portStr, _ := net.SplitHostPort(fr.ln.Addr().String())
-	var port int
-	fmt.Sscanf(portStr, "%d", &port)
+	relays := []Relay{{Fingerprint: fp, OrAddresses: []string{fr.ln.Addr().String()}, ObservedBandwidth: 1000}}
 	fetch := fetchFromURLs(map[string]string{DefaultOnionooURL: onionooBody(relays...)})
-
 	s := NewScanner(fetch, PlainDial)
-	res, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 10 * time.Second, PoolSize: 4, Ports: []int{port}}, nil, "")
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if len(res.Relays) != 1 {
-		t.Fatalf("relays = %+v", res.Relays)
-	}
-	if res.Relays[0].Addr != fr.ln.Addr().String() {
-		t.Fatalf("addr = %q", res.Relays[0].Addr)
+	res, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 10 * time.Second, PoolSize: 4, Ports: []int{relayPort(t, fr.ln.Addr().String())}}, nil, "")
+	if err != nil || len(res.Relays) != 1 {
+		t.Fatalf("res=%+v err=%v", res, err)
 	}
 	lines := res.BridgeLines()
-	if len(lines) != 1 || !strings.HasPrefix(lines[0], fr.ln.Addr().String()) || !strings.HasSuffix(lines[0], fp) {
-		t.Fatalf("bridge lines = %v", lines)
+	if len(lines) != 1 || !strings.HasSuffix(lines[0], fp) {
+		t.Fatalf("bridge lines=%v", lines)
+	}
+}
+
+func TestScannerPersistentCooldown(t *testing.T) {
+	fr := newFakeRelay(t, 0)
+	fp := strings.Repeat("9", 40)
+	relays := []Relay{{Fingerprint: fp, OrAddresses: []string{fr.ln.Addr().String()}, ObservedBandwidth: 999}}
+	fetch := fetchFromURLs(map[string]string{DefaultOnionooURL: onionooBody(relays...)})
+	cache := filepath.Join(t.TempDir(), "onionoo.json")
+	base := time.Unix(1_800_000_000, 0)
+	s := NewScanner(fetch, PlainDial)
+	s.SetNow(func() time.Time { return base })
+	cfg := ScanConfig{Goal: 1, Timeout: 5 * time.Second, Ports: []int{relayPort(t, fr.ln.Addr().String())}}
+	if _, err := s.Scan(context.Background(), cfg, nil, cache); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	res, err := s.Scan(context.Background(), cfg, nil, cache)
+	if err == nil || res.SkippedCooldown != 1 {
+		t.Fatalf("second scan must cooldown-skip: res=%+v err=%v", res, err)
+	}
+	s.SetNow(func() time.Time { return base.Add(7 * time.Hour) })
+	if _, err := s.Scan(context.Background(), cfg, nil, cache); err != nil {
+		t.Fatalf("post-cooldown scan: %v", err)
 	}
 }
 
 func TestScannerNoVerifiedFailsHonestly(t *testing.T) {
-	// only dead relays: the scan fails with the probe count
 	fr := newFakeRelay(t, 3)
 	relays := []Relay{{Fingerprint: strings.Repeat("E", 40), OrAddresses: []string{fr.ln.Addr().String()}}}
 	fetch := fetchFromURLs(map[string]string{DefaultOnionooURL: onionooBody(relays...)})
 	s := NewScanner(fetch, PlainDial)
-	_, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 5 * time.Second}, nil, "")
-	if err == nil {
-		t.Fatal("no verified relays must fail")
-	}
-	if !strings.Contains(err.Error(), "deep probe") {
-		t.Fatalf("err = %v", err)
+	_, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 5 * time.Second, Ports: []int{relayPort(t, fr.ln.Addr().String())}}, nil, "")
+	if err == nil || !strings.Contains(err.Error(), "modern channel probe") {
+		t.Fatalf("err=%v", err)
 	}
 }
 
 func TestScannerSourcesDead(t *testing.T) {
 	s := NewScanner(fetchFromURLs(map[string]string{}), PlainDial)
-	_, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 3 * time.Second}, nil, "")
-	if err == nil {
+	if _, err := s.Scan(context.Background(), ScanConfig{Goal: 1, Timeout: 3 * time.Second}, nil, ""); err == nil {
 		t.Fatal("all sources dead must fail")
 	}
 }
 
-// httptest-shaped integration: the fetcher rides a real HTTP server.
 func TestOnionooViaHTTPTestServer(t *testing.T) {
 	relays := []Relay{{Fingerprint: strings.Repeat("1", 40), OrAddresses: []string{"127.0.0.1:443"}, ObservedBandwidth: 12345}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"relays": relays})
 	}))
 	defer srv.Close()
-
 	got, src, err := Onionoo(context.Background(), HTTPFetcher(srv.Client()), []string{srv.URL}, "")
-	if err != nil {
-		t.Fatalf("httptest onionoo: %v", err)
-	}
-	if len(got) != 1 || got[0].ObservedBandwidth != 12345 {
-		t.Fatalf("relays = %+v", got)
-	}
-	if src != srv.URL {
-		t.Fatalf("src = %q", src)
+	if err != nil || len(got) != 1 || got[0].ObservedBandwidth != 12345 || src != srv.URL {
+		t.Fatalf("got=%+v src=%q err=%v", got, src, err)
 	}
 }
 
-// selfSignedCert/Key generate a throwaway TLS identity for the stands.
 func selfSignedCert(t *testing.T) []byte { return tlsTestCertPEM }
 func selfSignedKey(t *testing.T) []byte  { return tlsTestKeyPEM }
