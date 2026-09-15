@@ -11,6 +11,7 @@ import (
 
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/transport/tor"
 	"github.com/daniellavrushin/b4/utils"
 )
 
@@ -743,13 +744,13 @@ func (c *Config) validateAdaptiveDNS(v *validator) {
 }
 
 // validateTor checks the E-TOR reserve section (design tor-reserve-design.md
-// §9.4, patch-plan TT1). The structural fields are validated ALWAYS — even
-// when disabled — per the program canon (a typo cannot hide until enable
-// day); enabled-only requirements follow the opera/proton shape (absolute
-// paths). Bridge LINES get the full parser check once the parser itself
-// lands (TT2 wires tor.ParseBridgeLine here); the ASCII/control-char floor
-// below already blocks torrc injection at the config layer so an invalid
-// line can never even reach the renderer.
+// §9.4, patch-plan TT1+TT2). The structural fields are validated ALWAYS —
+// even when disabled — per the program canon (a typo cannot hide until
+// enable day); enabled-only requirements follow the opera/proton shape
+// (absolute paths). Bridge LINES go through the full admission parser
+// (tor.ParseBridgeLine: torrc injection, 510-byte budget, fingerprint
+// shape, k=v tokens, sqs rejection) — an invalid line fails at the config
+// layer, never in the runtime.
 func (c *Config) validateTor(v *validator) {
 	t := c.System.Tor
 	if mode := strings.ToLower(strings.TrimSpace(t.Entry.Mode)); mode != "" {
@@ -813,9 +814,11 @@ func (c *Config) validateTor(v *validator) {
 			"speed.snowflake_max %d outside [0, 8] (0 selects the default 2)", t.Speed.SnowflakeMax)
 	}
 	for i, raw := range t.Bridges.Lines {
-		if !torBridgeLineASCII(raw) {
+		// TT2: the full parser is the admission gate (design §1.5) —
+		// injection, budget, fingerprint shape, k=v tokens, sqs rejection.
+		if _, err := tor.ParseBridgeLine(raw); err != nil {
 			v.addf(fmt.Sprintf("system.tor.bridges.lines[%d]", i), "invalid_value", map[string]any{"line": raw},
-				"bridge line %d contains non-ASCII or control characters (torrc injection guard)", i)
+				"bridge line %d invalid: %v", i, err)
 		}
 	}
 	for i, raw := range t.Bridges.CollectURLs {
@@ -859,18 +862,4 @@ func (c *Config) validateTor(v *validator) {
 		v.addf("system.tor.binary_path", "must_be_absolute", map[string]any{"path": t.BinaryPath},
 			"tor binary_path must be an absolute path (got: %q)", t.BinaryPath)
 	}
-}
-
-// torBridgeLineASCII is the config-layer injection floor for bridge lines:
-// ASCII-only, no ISO control characters. The full parser (budget 510,
-// fingerprint shape, k=v tokens, sqs rejection) lands with TT2 and replaces
-// this floor with tor.ParseBridgeLine at the same call site.
-func torBridgeLineASCII(line string) bool {
-	for i := 0; i < len(line); i++ {
-		c := line[i]
-		if c < 0x20 || c > 0x7e {
-			return false
-		}
-	}
-	return true
 }
