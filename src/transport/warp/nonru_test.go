@@ -368,6 +368,7 @@ func TestNonRUGateAllProvidersRU(t *testing.T) {
 	pb.set(ru, nil)
 
 	waitUntil(t, "revoked on provider-ru", func() bool { return g.Status().CloseReason == CloseProviderRU })
+	waitUntil(t, "fail-closed event", func() bool { return log.count(EvNonRUFailClosed) > 0 })
 	st := g.Status()
 	if st.Open {
 		t.Fatal("gate still open")

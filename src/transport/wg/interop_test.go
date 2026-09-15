@@ -377,6 +377,9 @@ func TestKernelTUNOpenManualGate(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("linux only")
 	}
+	if os.Getenv("B4X_WG_KERNEL_TUN_TEST") != "1" {
+		t.Skip("manual privileged gate; set B4X_WG_KERNEL_TUN_TEST=1 and grant /dev/net/tun + CAP_NET_ADMIN")
+	}
 	if _, err := os.Stat("/dev/net/tun"); err != nil {
 		t.Skip("/dev/net/tun absent; run with --device /dev/net/tun --cap-add NET_ADMIN")
 	}
