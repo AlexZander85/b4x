@@ -227,12 +227,27 @@ func (s *Supervisor) Retire(_ context.Context) error {
 	return nil
 }
 
-// AllocateLoopbackPort reserves a free loopback port owned by B4X.
+// AllocateLoopbackPort finds one loopback port that is available for both
+// TCP and UDP at allocation time. dnscrypt-proxy listens on both transports;
+// checking only TCP could select a port already owned by an unrelated UDP
+// service. The sockets are intentionally released before process startup, so
+// a small TOCTOU window remains and is handled by supervisor readiness/fail.
 func AllocateLoopbackPort() (string, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return "", err
+	for attempt := 0; attempt < 16; attempt++ {
+		tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return "", err
+		}
+		addr := tcpListener.Addr().(*net.TCPAddr)
+		udpAddr := &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: addr.Port}
+		udpListener, udpErr := net.ListenUDP("udp", udpAddr)
+		if udpErr == nil {
+			listenAddr := tcpListener.Addr().String()
+			_ = udpListener.Close()
+			_ = tcpListener.Close()
+			return listenAddr, nil
+		}
+		_ = tcpListener.Close()
 	}
-	defer l.Close()
-	return l.Addr().String(), nil
+	return "", errors.New("unable to allocate shared TCP/UDP loopback DNS port")
 }
