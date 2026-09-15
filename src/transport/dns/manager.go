@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	b4dns "github.com/daniellavrushin/b4/dns"
 )
 
 // Manager is the DNSPathManager: the single runtime owner of provider
@@ -311,7 +313,12 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 		m.mu.Lock()
 		m.counters.CacheHits++
 		m.mu.Unlock()
-		return DNSResponse{Payload: e.Payload, Fingerprint: e.Fingerprint, FromCache: true}, nil
+		resp := DNSResponse{Payload: e.Payload, Fingerprint: e.Fingerprint, FromCache: true}
+		if meta, err := b4dns.InspectResponseMetadata(e.Payload); err == nil {
+			resp.RCode = meta.RCode
+			resp.Truncated = meta.Truncated
+		}
+		return resp, nil
 	}
 	m.mu.Lock()
 	m.counters.CacheMisses++
@@ -323,7 +330,19 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 	if !ok || !pok {
 		return DNSResponse{}, fmt.Errorf("path %s not prepared", path.Family)
 	}
-	return provider.Resolve(ctx, prepared, q)
+	resp, err := provider.Resolve(ctx, prepared, q)
+	if err != nil {
+		return DNSResponse{}, err
+	}
+	if meta, metaErr := b4dns.InspectResponseMetadata(resp.Payload); metaErr == nil {
+		negative := meta.RCode == 3 || (meta.RCode == 0 && meta.AnswerCount == 0)
+		ttl := time.Duration(resp.Fingerprint.TTLMin) * time.Second
+		if negative {
+			ttl = meta.NegativeTTL
+		}
+		m.cache.Put(key, resp.Payload, resp.Fingerprint, ttl, negative, time.Now())
+	}
+	return resp, nil
 }
 
 func (m *Manager) pathReady(path DNSPathID) bool {
