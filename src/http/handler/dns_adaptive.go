@@ -287,7 +287,7 @@ func (api *API) handleDNSRevalidate(w http.ResponseWriter, r *http.Request) {
 		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": "no profile"})
 		return
 	}
-	if err := p.Valid(time.Now()); err != nil {
+	if err := p.Validated(time.Now()); err != nil {
 		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": err.Error()})
 		return
 	}
