@@ -1,8 +1,9 @@
 package torscan
 
 // Persistent probe budget. Relay scanning is useful against DPI, but repeated
-// active handshakes to the same third-party ORPorts are unnecessary and can
-// resemble abuse. The ledger makes the cooldown survive b4 restarts.
+// active handshakes to third-party ORPorts are unnecessary and can resemble
+// abuse. Both the per-address cooldown and the aggregate rate budget survive
+// b4 restarts.
 
 import (
 	"encoding/json"
@@ -13,13 +14,16 @@ import (
 )
 
 const (
-	probeCooldown   = 6 * time.Hour
-	maxLedgerEntries = 4096
+	probeCooldown        = 6 * time.Hour
+	probeBudgetWindow    = 6 * time.Hour
+	probeBudgetPerWindow = 72
+	maxLedgerEntries     = 4096
 )
 
 type probeLedger struct {
-	Version int              `json:"version"`
-	Last    map[string]int64 `json:"last_probe_ms"`
+	Version  int              `json:"version"`
+	Last     map[string]int64  `json:"last_probe_ms"`
+	Attempts []int64          `json:"attempt_ms,omitempty"`
 }
 
 func loadProbeLedger(path string) probeLedger {
@@ -45,13 +49,32 @@ func (l *probeLedger) eligible(addr string, now time.Time) bool {
 	return now.Sub(time.UnixMilli(ms)) >= probeCooldown
 }
 
-// mark records scheduling, not success. A failed/dead ORPort should not be
-// hammered every time the API is pressed.
-func (l *probeLedger) mark(addr string, now time.Time) {
+func (l *probeLedger) pruneAttempts(now time.Time) {
+	cutoff := now.Add(-probeBudgetWindow).UnixMilli()
+	kept := l.Attempts[:0]
+	for _, ms := range l.Attempts {
+		if ms > cutoff {
+			kept = append(kept, ms)
+		}
+	}
+	l.Attempts = kept
+}
+
+// reserve records scheduling, not success. A failed/dead ORPort should not be
+// hammered every time the API is pressed, and a rotating set of new ORPorts
+// must not bypass the aggregate safety budget.
+func (l *probeLedger) reserve(addr string, now time.Time) bool {
+	l.pruneAttempts(now)
+	if len(l.Attempts) >= probeBudgetPerWindow {
+		return false
+	}
 	if l.Last == nil {
 		l.Last = map[string]int64{}
 	}
-	l.Last[addr] = now.UnixMilli()
+	ms := now.UnixMilli()
+	l.Last[addr] = ms
+	l.Attempts = append(l.Attempts, ms)
+	return true
 }
 
 func (l *probeLedger) save(path string) error {
