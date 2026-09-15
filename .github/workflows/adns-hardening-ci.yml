@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   adns-test:
@@ -23,20 +23,6 @@ jobs:
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
-      - name: Repair repository-wide test gates once
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -c 'from pathlib import Path; p=Path("src/transport/warp/nonru_test.go"); s=p.read_text(); old="\twaitUntil(t, \"revoked on provider-ru\", func() bool { return g.Status().CloseReason == CloseProviderRU })\n\tst := g.Status()\n"; new="\twaitUntil(t, \"revoked on provider-ru\", func() bool { return g.Status().CloseReason == CloseProviderRU })\n\twaitUntil(t, \"fail-closed event\", func() bool { return log.count(EvNonRUFailClosed) > 0 })\n\tst := g.Status()\n"; assert old in s; p.write_text(s.replace(old, new, 1))'
-          python3 -c 'from pathlib import Path; p=Path("src/transport/wg/interop_test.go"); s=p.read_text(); old="func TestKernelTUNOpenManualGate(t *testing.T) {\n\tif runtime.GOOS != \"linux\" {\n\t\tt.Skip(\"linux only\")\n\t}\n\tif _, err := os.Stat(\"/dev/net/tun\"); err != nil {\n"; new="func TestKernelTUNOpenManualGate(t *testing.T) {\n\tif runtime.GOOS != \"linux\" {\n\t\tt.Skip(\"linux only\")\n\t}\n\tif os.Getenv(\"B4X_WG_KERNEL_TUN_TEST\") != \"1\" {\n\t\tt.Skip(\"manual privileged gate; set B4X_WG_KERNEL_TUN_TEST=1 and grant /dev/net/tun + CAP_NET_ADMIN\")\n\t}\n\tif _, err := os.Stat(\"/dev/net/tun\"); err != nil {\n"; assert old in s; p.write_text(s.replace(old, new, 1))'
-          gofmt -w src/transport/warp/nonru_test.go src/transport/wg/interop_test.go
-          if ! git diff --quiet; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add src/transport/warp/nonru_test.go src/transport/wg/interop_test.go
-            git commit -m 'test: stabilize non-RU event and gate privileged kernel TUN'
-            git push origin HEAD:${GITHUB_REF_NAME}
-          fi
       - name: Prepare embedded UI placeholder
         working-directory: src
         run: |
