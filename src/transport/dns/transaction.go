@@ -80,10 +80,10 @@ var (
 	ErrTransactionAborted = errors.New("dns path transaction aborted")
 )
 
-// Run executes the transaction. Evidence-derived gate fields are computed
-// here and never trusted from caller-supplied booleans. Any failure before or
-// during canary leaves the current binding unchanged; rollback restores
-// last-good and preserves the reason (§71/§76/§97).
+// Run executes the transaction. Every gate that can be derived locally is
+// recomputed from evidence/runtime state here; caller-supplied booleans never
+// authorize promotion. Any failure before or during canary leaves the current
+// binding unchanged; rollback restores last-good (§71/§76/§97).
 func (t *Transaction) Run(ctx context.Context, m *Manager) error {
 	t.StartedAt = time.Now()
 	t.Phase = PhasePrepare
@@ -109,41 +109,55 @@ func (t *Transaction) Run(ctx context.Context, m *Manager) error {
 		return ErrTransactionAborted
 	}
 
-	// These fields are derived exclusively from the checks above. A caller
-	// cannot authorize promotion by setting them true on an invalid profile.
+	// Evidence/runtime-derived gates. Reset them first so a caller cannot
+	// preserve a stale true value from a previous transaction attempt.
 	t.Gate.FreshProfile = true
 	t.Gate.ProviderReady = true
 	t.Gate.CorrectnessSuite = true
 	t.Gate.SameServiceControls = true
 	t.Gate.UnrelatedControls = true
+	t.Gate.NoBlockingHardGate = true // all profile/evidence hard blockers above passed
+	t.Gate.MetricsParity = validateManagerSelectionParity(m, t.Profile, t.Candidate)
 
 	// PREPARE: cache partition for the new generation must be ready and
 	// isolated from the old one.
 	m.cache.ResetPartition(t.Profile.NetworkContextID, t.Profile.ConfigGeneration, t.Candidate.Primary.Hash())
 	t.Gate.CacheReady = true
 	// Rollback readiness: with a retained last-good we restore it; on the
-	// first-ever promotion rollback means reverting to the pre-adaptive
-	// behavior (no adaptive binding), which is always available.
+	// first-ever promotion rollback means leaving the current/pre-adaptive path
+	// untouched, which is always available.
 	t.Gate.RollbackReady = true
 
 	t.Phase = PhaseCanary
 	// A real canary callback is mandatory. Caller-supplied AndroidCanary=true
 	// cannot substitute for executing the source-scoped canary.
 	t.Gate.AndroidCanary = false
+	canaryReason := "source-scoped canary callback not configured"
 	if t.Canary != nil {
 		if err := t.Canary(ctx, t.Candidate); err == nil {
 			t.Gate.AndroidCanary = true
+			canaryReason = ""
+		} else {
+			canaryReason = err.Error()
 		}
 	}
 	if err := t.Gate.Check(); err != nil {
+		if canaryReason != "" && !t.Gate.AndroidCanary {
+			err = fmt.Errorf("%w: %s", err, canaryReason)
+		}
 		t.rollback(m, err.Error())
 		return ErrTransactionAborted
 	}
 
-	// Recheck generation/epoch immediately before the atomic swap so a WAN or
-	// config change during canary cannot promote stale evidence.
+	// Recheck generation/epoch and source-of-truth parity immediately before
+	// the atomic swap so WAN/config changes during canary cannot promote stale
+	// evidence.
 	if err := validateTransactionProfileAndBinding(m, t.Profile, t.Candidate, time.Now()); err != nil {
 		t.rollback(m, "pre-promote freshness check failed: "+err.Error())
+		return ErrTransactionAborted
+	}
+	if !validateManagerSelectionParity(m, t.Profile, t.Candidate) {
+		t.rollback(m, "pre-promote manager/API/metrics source-of-truth parity failed")
 		return ErrTransactionAborted
 	}
 
@@ -152,6 +166,32 @@ func (t *Transaction) Run(ctx context.Context, m *Manager) error {
 	t.Phase = PhaseDone
 	t.EndedAt = time.Now()
 	return nil
+}
+
+func validateManagerSelectionParity(m *Manager, profile *DNSPathProfile, candidate *DNSPathBinding) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.profile == nil || profile == nil || candidate == nil {
+		return false
+	}
+	if m.profile.ProfileID != profile.ProfileID || m.profile.ContentHash != profile.ContentHash {
+		return false
+	}
+	if candidate.ProfileID != profile.ProfileID || candidate.Primary.Hash() != profile.Primary.Hash() {
+		return false
+	}
+	if len(candidate.Fallbacks) != len(profile.Fallbacks) {
+		return false
+	}
+	for i := range profile.Fallbacks {
+		if candidate.Fallbacks[i].Hash() != profile.Fallbacks[i].Hash() {
+			return false
+		}
+	}
+	// HTTP status and Prometheus rendering both read this same Manager state;
+	// requiring an adopted immutable profile and matching candidate eliminates
+	// a second shadow selection source.
+	return true
 }
 
 func validateTransactionProfileAndBinding(m *Manager, profile *DNSPathProfile, candidate *DNSPathBinding, now time.Time) error {
