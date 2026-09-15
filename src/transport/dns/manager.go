@@ -247,8 +247,13 @@ func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 	if err := p.Valid(time.Now()); err != nil {
 		return fmt.Errorf("refusing stale/invalid profile: %w", err)
 	}
-	if p.NetworkContextID != m.networkCtx || p.ConfigGeneration != m.generation {
-		return errors.New("profile context/generation mismatch with runtime")
+	m.mu.RLock()
+	networkCtx := m.networkCtx
+	generation := m.generation
+	epoch := m.epoch
+	m.mu.RUnlock()
+	if p.NetworkContextID != networkCtx || p.ConfigGeneration != generation || p.RuntimeEpoch != epoch {
+		return errors.New("profile context/generation/epoch mismatch with runtime")
 	}
 	m.mu.Lock()
 	m.profile = p
@@ -260,17 +265,38 @@ func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 
 // Resolve serves one production query through the active binding with
 // bounded per-request fallback (§73/§74). Fast fallback only uses already
-// promoted/ready profile paths — never unvalidated candidates.
+// promoted/ready profile paths — never unvalidated candidates. Freshness is
+// checked on every request so an expired profile/binding cannot remain live.
 func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) {
+	now := time.Now()
 	m.mu.RLock()
 	mode := m.mode
 	binding := m.active
+	profile := m.profile
+	generation := m.generation
+	epoch := m.epoch
+	networkCtx := m.networkCtx
 	m.mu.RUnlock()
 	if mode != DNSModeAdaptive && mode != DNSModeManual {
 		return DNSResponse{}, errors.New("adaptive DNS not enabled")
 	}
 	if binding == nil {
 		return DNSResponse{}, errors.New("no active DNS path binding")
+	}
+	if profile == nil {
+		return DNSResponse{}, errors.New("active DNS binding has no adopted profile")
+	}
+	if err := profile.Valid(now); err != nil {
+		return DNSResponse{}, fmt.Errorf("active DNS profile is stale/invalid: %w", err)
+	}
+	if profile.NetworkContextID != networkCtx || profile.ConfigGeneration != generation || profile.RuntimeEpoch != epoch {
+		return DNSResponse{}, errors.New("active DNS profile no longer matches runtime context")
+	}
+	if binding.ProfileID != profile.ProfileID || binding.Primary.Hash() != profile.Primary.Hash() {
+		return DNSResponse{}, errors.New("active DNS binding no longer matches adopted profile")
+	}
+	if !binding.CompatibleWith(generation, epoch, now) {
+		return DNSResponse{}, errors.New("active DNS binding is stale or expired")
 	}
 	m.trace("DNS_QUERY_OBSERVED", binding.Primary.Family)
 	m.mu.Lock()
@@ -304,8 +330,14 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 }
 
 func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (DNSResponse, error) {
+	m.mu.RLock()
+	networkCtx := m.networkCtx
+	generation := m.generation
+	provider, ok := m.providers[path.Hash()]
+	prepared, pok := m.prepared[path.Hash()]
+	m.mu.RUnlock()
 	key := DNSCachePartitionKey{
-		NetworkContextID: m.networkCtx, ConfigGeneration: m.generation,
+		NetworkContextID: networkCtx, ConfigGeneration: generation,
 		PathHash: path.Hash(), QueryNameHash: HashQName(q.Name), QType: q.QType,
 		DNSSECPolicy: "off", ClientScopeClass: "router-origin",
 	}
@@ -328,12 +360,8 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 	m.mu.Lock()
 	m.counters.CacheMisses++
 	m.mu.Unlock()
-	m.mu.RLock()
-	provider, ok := m.providers[path.Hash()]
-	prepared, pok := m.prepared[path.Hash()]
-	m.mu.RUnlock()
-	if !ok || !pok {
-		return DNSResponse{}, fmt.Errorf("path %s not prepared", path.Family)
+	if !ok || !pok || prepared.Generation != generation {
+		return DNSResponse{}, fmt.Errorf("path %s not prepared for generation %d", path.Family, generation)
 	}
 	resp, err := provider.Resolve(ctx, prepared, q)
 	if err != nil {
@@ -371,14 +399,29 @@ func (m *Manager) MarkPathHealth(path DNSPathID, h DNSPathHealth) {
 
 // PreparePath prepares a provider for a profile generation.
 func (m *Manager) PreparePath(ctx context.Context, p DNSPathProvider, diagnostic bool) error {
+	m.mu.RLock()
+	generation := m.generation
+	networkCtx := m.networkCtx
+	epoch := m.epoch
+	m.mu.RUnlock()
 	prepared, err := p.Prepare(ctx, DNSPrepareRequest{
-		Generation: m.generation, NetworkContextID: m.networkCtx,
-		RuntimeEpoch: m.epoch, Diagnostic: diagnostic,
+		Generation: generation, NetworkContextID: networkCtx,
+		RuntimeEpoch: epoch, Diagnostic: diagnostic,
 	})
 	if err != nil {
 		return err
 	}
+	if prepared.Generation != generation {
+		return fmt.Errorf("provider %s prepared unexpected generation %d", p.ID().Family, prepared.Generation)
+	}
 	m.mu.Lock()
+	// Refuse to install a handle prepared against a generation/context that
+	// changed while Prepare was in flight.
+	if m.generation != generation || m.networkCtx != networkCtx || m.epoch != epoch {
+		m.mu.Unlock()
+		_ = p.Retire(ctx, prepared)
+		return errors.New("runtime context changed while preparing DNS provider")
+	}
 	m.providers[p.ID().Hash()] = p
 	m.prepared[p.ID().Hash()] = prepared
 	m.mu.Unlock()
@@ -386,21 +429,34 @@ func (m *Manager) PreparePath(ctx context.Context, p DNSPathProvider, diagnostic
 	return nil
 }
 
-// NewBinding builds a candidate binding from the adopted profile.
+// NewBinding builds a candidate binding from the adopted profile. A binding
+// can never outlive the profile evidence that authorized it.
 func (m *Manager) NewBinding(scope string, ttl time.Duration) (*DNSPathBinding, error) {
+	now := time.Now()
 	m.mu.RLock()
 	p := m.profile
+	generation := m.generation
+	epoch := m.epoch
 	m.mu.RUnlock()
 	if p == nil {
 		return nil, errors.New("no adopted profile")
 	}
-	now := time.Now()
+	if err := p.Valid(now); err != nil {
+		return nil, fmt.Errorf("cannot bind stale/invalid profile: %w", err)
+	}
+	validUntil := p.ValidUntil
+	if ttl > 0 {
+		requested := now.Add(ttl)
+		if requested.Before(validUntil) {
+			validUntil = requested
+		}
+	}
 	return &DNSPathBinding{
 		BindingID: fmt.Sprintf("bind-%s", p.Primary.Hash()),
 		Scope:     scope, ProfileID: p.ProfileID,
 		Primary: p.Primary, Fallbacks: append([]DNSPathID(nil), p.Fallbacks...),
-		ConfigGeneration: m.generation, RuntimeEpoch: m.epoch,
-		PreparedAt: now, ValidUntil: now.Add(ttl),
+		ConfigGeneration: generation, RuntimeEpoch: epoch,
+		PreparedAt: now, ValidUntil: validUntil,
 	}, nil
 }
 
