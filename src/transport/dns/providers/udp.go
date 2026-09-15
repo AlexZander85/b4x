@@ -196,6 +196,9 @@ func (p *UDPProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSP
 	if err != nil {
 		return dnspath.DNSResponse{}, err
 	}
+	if err := validateProductionResponse(responses[0], obs); err != nil {
+		return dnspath.DNSResponse{}, err
+	}
 	return dnspath.DNSResponse{
 		Payload: responses[0], Fingerprint: fp, RCode: obs.RCode,
 		Truncated: obs.Truncated, Latency: latency, ResponseCount: uint16(len(responses)),
