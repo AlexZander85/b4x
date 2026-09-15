@@ -12,6 +12,11 @@ const (
 	// MetricOperaProbeTotal counts supervisor probe outcomes.
 	// Labels: level=cheap|deep, verdict=ok|fail|cant-bind.
 	MetricOperaProbeTotal = "opera_probe_total"
+	// MetricOperaProbeRTT observes the measured probe latency in
+	// milliseconds (Nova avgPingMs / ping-замер lineage). Labels:
+	// level=cheap|deep. Only successful probes are observed — a failed
+	// dial's elapsed is a timeout artifact, not a latency sample.
+	MetricOperaProbeRTT = "opera_probe_rtt_ms"
 	// MetricOperaDiscoverTotal counts control-channel discover calls.
 	// Labels: source=live|cache, result=ok|<class-ish short reason>.
 	MetricOperaDiscoverTotal = "opera_discover_total"

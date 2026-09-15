@@ -110,7 +110,10 @@ type HealthConfig struct {
 	OnEvent func(name, detail string)
 	// OnProbe receives every probe outcome (level=cheap|deep,
 	// verdict=ok|fail|cant-bind — review M3 probe_total{level,verdict}).
-	OnProbe func(level, verdict string)
+	// rtt carries the measured probe latency (Nova ping canon: coerced to
+	// at least 1ms; 0 when the probe never ran — cant-bind); it feeds the
+	// probe_rtt histogram, never the verdict counter labels.
+	OnProbe func(level, verdict string, rtt time.Duration)
 	// OnDiscover receives every discover attempt (source=live|cache,
 	// result=ok|<short reason>).
 	OnDiscover func(source, result string)
@@ -260,6 +263,14 @@ type HealthStatus struct {
 	LastVerdict      ProbeVerdict
 	LastError        string
 	DiscoverCalls    int
+	// LastCheapRTTMS/LastDeepRTTMS are the last measured probe latencies
+	// in milliseconds (Nova avgPingMs lineage). Zeroed on a failed probe
+	// of that level — a stale RTT must never describe a channel the probe
+	// just declared dead. Coerced to at least 1ms on success
+	// (sub-millisecond LAN handshakes would otherwise render as "no
+	// sample" in ms consumers).
+	LastCheapRTTMS int64 `json:"last_cheap_rtt_ms"`
+	LastDeepRTTMS  int64 `json:"last_deep_rtt_ms"`
 }
 
 // tickAction enumerates the one thing a plan step wants executed.
@@ -289,6 +300,10 @@ type stepResult struct {
 	discover []SEIPEntry // primary discover payload (nil when not attempted)
 	discN    int         // discover attempts made (discoverCalls bookkeeping)
 	discErr  error       // primary discover error
+	// rtt is the measured probe latency for actProbe steps (Nova ping
+	// canon: elapsed around the probe call, coerced to >=1ms; zero when
+	// the probe did not run or its setup failed before any I/O).
+	rtt time.Duration
 	// EU->AM alternate attempt (rotation only; Nova parity — the region
 	// commits BEFORE the alternate discovery proves anything):
 	altRegion []SEIPEntry
@@ -336,6 +351,8 @@ type HealthSupervisor struct {
 	lastProbeAt      time.Time
 	lastVerdict      ProbeVerdict
 	lastErr          string
+	lastCheapRTT     time.Duration
+	lastDeepRTT      time.Duration
 	discoverCalls    int
 	rotateQueued     bool // probe apply exhausted the cache -> rediscover step
 
@@ -648,10 +665,29 @@ func (h *HealthSupervisor) execProbe(plan tickPlan) stepResult {
 	}
 	ctx, cancel := h.boundedCtx(budget)
 	defer cancel()
+	// Ping-замер (Nova lineage): the elapsed around the probe call is the
+	// node's round-trip latency sample. Everything the prober does
+	// (TCP+TLS for cheap, end-to-end CONNECT for deep) is part of the
+	// measured channel; a floor of 1ms keeps sub-millisecond loopback
+	// handshakes distinguishable from "no sample" in ms consumers
+	// (Nova coerceAtLeast(1) on avgPingMs).
+	start := time.Now()
+	var err error
 	if plan.deep {
-		return stepResult{err: h.pb.ProbeDeep(ctx, plan.entry)}
+		err = h.pb.ProbeDeep(ctx, plan.entry)
+	} else {
+		err = h.pb.ProbeCheap(ctx, plan.entry)
 	}
-	return stepResult{err: h.pb.ProbeCheap(ctx, plan.entry)}
+	rtt := coerceAtLeast(time.Since(start), time.Millisecond)
+	return stepResult{err: err, rtt: rtt}
+}
+
+// coerceAtLeast lifts v to the floor (Nova ping canon).
+func coerceAtLeast(v, floor time.Duration) time.Duration {
+	if v < floor {
+		return floor
+	}
+	return v
 }
 
 // execRotate re-discovers the current region (cache-exhausted rotation).
@@ -702,7 +738,7 @@ func (h *HealthSupervisor) apply(plan tickPlan, res stepResult, now time.Time, d
 		return h.applyRefresh(res, now)
 	case actProbe:
 		done.probed = true
-		return h.applyProbe(plan.deep, res.err, now)
+		return h.applyProbe(plan.deep, res.err, res.rtt, now)
 	case actRotate:
 		done.rotated = true
 		return h.applyRotate(plan, res, now)
@@ -869,15 +905,19 @@ func (h *HealthSupervisor) noteAPIFailure(err error, now time.Time) {
 	}
 }
 
-// applyProbe folds one probe outcome into the rotation counters.
-func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool {
+// applyProbe folds one probe outcome into the rotation counters. rtt is
+// the measured latency of THIS probe (execProbe); it is stored on success
+// and zeroed on ProbeFail — a dead channel must not keep advertising the
+// RTT of a previous life. ProbeCantBind leaves the previous sample alone:
+// the probe never reached the network, so it says nothing about the node.
+func (h *HealthSupervisor) applyProbe(deep bool, err error, rtt time.Duration, now time.Time) bool {
 	level := "cheap"
 	if deep {
 		level = "deep"
 	}
 	defer func() {
 		if h.cfg.OnProbe != nil {
-			h.cfg.OnProbe(level, h.lastVerdict.String())
+			h.cfg.OnProbe(level, h.lastVerdict.String(), h.probeRTTLocked(deep))
 		}
 	}()
 	switch probeVerdictOf(err) {
@@ -891,6 +931,11 @@ func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool 
 		h.consecFails = 0
 		h.lastVerdict = ProbeOK
 		h.lastErr = ""
+		if deep {
+			h.lastDeepRTT = rtt
+		} else {
+			h.lastCheapRTT = rtt
+		}
 		if deep {
 			wasListening := h.listening
 			h.lastDeepAt = now
@@ -934,6 +979,9 @@ func (h *HealthSupervisor) applyProbe(deep bool, err error, now time.Time) bool 
 			h.lastDeepAt = now
 			h.lastDeepOK = false
 			h.listening = false
+			h.lastDeepRTT = 0
+		} else {
+			h.lastCheapRTT = 0
 		}
 		if h.consecFails >= h.cfg.FailureLimit {
 			h.consecFails = 0
@@ -1113,6 +1161,8 @@ func (h *HealthSupervisor) Status() HealthStatus {
 		LastVerdict:      h.lastVerdict,
 		LastError:        h.lastErr,
 		DiscoverCalls:    h.discoverCalls,
+		LastCheapRTTMS:   h.lastCheapRTT.Milliseconds(),
+		LastDeepRTTMS:    h.lastDeepRTT.Milliseconds(),
 	}
 	if len(h.nodes) > 0 {
 		st.ActiveNode = h.currentLocked().NetAddr()
@@ -1121,6 +1171,15 @@ func (h *HealthSupervisor) Status() HealthStatus {
 }
 
 func (h *HealthSupervisor) now() time.Time { return h.cfg.Now() }
+
+// probeRTTLocked snapshots the current RTT sample for the probe level as
+// seen by the OnProbe hook (caller holds h.mu).
+func (h *HealthSupervisor) probeRTTLocked(deep bool) time.Duration {
+	if deep {
+		return h.lastDeepRTT
+	}
+	return h.lastCheapRTT
+}
 
 func (h *HealthSupervisor) currentLocked() SEIPEntry {
 	if len(h.nodes) == 0 {

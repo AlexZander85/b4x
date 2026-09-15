@@ -110,10 +110,17 @@ func exportNodesSource(source string) {
 	met.Set(observability.MetricOperaNodesSource, map[string]string{"source": "cache"}, cache)
 }
 
-// recordProbe bumps the probe counter with level+verdict labels.
-func recordProbe(level, verdict string) {
+// recordProbe bumps the probe counter with level+verdict labels and
+// observes the measured probe latency (Nova ping canon) on the probe_rtt
+// histogram. rtt=0 (probe never ran / failed channel) is NOT observed — a
+// failed dial's elapsed is a timeout artifact, not a latency sample.
+func recordProbe(level, verdict string, rtt time.Duration) {
 	observability.Default().Metrics.Inc(observability.MetricOperaProbeTotal,
 		map[string]string{"level": level, "verdict": verdict}, 1)
+	if verdict == "ok" && rtt > 0 {
+		observability.Default().Metrics.Observe(observability.MetricOperaProbeRTT,
+			map[string]string{"level": level}, float64(rtt.Milliseconds()))
+	}
 }
 
 // recordDiscover bumps the discover counter with the source/result labels.

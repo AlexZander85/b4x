@@ -763,3 +763,93 @@ func TestProbe407ThenRefusedRefreshCapsReRegister(t *testing.T) {
 		t.Fatal("must stay unbootstrapped while the API refuses and the cap holds")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Ping-замер (Nova avgPingMs lineage): every probe measures its latency.
+// ---------------------------------------------------------------------------
+
+// TestHealthProbeRTTRecordedAndFloored pins the RTT contract: a successful
+// probe stores a sample of at least 1ms (sub-millisecond fake handshakes
+// must not render as "no sample"), the OnProbe hook observes it, and a
+// FAILED probe of the same level zeroes the stale sample — a dead channel
+// must not keep advertising the RTT of a previous life. A failure on one
+// level never clobbers the other level's sample.
+func TestHealthProbeRTTRecordedAndFloored(t *testing.T) {
+	stand := newSEStand(t)
+	sup, pb, clk := newTestSupervisor(t, stand, "EU")
+
+	var hookMu sync.Mutex
+	var hookObserved []struct {
+		level   string
+		verdict string
+		rtt     time.Duration
+	}
+	sup.cfg.OnProbe = func(level, verdict string, rtt time.Duration) {
+		hookMu.Lock()
+		hookObserved = append(hookObserved, struct {
+			level   string
+			verdict string
+			rtt     time.Duration
+		}{level, verdict, rtt})
+		hookMu.Unlock()
+	}
+
+	// Bootstrap + first deep probe (fake responder answers instantly — the
+	// 1ms coercion floor is what keeps the sample visible in ms).
+	sup.Tick(clk.t)
+	st := sup.Status()
+	if st.LastDeepRTTMS < 1 {
+		t.Fatalf("deep RTT = %d ms, want >=1 (coerced floor)", st.LastDeepRTTMS)
+	}
+	if st.LastCheapRTTMS != 0 {
+		t.Fatalf("cheap RTT = %d ms before any cheap probe, want 0", st.LastCheapRTTMS)
+	}
+
+	// Cheap cadence: one cheap success records its own sample.
+	clk.t = clk.t.Add(sup.cfg.CheapInterval + time.Second)
+	sup.Tick(clk.t)
+	st = sup.Status()
+	if st.LastCheapRTTMS < 1 {
+		t.Fatalf("cheap RTT = %d ms, want >=1 (coerced floor)", st.LastCheapRTTMS)
+	}
+
+	// Cheap failure zeroes the cheap sample but must not touch the deep one.
+	pb.set(func(SEIPEntry) error { return fmt.Errorf("cheap dead") }, nil)
+	clk.t = clk.t.Add(sup.cfg.CheapInterval + time.Second)
+	sup.Tick(clk.t)
+	st = sup.Status()
+	if st.LastCheapRTTMS != 0 {
+		t.Fatalf("cheap RTT = %d ms after failed cheap probe, want 0 (stale sample dropped)", st.LastCheapRTTMS)
+	}
+	if st.LastDeepRTTMS < 1 {
+		t.Fatalf("deep RTT = %d ms after a CHEAP failure, want the untouched sample >=1", st.LastDeepRTTMS)
+	}
+
+	// Deep failure clears the deep sample too.
+	pb.set(nil, func(SEIPEntry) error { return fmt.Errorf("deep dead") })
+	clk.t = clk.t.Add(sup.cfg.DeepInterval + time.Second)
+	sup.Tick(clk.t)
+	st = sup.Status()
+	if st.LastDeepRTTMS != 0 {
+		t.Fatalf("deep RTT = %d ms after failed deep probe, want 0 (stale sample dropped)", st.LastDeepRTTMS)
+	}
+
+	// The hook saw ok-verdicts with live samples and fail-verdicts with zero.
+	hookMu.Lock()
+	defer hookMu.Unlock()
+	if len(hookObserved) < 4 {
+		t.Fatalf("OnProbe fired %d times, want >=4", len(hookObserved))
+	}
+	for _, ob := range hookObserved {
+		switch ob.verdict {
+		case "ok":
+			if ob.rtt < time.Millisecond {
+				t.Fatalf("hook ok sample %v < 1ms floor", ob.rtt)
+			}
+		case "fail":
+			if ob.rtt != 0 {
+				t.Fatalf("hook fail sample %v, want 0 (no latency for a dead channel)", ob.rtt)
+			}
+		}
+	}
+}
