@@ -85,17 +85,23 @@ func (p *SystemForwardProvider) DetectRecursion() (bool, error) {
 func (p *SystemForwardProvider) ID() dnspath.DNSPathID {
 	ns, _ := p.EffectiveNameservers()
 	seed := "system"
+	ipfam := "ipv4"
 	if len(ns) > 0 {
 		seed = ns[0].String()
+		if ns[0].Is6() {
+			ipfam = "ipv6"
+		}
 	}
 	sum := sha256.Sum256([]byte(seed))
-	ipfam := "ipv4"
-	if len(ns) > 0 && ns[0].Is6() {
-		ipfam = "ipv6"
-	}
+	// ResolverID intentionally matches NewUDPProvider/NewTCPProvider for the
+	// same concrete nameserver. system-forward is a different path family,
+	// not an independent truth source, so differential quorum must correlate
+	// it with the explicit native paths instead of double-counting one server.
+	resolverID := "r-" + hex.EncodeToString(sum[:6])
 	return dnspath.DNSPathID{
 		Family:     dnspath.DNSPathSystemForward,
-		ResolverID: "r-sys-" + hex.EncodeToString(sum[:6]),
+		ResolverID: resolverID,
+		EndpointID: "e-system-" + hex.EncodeToString(sum[:6]),
 		IPFamily:   ipfam,
 	}
 }
@@ -112,7 +118,13 @@ func (p *SystemForwardProvider) Capabilities() dnspath.DNSPathCapabilities {
 	if len(ns) == 0 {
 		return dnspath.DNSPathCapabilities{State: dnspath.CapUnsupported, Reason: "no system nameserver"}
 	}
-	return dnspath.DNSPathCapabilities{State: dnspath.CapAvailable, IPv4: true}
+	caps := dnspath.DNSPathCapabilities{State: dnspath.CapAvailable}
+	if ns[0].Is6() {
+		caps.IPv6 = true
+	} else {
+		caps.IPv4 = true
+	}
+	return caps
 }
 
 // Prepare delegates to a UDP provider bound to the first effective
@@ -163,7 +175,7 @@ func (p *SystemForwardProvider) Resolve(ctx context.Context, prepared dnspath.Pr
 	return inner.Resolve(ctx, prepared, q)
 }
 
-func (p *SystemForwardProvider) Health(ctx context.Context, prepared dnspath.PreparedDNSPath) dnspath.DNSPathHealth {
+func (p *SystemForwardProvider) Health(_ context.Context, _ dnspath.PreparedDNSPath) dnspath.DNSPathHealth {
 	caps := p.Capabilities()
 	if caps.State != dnspath.CapAvailable {
 		return dnspath.DNSPathHealth{State: caps.State}
