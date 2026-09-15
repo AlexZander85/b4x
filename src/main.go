@@ -345,7 +345,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 		tables.RoutingSyncConfig(c)
 	})
 	handler.SetDiscoveryRuntime(discoveryRT)
-	nfq.RoutingHandleDNSFunc = tables.RoutingHandleDNS
+	nfq.RoutingHandleDNSFunc = tables.RoutingHandleDNSAsync
 	nfq.RoutingLearnIPFunc = tables.RoutingLearnIP
 
 	if err := initLogging(&cfg); err != nil {
