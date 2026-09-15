@@ -68,18 +68,13 @@ func TestTorrcVerifyConfig(t *testing.T) {
 				t.Fatalf("internal validate: %v\n%s", err, doc)
 			}
 			torrc := filepath.Join(root, "torrc")
-			defaults := filepath.Join(root, "defaults")
 			if err := os.WriteFile(torrc, []byte(doc), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(defaults, nil, 0o600); err != nil {
 				t.Fatal(err)
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, binary,
 				"--verify-config", "-f", torrc,
-				"--DefaultsTorrcFile", defaults,
 				"--DataDirectory", filepath.Join(data, "data"),
 			)
 			if out, err := cmd.CombinedOutput(); err != nil {
