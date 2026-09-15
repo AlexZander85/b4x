@@ -162,7 +162,10 @@ func (p *TCPProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 }
 
 func (p *TCPProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSQuery) (dnspath.DNSResponse, error) {
-	query := b4dns.BuildQuery(q.Name, q.TxID, q.QType)
+	query, err := productionQueryWire(q)
+	if err != nil {
+		return dnspath.DNSResponse{}, err
+	}
 	resp, latency, err := p.exchange(ctx, query)
 	if err != nil {
 		return dnspath.DNSResponse{}, err
