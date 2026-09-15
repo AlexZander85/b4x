@@ -75,9 +75,11 @@ type DNSObservation struct {
 }
 
 // ParseStructuredResponse parses a complete DNS message into bounded,
-// source-agnostic metadata. It does not create hints itself; callers decide
-// whether RCODE, truncation, client identity, and config generation permit a
-// positive evidence observation.
+// source-agnostic metadata. Only records from the Answer section feed the
+// answer/CNAME/HTTPS view used for correctness fingerprints; Authority and
+// Additional sections are still fully parsed for structural validity but do
+// not contaminate the answer set. Authority semantics are exposed separately
+// by InspectResponseMetadata.
 func ParseStructuredResponse(payload []byte, client classifier.ClientKey, resolverID string, timestamp time.Time) (DNSObservation, error) {
 	if len(payload) < 12 {
 		return DNSObservation{}, fmt.Errorf("%w: header truncated", ErrMalformedResponse)
@@ -128,15 +130,34 @@ func ParseStructuredResponse(payload []byte, client classifier.ClientKey, resolv
 		offset = next + 4
 	}
 
-	for i := 0; i < anCount+nsCount+arCount; i++ {
+	for i := 0; i < anCount; i++ {
 		rr, next, err := readResourceRecord(payload, offset)
 		if err != nil {
-			return DNSObservation{}, malformedDNS("resource record", err)
+			return DNSObservation{}, malformedDNS("answer", err)
 		}
 		offset = next
 		if err := observation.addRecord(rr); err != nil {
 			return DNSObservation{}, err
 		}
+	}
+	// Authority and Additional records are validated, but must not be treated
+	// as answers (e.g. glue A/AAAA must never enter an answer fingerprint).
+	for i := 0; i < nsCount; i++ {
+		_, next, err := readResourceRecord(payload, offset)
+		if err != nil {
+			return DNSObservation{}, malformedDNS("authority", err)
+		}
+		offset = next
+	}
+	for i := 0; i < arCount; i++ {
+		_, next, err := readResourceRecord(payload, offset)
+		if err != nil {
+			return DNSObservation{}, malformedDNS("additional", err)
+		}
+		offset = next
+	}
+	if offset != len(payload) {
+		return DNSObservation{}, fmt.Errorf("%w: trailing bytes after DNS message", ErrMalformedResponse)
 	}
 
 	if observation.QueryName != "" {
