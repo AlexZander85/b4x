@@ -27,6 +27,16 @@ const MarkOperaEgress uint32 = 1 << 23
 // canary control mask (24-26) and ProcessedBit (27).
 const MarkFxvpnEgress uint32 = 1 << 22
 
+// MarkTorEgress (bit 21) tags the Tor reserve transport's own egress
+// sockets — the direct legs of the E-TOR egress dialer (design
+// tor-reserve-design.md §3.4). An OUTPUT mangle rule routes the marked
+// packets either into the existing action queue (bait_profile=first-flight:
+// the fake first flight protects the tunnel's own PT/TLS handshakes) or
+// into the engine bypass (bait=none: the marked packets must not loop back
+// into the classifier). Bit 21 is disjoint from bits 22-23 (opera/fxvpn),
+// the canary control mask (24-26) and ProcessedBit (27).
+const MarkTorEgress uint32 = 1 << 21
+
 func ProcessedFor(legacyMark uint) uint32 {
 	return uint32(legacyMark) | ProcessedBit
 }

@@ -1,0 +1,31 @@
+# Third-Party Notices — E-TOR dependency exception (design §10)
+
+The E-TOR stage (tor-reserve-design.md §10, owner-sanctioned 2026-09-15)
+adds exactly this dependency set beyond the pre-E-TOR baseline. License
+texts live in each module's source tree (vendored under `src/vendor/` and
+`tools/snowflake/`).
+
+| Module | Version | License | Why |
+|---|---|---|---|
+| gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/goptlib | v1.6.0 | CC0-1.0 | PT SOCKS argument model (`pt.Args`) |
+| gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/lyrebird | v0.0.0-20260312101154-fc105a03c0e0 | BSD-2-Clause | obfs4 / webtunnel / meek_lite client factories |
+| gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2 | v2.14.1 (**b4x fork**: tools/snowflake, see tools/deps/patches/snowflake-b4x.patch) | BSD-3-Clause | snowflake client library (client/lib) |
+| gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/ptutil | v0.0.0-20250815012447-418f76dcf315 | MIT (Tor Project) | uTLS HTTP round-tripper for the snowflake broker |
+| github.com/pion/ice/v4 | v4.2.0 | MIT | WebRTC ICE |
+| github.com/pion/webrtc/v4 | v4.2.3-securityfix | MIT | WebRTC data channels (snowflake) |
+| github.com/pion/transport/v4 | v4.1.1 | MIT | pion net abstraction (the fork's NetWrapper seam) |
+| github.com/pion/{dtls/v3, sdp/v3, stun/v3, turn/v4, rtp, rtcp, sctp, srtp/v3, datachannel, interceptor, logging, mdns/v2, randutil} | (respective) | MIT | WebRTC stack transitives |
+| github.com/xtaci/kcp-go/v5 | v5.6.24 | MIT | snowflake Turbo Tunnel KCP |
+| github.com/xtaci/smux | v1.5.56 | MIT | snowflake Turbo Tunnel multiplexing |
+| github.com/theodorsm/covert-dtls | v1.5.0 | MIT | DTLS fingerprint mimicry |
+| github.com/clarkduvall/hyperloglog | v0.0.0-20171127014514-a0107a5d8004 | Apache-2.0 | snowflake broker transitive |
+| github.com/prometheus/client_golang | v1.23.2 | Apache-2.0 | snowflake broker metrics (transitive, client-linked only) |
+| github.com/txthinking/socks5 | v0.0.0-20251011041537-5c31f201a10e | MIT | snowflake proxy support (transitive) |
+| github.com/miekg/dns | v1.1.65 | BSD-3-Clause | snowflake/transitive DNS |
+| github.com/realclientip/realclientip-go | v1.0.0 | Apache-2.0 | broker transitive |
+| github.com/refraction-networking/utls | v1.8.2 | BSD-3-Clause | ALREADY in the baseline; version coincidence with snowflake's requirement (no conflict) |
+
+NOT included (by design §10/§14): cretz/bine (own minimal control client),
+sing-box (patterns only), any tor binary (Entware), and — via the fork's
+SQS removal — the whole github.com/aws/aws-sdk-go-v2 tree (verified absent
+from `src/vendor/`).

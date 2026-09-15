@@ -1,5 +1,42 @@
 # B4 - Bye Bye Big Bro
 
+## [unreleased] — E-TOR: Tor reserve tunnel (tor-reserve-design.md, stages TT1–TT10)
+
+- ADDED (E-TOR): the Tor reserve tunnel — external C-tor (Entware
+  `opkg install tor`, honest `binary-missing` state with a hint when
+  absent) supervised over the control protocol; ALL pluggable transports
+  in-process (obfs4/webtunnel/meek_lite via lyrebird, snowflake via the
+  b4x fork with socket hooks + SQS removal); registered as kind `tor`,
+  priority 5 — the carrier of last resort, strictly below proton; TCP-only
+  with an honest UDP refusal; `.onion` rides SOCKS unresolved.
+- ADDED: the egress dialer — every tor-own outbound leg under policy
+  (`direct` with SO_MARK bit 21 / `through:<reserve>` composition /
+  `auto` failover), self-loop guards, DoH hostname resolution, anti-SSRF;
+  the loopback SOCKS5 egress bridge (random per-start creds) and the
+  in-process PT proxy (one port, four transports, ACL by active bridge
+  set, 0x02/0x04 reply codes).
+- ADDED: the bridge collection conveyor — builtin snowflake sets (CDN77
+  verbatim from the pinned v2.14.1, AMP), OnionHop mirror race (first
+  non-empty wins), Moat circumvention (country-tuned), owner lines;
+  per-transport liveness probes (webtunnel strictly HTTP/1.1 WS-upgrade);
+  trim-keeping-every-kind; entry ladder with 30-min memory.
+- ADDED: bootstrap supervision (progress/stall/hard-cap/silence), the
+  liveness ladder (SOCKS-through-tor → ACTIVE+NEWNYM → restart from the
+  winner), bridge strikes, restart guard with backoff, exit probe
+  (check.torproject.org through tor), conflux opportunistic with honest
+  degradation.
+- ADDED: the vanilla relay scanner — onionoo fallback chain (CORS proxy/
+  GitHub/Bitbucket/offline cache), the four-step deep probe (TLS random
+  SNI → VERSIONS → NETINFO+CREATE → CREATED), observed-bandwidth ranking,
+  all-or-addresses; background 6h cadence + on-demand.
+- ADDED: HTTP API `/api/tor/{status,restart,newnym,entry,bridges,
+  bridges/refresh,scan}` + the `torctl` CLI against the daemon; metrics
+  `tor_*` and the bounded event ring.
+- CHANGED: dependencies (the sanctioned design §10 exception) — goptlib
+  v1.6.0, lyrebird, snowflake/v2 fork (replace), pion tree, kcp/smux/
+  covert-dtls/ptutil transitives; vendor +~35 MB, no aws-sdk (SQS removed
+  in the fork); mips softfloat cross-compile green.
+
 ## [unreleased] — warp nested/H3 fix cycle (WARP_NESTED_H3_PATCH_PLAN)
 
 - FIXED (PATCH-01): the H3→H2 ladder now treats silent-after-handshake (no CONNECT-IP response) as a switch class, closing the endless H3-backoff-H3 loop on the RF DPI scenario.

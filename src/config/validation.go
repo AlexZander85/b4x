@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/transport/tor"
 	"github.com/daniellavrushin/b4/utils"
 )
 
@@ -66,6 +68,7 @@ func (c *Config) Validate() error {
 	c.validateWarp(v)
 	c.validateOpera(v)
 	c.validateProton(v)
+	c.validateTor(v)
 	if v.hasErrors() {
 		return v.result()
 	}
@@ -737,5 +740,126 @@ func (c *Config) validateAdaptiveDNS(v *validator) {
 	case "lowest-latency", "balanced", "privacy", "minimum-dependency", "":
 	default:
 		v.add("dns_adaptive.preference", "invalid_value", "unknown preference", nil)
+	}
+}
+
+// validateTor checks the E-TOR reserve section (design tor-reserve-design.md
+// §9.4, patch-plan TT1+TT2). The structural fields are validated ALWAYS —
+// even when disabled — per the program canon (a typo cannot hide until
+// enable day); enabled-only requirements follow the opera/proton shape
+// (absolute paths). Bridge LINES go through the full admission parser
+// (tor.ParseBridgeLine: torrc injection, 510-byte budget, fingerprint
+// shape, k=v tokens, sqs rejection) — an invalid line fails at the config
+// layer, never in the runtime.
+func (c *Config) validateTor(v *validator) {
+	t := c.System.Tor
+	if mode := strings.ToLower(strings.TrimSpace(t.Entry.Mode)); mode != "" {
+		switch mode {
+		case TorEntryAuto, TorEntryWebtunnel, TorEntryObfs4,
+			TorEntrySnowflake, TorEntryMeek, TorEntryVanilla,
+			TorEntryDirect:
+		default:
+			v.addf("system.tor.entry.mode", "invalid_value", map[string]any{"mode": t.Entry.Mode},
+				"entry.mode %q invalid (auto|webtunnel|obfs4|snowflake|meek|vanilla|direct)", t.Entry.Mode)
+		}
+	}
+	if t.Entry.RaceWindow < 0 || t.Entry.RaceWindow > 4 {
+		v.addf("system.tor.entry.race_window", "invalid_value", map[string]any{"race_window": t.Entry.RaceWindow},
+			"entry.race_window %d outside [0, 4]", t.Entry.RaceWindow)
+	}
+	if through := strings.ToLower(strings.TrimSpace(t.Egress.Through)); through != "" {
+		switch through {
+		case TorEgressNone, TorEgressWarp, TorEgressMasque,
+			TorEgressH3, TorEgressOpera, TorEgressFxvpn,
+			TorEgressProton, TorEgressAuto:
+		default:
+			v.addf("system.tor.egress.through", "invalid_value", map[string]any{"through": t.Egress.Through},
+				"egress.through %q invalid (none|warp|masque|h3|opera|fxvpn|proton|auto)", t.Egress.Through)
+		}
+	}
+	if bait := strings.ToLower(strings.TrimSpace(t.Egress.BaitProfile)); bait != "" {
+		switch bait {
+		case TorBaitNone, TorBaitFirstFlight:
+		default:
+			v.addf("system.tor.egress.bait_profile", "invalid_value", map[string]any{"bait_profile": t.Egress.BaitProfile},
+				"egress.bait_profile %q invalid (none|first-flight)", t.Egress.BaitProfile)
+		}
+	}
+	if padding := strings.ToLower(strings.TrimSpace(t.Speed.Padding)); padding != "" {
+		switch padding {
+		case TorPaddingReduced, TorPaddingFull:
+		default:
+			v.addf("system.tor.speed.padding", "invalid_value", map[string]any{"padding": t.Speed.Padding},
+				"speed.padding %q invalid (reduced|full)", t.Speed.Padding)
+		}
+	}
+	if conflux := strings.ToLower(strings.TrimSpace(t.Speed.Conflux)); conflux != "" {
+		switch conflux {
+		case TorConfluxAuto, TorConfluxOff, TorConfluxThroughput, TorConfluxLatency:
+		default:
+			v.addf("system.tor.speed.conflux", "invalid_value", map[string]any{"conflux": t.Speed.Conflux},
+				"speed.conflux %q invalid (auto|off|throughput|latency)", t.Speed.Conflux)
+		}
+	}
+	if isolation := strings.ToLower(strings.TrimSpace(t.Speed.Isolation)); isolation != "" {
+		switch isolation {
+		case TorIsolationNone, TorIsolationPerDestination:
+		default:
+			v.addf("system.tor.speed.isolation", "invalid_value", map[string]any{"isolation": t.Speed.Isolation},
+				"speed.isolation %q invalid (none|per-destination)", t.Speed.Isolation)
+		}
+	}
+	if t.Speed.SnowflakeMax < 0 || t.Speed.SnowflakeMax > 8 {
+		v.addf("system.tor.speed.snowflake_max", "invalid_value", map[string]any{"snowflake_max": t.Speed.SnowflakeMax},
+			"speed.snowflake_max %d outside [0, 8] (0 selects the default 2)", t.Speed.SnowflakeMax)
+	}
+	for i, raw := range t.Bridges.Lines {
+		// TT2: the full parser is the admission gate (design §1.5) —
+		// injection, budget, fingerprint shape, k=v tokens, sqs rejection.
+		if _, err := tor.ParseBridgeLine(raw); err != nil {
+			v.addf(fmt.Sprintf("system.tor.bridges.lines[%d]", i), "invalid_value", map[string]any{"line": raw},
+				"bridge line %d invalid: %v", i, err)
+		}
+	}
+	for i, raw := range t.Bridges.CollectURLs {
+		u, err := url.Parse(raw)
+		if err != nil || u.Scheme != "https" || u.Host == "" {
+			v.addf(fmt.Sprintf("system.tor.bridges.collect_urls[%d]", i), "invalid_value", map[string]any{"url": raw},
+				"collect_urls[%d] must be a valid https URL (got: %q)", i, raw)
+		}
+	}
+	for _, p := range t.RelayScan.Ports {
+		if p < 1 || p > 65535 {
+			v.addf("system.tor.relay_scan.ports", "invalid_value", map[string]any{"port": p},
+				"relay_scan port %d outside [1, 65535]", p)
+		}
+	}
+	if t.RelayScan.Goal < 0 || t.RelayScan.Goal > 100 {
+		v.addf("system.tor.relay_scan.goal", "invalid_value", map[string]any{"goal": t.RelayScan.Goal},
+			"relay_scan.goal %d outside [0, 100] (0 selects the default 6)", t.RelayScan.Goal)
+	}
+	if t.RelayScan.TimeoutSec < 0 || t.RelayScan.TimeoutSec > 600 {
+		v.addf("system.tor.relay_scan.timeout_sec", "invalid_value", map[string]any{"timeout_sec": t.RelayScan.TimeoutSec},
+			"relay_scan.timeout_sec %d outside [0, 600] (0 selects the default 90)", t.RelayScan.TimeoutSec)
+	}
+	if t.MaxRestartsPerHour < 0 || t.MaxRestartsPerHour > 60 {
+		v.addf("system.tor.max_restarts_per_hour", "invalid_value", map[string]any{"max_restarts_per_hour": t.MaxRestartsPerHour},
+			"max_restarts_per_hour %d outside [0, 60] (0 selects the default 6)", t.MaxRestartsPerHour)
+	}
+	if t.BootstrapTimeoutSec < 0 || t.BootstrapTimeoutSec > 900 {
+		v.addf("system.tor.bootstrap_timeout_sec", "invalid_value", map[string]any{"bootstrap_timeout_sec": t.BootstrapTimeoutSec},
+			"bootstrap_timeout_sec %d outside [0, 900] (0 selects the default 180)", t.BootstrapTimeoutSec)
+	}
+	if !t.Enabled {
+		return
+	}
+	// Enabled-only requirements (the opera/proton shape).
+	if t.DataPath != "" && !filepath.IsAbs(t.DataPath) {
+		v.addf("system.tor.data_path", "must_be_absolute", map[string]any{"path": t.DataPath},
+			"tor data_path must be an absolute path (got: %q)", t.DataPath)
+	}
+	if t.BinaryPath != "" && !filepath.IsAbs(t.BinaryPath) {
+		v.addf("system.tor.binary_path", "must_be_absolute", map[string]any{"path": t.BinaryPath},
+			"tor binary_path must be an absolute path (got: %q)", t.BinaryPath)
 	}
 }
