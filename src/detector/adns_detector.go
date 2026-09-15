@@ -72,8 +72,9 @@ type ADNSDiagnosis struct {
 }
 
 // RunADNSDiagnosis executes the bounded quick/deep matrix and compiles a
-// fresh canonical DNSPathProfile. One transient timeout never starts a deep
-// matrix and one successful resolver never becomes primary (§5).
+// fresh canonical DNSPathProfile. A provider can prove transport/message
+// validity, but PASS_CORRECT is granted only after repeated independent
+// differential corroboration and both controls pass.
 func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosis, error) {
 	if len(in.Providers) == 0 {
 		return nil, fmt.Errorf("adns diagnosis requires at least one provider")
@@ -90,8 +91,10 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	if in.TTL <= 0 {
 		in.TTL = 24 * time.Hour
 	}
+	attempts := in.AttemptsQuick
 	maxCandidates := in.Policy.MaxQuickCandidates
 	if in.Deep {
+		attempts = in.AttemptsValid
 		maxCandidates = in.Policy.MaxDeepCandidates
 	}
 	if maxCandidates <= 0 {
@@ -137,71 +140,57 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			continue
 		}
 		for _, sc := range in.Suite {
-			for attempt := 1; attempt <= in.AttemptsQuick; attempt++ {
+			for attempt := 1; attempt <= attempts; attempt++ {
 				out, err := prov.Probe(ctx, prepared, dnspath.DNSProbeQuery{
 					Name: sc.Name, NameHash: dnspath.HashQName(sc.Name),
 					QType: sc.QType, SuiteCase: sc.ID, Timeout: 3 * time.Second,
+					ObserveRace: id.Family == dnspath.DNSPathUDP && sc.ID == "A",
 				})
 				if err != nil {
-					st.fail++
+					out = dnspath.DNSPathProbeOutcome{
+						PathID: id, QuerySuiteID: sc.ID, Attempt: uint16(attempt),
+						Stage: dnspath.StageConnect, Class: dnspath.OutcomeObserverUnavailable,
+						FailureCode: "provider_probe_error", ObservedAt: in.Now(),
+					}
+					st.outcomes = append(st.outcomes, out)
 					continue
 				}
 				out.Attempt = uint16(attempt)
 				st.outcomes = append(st.outcomes, out)
-				switch {
-				case out.Class.Pass():
-					st.pass++
-					st.latency += out.Latency
-					st.latencyN++
-				case out.Class == dnspath.OutcomeTimeout:
-					st.timeouts++
-					st.fail++
-				case out.Class == dnspath.OutcomeAnswerConflict:
-					st.conflicts++
-					st.fail++
-				case out.Class == dnspath.OutcomeEarlyInjectionSuspected:
-					st.injection = true
-					st.fail++
-				case out.Class == dnspath.OutcomeTLSMidHandshakeReset:
-					st.midHandshake = true
-					st.fail++
-				default:
-					st.fail++
-				}
 			}
 		}
 		_ = prov.Retire(ctx, prepared)
 	}
 
-	// Aggregate evidence flags (§59: poisoning requires repeated
-	// control/reference-contradicting answers, not one mismatch).
-	poisonVotes, injectionVotes, udpDropVotes := 0, 0, 0
-	for hash, st := range stats {
-		id := paths[hash]
-		if st.injection {
-			injectionVotes++
-		}
-		if st.conflicts >= 2 {
-			poisonVotes++
-		}
-		if st.timeouts >= 2 && (id.Family == dnspath.DNSPathUDP || id.Family == dnspath.DNSPathSystemForward) {
-			udpDropVotes++
-		}
+	var provisional []dnspath.DNSPathProbeOutcome
+	for _, st := range stats {
+		provisional = append(provisional, st.outcomes...)
 	}
-	diag.PoisoningDetected = poisonVotes > 0
-	diag.InjectionDetected = injectionVotes > 0
-	diag.UDPDropDetected = udpDropVotes > 0
-
-	// Mid-handshake DPI cut is a family-level filter: one observation marks
-	// the family (fast recurrence — retries against a stable DPI rule are
-	// useless), and plaintext families are never listed here.
+	verifiedOutcomes, verifiedStats := verifyADNSOutcomes(provisional, in.Suite, attempts)
 	for hash, st := range stats {
-		if st.midHandshake {
-			diag.EncryptedFamiliesFiltered = append(diag.EncryptedFamiliesFiltered, paths[hash].Family)
+		v := verifiedStats[hash]
+		st.pass = v.Pass
+		st.fail = v.Fail
+		st.latency = v.Latency
+		st.latencyN = v.LatencyN
+		st.timeouts = v.Timeouts
+		st.conflicts = v.Conflicts
+		st.injection = v.Injection
+		st.midHandshake = v.MidHandshake
+		st.outcomes = st.outcomes[:0]
+		for _, o := range verifiedOutcomes {
+			if o.PathID.Hash() == hash {
+				st.outcomes = append(st.outcomes, o)
+			}
 		}
 	}
 
-	// Build candidate evidence and rank deterministically.
+	diag.PoisoningDetected, diag.InjectionDetected, diag.UDPDropDetected,
+		diag.Port53Blocked, diag.EncryptedPathBlocked, diag.EncryptedFamiliesFiltered =
+		classifyDiagnosisFlags(verifiedOutcomes, paths, verifiedStats, attempts)
+
+	// Build candidate evidence and rank deterministically. Correctness and
+	// controls are per-suite-case gates; aggregate pass counts are not enough.
 	var candidates []dnspath.CandidateEvidence
 	for hash, st := range stats {
 		id := paths[hash]
@@ -215,10 +204,11 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			lat = st.latency / time.Duration(st.latencyN)
 		}
 		timeoutRate := float64(st.timeouts) / float64(total)
+		v := verifiedStats[hash]
 		candidates = append(candidates, dnspath.CandidateEvidence{
 			Path:            id,
-			CorrectnessPass: st.pass >= in.AttemptsQuick && st.conflicts == 0 && !st.injection,
-			ControlsPass:    controlsPass(st.outcomes),
+			CorrectnessPass: v.CorrectnessPass,
+			ControlsPass:    v.ControlsPass,
 			Stability:       stability,
 			Latency:         lat,
 			TimeoutRate:     timeoutRate,
@@ -232,12 +222,13 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	ranked := dnspath.RankCandidates(candidates, in.Policy)
 	allCorrect := true
 	sawAny := false
-	for _, st := range stats {
+	for hash, st := range stats {
 		if st.pass+st.fail == 0 {
 			continue
 		}
 		sawAny = true
-		if st.fail > 0 || st.injection || st.conflicts > 0 {
+		v := verifiedStats[hash]
+		if !v.CorrectnessPass || !v.ControlsPass || st.fail > 0 || st.injection || st.conflicts > 0 {
 			allCorrect = false
 			break
 		}
@@ -247,18 +238,18 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 	}
 	prior := dnspath.PriorFromEvidence(
 		diag.PoisoningDetected, diag.UDPDropDetected, diag.Port53Blocked,
-		false, false, false, false, allCorrect,
+		diag.EncryptedPathBlocked, false, false, false, allCorrect,
 	)
 	ranked = prior.ApplyTo(ranked)
 
 	primary, fallbacks := dnspath.CompileProfileSelection(ranked, 2, 20)
-	var outcomes []dnspath.DNSPathProbeOutcome
-	for _, st := range stats {
-		outcomes = append(outcomes, st.outcomes...)
-	}
+	outcomes := append([]dnspath.DNSPathProbeOutcome(nil), verifiedOutcomes...)
 	sort.SliceStable(outcomes, func(i, j int) bool {
 		if outcomes[i].PathID.Hash() != outcomes[j].PathID.Hash() {
 			return outcomes[i].PathID.Hash() < outcomes[j].PathID.Hash()
+		}
+		if outcomes[i].QuerySuiteID != outcomes[j].QuerySuiteID {
+			return outcomes[i].QuerySuiteID < outcomes[j].QuerySuiteID
 		}
 		return outcomes[i].Attempt < outcomes[j].Attempt
 	})
