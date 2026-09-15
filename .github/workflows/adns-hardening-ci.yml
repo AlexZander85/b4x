@@ -1,0 +1,52 @@
+name: Adaptive DNS Hardening CI
+
+on:
+  push:
+    branches:
+      - agent/classifier-v2.3-capture-envelope
+  workflow_dispatch:
+
+concurrency:
+  group: adns-hardening-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  adns-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+      - name: Prepare embedded UI placeholder
+        working-directory: src
+        run: |
+          mkdir -p http/ui/dist
+          printf '<!doctype html><title>ci-placeholder</title>\n' > http/ui/dist/index.html
+      - name: Go format gate for ADNS files
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          files="$(gofmt -l dns detector/adns_*.go transport/dns main_adns*.go 2>/dev/null || true)"
+          test -z "$files" || { printf 'gofmt required:\n%s\n' "$files"; exit 1; }
+      - name: Vet repository
+        working-directory: src
+        run: go vet ./...
+      - name: Test adaptive DNS packages
+        working-directory: src
+        run: go test -count=1 ./dns ./transport/dns/... ./detector ./http/handler
+      - name: Race-test adaptive DNS core
+        working-directory: src
+        run: go test -race -count=1 ./dns ./transport/dns/... ./detector
+      - name: Test full repository
+        working-directory: src
+        run: go test -count=1 ./...
+      - name: Compile full repository
+        working-directory: src
+        run: go test -run '^$' ./...
