@@ -1,0 +1,38 @@
+name: ADNS branch verification
+
+on:
+  push:
+    branches:
+      - agent/classifier-v2.3-capture-envelope
+
+permissions:
+  contents: read
+
+jobs:
+  adns-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache: false
+      - name: Go format check
+        working-directory: src
+        run: |
+          files=$(git diff --name-only HEAD~40..HEAD -- '*.go' | sed 's#^src/##' | grep -v '^$' || true)
+          if [ -n "$files" ]; then
+            unformatted=$(gofmt -l $files || true)
+            if [ -n "$unformatted" ]; then
+              echo "Unformatted Go files:"
+              echo "$unformatted"
+              exit 1
+            fi
+          fi
+      - name: Adaptive DNS packages
+        working-directory: src
+        run: go test ./dns/... ./transport/dns/... ./detector/...
+      - name: ADNS integration packages
+        working-directory: src
+        run: go test . ./nfq/... ./http/handler/...
