@@ -30,8 +30,10 @@ package protonservice
 
 import (
         "context"
+        cryptorand "crypto/rand"
         "errors"
         "fmt"
+        "math/rand"
         "net"
         "net/netip"
         "strings"
@@ -296,6 +298,27 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
         }
         list.OnEvent = func(event, source string) {
                 r.appendEvent(proton.Event{Name: event, Detail: source})
+        }
+        // Параллельный опрос (Фаза 3): handshake-ярус ранжирования вооружается
+        // ключом идентичности + прелюдией движка (proton-quic: I1 = случайный
+        // SNI из пула, Jc=0). Ключ не покидает замыкание; проба идёт прямым
+        // UDP-путём, тем же ключом, которым поднимался бы туннель.
+        list.HandshakeKey = func() (string, string, bool) {
+                id, err := r.idStore.Load()
+                if err != nil || id == nil {
+                        return "", "", false
+                }
+                seed, err := id.Seed()
+                if err != nil {
+                        return "", "", false
+                }
+                kp := proton.DeriveKeyPair(seed)
+                pool := proton.DefaultSNIPool()
+                if len(pool) == 0 {
+                        return kp.WGPrivateKeyB64, "", true
+                }
+                sni := pool[rand.Intn(len(pool))]
+                return kp.WGPrivateKeyB64, proton.BuildQuicInitial(sni, cryptorand.Reader), true
         }
         r.list = list
 

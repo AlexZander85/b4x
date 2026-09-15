@@ -75,6 +75,15 @@ type ServerlistCache struct {
 	// leaves it nil and uses a plain direct net.Dialer. Tests/custom HTTP
 	// transports do not probe unless they explicitly provide this seam.
 	RTTDial RTTProbeDial
+	// RankPorts overrides the handshake-tier candidate port window
+	// (tests point it at loopback listeners); nil => ProtonPortCatalog.
+	RankPorts []uint16
+	// HandshakeKey arms the WG-handshake tier of the parallel ranking
+	// (handshake_rank.go). It returns the identity's WG private key and
+	// the engine prelude I1 ("<b 0x…>") the probe must repeat; ok=false
+	// (or a nil hook) degrades to the TCP-only ranking of PR #4. The hook
+	// runs OFF the cache mutex and must stay cheap (key derivation only).
+	HandshakeKey func() (privateKeyB64, i1 string, ok bool)
 
 	mu          sync.Mutex
 	cur         *cachedServerlist
@@ -226,6 +235,25 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	source := sc.cur.Source
 	nodes := append([]Node(nil), sc.cur.Nodes...)
 	dial := sc.RTTDial
+	hook := sc.HandshakeKey
+
+	// Candidate ports for the handshake tier: the catalog rotation as the
+	// queue itself would issue them (the probe must measure the ports a
+	// real seek would dial — a fallback port is exactly where TCP/443
+	// tells nothing about the WireGuard path). RankPorts is the test/embedded
+	// override seam.
+	ports := append([]uint16(nil), ProtonPortCatalog...)
+	if len(sc.RankPorts) > 0 {
+		ports = append([]uint16(nil), sc.RankPorts...)
+	}
+	handshakeCands := make([]Candidate, 0, len(nodes))
+	for i, n := range nodes {
+		handshakeCands = append(handshakeCands, Candidate{Node: n, Port: ports[i%len(ports)]})
+	}
+	tcpCands := make([]Candidate, 0, len(nodes))
+	for _, n := range nodes {
+		tcpCands = append(tcpCands, Candidate{Node: n, Port: 443})
+	}
 
 	// Reserve this generation before dropping the mutex so another caller
 	// does not start the same probe batch. Even an all-failed batch counts as
@@ -233,14 +261,31 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	sc.rttRankedAt = sc.now()
 	sc.mu.Unlock()
 
-	cands := make([]Candidate, 0, len(nodes))
-	for _, n := range nodes {
-		cands = append(cands, Candidate{Node: n, Port: 443})
+	// Параллельный опрос (Nova canon): handshake-пробы и TCP-замер идут
+	// ОДНОВРЕМЕННО, каждый со своей параллельностью; слияние — после.
+	privB64, i1, armed := "", "", false
+	if hook != nil {
+		privB64, i1, armed = hook()
 	}
-	rtts := ProbeTCP443RTT(ctx, cands, dial)
-	for i := range nodes {
-		nodes[i].RTT = rtts[nodes[i].EntryIP]
+	var hs map[string]HandshakeSample
+	var tcpRTTs map[string]time.Duration
+	var wg sync.WaitGroup
+	if armed {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hs = ProbeHandshakeBatch(ctx, privB64, handshakeCands,
+				ProbeHandshakeConfig{Timeout: DefaultHandshakeProbeTimeout, I1: i1})
+		}()
 	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tcpRTTs = ProbeTCP443RTT(ctx, tcpCands, dial)
+	}()
+	wg.Wait()
+
+	nodes = MergeProbeRanking(nodes, hs, tcpRTTs, ports)
 
 	sc.mu.Lock()
 	if sc.cur == nil || !sc.cur.FetchedAt.Equal(generation) || sc.cur.Source != source {
