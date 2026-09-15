@@ -5,13 +5,19 @@ import (
 	"time"
 )
 
-// DNSPathCapabilities describes what a provider can do right now.
+// DNSPathCapabilities describes what a provider can do right now. Trust and
+// privacy fields are evidence inputs, not optimistic defaults: unknown means
+// false and therefore cannot satisfy a policy hard gate.
 type DNSPathCapabilities struct {
 	State           CapabilityState `json:"state"`
 	Reason          string          `json:"reason,omitempty"`
 	IPv4            bool            `json:"ipv4"`
 	IPv6            bool            `json:"ipv6"`
 	DNSSEC          bool            `json:"dnssec"`
+	NoLogClaim      bool            `json:"nolog_claim"`
+	NoFilterClaim   bool            `json:"nofilter_claim"`
+	CatalogTrusted  bool            `json:"catalog_trusted"`
+	Anonymized      bool            `json:"anonymized"`
 	MultiResponse   bool            `json:"multi_response"` // UDP race observation
 	Segmentation    bool            `json:"segmentation"`   // proven on-wire TCP segmentation
 	ProviderVersion string          `json:"provider_version,omitempty"`
