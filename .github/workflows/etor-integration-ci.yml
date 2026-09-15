@@ -42,6 +42,12 @@ jobs:
       - name: Vet E-TOR packages
         working-directory: src
         run: go vet ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/... ./cmd/torctl/...
+      - name: Verify rendered torrc with real C-Tor
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor
+          cd src
+          B4X_TOR_INTEGRATION=1 B4X_TOR_BINARY="$(command -v tor)" go test -count=1 ./transport/tor -run '^TestVerifyConfig$' -v
       - name: Test E-TOR packages with race detector
         working-directory: src
         run: go test -race -count=1 ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/...
