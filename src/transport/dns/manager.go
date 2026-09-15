@@ -22,9 +22,10 @@ type Manager struct {
 	providers map[string]DNSPathProvider // keyed by path hash
 	prepared  map[string]PreparedDNSPath
 
-	active   *DNSPathBinding
-	lastGood *DNSPathBinding
-	profile  *DNSPathProfile
+	active          *DNSPathBinding
+	lastGood        *DNSPathBinding
+	profile         *DNSPathProfile
+	lastGoodProfile *DNSPathProfile
 
 	cache    *GenerationCache
 	health   map[string]*DNSPathHealth
@@ -182,7 +183,10 @@ func (m *Manager) ActiveBinding() *DNSPathBinding {
 	return m.active
 }
 
-// Profile returns the current profile.
+// Profile returns the currently staged/adopted profile. During a transaction
+// this may be newer than the still-active binding; production Resolve keeps
+// using the evidence profile associated with that active binding until the
+// atomic promote/rollback decision completes.
 func (m *Manager) Profile() *DNSPathProfile {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -226,11 +230,15 @@ func (m *Manager) promote(candidate, lastGood *DNSPathBinding) {
 	m.trace("BINDING_PROMOTED", candidate.Primary.Family)
 }
 
-// restoreLastGood reverts to the retained binding (§76 ROLLBACK). A nil
-// last-good reverts to pre-adaptive behavior (no adaptive binding).
+// restoreLastGood reverts to the retained binding/profile pair (§76
+// ROLLBACK). A staged candidate profile must never strand the previously
+// promoted binding without its evidence profile.
 func (m *Manager) restoreLastGood(lastGood *DNSPathBinding) {
 	m.mu.Lock()
 	m.active = lastGood
+	if lastGood != nil && m.lastGoodProfile != nil && m.lastGoodProfile.ProfileID == lastGood.ProfileID {
+		m.profile = m.lastGoodProfile
+	}
 	m.counters.RollbackTotal++
 	m.mu.Unlock()
 	if lastGood != nil {
@@ -240,9 +248,10 @@ func (m *Manager) restoreLastGood(lastGood *DNSPathBinding) {
 	}
 }
 
-// AdoptProfile installs a freshly validated profile as the selection basis.
-// Expired/stale profiles are rejected (§82, zero-tolerance
-// dns_stale_profile_applied_total).
+// AdoptProfile stages a freshly validated profile as the selection basis.
+// When a binding is already active, its matching evidence profile is retained
+// as last-good so production traffic remains valid throughout canary and can
+// be restored atomically on rollback.
 func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 	if err := p.Valid(time.Now()); err != nil {
 		return fmt.Errorf("refusing stale/invalid profile: %w", err)
@@ -256,6 +265,9 @@ func (m *Manager) AdoptProfile(p *DNSPathProfile) error {
 		return errors.New("profile context/generation/epoch mismatch with runtime")
 	}
 	m.mu.Lock()
+	if m.active != nil && m.profile != nil && m.active.ProfileID == m.profile.ProfileID {
+		m.lastGoodProfile = m.profile
+	}
 	m.profile = p
 	m.counters.ProfileCompiles++
 	m.mu.Unlock()
@@ -273,6 +285,7 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 	mode := m.mode
 	binding := m.active
 	profile := m.profile
+	lastGoodProfile := m.lastGoodProfile
 	generation := m.generation
 	epoch := m.epoch
 	networkCtx := m.networkCtx
@@ -283,17 +296,22 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 	if binding == nil {
 		return DNSResponse{}, errors.New("no active DNS path binding")
 	}
-	if profile == nil {
-		return DNSResponse{}, errors.New("active DNS binding has no adopted profile")
+	activeProfile := profile
+	if activeProfile == nil || activeProfile.ProfileID != binding.ProfileID {
+		if lastGoodProfile != nil && lastGoodProfile.ProfileID == binding.ProfileID {
+			activeProfile = lastGoodProfile
+		} else {
+			return DNSResponse{}, errors.New("active DNS binding has no matching evidence profile")
+		}
 	}
-	if err := profile.Valid(now); err != nil {
+	if err := activeProfile.Valid(now); err != nil {
 		return DNSResponse{}, fmt.Errorf("active DNS profile is stale/invalid: %w", err)
 	}
-	if profile.NetworkContextID != networkCtx || profile.ConfigGeneration != generation || profile.RuntimeEpoch != epoch {
+	if activeProfile.NetworkContextID != networkCtx || activeProfile.ConfigGeneration != generation || activeProfile.RuntimeEpoch != epoch {
 		return DNSResponse{}, errors.New("active DNS profile no longer matches runtime context")
 	}
-	if binding.ProfileID != profile.ProfileID || binding.Primary.Hash() != profile.Primary.Hash() {
-		return DNSResponse{}, errors.New("active DNS binding no longer matches adopted profile")
+	if binding.Primary.Hash() != activeProfile.Primary.Hash() {
+		return DNSResponse{}, errors.New("active DNS binding no longer matches its evidence profile")
 	}
 	if !binding.CompatibleWith(generation, epoch, now) {
 		return DNSResponse{}, errors.New("active DNS binding is stale or expired")
@@ -461,7 +479,8 @@ func (m *Manager) NewBinding(scope string, ttl time.Duration) (*DNSPathBinding, 
 }
 
 // InvalidateOnContextChange marks the profile/binding stale on WAN or
-// generation change (§23/§97).
+// generation change (§23/§97). Last-good state is also invalidated because it
+// belongs to the previous context and must never be restored cross-WAN.
 func (m *Manager) InvalidateOnContextChange(newGeneration uint64, newNetworkCtx string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -473,11 +492,18 @@ func (m *Manager) InvalidateOnContextChange(newGeneration uint64, newNetworkCtx 
 	if m.profile != nil {
 		m.profile.Status = ProfileStatusStale
 	}
+	if m.lastGoodProfile != nil {
+		m.lastGoodProfile.Status = ProfileStatusStale
+	}
 	m.active = nil
+	m.lastGood = nil
+	m.lastGoodProfile = nil
 	m.prepared = map[string]PreparedDNSPath{}
 }
 
-// HealthReport composes the current health axes (§79).
+// HealthReport composes the current health axes (§79). During a staged
+// transaction freshness follows the profile associated with the active
+// binding, not the not-yet-promoted candidate profile.
 func (m *Manager) HealthReport() HealthReport {
 	m.mu.RLock()
 	axes := map[HealthAxis]AxisState{}
@@ -485,11 +511,18 @@ func (m *Manager) HealthReport() HealthReport {
 		axes[k] = v
 	}
 	profile := m.profile
+	lastGoodProfile := m.lastGoodProfile
 	binding := m.active
 	m.mu.RUnlock()
-	if profile == nil {
+	activeProfile := profile
+	if binding != nil && (activeProfile == nil || activeProfile.ProfileID != binding.ProfileID) {
+		if lastGoodProfile != nil && lastGoodProfile.ProfileID == binding.ProfileID {
+			activeProfile = lastGoodProfile
+		}
+	}
+	if activeProfile == nil {
 		axes[AxisFreshness] = AxisUnknown
-	} else if err := profile.Valid(time.Now()); err != nil {
+	} else if err := activeProfile.Valid(time.Now()); err != nil {
 		axes[AxisFreshness] = AxisFailed
 	} else {
 		axes[AxisFreshness] = AxisHealthy
