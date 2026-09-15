@@ -43,3 +43,16 @@ const (
 	// inactive otherwise, the bait never claims itself silently.
 	MetricTorBaitActive = "tor_bait_active"
 )
+
+// ExportTorStatus pushes the status-derived gauges (the service calls it
+// from its supervision tick — one projection point, bounded series).
+func ExportTorStatus(bootstrapSeconds, circuitsAlive, bytesRead, bytesWritten uint64, bridgesByTransport map[string]int) {
+	met := Default().Metrics
+	met.Set(MetricTorBootstrapSeconds, nil, bootstrapSeconds)
+	met.Set(MetricTorCircuitsAlive, nil, circuitsAlive)
+	met.Set(MetricTorBytesRead, nil, bytesRead)
+	met.Set(MetricTorBytesWritten, nil, bytesWritten)
+	for tr, n := range bridgesByTransport {
+		met.Set(MetricTorBridgesAlive, map[string]string{"transport": tr}, uint64(n))
+	}
+}

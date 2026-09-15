@@ -50,13 +50,18 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 		return
 	}
 	r.collecting = true
+	r.collectDone = make(chan struct{})
 	r.mu.Unlock()
 
 	go func() {
 		defer func() {
 			r.mu.Lock()
 			r.collecting = false
+			done := r.collectDone
 			r.mu.Unlock()
+			if done != nil {
+				close(done)
+			}
 		}()
 		collectCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 		defer cancel()

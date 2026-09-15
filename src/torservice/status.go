@@ -6,6 +6,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/daniellavrushin/b4/config"
+
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/transport/tor"
 )
@@ -166,4 +168,51 @@ func isoTime(t time.Time) string {
 		return ""
 	}
 	return t.UTC().Format(time.RFC3339)
+}
+
+// SetEntry applies a new entry mode in memory and retires the current
+// attempt (the ladder restarts from the new mode on the next ensure).
+func (r *Runtime) SetEntry(mode string) {
+	r.mu.Lock()
+	r.cfg.Entry.Mode = mode
+	r.entry = ""
+	r.mixedTried = false
+	_ = r.entryMem.Clear()
+	r.mu.Unlock()
+	r.teardown("entry-change")
+}
+
+// ValidEntryModes lists the accepted PUT /api/tor/entry values.
+func ValidEntryModes() []string {
+	return []string{
+		config.TorEntryAuto, config.TorEntryWebtunnel, config.TorEntryObfs4,
+		config.TorEntrySnowflake, config.TorEntryMeek, config.TorEntryVanilla,
+		config.TorEntryDirect,
+	}
+}
+
+// IsValidEntryMode validates one mode value.
+func IsValidEntryMode(mode string) bool {
+	switch mode {
+	case config.TorEntryAuto, config.TorEntryWebtunnel, config.TorEntryObfs4,
+		config.TorEntrySnowflake, config.TorEntryMeek, config.TorEntryVanilla,
+		config.TorEntryDirect:
+		return true
+	}
+	return false
+}
+
+// BridgesList projects the stored bridge file for the API.
+func (r *Runtime) BridgesList() tor.BridgesFile {
+	f, err := r.store.Load()
+	if err != nil {
+		return tor.BridgesFile{Schema: tor.BridgesFileSchema}
+	}
+	return f
+}
+
+// RefreshBridges forces one conveyor pass (API endpoint; bounded by the
+// collector's own budgets).
+func (r *Runtime) RefreshBridges(ctx context.Context) (tor.BridgesFile, error) {
+	return r.collector.Collect(ctx, r.cfg.Bridges.BuiltinSnowflake, r.cfg.Bridges.Lines, r.cfg.EffectiveCountry(), r.cfg.Bridges.CollectURLs)
 }

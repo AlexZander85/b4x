@@ -178,38 +178,42 @@ type Runtime struct {
 	egressBridge *tor.EgressBridge
 	ptProxy      *tor.PTProxy
 	snowflake    *torsnowflake.SnowflakeAdapter
+	hostResolve  tor.ResolveFunc
 
-	mu              sync.Mutex
-	ctx             context.Context
-	cancel          context.CancelFunc
-	loopDone        chan struct{}
-	running         bool
-	stopped         bool
-	state           string
-	hint            string
-	entry           string // current attempt entry
-	activeSet       []tor.Bridge
-	entryIdx        int // sequential pass position
-	mixedTried      bool
-	winner          string
-	proc            ProcessController
-	ctl             tor.ControlClient
-	socksAddr       string
-	bootstrap       tor.BootstrapPhase
-	livenessFails   int
-	lastLiveness    time.Time
-	newnymSent      bool
-	lastExitProbe   time.Time
-	exit            ExitInfo
-	exitAt          time.Time
-	version         string
-	confluxDone     bool
-	strikes         map[string]int
-	strikeUntil     map[string]time.Time
-	restarts        []time.Time
-	cooldown        time.Time
-	events          []tor.TorEvent
-	collecting      bool
+	mu            sync.Mutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	loopDone      chan struct{}
+	running       bool
+	stopped       bool
+	state         string
+	hint          string
+	entry         string // current attempt entry
+	activeSet     []tor.Bridge
+	entryIdx      int // sequential pass position
+	mixedTried    bool
+	winner        string
+	proc          ProcessController
+	ctl           tor.ControlClient
+	socksAddr     string
+	bootstrap     tor.BootstrapPhase
+	livenessFails int
+	lastLiveness  time.Time
+	newnymSent    bool
+	lastExitProbe time.Time
+	exit          ExitInfo
+	exitAt        time.Time
+	version       string
+	confluxDone   bool
+	strikes       map[string]int
+	strikeUntil   map[string]time.Time
+	restarts      []time.Time
+	cooldown      time.Time
+	events        []tor.TorEvent
+	collecting    bool
+	// collectDone signals the async conveyor pass completion (Stop waits
+	// on it so a temp-dir teardown never races an in-flight collection).
+	collectDone     chan struct{}
 	lastCollectFail string
 }
 
@@ -250,11 +254,14 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		Now:         opts.Now,
 	}, nil, opts.Resolve, nil)
 	if opts.Resolve == nil {
+		r.hostResolve = torDoHResolve(opts.Now)
 		r.dialer = tor.NewDialer(tor.EgressPolicy{
 			Through:     tc.EffectiveEgressThrough(),
 			BaitProfile: tc.EffectiveBaitProfile(),
 			Now:         opts.Now,
-		}, nil, torDoHResolve(opts.Now), nil)
+		}, nil, r.hostResolve, nil)
+	} else {
+		r.hostResolve = opts.Resolve
 	}
 
 	// The collector over the egress dialer (bootstrap-source class for
@@ -433,6 +440,16 @@ func (r *Runtime) Stop() {
 		select {
 		case <-r.loopDone:
 		case <-time.After(10 * time.Second): // bounded: a stuck ensure() must not hang Stop forever
+		}
+	}
+	// an in-flight collection pass must finish before a temp-dir teardown
+	r.mu.Lock()
+	collectDone := r.collectDone
+	r.mu.Unlock()
+	if collectDone != nil {
+		select {
+		case <-collectDone:
+		case <-time.After(10 * time.Second):
 		}
 	}
 	if proc != nil {
