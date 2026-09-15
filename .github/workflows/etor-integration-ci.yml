@@ -1,0 +1,40 @@
+name: E-TOR Integration CI
+
+on:
+  push:
+    branches:
+      - agent/e-tor-reserve-integration
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tor-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+      - name: Go format gate
+        working-directory: src
+        run: |
+          test -z "$(gofmt -l transport/tor transport/torscan transport/torsnowflake torservice config/tor.go config/validation.go cmd/torctl 2>/dev/null)"
+      - name: Vet E-TOR packages
+        working-directory: src
+        run: go vet ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/... ./cmd/torctl/...
+      - name: Test E-TOR packages with race detector
+        working-directory: src
+        run: go test -race -count=1 ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/...
+      - name: Compile primary target packages
+        working-directory: src
+        run: |
+          go test -run '^$' ./...
+          GOOS=linux GOARCH=amd64 go build -o /tmp/b4-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o /tmp/b4-arm64 .
+          GOOS=linux GOARCH=arm GOARM=6 go build -o /tmp/b4-armv6 .
+          GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o /tmp/b4-mips .
+          GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -o /tmp/b4-mipsle .
