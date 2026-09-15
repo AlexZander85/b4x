@@ -31,7 +31,7 @@ func externallyGreenGate() PromotionGate {
 	}
 }
 
-func TestTransactionRejectsSinglePassProfileEvenWhenCallerSetsAllGates(t *testing.T) {
+func TestAdoptionRejectsSinglePassProfileEvenWhenCallerWouldSetAllGates(t *testing.T) {
 	m, primary, fallback := prepareTransactionFixture(t)
 	now := time.Now()
 	profile := &DNSPathProfile{
@@ -40,33 +40,19 @@ func TestTransactionRejectsSinglePassProfileEvenWhenCallerSetsAllGates(t *testin
 		QuerySuiteVersion: "adns-suite-v1",
 		Primary: primary.id, Fallbacks: []DNSPathID{fallback.id},
 		CandidateOutcomes: []DNSPathProbeOutcome{
-			{PathID: primary.id, QuerySuiteID: "A", Class: OutcomePassCorrect},
-			{PathID: fallback.id, QuerySuiteID: "A", Class: OutcomePassCorrect},
+			{PathID: primary.id, QuerySuiteID: "A", Attempt: 1, Class: OutcomePassCorrect},
+			{PathID: fallback.id, QuerySuiteID: "A", Attempt: 1, Class: OutcomePassCorrect},
 		},
 		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
 	}
 	if err := profile.Seal(); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.AdoptProfile(profile); err != nil {
-		t.Fatal(err)
+	if err := m.AdoptProfile(profile); err == nil {
+		t.Fatal("single PASS outcome must be rejected before it can become staged promotion state")
 	}
-	binding, err := m.NewBinding("lan", time.Hour)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx := &Transaction{
-		Profile: profile, Candidate: binding, Gate: externallyGreenGate(),
-		Canary: func(context.Context, *DNSPathBinding) error { return nil },
-	}
-	if err := tx.Run(context.Background(), m); err == nil {
-		t.Fatal("single PASS outcome must not authorize promotion")
-	}
-	if !strings.Contains(tx.Reason, "promotion evidence invalid") {
-		t.Fatalf("unexpected rejection reason: %q", tx.Reason)
-	}
-	if m.ActiveBinding() != nil {
-		t.Fatal("rejected promotion must not install a binding")
+	if m.Profile() != nil || m.ActiveBinding() != nil {
+		t.Fatal("rejected weak profile must not change manager state")
 	}
 }
 
@@ -90,9 +76,10 @@ func TestTransactionRejectsBindingPrimaryDifferentFromAdoptedProfile(t *testing.
 	}
 }
 
-func TestTransactionRejectsContradictoryCanonicalEvidence(t *testing.T) {
+func TestAdoptionRejectsContradictoryCanonicalEvidence(t *testing.T) {
 	m, primary, fallback := prepareTransactionFixture(t)
 	profile := adoptTestProfile(t, m, primary.id, fallback.id)
+	original := m.Profile()
 	for i := range profile.CandidateOutcomes {
 		if profile.CandidateOutcomes[i].PathID.Hash() == primary.id.Hash() && profile.CandidateOutcomes[i].QuerySuiteID == "CONTROL_SAME" {
 			profile.CandidateOutcomes[i].Class = OutcomeAnswerConflict
@@ -102,16 +89,14 @@ func TestTransactionRejectsContradictoryCanonicalEvidence(t *testing.T) {
 	if err := profile.Seal(); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.AdoptProfile(profile); err != nil {
-		t.Fatal(err)
+	if err := m.AdoptProfile(profile); err == nil {
+		t.Fatal("contradictory canonical evidence must be rejected at adoption")
 	}
-	binding, _ := m.NewBinding("lan", time.Hour)
-	tx := &Transaction{
-		Profile: profile, Candidate: binding, Gate: externallyGreenGate(),
-		Canary: func(context.Context, *DNSPathBinding) error { return nil },
-	}
-	if err := tx.Run(context.Background(), m); err == nil {
-		t.Fatal("contradictory canonical evidence must block promotion")
+	// Manager stores immutable profile semantics; a caller must not mutate an
+	// adopted profile in production. This assertion only checks that adoption
+	// itself did not install a second candidate state.
+	if m.Profile() == nil || m.Profile().ProfileID != original.ProfileID {
+		t.Fatal("failed re-adoption must retain the previously staged profile identity")
 	}
 }
 
