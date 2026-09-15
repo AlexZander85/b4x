@@ -44,10 +44,25 @@ func TestManagerCachesValidatedResponseAndRewritesTransactionID(t *testing.T) {
 		t.Fatal(err)
 	}
 	m.MarkPathHealth(primary.id, DNSPathHealth{State: CapReady})
-	m.promote(&DNSPathBinding{
-		BindingID: "cache-test", Primary: primary.id,
-		ConfigGeneration: m.Generation(), PreparedAt: time.Now(), ValidUntil: time.Now().Add(time.Hour),
-	}, nil)
+	now := time.Now()
+	profile := &DNSPathProfile{
+		ProfileID: "dnsprof-cache", Status: ProfileStatusReady,
+		NetworkContextID: "wan-1", ConfigGeneration: m.Generation(), RuntimeEpoch: "epoch-1",
+		QuerySuiteVersion: "adns-suite-v1", Primary: primary.id,
+		CandidateOutcomes: fullPromotionOutcomes(primary.id),
+		CreatedAt: now, ValidatedAt: now, ValidUntil: now.Add(time.Hour),
+	}
+	if err := profile.Seal(); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.AdoptProfile(profile); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := m.NewBinding("cache-test", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.promote(binding, nil)
 
 	first, err := m.Resolve(context.Background(), DNSQuery{Name: "cache.example", QType: 1, TxID: 0x1111})
 	if err != nil {
