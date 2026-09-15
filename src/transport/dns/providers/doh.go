@@ -138,7 +138,10 @@ func (p *DoHProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 }
 
 func (p *DoHProvider) Resolve(ctx context.Context, prepared dnspath.PreparedDNSPath, q dnspath.DNSQuery) (dnspath.DNSResponse, error) {
-	query := b4dns.BuildQuery(q.Name, q.TxID, q.QType)
+	query, err := productionQueryWire(q)
+	if err != nil {
+		return dnspath.DNSResponse{}, err
+	}
 	start := time.Now()
 	body, err := b4dns.ResolveDoH(ctx, p.client(prepared), p.URL, query)
 	if err != nil {
