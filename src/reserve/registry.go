@@ -36,6 +36,7 @@ const (
 	KindOpera  Kind = "opera"  // Opera VPN (TCP only)
 	KindFxvpn  Kind = "fxvpn"  // Firefox VPN (TCP only)
 	KindProton Kind = "proton" // Proton VPN AWG (UDP full-scope)
+	KindTor    Kind = "tor"    // Tor reserve (TCP only, .onion egress)
 )
 
 // Priorities encode the design §7 tree order (HIGHER wins). Proton sits
@@ -48,6 +49,12 @@ const (
 	PriorityOpera  = 30
 	PriorityFxvpn  = 20
 	PriorityProton = 10
+	// PriorityTor is strictly below EVERY other reserve (E-TOR design
+	// §0): tor is the carrier of last resort — slowest, TCP-only, with
+	// an uncontrolled exit country. The scoped router reaches it only
+	// when every faster reserve failed (and for .onion, where it is the
+	// only transport at all).
+	PriorityTor = 5
 )
 
 // Carrier is the scoped-router contract of a reserve transport (review P2
@@ -145,6 +152,8 @@ func priorityOf(k Kind) int {
 		return PriorityFxvpn
 	case KindProton:
 		return PriorityProton
+	case KindTor:
+		return PriorityTor
 	default:
 		return 0 // unknown kinds park at the tail until prioritized
 	}

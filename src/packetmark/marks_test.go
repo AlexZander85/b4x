@@ -22,3 +22,22 @@ func TestReservedMarkContractIsDisjoint(t *testing.T) {
 		t.Fatal("selected-flow control mark was treated as generated provenance")
 	}
 }
+
+// E-TOR (design §9.1): MarkTorEgress takes bit 21, the next free egress
+// bit after opera (23) and fxvpn (22), and stays disjoint from the engine
+// contract bits.
+func TestMarkTorEgressBitContract(t *testing.T) {
+	if MarkTorEgress != 1<<21 {
+		t.Fatalf("MarkTorEgress = %#x, want 1<<21", MarkTorEgress)
+	}
+	if MarkTorEgress == MarkOperaEgress || MarkTorEgress == MarkFxvpnEgress {
+		t.Fatal("tor egress mark must be disjoint from opera/fxvpn marks")
+	}
+	if MarkTorEgress&ProcessedMask != 0 || MarkTorEgress&CanaryControlMask != 0 {
+		t.Fatal("tor egress mark must stay disjoint from ProcessedBit and the canary mask")
+	}
+	all := MarkOperaEgress | MarkFxvpnEgress | MarkTorEgress
+	if all&(ProcessedMask|CanaryControlMask) != 0 {
+		t.Fatal("egress marks collectively must not collide with the engine contract bits")
+	}
+}

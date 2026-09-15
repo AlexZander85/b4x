@@ -1,0 +1,65 @@
+name: E-TOR Integration CI
+
+on:
+  push:
+    branches:
+      - agent/e-tor-reserve-integration
+      - agent/e-tor-reserve-final
+  workflow_dispatch:
+
+concurrency:
+  group: e-tor-integration-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  tor-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+      - name: Normalize deterministic Tor sources
+        run: |
+          sed -i 's#snowflake/v2 v2\.11\.0 => ../tools/snowflake#snowflake/v2 v2.14.1 => ../tools/snowflake#' src/vendor/modules.txt
+          gofmt -w src/transport/tor src/transport/torscan src/transport/torsnowflake src/torservice src/config/tor.go src/config/validation.go src/cmd/torctl
+          if ! git diff --quiet; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src/vendor/modules.txt src/transport/tor src/transport/torscan src/transport/torsnowflake src/torservice src/config/tor.go src/config/validation.go src/cmd/torctl
+            git commit -m 'chore(tor): format review fixes and sync vendor metadata'
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+      - name: Go format gate
+        working-directory: src
+        run: |
+          files="$(gofmt -l transport/tor transport/torscan transport/torsnowflake torservice config/tor.go config/validation.go cmd/torctl 2>/dev/null)"
+          test -z "$files" || { printf '%s\n' "$files"; exit 1; }
+      - name: Vet E-TOR packages
+        working-directory: src
+        run: go vet ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/... ./cmd/torctl/...
+      - name: Verify rendered torrc with real C-Tor
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tor
+          cd src
+          B4X_TOR_INTEGRATION=1 B4X_TOR_BINARY="$(command -v tor)" go test -count=1 ./transport/tor -run '^TestTorrcVerifyConfig$' -v
+      - name: Test E-TOR packages with race detector
+        working-directory: src
+        run: go test -race -count=1 ./transport/tor/... ./transport/torscan/... ./transport/torsnowflake/... ./torservice/...
+      - name: Compile primary target packages
+        working-directory: src
+        run: |
+          mkdir -p http/ui/dist
+          printf '<!doctype html><title>ci-placeholder</title>\n' > http/ui/dist/index.html
+          go test -run '^$' ./...
+          GOOS=linux GOARCH=amd64 go build -o /tmp/b4-amd64 .
+          GOOS=linux GOARCH=arm64 go build -o /tmp/b4-arm64 .
+          GOOS=linux GOARCH=arm GOARM=6 go build -o /tmp/b4-armv6 .
+          GOOS=linux GOARCH=mips GOMIPS=softfloat go build -o /tmp/b4-mips .
+          GOOS=linux GOARCH=mipsle GOMIPS=softfloat go build -o /tmp/b4-mipsle .

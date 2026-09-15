@@ -1,0 +1,359 @@
+diff -ruN a/client/lib/rendezvous.go b/client/lib/rendezvous.go
+--- a/client/lib/rendezvous.go	2026-09-15 11:55:42.668329223 +0000
++++ b/client/lib/rendezvous.go	2026-09-15 12:07:15.155581567 +0000
+@@ -4,10 +4,12 @@
+ package snowflake_client
+ 
+ import (
++	"context"
+ 	"crypto/tls"
+ 	"errors"
+ 	"fmt"
+ 	"log"
++	"net"
+ 	"net/http"
+ 	"net/url"
+ 	"sync"
+@@ -56,11 +58,21 @@
+ // We make a copy of DefaultTransport because we want the default Dial
+ // and TLSHandshakeTimeout settings. But we want to disable the default
+ // ProxyFromEnvironment setting.
++//
++// b4x fork (Nova snowflake.patch port, design E-TOR §10): BrokerDialContext,
++// when set, replaces the rendezvous transport's dialing — the broker
++// exchange rides ordinary sockets and inside an embedding VPN those
++// sockets must go through the embedding process's egress dialer.
++var BrokerDialContext func(ctx context.Context, network, addr string) (net.Conn, error)
++
+ func createBrokerTransport(proxy *url.URL) http.RoundTripper {
+ 	tlsConfig := &tls.Config{
+ 		RootCAs: certs.GetRootCAs(),
+ 	}
+ 	transport := &http.Transport{TLSClientConfig: tlsConfig}
++	if BrokerDialContext != nil {
++		transport.DialContext = BrokerDialContext
++	}
+ 	transport.Proxy = nil
+ 	if proxy != nil {
+ 		transport.Proxy = http.ProxyURL(proxy)
+diff -ruN a/client/lib/rendezvous_sqs.go b/client/lib/rendezvous_sqs.go
+--- a/client/lib/rendezvous_sqs.go	2026-09-15 11:55:42.668329223 +0000
++++ b/client/lib/rendezvous_sqs.go	2026-09-15 12:07:15.155581567 +0000
+@@ -1,143 +1,27 @@
++// b4x fork (design E-TOR §10): the SQS rendezvous is REMOVED. The
++// aws-sdk-go-v2 tree it drags into vendor is unacceptable for the MIPS
++// router images, and the upstream paths call log.Fatalln — a process
++// killer for an embedding program. Bridge lines carrying sqsqueue=/
++// sqscreds= are rejected at the b4x parser layer BEFORE any client is
++// built; this stub keeps the internal call sites compiling and fails
++// loudly if they are ever reached anyway.
+ package snowflake_client
+ 
+ import (
+-	"context"
+-	"crypto/rand"
+-	"encoding/hex"
+-	"log"
++	"fmt"
+ 	"net/http"
+-	"net/url"
+-	"regexp"
+-	"time"
+-
+-	"github.com/aws/aws-sdk-go-v2/aws"
+-	"github.com/aws/aws-sdk-go-v2/config"
+-	"github.com/aws/aws-sdk-go-v2/credentials"
+-	"github.com/aws/aws-sdk-go-v2/service/sqs"
+-	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+-	"gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/sqsclient"
+-	sqscreds "gitlab.torproject.org/tpo/anti-censorship/pluggable-transports/snowflake/v2/common/sqscreds/lib"
+ )
+ 
+ type sqsRendezvous struct {
+-	transport  http.RoundTripper
+-	sqsClient  sqsclient.SQSClient
+-	sqsURL     *url.URL
+-	timeout    time.Duration
+-	numRetries int
++	transport http.RoundTripper
+ }
+ 
+ func newSQSRendezvous(sqsQueue string, sqsCredsStr string, transport http.RoundTripper) (*sqsRendezvous, error) {
+-	sqsURL, err := url.Parse(sqsQueue)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	sqsCreds, err := sqscreds.AwsCredsFromBase64(sqsCredsStr)
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	queueURL := sqsURL.String()
+-	hostName := sqsURL.Hostname()
+-
+-	regionRegex, _ := regexp.Compile(`^sqs\.([\w-]+)\.amazonaws\.com$`)
+-	res := regionRegex.FindStringSubmatch(hostName)
+-	if len(res) < 2 {
+-		log.Fatal("Could not extract AWS region from SQS URL. Ensure that the SQS Queue URL provided is valid.")
+-	}
+-	region := res[1]
+-	cfg, err := config.LoadDefaultConfig(context.TODO(),
+-		config.WithCredentialsProvider(
+-			credentials.NewStaticCredentialsProvider(sqsCreds.AwsAccessKeyId, sqsCreds.AwsSecretKey, ""),
+-		),
+-		config.WithRegion(region),
+-	)
+-	if err != nil {
+-		log.Fatal(err)
+-	}
+-	client := sqs.NewFromConfig(cfg)
+-
+-	log.Println("Queue URL: ", queueURL)
+-
+-	return &sqsRendezvous{
+-		transport:  transport,
+-		sqsClient:  client,
+-		sqsURL:     sqsURL,
+-		timeout:    time.Second,
+-		numRetries: 5,
+-	}, nil
++	return nil, fmt.Errorf("snowflake b4x fork: SQS rendezvous removed (sqsqueue/sqscreds lines are rejected at the parser)")
+ }
+ 
+-func (r *sqsRendezvous) Exchange(encPollReq []byte) ([]byte, error) {
+-	log.Println("Negotiating via SQS Queue rendezvous...")
+-
+-	var id [8]byte
+-	_, err := rand.Read(id[:])
+-	if err != nil {
+-		return nil, err
+-	}
+-	sqsClientID := hex.EncodeToString(id[:])
+-	log.Println("SQS Client ID for rendezvous: " + sqsClientID)
+-
+-	_, err = r.sqsClient.SendMessage(context.TODO(), &sqs.SendMessageInput{
+-		MessageAttributes: map[string]types.MessageAttributeValue{
+-			"ClientID": {
+-				DataType:    aws.String("String"),
+-				StringValue: aws.String(sqsClientID),
+-			},
+-		},
+-		MessageBody: aws.String(string(encPollReq)),
+-		QueueUrl:    aws.String(r.sqsURL.String()),
+-	})
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	time.Sleep(r.timeout) // wait for client queue to be created by the broker
+-
+-	var responseQueueURL *string
+-	for i := 0; i < r.numRetries; i++ {
+-		// The SQS queue corresponding to the client where the SDP Answer will be placed
+-		// may not be created yet. We will retry up to 5 times before we error out.
+-		var res *sqs.GetQueueUrlOutput
+-		res, err = r.sqsClient.GetQueueUrl(context.TODO(), &sqs.GetQueueUrlInput{
+-			QueueName: aws.String("snowflake-client-" + sqsClientID),
+-		})
+-		if err != nil {
+-			log.Println(err)
+-			log.Printf("Attempt %d of %d to retrieve URL of response SQS queue failed.\n", i+1, r.numRetries)
+-			time.Sleep(r.timeout)
+-		} else {
+-			responseQueueURL = res.QueueUrl
+-			break
+-		}
+-	}
+-	if err != nil {
+-		return nil, err
+-	}
+-
+-	var answer string
+-	for i := 0; i < r.numRetries; i++ {
+-		// Waiting for SDP Answer from proxy to be placed in SQS queue.
+-		// We will retry upt to 5 times before we error out.
+-		res, err := r.sqsClient.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
+-			QueueUrl:            responseQueueURL,
+-			MaxNumberOfMessages: 1,
+-			WaitTimeSeconds:     20,
+-		})
+-		if err != nil {
+-			return nil, err
+-		}
+-		if len(res.Messages) == 0 {
+-			log.Printf("Attempt %d of %d to receive message from response SQS queue failed. No message found in queue.\n", i+1, r.numRetries)
+-			delay := float64(i)/2.0 + 1
+-			time.Sleep(time.Duration(delay*1000) * (r.timeout / 1000))
+-		} else {
+-			answer = *res.Messages[0].Body
+-			break
+-		}
+-	}
+-
+-	return []byte(answer), nil
++// Exchange satisfies the RendezvousMethod interface; it is unreachable
++// through the b4x configuration surface.
++func (r *sqsRendezvous) Exchange([]byte) ([]byte, error) {
++	return nil, fmt.Errorf("snowflake b4x fork: SQS rendezvous removed")
+ }
+diff -ruN a/client/lib/rendezvous_test.go b/client/lib/rendezvous_test.go
+--- a/client/lib/rendezvous_test.go	2026-09-15 11:55:42.668329223 +0000
++++ b/client/lib/rendezvous_test.go	2026-09-15 12:07:15.155581567 +0000
+@@ -10,9 +10,6 @@
+ 	"net/url"
+ 	"testing"
+ 
+-	"github.com/aws/aws-sdk-go-v2/aws"
+-	"github.com/aws/aws-sdk-go-v2/service/sqs"
+-	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+ 	"github.com/golang/mock/gomock"
+ 	"github.com/pion/webrtc/v4"
+ 	. "github.com/smartystreets/goconvey/convey"
+@@ -280,115 +277,6 @@
+ 	})
+ }
+ 
+-func TestSQSRendezvous(t *testing.T) {
+-	Convey("SQS Rendezvous", t, func() {
+-		var sendMessageInput *sqs.SendMessageInput
+-		var getQueueUrlInput *sqs.GetQueueUrlInput
+-
+-		Convey("Construct SQS queue rendezvous", func() {
+-			transport := &mockTransport{http.StatusOK, []byte{}}
+-			rend, err := newSQSRendezvous("https://sqs.us-east-1.amazonaws.com", "eyJhd3MtYWNjZXNzLWtleS1pZCI6InRlc3QtYWNjZXNzLWtleSIsImF3cy1zZWNyZXQta2V5IjoidGVzdC1zZWNyZXQta2V5In0=", transport)
+-
+-			So(err, ShouldBeNil)
+-			So(rend.sqsClient, ShouldNotBeNil)
+-			So(rend.sqsURL, ShouldNotBeNil)
+-			So(rend.sqsURL.String(), ShouldResemble, "https://sqs.us-east-1.amazonaws.com")
+-		})
+-
+-		ctrl := gomock.NewController(t)
+-		mockSqsClient := sqsclient.NewMockSQSClient(ctrl)
+-		responseQueueURL := "https://sqs.us-east-1.amazonaws.com/testing"
+-		sqsUrl, _ := url.Parse("https://sqs.us-east-1.amazonaws.com/broker")
+-		fakeEncPollResp := makeEncPollResp(
+-			`{"answer": "{\"type\":\"answer\",\"sdp\":\"fake\"}" }`,
+-			"",
+-		)
+-		sqsRendezvous := sqsRendezvous{
+-			transport:  &mockTransport{http.StatusOK, []byte{}},
+-			sqsClient:  mockSqsClient,
+-			sqsURL:     sqsUrl,
+-			timeout:    0,
+-			numRetries: 5,
+-		}
+-
+-		Convey("sqsRendezvous.Exchange responds with answer", func() {
+-			sqsClientId := ""
+-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+-				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+-				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+-				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
+-			})
+-			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+-				So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+-				return &sqs.GetQueueUrlOutput{
+-					QueueUrl: aws.String(responseQueueURL),
+-				}, nil
+-			})
+-			mockSqsClient.EXPECT().ReceiveMessage(gomock.Any(), gomock.Eq(&sqs.ReceiveMessageInput{
+-				QueueUrl:            &responseQueueURL,
+-				MaxNumberOfMessages: 1,
+-				WaitTimeSeconds:     20,
+-			})).Return(&sqs.ReceiveMessageOutput{
+-				Messages: []types.Message{{Body: aws.String("answer")}},
+-			}, nil)
+-
+-			answer, err := sqsRendezvous.Exchange(fakeEncPollResp)
+-
+-			So(answer, ShouldEqual, []byte("answer"))
+-			So(err, ShouldBeNil)
+-		})
+-
+-		Convey("sqsRendezvous.Exchange cannot get queue url", func() {
+-			sqsClientId := ""
+-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+-				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+-				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+-				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
+-			})
+-			for i := 0; i < sqsRendezvous.numRetries; i++ {
+-				mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+-					So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+-					return nil, errors.New("test error")
+-				})
+-			}
+-
+-			answer, err := sqsRendezvous.Exchange(fakeEncPollResp)
+-
+-			So(answer, ShouldBeNil)
+-			So(err, ShouldNotBeNil)
+-			So(err, ShouldEqual, errors.New("test error"))
+-		})
+-
+-		Convey("sqsRendezvous.Exchange does not receive answer", func() {
+-			sqsClientId := ""
+-			mockSqsClient.EXPECT().SendMessage(gomock.Any(), gomock.AssignableToTypeOf(sendMessageInput)).Do(func(ctx interface{}, input *sqs.SendMessageInput, optFns ...interface{}) {
+-				So(*input.MessageBody, ShouldEqual, string(fakeEncPollResp))
+-				So(*input.QueueUrl, ShouldEqual, sqsUrl.String())
+-				sqsClientId = *input.MessageAttributes["ClientID"].StringValue
+-			})
+-			mockSqsClient.EXPECT().GetQueueUrl(gomock.Any(), gomock.AssignableToTypeOf(getQueueUrlInput)).DoAndReturn(func(ctx interface{}, input *sqs.GetQueueUrlInput, optFns ...interface{}) (*sqs.GetQueueUrlOutput, error) {
+-				So(*input.QueueName, ShouldEqual, "snowflake-client-"+sqsClientId)
+-				return &sqs.GetQueueUrlOutput{
+-					QueueUrl: aws.String(responseQueueURL),
+-				}, nil
+-			})
+-			for i := 0; i < sqsRendezvous.numRetries; i++ {
+-				mockSqsClient.EXPECT().ReceiveMessage(gomock.Any(), gomock.Eq(&sqs.ReceiveMessageInput{
+-					QueueUrl:            &responseQueueURL,
+-					MaxNumberOfMessages: 1,
+-					WaitTimeSeconds:     20,
+-				})).Return(&sqs.ReceiveMessageOutput{
+-					Messages: []types.Message{},
+-				}, nil)
+-			}
+-
+-			answer, err := sqsRendezvous.Exchange(fakeEncPollResp)
+-
+-			So(answer, ShouldEqual, []byte{})
+-			So(err, ShouldBeNil)
+-		})
+-	})
+-}
+ 
+ func TestBrokerChannel(t *testing.T) {
+ 	Convey("Requests a proxy and handles response", t, func() {
+diff -ruN a/client/lib/webrtc.go b/client/lib/webrtc.go
+--- a/client/lib/webrtc.go	2026-09-15 11:55:42.668329223 +0000
++++ b/client/lib/webrtc.go	2026-09-15 12:07:15.155581567 +0000
+@@ -262,6 +262,10 @@
+ 	return nil
+ }
+ 
++// NetWrapper, when set, wraps the network pion gets through
++// SettingEngine.SetNet. Installed once by the embedding process.
++var NetWrapper func(transport.Net) transport.Net
++
+ // preparePeerConnection creates a new WebRTC PeerConnection and returns it
+ // after non-trickle ICE candidate gathering is complete.
+ func (c *WebRTCPeer) preparePeerConnection(
+@@ -290,6 +294,16 @@
+ 	var vnet transport.Net
+ 	vnet, _ = stdnet.NewNet()
+ 
++	// b4x fork (Nova snowflake.patch port, design E-TOR §10): NetWrapper
++	// lets the embedding process replace the network pion receives. The
++	// ICE/DTLS sockets pion creates itself would otherwise leave outside
++	// the embedding process's egress policy (marking / carrier
++	// composition) — there is no other interception point, the
++	// SettingEngine is assembled right here.
++	if NetWrapper != nil {
++		vnet = NetWrapper(vnet)
++	}
++
+ 	if c.proxy != nil {
+ 		if err := proxy.CheckProxyProtocolSupport(c.proxy); err != nil {
+ 			return err

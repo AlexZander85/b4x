@@ -334,6 +334,7 @@ type SystemConfig struct {
 	Opera       OperaConfig         `json:"opera"`
 	FxVPN       FxVPNConfig         `json:"fxvpn"`
 	Proton      ProtonConfig        `json:"proton"`
+	Tor         TorConfig           `json:"tor"`
 	Checker     DiscoveryConfig     `json:"checker"`
 	Geo         geodat.GeoDatConfig `json:"geo"`
 	API         ApiConfig           `json:"api"`
