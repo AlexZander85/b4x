@@ -21,8 +21,10 @@ type ADNSSuiteCase struct {
 	QType uint16
 }
 
-// CanonicalSuite returns the minimum canonical suite (§54). Names must come
-// from controlled field fixtures or reviewed service profiles.
+// CanonicalSuite returns the minimum field-safe canonical suite. Controlled
+// SERVFAIL/truncation/multi-answer/DNSSEC fixtures are exercised separately;
+// production diagnosis must not invent public names that are expected to
+// exhibit those failure semantics.
 func CanonicalSuite(target, control string) []ADNSSuiteCase {
 	return []ADNSSuiteCase{
 		{ID: "A", Name: target, QType: 1},
@@ -193,8 +195,8 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 
 	// Build candidate evidence and rank deterministically. Correctness and
 	// controls are per-suite-case gates; aggregate pass counts are not enough.
-	// Trust/privacy claims are fail-closed: a path never gets DNSSEC/no-log/
-	// no-filter/catalog-trusted credit merely because the transport worked.
+	// Trust/privacy claims are fail-closed and originate in provider/catalog
+	// capabilities; transport success never manufactures those claims.
 	var candidates []dnspath.CandidateEvidence
 	for hash, st := range stats {
 		id := paths[hash]
@@ -218,9 +220,10 @@ func RunADNSDiagnosis(ctx context.Context, in ADNSDiagnosisInput) (*ADNSDiagnosi
 			Latency:         lat,
 			TimeoutRate:     timeoutRate,
 			DNSSEC:          caps.DNSSEC,
-			NoLogClaim:      false,
-			NoFilterClaim:   false,
-			CatalogTrusted:  false,
+			NoLogClaim:      caps.NoLogClaim,
+			NoFilterClaim:   caps.NoFilterClaim,
+			CatalogTrusted:  caps.CatalogTrusted,
+			Anonymized:      caps.Anonymized,
 			CorrelatedGroup: correlatedGroup(id),
 		})
 	}
