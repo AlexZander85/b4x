@@ -46,6 +46,10 @@ func CheckAutomaticSynthesisGate(in SynthesisGateInput) error {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisWithoutPersistentRegression)
 		return errors.New("persistent monitoring regression is not qualified")
 	}
+	if strings.TrimSpace(in.Profile.Scope.ServiceProfileID) == "" || strings.TrimSpace(in.Profile.Scope.ComponentID) == "" {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisScopeEscape)
+		return errors.New("exact service profile and component scope are required")
+	}
 	if !in.Assessment.Valid(in.Now) || !in.Profile.Valid(in.Now) || !in.Prior.Valid() {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisWithoutFreshProfile)
 		return errors.New("fresh monitoring assessment, diagnostic profile and DDI prior are required")
@@ -53,10 +57,6 @@ func CheckAutomaticSynthesisGate(in SynthesisGateInput) error {
 	if in.Assessment.Scope != in.Profile.Scope || in.Prior.Scope != in.Profile.Scope {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisScopeEscape)
 		return errors.New("monitor/profile/prior scope mismatch")
-	}
-	if strings.TrimSpace(in.Profile.Scope.ServiceProfileID) == "" || strings.TrimSpace(in.Profile.Scope.ComponentID) == "" {
-		observability.RecordSynthesisViolation(observability.MetricSynthesisScopeEscape)
-		return errors.New("exact service profile and component scope are required")
 	}
 	if in.CurrentConfigGeneration == 0 || in.Profile.Scope.ConfigGeneration != in.CurrentConfigGeneration || in.Prior.Scope.ConfigGeneration != in.CurrentConfigGeneration {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisStaleGenerationUsed)
