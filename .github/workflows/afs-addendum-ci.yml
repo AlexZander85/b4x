@@ -1,0 +1,46 @@
+name: AFS Addendum CI
+
+on:
+  pull_request:
+    branches:
+      - agent/classifier-v2.3-capture-envelope
+    paths:
+      - "src/config/**"
+      - "src/detector/**"
+      - "src/discovery/**"
+      - "src/runtimecontrol/**"
+      - ".github/workflows/afs-addendum-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-go-tests:
+    name: Focused Go tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Gofmt check
+        working-directory: src
+        run: |
+          files=$(find config detector discovery runtimecontrol -name '*.go' -type f -print)
+          bad=$(gofmt -l $files)
+          if [ -n "$bad" ]; then
+            echo "Files requiring gofmt:"
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: Test AFS-affected packages
+        working-directory: src
+        run: go test ./config ./detector ./discovery ./runtimecontrol
