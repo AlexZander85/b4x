@@ -35,11 +35,14 @@ export const TrafficRouting = ({
         ? "mtproto-ws"
         : routing.mode === "block"
           ? "block"
-          : "interface";
+          : routing.mode === "tunnel"
+            ? "tunnel"
+            : "interface";
   const isProxy = mode === "proxy";
   const isMTProtoWS = mode === "mtproto-ws";
   const isBlock = mode === "block";
   const isInterface = mode === "interface";
+  const isTunnel = mode === "tunnel";
   const blockAction = routing.block_action || "reject";
 
   const domainOnly = config.targets.domain_only ?? false;
@@ -84,6 +87,10 @@ export const TrafficRouting = ({
     flowDestination = t("sets.routing.flowMTProtoWS");
   } else if (isBlock) {
     flowDestination = t("sets.routing.flowBlocked");
+  } else if (isTunnel) {
+    flowDestination = routing.tunnel
+      ? `${t(`tunnels.kind.${routing.tunnel}`)} (${routing.tunnel})`
+      : t("sets.routing.flowNoTunnel");
   } else {
     flowDestination =
       routing.egress_interface || t("sets.routing.flowNoOutput");
@@ -127,11 +134,17 @@ export const TrafficRouting = ({
               <MenuItem value="mtproto-ws">
                 {t("sets.routing.modeMTProtoWS")}
               </MenuItem>
+              <MenuItem value="tunnel">{t("sets.routing.modeTunnel")}</MenuItem>
               <MenuItem value="block">{t("sets.routing.modeBlock")}</MenuItem>
             </B4TextField>
             {isMTProtoWS && (
               <B4Alert severity="info" sx={{ mt: 2 }}>
                 {t("sets.routing.mtprotoWsNote")}
+              </B4Alert>
+            )}
+            {isTunnel && !routing.tunnel && (
+              <B4Alert severity="warning" sx={{ mt: 2 }}>
+                {t("sets.routing.tunnelKindRequired")}
               </B4Alert>
             )}
             {isBlock && (
@@ -255,7 +268,9 @@ export const TrafficRouting = ({
                     ? t("sets.routing.flowMTProtoWSCaption")
                     : isBlock
                       ? t("sets.routing.flowBlockCaption")
-                      : t("sets.routing.flowCaption")}
+                      : isTunnel
+                        ? t("sets.routing.flowTunnelCaption")
+                        : t("sets.routing.flowCaption")}
               </Typography>
             </Box>
           </Grid>
@@ -267,7 +282,9 @@ export const TrafficRouting = ({
                 ? t("sets.routing.howItWorksMTProtoWS")
                 : isBlock
                   ? t("sets.routing.howItWorksBlock")
-                  : t("sets.routing.howItWorks")}
+                  : isTunnel
+                    ? t("sets.routing.howItWorksTunnel")
+                    : t("sets.routing.howItWorks")}
           </B4Hint>
 
           <Grid size={{ xs: 12 }}>
@@ -447,6 +464,64 @@ export const TrafficRouting = ({
               </Grid>
               <Grid size={{ xs: 12 }}>
                 <B4Hint>{t("sets.routing.proxyManipulationNote")}</B4Hint>
+              </Grid>
+            </>
+          )}
+
+          {isTunnel && (
+            <>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <B4TextField
+                  label={t("sets.routing.tunnelKind")}
+                  select
+                  value={routing.tunnel ?? ""}
+                  onChange={(e) => onChange("routing.tunnel", e.target.value)}
+                  helperText={t("sets.routing.tunnelKindHelper")}
+                >
+                  <MenuItem value="masque">
+                    {t("tunnels.kind.masque")} (masque)
+                  </MenuItem>
+                  <MenuItem value="proton">
+                    {t("tunnels.kind.proton")} (proton)
+                  </MenuItem>
+                  <MenuItem value="opera">
+                    {t("tunnels.kind.opera")} (opera)
+                  </MenuItem>
+                  <MenuItem value="fxvpn">
+                    {t("tunnels.kind.fxvpn")} (fxvpn)
+                  </MenuItem>
+                  <MenuItem value="tor">{t("tunnels.kind.tor")} (tor)</MenuItem>
+                  <MenuItem value="warp">{t("tunnels.kind.warp")} (warp)</MenuItem>
+                  <MenuItem value="h3">{t("tunnels.kind.h3")} (h3)</MenuItem>
+                </B4TextField>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <B4Switch
+                  label={t("sets.routing.tunnelUdp")}
+                  checked={upstream.udp === true}
+                  onChange={(checked: boolean) =>
+                    onChange("routing.upstream.udp", checked)
+                  }
+                  description={t("sets.routing.tunnelUdpDesc")}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <B4Switch
+                  label={t("sets.routing.failOpen")}
+                  checked={upstream.fail_open === true}
+                  onChange={(checked: boolean) =>
+                    onChange("routing.upstream.fail_open", checked)
+                  }
+                  description={t("sets.routing.tunnelFailOpenDesc")}
+                />
+                {upstream.fail_open && (
+                  <B4Alert severity="warning" sx={{ mt: 1 }}>
+                    {t("sets.routing.failOpenWarning")}
+                  </B4Alert>
+                )}
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <B4Hint>{t("sets.routing.howItWorksTunnel")}</B4Hint>
               </Grid>
             </>
           )}

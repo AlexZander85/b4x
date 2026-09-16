@@ -68,7 +68,8 @@
       "settings": "Настройки",
       "watchdog": "Мониторинг",
       "adblock": "Ad-Block",
-      "dns": "DNS"
+      "dns": "DNS",
+      "tunnels": "Туннели"
     },
     "failed": "Ошибка",
     "filtered": "{{count}} отфильтровано",
@@ -120,7 +121,11 @@
       "title": "Управление",
       "description": "Управление сервисом и конфигурацией",
       "restartService": "Перезапустить сервис B4",
-      "systemInfo": "Информация о системе"
+      "systemInfo": "Информация о системе",
+      "resetConfig": "Сбросить конфиг до значений по умолчанию",
+      "resetConfirm": "Конфигурация будет сброшена до значений по умолчанию. Сеты, настройки веб-сервера и пути geo-файлов сохраняются. Всё остальное (очередь, логирование, discovery, API-токены, устройства, интерфейсы, часовой пояс, SOCKS5, MTProto, MSS-clamping) будет стёрто.",
+      "resetSuccess": "Конфигурация сброшена до значений по умолчанию",
+      "resetError": "Не удалось сбросить конфигурацию"
     },
     "Queue": {
       "title": "Очередь и обработка пакетов",
@@ -1396,7 +1401,17 @@
       "howItWorks": "Когда устройство в вашей сети обращается к совпавшему домену, B4 перехватывает DNS-ответ, узнаёт IP-адрес назначения и добавляет правило маршрутизации, чтобы трафик к этому IP шёл через выбранный вами выходной интерфейс - например, VPN или другой WAN-канал.",
       "sourceInterfacesDesc": "Выберите сетевые интерфейсы, трафик с которых B4 должен обрабатывать. Например, выберите LAN или Wi-Fi мост, чтобы маршрутизировать только трафик устройств из этой сети. Оставьте пустым для маршрутизации трафика со всех интерфейсов.",
       "ipTtlDesc": "После того как B4 узнаёт IP-адрес из DNS-ответа, он сохраняет правило маршрутизации на указанное количество секунд. Если IP домена изменится (например, ротация CDN), старое правило истечёт, и B4 подхватит новый IP при следующем DNS-запросе.",
-      "domainOnlyConflict": "Для этого набора включено «Только по домену», поэтому IP-адреса за его доменами сюда не маршрутизируются - идут только явно указанные IP-адреса. Отключите «Только по домену», чтобы маршрутизировать эти домены."
+      "domainOnlyConflict": "Для этого набора включено «Только по домену», поэтому IP-адреса за его доменами сюда не маршрутизируются - идут только явно указанные IP-адреса. Отключите «Только по домену», чтобы маршрутизировать эти домены.",
+      "modeTunnel": "Туннель (reserve carrier)",
+      "tunnelKind": "Вид туннеля",
+      "tunnelKindHelper": "Зарегистрированный reserve-carrier, несущий трафик этого сета",
+      "tunnelKindRequired": "Выберите вид туннеля — режим без него невалиден",
+      "tunnelUdp": "UDP через туннель",
+      "tunnelUdpDesc": "Датаграммы реально несут только carriers с нативным UDP (proton); TCP-only carriers честно отказывают",
+      "tunnelFailOpenDesc": "При ошибке dial через туннель — fallback на прямое соединение (трафик может уйти мимо туннеля)",
+      "howItWorksTunnel": "Режим туннеля: промаркированный трафик сета редиректится на локальный tproxy-листенер, который диалит через выбранный reserve-carrier. Если carrier не зарегистрирован, сет остаётся fail-closed (отказ), но никогда не уходит мимо туннеля.",
+      "flowTunnelCaption": "Трафик совпадающих доменов едет через выбранный резервный туннель",
+      "flowNoTunnel": "туннель не выбран"
     },
     "importExport": {
       "sectionTitle": "Импорт/Экспорт конфигурации сета",
@@ -2062,6 +2077,164 @@
       "failed_search_cooldown": "Перерыв после неудачного поиска",
       "recovery_hysteresis": "Гистерезис восстановления",
       "profile_ttl": "TTL профиля"
+    }
+  },
+  "tunnels": {
+    "title": "Туннели",
+    "description": "Управление резервными туннелями: фичи каждого туннеля, регионы и назначение спискам доменов",
+    "loadError": "Не удалось загрузить туннели",
+    "summaryActive": "Активно: {{count}}",
+    "summaryAssigned": "Назначено сетов: {{count}}",
+    "registeredCarriers": "Зарегистрированные carriers",
+    "noRegisteredCarriers": "нет — включите туннель, чтобы зарегистрировать его carrier",
+    "restart": "Перезапустить",
+    "restartHint": "Принудительный цикл супервизии (лимиты рестартов сохраняются)",
+    "restartNote": "Включение/выключение туннеля применяется после перезапуска B4 (движки конфиг-первичны)",
+    "configure": "Настроить",
+    "settingsTitle": "Настройки туннеля",
+    "settingsRestartWarning": "Включение/выключение и смена identity применяются после перезапуска B4. Смена региона и локации дополнительно применяется на лету, если туннель запущен.",
+    "applyNowNote": "На запущенном туннеле смена региона/локации применяется на лету (один цикл супервизии) в дополнение к сохранённому конфигу.",
+    "noConfigSection": "У этого туннеля пока нет секции конфигурации",
+    "carrierRegistered": "carrier",
+    "locationValue": "Локация: {{value}}",
+    "regionValue": "Регион: {{region}}",
+    "state": {
+      "listening": "Слушает",
+      "running": "Работает",
+      "notRunning": "Не запущен",
+      "enginePending": "Движок не подключён"
+    },
+    "transport": {
+      "udp-full-scope": "UDP full-scope",
+      "tcp-only": "Только TCP"
+    },
+    "kind": {
+      "warp": "AWG WARP",
+      "masque": "MASQUE WARP",
+      "h3": "WARP H3 (вложенный)",
+      "opera": "Opera VPN",
+      "fxvpn": "Firefox VPN",
+      "proton": "Proton VPN (AWG)",
+      "tor": "Tor"
+    },
+    "kindDesc": {
+      "warp": "Amnezia-WireGuard-движок для Cloudflare WARP. UDP full-scope; сборка ожидается.",
+      "masque": "Cloudflare WARP через MASQUE (CONNECT-IP). IPv4/TCP-carrier с uTLS-маскарадом.",
+      "h3": "Зарезервированный вид для H3-nested WARP-транспорта.",
+      "opera": "Резерв Opera/SurfEasy. Только TCP, мегарегионы EU/AS/AM с ротацией нод.",
+      "fxvpn": "Резерв Firefox VPN. Только TCP, локации country/city/host, сессии с приоритетом H3.",
+      "proton": "Proton VPN через Amnezia-WireGuard с профилями обфускации. Нативный UDP-egress.",
+      "tor": "Резерв Tor: только TCP, carrier последней надежды, .onion-scope, конвейер бриджей."
+    },
+    "note": {
+      "awg_warp_note": "Движок transport/wg существует; сборка в демоне и схема конфига ожидаются (enrollment управляется service-profile).",
+      "h3_reserved_note": "Зарезервированный вид реестра; рантайм ещё не подключён.",
+      "engine_enabled_not_running": "Включён в конфиге, но движок не подключён в этом запуске (см. лог)."
+    },
+    "fields": {
+      "enabled": "Включён",
+      "enabledDesc": "Без сетевых вызовов в выключенном состоянии; применяется после перезапуска B4",
+      "locationMode": "Режим локации",
+      "country": "Страна",
+      "city": "Город",
+      "host": "Хост ноды"
+    },
+    "masque": {
+      "endpoint": "Endpoint (ip:port)",
+      "endpointHint": "Проверенный WARP-edge из каталога, напр. 162.159.193.10:2408",
+      "identityPath": "Путь к identity",
+      "identityPathHint": "Пусто = /opt/etc/b4/warp/identity.json",
+      "fingerprint": "uTLS-фингерпринт",
+      "fingerprintHint": "Профиль маскировки ClientHello",
+      "fpAuto": "(по умолчанию движка)",
+      "deferRevalidation": "Отложить ревалидацию",
+      "deferRevalidationDesc": "Доверять локальной identity при первом коннекте после загрузки"
+    },
+    "opera": {
+      "region": "Мегарегион",
+      "regionHint": "EU / AS / AM (RU никогда не участвует)",
+      "controlTarget": "Контрольная цель (host:port)",
+      "controlTargetHint": "Health-проба через активную ноду",
+      "fakeSni": "Fake SNI (legacy)",
+      "identityPath": "Путь к identity",
+      "profile": "Профиль маскарада",
+      "sniMode": "Режим SNI",
+      "ttlFake": "TTL-приманка",
+      "sniPool": "Пул SNI",
+      "alpn": "ALPN"
+    },
+    "fxvpn": {
+      "accountsPath": "Путь к accounts",
+      "preferH3": "Предпочитать H3",
+      "preferH3Desc": "Сначала QUIC/H3-сессии, TCP как fallback",
+      "rotateThreshold": "Порог ротации, %",
+      "profile": "Профиль маскарада",
+      "fakeTtl": "TTL приманки",
+      "fakeCount": "Кол-во приманок",
+      "initialPadding": "Начальный padding",
+      "preflightFake": "Preflight-приманка",
+      "helloShaping": "Шейпинг hello",
+      "nestOnPortBlock": "Вложенность при блоке порта",
+      "nestOnPortBlockDesc": "Эскалация до вложенного транспорта при блоке :2499"
+    },
+    "proton": {
+      "identityPath": "Путь к identity",
+      "port": "Порт (0 = round-robin)",
+      "portHint": "0 перебирает 443/88/1224/51820/500/4500",
+      "tunnelMode": "Режим туннеля",
+      "maxRestarts": "Макс. рестартов/час",
+      "obfuscation": "AWG-обфускация",
+      "obfuscationDesc": "Профили Amnezia-обфускации вместо ванильного WireGuard",
+      "preferredProfile": "Предпочитаемый профиль",
+      "preferredProfileHint": "Пусто = proton-quic",
+      "i1Adaptation": "I1-адаптация",
+      "sniPool": "SNI-пул обфускации",
+      "countryHint": "ISO-код, напр. NL"
+    },
+    "tor": {
+      "entryMode": "Режим входа",
+      "entryModeHint": "auto гоняет смешанный набор бриджей и запоминает победителя",
+      "raceWindow": "Окно гонки",
+      "egressThrough": "Egress через",
+      "egressThroughHint": "Композиция tor внутри другого reserve-carrier",
+      "baitProfile": "NFQ-профиль приманки",
+      "conflux": "Conflux",
+      "padding": "Padding",
+      "isolation": "Изоляция стримов",
+      "snowflakeMax": "Snowflake-пиров",
+      "bootstrapTimeout": "Таймаут bootstrap, с",
+      "maxRestarts": "Макс. рестартов/час",
+      "builtinSnowflake": "Встроенные snowflake-бриджи",
+      "relayScan": "Скан релеев",
+      "relayScanDesc": "Фоновый сканер ванильных релеев (ограничен)",
+      "bridgeLines": "Строки бриджей",
+      "bridgeLinesHint": "По одной строке бриджа (webtunnel/obfs4...)",
+      "scopeSuffixes": "Суффиксы scope",
+      "scopeSuffixesHint": "Суффиксы назначений, маршрутизируемые в tor помимо .onion"
+    },
+    "chains": {
+      "title": "Вложенные цепочки",
+      "description": "Пресеты двухслойных туннелей (внешний -> внутренний)",
+      "awg+awg": "AWG поверх AWG",
+      "masque+masque": "MASQUE поверх MASQUE",
+      "awg+masque": "AWG снаружи, MASQUE внутри",
+      "masque+awg": "MASQUE снаружи, AWG внутри",
+      "nonru": "Всегда не РФ (geo-gate)",
+      "note": "Движок вложенных пар (transport/nested) подключён и e2e-протестирован; схема b4.json и сборка в демоне ожидаются. Пресеты отключены до этой сборки — никаких полусостояний."
+    },
+    "assignments": {
+      "title": "Назначения спискам доменов",
+      "description": "Сеты, маршрутизируемые через туннель (routing mode = tunnel). Targets сета выбирают домены; туннель их несёт.",
+      "empty": "Через туннель пока не маршрутизируется ни один сет. Откройте сет, включите Routing и выберите режим «Туннель», либо прикрепите сет ниже.",
+      "set": "Сет",
+      "tunnel": "Туннель",
+      "tunnelState": "Состояние туннеля",
+      "targets": "Домены / geosite",
+      "switchTo": "Вид туннеля",
+      "switched": "Сет переключён на {{kind}} (конфиг сохранён)",
+      "attachTitle": "Прикрепить сет",
+      "attachDescription": "Маршрутизировать существующий сет через туннель (targets остаются как настроены)",
+      "attachHint": "Маршрутизировать через туннель"
     }
   }
 }

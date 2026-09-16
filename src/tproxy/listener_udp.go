@@ -151,30 +151,46 @@ func (l *Listener) newUDPSession(src, dst *net.UDPAddr, v6 bool) (*udpSession, e
 
 	var relay udpRelay
 	dialCtx, cancel := context.WithTimeout(l.ctx, 10*time.Second)
-	up, derr := socks5.DialUpstreamUDP(dialCtx, l.Upstream, dst.IP, dst.Port)
-	cancel()
-	if derr != nil {
-		if !l.FailOpen {
+	if l.Tunnel != nil {
+		// routing.mode=tunnel: datagrams ride the carrier's native UDP
+		// relay (proton today); a TCP-only carrier refuses honestly.
+		up, derr := l.dialTunnelUDP(dialCtx, dst)
+		cancel()
+		if derr != nil {
 			reply.Close()
 			return nil, derr
 		}
-		direct, ferr := l.dialDirectUDP(dst)
-		if ferr != nil {
-			reply.Close()
-			return nil, fmt.Errorf("upstream %v; fail-open %w", derr, ferr)
-		}
-		relay = direct
-	} else {
 		relay = up
+	} else {
+		up, derr := socks5.DialUpstreamUDP(dialCtx, l.Upstream, dst.IP, dst.Port)
+		cancel()
+		if derr != nil {
+			if !l.FailOpen {
+				reply.Close()
+				return nil, derr
+			}
+			direct, ferr := l.dialDirectUDP(dst)
+			if ferr != nil {
+				reply.Close()
+				return nil, fmt.Errorf("upstream %v; fail-open %w", derr, ferr)
+			}
+			relay = direct
+		} else {
+			relay = up
+		}
 	}
 
 	domain := ""
 	if l.Resolver != nil {
 		domain = l.Resolver.DomainFor(dst.IP)
 	}
+	udpRouteKind := "proxy"
+	if l.Tunnel != nil {
+		udpRouteKind = "tunnel:" + l.TunnelKind
+	}
 	log.LogConnectionStr("UDP", l.SetName, domain, src.String(), "",
 		net.JoinHostPort(dst.IP.String(), fmt.Sprintf("%d", dst.Port)),
-		"", "", "proxy")
+		"", "", udpRouteKind)
 
 	sess := &udpSession{relay: relay, reply: reply, client: src}
 	sess.last.Store(time.Now().UnixNano())

@@ -636,6 +636,17 @@ func runB4(cmd *cobra.Command, args []string) error {
 			log.Infof("[warp] engine started state=%s attempt=%d colo=%s", st.State, st.Attempt, st.LastColo)
 		}
 	}
+	handler.SetWarpServiceRuntime(warpEngine) // nil-safe: the handler answers the disabled shape
+	// Tunnels pane seam (TUNNELS_PANEL_DESIGN): the MASQUE-WARP engine joins
+	// the reserve registry (kind=masque, netstack-carrier adapter, IPv4/TCP
+	// only) so routing.mode=tunnel sets can dial through it.
+	var warpMasqueCarrier *warpservice.MasqueCarrier
+	if warpEngine != nil {
+		warpMasqueCarrier = warpservice.NewMasqueCarrier(warpEngine)
+		reserve.Register(warpMasqueCarrier)
+		log.Infof("[warp] carrier registered kind=masque priority=%d udp=false (netstack v1: IPv4/TCP only)",
+			reserve.PriorityMasque)
+	}
 
 	// E-PROTON reserve transport (design v2; control plane in
 	// src/transport/proton, data plane reuses the transport/wg engine).
@@ -689,6 +700,13 @@ func runB4(cmd *cobra.Command, args []string) error {
 		}
 	}
 	handler.SetOperaRuntime(operaEngine) // nil-safe: the handler answers the disabled shape
+	// Tunnels pane seam: opera joins the selection-tree registry (kind=opera,
+	// TCP-only). Register AFTER Start, Unregister BEFORE Stop (proton canon).
+	if operaEngine != nil {
+		reserve.Register(operaEngine)
+		log.Infof("[opera] carrier registered kind=opera priority=%d udp=false",
+			reserve.PriorityOpera)
+	}
 
 	// E-FXVPN reserve transport (review fxvpn-reserve-review.md; engine in
 	// src/transport/fxvpn, assembly in fxvpservice). Zero goroutines and
@@ -712,6 +730,13 @@ func runB4(cmd *cobra.Command, args []string) error {
 		}
 	}
 	handler.SetFxvpnRuntime(fxvpnEngine) // nil-safe: the handler answers the disabled shape
+	// Tunnels pane seam: fxvpn joins the selection-tree registry (kind=fxvpn,
+	// TCP-only). Register AFTER Start, Unregister BEFORE Stop (proton canon).
+	if fxvpnEngine != nil {
+		reserve.Register(fxvpnEngine)
+		log.Infof("[fxvpn] carrier registered kind=fxvpn priority=%d udp=false",
+			reserve.PriorityFxvpn)
+	}
 
 	// E-TOR reserve tunnel (design tor-reserve-design.md; control plane
 	// in src/transport/tor, snowflake in src/transport/torsnowflake,
@@ -738,6 +763,13 @@ func runB4(cmd *cobra.Command, args []string) error {
 		log.Infof("[tor] carrier registered kind=tor priority=%d udp=false (TCP-only, carrier of last resort)",
 			reserve.PriorityTor)
 	}
+
+	// Tunnels pane seam: the reserve carriers registered above may serve
+	// routing.mode=tunnel sets that were fail-closed at boot (their engines
+	// start later than the first tproxy sync). One re-sync now wires every
+	// tunnel listener that became possible.
+	tproxyMgr.SyncConfig(cfgPtr.Load())
+	tables.RoutingSyncConfig(cfgPtr.Load())
 
 	// Service-profile WARP-recommendation lifecycle controller (FB-02 sp
 	// section §28A.11): owns the recommendation state machine
@@ -782,6 +814,10 @@ func runB4(cmd *cobra.Command, args []string) error {
 	wd.Stop()
 	monitoringRT.Stop()
 	warpRT.Stop()
+	if warpMasqueCarrier != nil {
+		reserve.Unregister(reserve.KindMasque) // trees see the stop immediately
+		warpMasqueCarrier.Detach()
+	}
 	if warpEngine != nil {
 		warpEngine.Stop()
 	}
@@ -789,7 +825,12 @@ func runB4(cmd *cobra.Command, args []string) error {
 		reserve.Unregister(reserve.KindProton) // trees see the stop immediately
 		protonEngine.Stop()
 	}
+	if operaEngine != nil {
+		reserve.Unregister(reserve.KindOpera) // trees see the stop immediately
+		operaEngine.Stop()
+	}
 	if fxvpnEngine != nil {
+		reserve.Unregister(reserve.KindFxvpn) // trees see the stop immediately
 		fxvpnEngine.Stop()
 	}
 	if torEngine != nil {

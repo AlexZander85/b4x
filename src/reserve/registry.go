@@ -18,6 +18,7 @@ package reserve
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/netip"
 	"sort"
@@ -73,6 +74,10 @@ type Carrier interface {
 	// datagram-capable net.Conn bound to addr).
 	DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, error)
 }
+
+// ErrCarrierNoUDP is the honest refusal a TCP-only carrier returns from
+// DialUDP (never a nil conn, never a silent passthrough).
+var ErrCarrierNoUDP = errors.New("reserve: carrier does not support native UDP egress")
 
 // Entry is one registered carrier with its selection priority.
 type Entry struct {

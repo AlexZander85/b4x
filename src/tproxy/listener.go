@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/reserve"
 	"github.com/daniellavrushin/b4/socks5"
 	"golang.org/x/sys/unix"
 )
@@ -64,6 +65,11 @@ type Listener struct {
 	MTProtoWS bool
 	UDP       bool
 	Bridge    MTProtoBridge
+	// Tunnel is the reserve carrier for routing.mode=tunnel (nil for the
+	// proxy/mtproto-ws modes). TunnelKind is the cached wire string used
+	// by the manager's restart-on-change comparison.
+	Tunnel     reserve.Carrier
+	TunnelKind string
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -243,12 +249,25 @@ func (l *Listener) handle(client net.Conn) {
 	if r := client.RemoteAddr(); r != nil {
 		src = r.String()
 	}
+	routeKind := "proxy"
+	if l.Tunnel != nil {
+		routeKind = "tunnel:" + l.TunnelKind
+	}
 	log.LogConnectionStr("TCP", l.SetName, domain, src, "",
 		net.JoinHostPort(origIP.String(), fmt.Sprintf("%d", origPort)),
-		"", "", "proxy")
+		"", "", routeKind)
 
+	// routing.mode=tunnel: dial through the reserve carrier. Fail-open is
+	// honored from routing.upstream.fail_open (the marked direct dial keeps
+	// the bypass mark so it cannot loop back into the tunnel set).
 	dialCtx, cancel := context.WithTimeout(l.ctx, 15*time.Second)
-	upstream, err := socks5.DialUpstream(dialCtx, l.Upstream, targetHost, origPort)
+	var upstream net.Conn
+	var err error
+	if l.Tunnel != nil {
+		upstream, err = l.dialTunnelTCP(dialCtx, origIP, origPort, domain)
+	} else {
+		upstream, err = socks5.DialUpstream(dialCtx, l.Upstream, targetHost, origPort)
+	}
 	cancel()
 	if err != nil {
 		log.Tracef("tproxy: upstream dial failed for %s:%d on set %q: %v", targetHost, origPort, l.SetName, err)

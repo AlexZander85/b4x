@@ -10,6 +10,7 @@ import (
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/reserve"
 	"github.com/daniellavrushin/b4/tproxy"
 )
 
@@ -333,7 +334,16 @@ func routeEnsureProxyRule(be routeBackend, cfg *config.Config, set *config.SetCo
 	port, _ := portFromState(st)
 	legacy := isLegacyIptBackend(be)
 
+	// routing.mode=tunnel: the UDP leg exists only when the carrier has
+	// native UDP egress (mirrors the tproxy listener's tunnelPlan gate so
+	// the firewall rules and the listener never disagree).
 	udp := set.Routing.Upstream.UDP
+	if set.Routing.Mode == config.RoutingModeTunnel {
+		udp = false
+		if e, ok := reserve.Lookup(reserve.Kind(set.Routing.Tunnel)); ok {
+			udp = set.Routing.Upstream.UDP && e.Carrier.SupportsUDP()
+		}
+	}
 
 	switch be.name() {
 	case backendNFTables:

@@ -68,7 +68,8 @@
       "settings": "Settings",
       "watchdog": "Watchdog",
       "adblock": "Ad-Block",
-      "dns": "DNS"
+      "dns": "DNS",
+      "tunnels": "Tunnels"
     },
     "failed": "Failed",
     "filtered": "{{count}} filtered",
@@ -1399,7 +1400,17 @@
       "howItWorks": "When a device on your network visits a matched domain, B4 intercepts the DNS response, learns the destination IP, and adds a routing rule so that traffic to that IP goes through the output interface you choose - for example, a VPN or a different WAN link.",
       "sourceInterfacesDesc": "Choose which network interfaces B4 should watch for traffic. For example, select your LAN or Wi-Fi bridge to only route traffic from devices on that network. Leave empty to route traffic from all interfaces.",
       "ipTtlDesc": "After B4 learns an IP address from a DNS response, it keeps the routing rule for this many seconds. If the domain's IP changes (e.g. CDN rotation), the old rule expires and B4 picks up the new IP on the next DNS query.",
-      "domainOnlyConflict": "Domain-only matching is enabled for this set, so the IP addresses behind its domains are not routed here - only IP addresses you list explicitly are. Turn off Domain-only matching to route these domains."
+      "domainOnlyConflict": "Domain-only matching is enabled for this set, so the IP addresses behind its domains are not routed here - only IP addresses you list explicitly are. Turn off Domain-only matching to route these domains.",
+      "modeTunnel": "Tunnel (reserve carrier)",
+      "tunnelKind": "Tunnel kind",
+      "tunnelKindHelper": "The registered reserve carrier that carries this set's traffic",
+      "tunnelKindRequired": "Select the tunnel kind — the mode is invalid without it",
+      "tunnelUdp": "UDP through the tunnel",
+      "tunnelUdpDesc": "Only carriers with native UDP egress (proton) actually carry datagrams; TCP-only carriers refuse honestly",
+      "tunnelFailOpenDesc": "On a tunnel dial failure fall open to the direct marked dial (traffic may leak outside the tunnel)",
+      "howItWorksTunnel": "Tunnel mode: the marked traffic of this set is redirected to a local tproxy listener that dials through the selected reserve tunnel carrier. When the carrier is not registered the set stays fail-closed (refused), never leaked around the tunnel.",
+      "flowTunnelCaption": "Traffic of the matched domains rides the selected reserve tunnel",
+      "flowNoTunnel": "no tunnel selected"
     },
     "importExport": {
       "sectionTitle": "Import/Export Set configuration",
@@ -2064,6 +2075,164 @@
       "failed_search_cooldown": "Failed search cooldown",
       "recovery_hysteresis": "Recovery hysteresis",
       "profile_ttl": "Profile TTL"
+    }
+  },
+  "tunnels": {
+    "title": "Tunnels",
+    "description": "Reserve tunnel management: per-tunnel features, regions, and domain-list assignments",
+    "loadError": "Failed to load tunnels",
+    "summaryActive": "Active: {{count}}",
+    "summaryAssigned": "Assigned sets: {{count}}",
+    "registeredCarriers": "Registered carriers",
+    "noRegisteredCarriers": "none — enable a tunnel to register its carrier",
+    "restart": "Restart",
+    "restartHint": "Force one supervision cycle (restart caps still apply)",
+    "restartNote": "Tunnel enable/disable applies after a B4 restart (config-first engines)",
+    "configure": "Configure",
+    "settingsTitle": "Tunnel settings",
+    "settingsRestartWarning": "Enable/disable and identity changes apply after a B4 restart. Region and location switches also apply live when the tunnel is running.",
+    "applyNowNote": "On a running tunnel the region/location switch is applied live (one supervision cycle) in addition to the persisted config.",
+    "noConfigSection": "This tunnel has no config section yet",
+    "carrierRegistered": "carrier",
+    "locationValue": "Location: {{value}}",
+    "regionValue": "Region: {{region}}",
+    "state": {
+      "listening": "Listening",
+      "running": "Running",
+      "notRunning": "Not running",
+      "enginePending": "Engine pending"
+    },
+    "transport": {
+      "udp-full-scope": "UDP full-scope",
+      "tcp-only": "TCP only"
+    },
+    "kind": {
+      "warp": "AWG WARP",
+      "masque": "MASQUE WARP",
+      "h3": "WARP H3 (nested)",
+      "opera": "Opera VPN",
+      "fxvpn": "Firefox VPN",
+      "proton": "Proton VPN (AWG)",
+      "tor": "Tor"
+    },
+    "kindDesc": {
+      "warp": "Amnezia-WireGuard engine for Cloudflare WARP. UDP full-scope; assembly pending.",
+      "masque": "Cloudflare WARP over MASQUE (CONNECT-IP). IPv4/TCP carrier with uTLS masquerade.",
+      "h3": "Reserved kind for the H3-nested WARP transport.",
+      "opera": "Opera/SurfEasy reserve. TCP-only, EU/AS/AM megaregions with node rotation.",
+      "fxvpn": "Firefox VPN reserve. TCP-only, country/city/host locations, H3-preferred sessions.",
+      "proton": "Proton VPN over Amnezia-WireGuard with obfuscation profiles. Native UDP egress.",
+      "tor": "Tor reserve: TCP-only, carrier of last resort, .onion scope, bridge conveyor."
+    },
+    "note": {
+      "awg_warp_note": "The transport/wg engine exists; daemon-side assembly and config schema are pending (the service-profile control plane owns enrollment).",
+      "h3_reserved_note": "Reserved registry kind; no runtime wired yet.",
+      "engine_enabled_not_running": "Enabled in config but the engine is not wired this run (check the log)."
+    },
+    "fields": {
+      "enabled": "Enabled",
+      "enabledDesc": "Zero wire calls while off; applies after a B4 restart",
+      "locationMode": "Location mode",
+      "country": "Country",
+      "city": "City",
+      "host": "Node host"
+    },
+    "masque": {
+      "endpoint": "Endpoint (ip:port)",
+      "endpointHint": "Catalog-validated WARP edge, e.g. 162.159.193.10:2408",
+      "identityPath": "Identity path",
+      "identityPathHint": "Empty = /opt/etc/b4/warp/identity.json",
+      "fingerprint": "uTLS fingerprint",
+      "fingerprintHint": "ClientHello masquerade profile",
+      "fpAuto": "(engine default)",
+      "deferRevalidation": "Defer revalidation",
+      "deferRevalidationDesc": "Trust the local identity on the first connect of a boot"
+    },
+    "opera": {
+      "region": "Megaregion",
+      "regionHint": "EU / AS / AM (RU never participates)",
+      "controlTarget": "Control target (host:port)",
+      "controlTargetHint": "Health probe through the active node",
+      "fakeSni": "Fake SNI (legacy)",
+      "identityPath": "Identity path",
+      "profile": "Masquerade profile",
+      "sniMode": "SNI mode",
+      "ttlFake": "TTL fake",
+      "sniPool": "SNI pool",
+      "alpn": "ALPN"
+    },
+    "fxvpn": {
+      "accountsPath": "Accounts path",
+      "preferH3": "Prefer H3",
+      "preferH3Desc": "QUIC/H3 sessions first, TCP fallback",
+      "rotateThreshold": "Rotate threshold, %",
+      "profile": "Masquerade profile",
+      "fakeTtl": "Fake TTL",
+      "fakeCount": "Fake count",
+      "initialPadding": "Initial padding",
+      "preflightFake": "Preflight fake",
+      "helloShaping": "Hello shaping",
+      "nestOnPortBlock": "Nest on port block",
+      "nestOnPortBlockDesc": "Escalate to nested transport when :2499 gets blocked"
+    },
+    "proton": {
+      "identityPath": "Identity path",
+      "port": "Port (0 = round-robin)",
+      "portHint": "0 cycles 443/88/1224/51820/500/4500",
+      "tunnelMode": "Tunnel mode",
+      "maxRestarts": "Max restarts/hour",
+      "obfuscation": "AWG obfuscation",
+      "obfuscationDesc": "Amnezia obfuscation profiles instead of vanilla WireGuard",
+      "preferredProfile": "Preferred profile",
+      "preferredProfileHint": "Empty = proton-quic",
+      "i1Adaptation": "I1 adaptation",
+      "sniPool": "Obfuscation SNI pool",
+      "countryHint": "ISO code, e.g. NL"
+    },
+    "tor": {
+      "entryMode": "Entry mode",
+      "entryModeHint": "auto races the mixed bridge set and learns the winner",
+      "raceWindow": "Race window",
+      "egressThrough": "Egress through",
+      "egressThroughHint": "Compose tor inside another reserve carrier",
+      "baitProfile": "NFQ bait profile",
+      "conflux": "Conflux",
+      "padding": "Padding",
+      "isolation": "Stream isolation",
+      "snowflakeMax": "Snowflake peers",
+      "bootstrapTimeout": "Bootstrap timeout, s",
+      "maxRestarts": "Max restarts/hour",
+      "builtinSnowflake": "Built-in snowflake bridges",
+      "relayScan": "Relay scan",
+      "relayScanDesc": "Background vanilla relay scanner (capped)",
+      "bridgeLines": "Bridge lines",
+      "bridgeLinesHint": "One bridge line per chip (webtunnel/obfs4...)",
+      "scopeSuffixes": "Scope suffixes",
+      "scopeSuffixesHint": "Destination suffixes routed to tor besides .onion"
+    },
+    "chains": {
+      "title": "Nested chains",
+      "description": "Two-layer tunnel presets (outer -> inner)",
+      "awg+awg": "AWG over AWG",
+      "masque+masque": "MASQUE over MASQUE",
+      "awg+masque": "AWG outer, MASQUE inner",
+      "masque+awg": "MASQUE outer, AWG inner",
+      "nonru": "Always non-RU (geo-gated)",
+      "note": "The nested-pair engine (transport/nested) is wired and e2e-tested; the b4.json schema and daemon assembly are pending. The presets stay disabled until that wiring lands — no silent half-states."
+    },
+    "assignments": {
+      "title": "Domain-list assignments",
+      "description": "Sets routed through a tunnel (routing mode = tunnel). The set's targets pick the domains; the tunnel carries them.",
+      "empty": "No sets are routed through a tunnel yet. Open a set, enable Routing and choose the Tunnel mode, or attach one below.",
+      "set": "Set",
+      "tunnel": "Tunnel",
+      "tunnelState": "Tunnel state",
+      "targets": "Domains / geosite",
+      "switchTo": "Tunnel kind",
+      "switched": "Set switched to {{kind}} (config saved)",
+      "attachTitle": "Attach a set",
+      "attachDescription": "Route an existing set through a tunnel (targets stay as configured)",
+      "attachHint": "Route through a tunnel"
     }
   }
 }

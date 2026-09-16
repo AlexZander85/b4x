@@ -38,6 +38,7 @@ import {
   FingerprintIcon,
   BlockIcon,
   DnsIcon,
+  TunnelsIcon,
 } from "@b4.icons";
 import { colors, theme } from "@design";
 import { useAuth } from "@context/AuthProvider";
@@ -59,6 +60,7 @@ import { SettingsPage } from "@b4.settings";
 import { WatchdogPage } from "@b4.watchdog";
 import { AdBlockPage } from "@b4.adblock";
 import { DnsPage } from "@b4.dns";
+import { TunnelsPage } from "@b4.tunnels";
 import { SnackbarProvider } from "@context/SnackbarProvider";
 
 const DRAWER_WIDTH = 240;
@@ -74,6 +76,7 @@ const navItems: NavItem[] = [
   { path: "/sets", labelKey: "core.nav.sets", icon: <SetsIcon /> },
   { path: "/discovery", labelKey: "core.nav.discovery", icon: <DiscoveryIcon /> },
   { path: "/classifier", labelKey: "core.nav.classifier", icon: <FingerprintIcon /> },
+  { path: "/tunnels", labelKey: "core.nav.tunnels", icon: <TunnelsIcon /> },
   { path: "/watchdog", labelKey: "core.nav.watchdog", icon: <WatchdogIcon /> },
   { path: "/adblock", labelKey: "core.nav.adblock", icon: <BlockIcon /> },
   { path: "/dns", labelKey: "core.nav.dns", icon: <DnsIcon /> },
@@ -113,6 +116,7 @@ export default function App() {
     if (path.startsWith("/watchdog")) return t("core.nav.watchdog");
     if (path.startsWith("/adblock")) return t("core.nav.adblock");
     if (path.startsWith("/dns")) return t("core.nav.dns");
+    if (path.startsWith("/tunnels")) return t("core.nav.tunnels");
     if (path.startsWith("/classifier")) return t("core.nav.classifier");
     if (path.startsWith("/logs")) return t("core.nav.logs");
     if (path.startsWith("/detector")) return t("core.nav.detector");
@@ -275,6 +279,7 @@ export default function App() {
               <Route path="/watchdog" element={<WatchdogPage />} />
               <Route path="/adblock" element={<AdBlockPage />} />
               <Route path="/dns" element={<DnsPage />} />
+              <Route path="/tunnels" element={<TunnelsPage />} />
               <Route path="/detector" element={<DetectorPage />} />
               <Route path="/logs" element={<LogsPage />} />
               <Route path="/settings/*" element={<SettingsPage />} />

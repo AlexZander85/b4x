@@ -1,0 +1,419 @@
+package handler
+
+// Tunnels control plane (design TUNNELS_PANEL_DESIGN.md): one overview
+// endpoint for the Tunnels page, one restart dispatcher over the existing
+// per-service runtimes, and the missing /api/warp/status projection for
+// the MASQUE-WARP engine (warpservice). The per-tunnel detail APIs stay
+// where they are (/api/{tor,opera,fxvpn,proton}/*); this surface is the
+// pane-level aggregation, not a replacement.
+//
+//      GET  /api/tunnels                    — catalog + runtime cards + assignments
+//      POST /api/tunnels/{kind}/restart     — dispatch one supervision cycle
+//      GET  /api/warp/status                — MASQUE-WARP engine status (nil-safe)
+
+import (
+	"net/http"
+	"sync/atomic"
+
+	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/reserve"
+	"github.com/daniellavrushin/b4/warpservice"
+)
+
+// warpServiceRuntime is the warpservice seam (the fxvpn canon): main wires
+// the assembled MASQUE-WARP engine; the status projection stays nil-safe.
+var warpServiceRuntime atomic.Pointer[warpservice.Runtime]
+
+// SetWarpServiceRuntime binds (or unbinds, nil) the warpservice engine.
+func SetWarpServiceRuntime(rt *warpservice.Runtime) { warpServiceRuntime.Store(rt) }
+
+// RegisterTunnelsApi mounts the tunnels control plane.
+func (api *API) RegisterTunnelsApi() {
+	api.mux.HandleFunc("/api/tunnels", api.handleTunnelsOverview)
+	api.mux.HandleFunc("/api/tunnels/restart", api.handleTunnelsRestart)
+	api.mux.HandleFunc("/api/warp/status", api.handleWarpStatus)
+}
+
+// tunnelsChainPreset describes one nested-chain preset (transport/nested
+// matrix). The engine exists (PairConfig, both awg+masque orders); the
+// b4.json schema and the daemon assembly are pending — the card reports
+// that honestly instead of pretending availability.
+type tunnelsChainPreset struct {
+	Kind      string `json:"kind"`
+	Outer     string `json:"outer"`
+	Inner     string `json:"inner"`
+	Available bool   `json:"available"`
+	Note      string `json:"note,omitempty"`
+}
+
+// tunnelsCard is one tunnel row of the overview.
+type tunnelsCard struct {
+	Kind              string `json:"kind"`
+	Priority          int    `json:"priority"`
+	Transport         string `json:"transport"`
+	SupportsUDP       bool   `json:"supports_udp"`
+	HasConfigSection  bool   `json:"has_config_section"`
+	ConfigEnabled     bool   `json:"config_enabled"`
+	CarrierRegistered bool   `json:"carrier_registered"`
+	Running           bool   `json:"running"`
+	Listening         bool   `json:"listening"`
+	State             string `json:"state,omitempty"`
+	Region            string `json:"region,omitempty"`
+	LocationMode      string `json:"location_mode,omitempty"`
+	LocationValue     string `json:"location_value,omitempty"`
+	Restartable       bool   `json:"restartable"`
+	Note              string `json:"note,omitempty"`
+}
+
+// tunnelsAssignment is one set routed through a tunnel.
+type tunnelsAssignment struct {
+	SetID           string `json:"set_id"`
+	SetName         string `json:"set_name"`
+	Enabled         bool   `json:"set_enabled"`
+	Tunnel          string `json:"tunnel"`
+	TunnelRunning   bool   `json:"tunnel_running"`
+	Domains         int    `json:"domains"`
+	GeositeCategory int    `json:"geosite_categories"`
+	UDP             bool   `json:"udp"`
+	FailOpen        bool   `json:"fail_open"`
+}
+
+// tunnelsOverview is the GET /api/tunnels response.
+type tunnelsOverview struct {
+	Tunnels     []tunnelsCard        `json:"tunnels"`
+	Chains      []tunnelsChainPreset `json:"chains"`
+	Assignments []tunnelsAssignment  `json:"assignments"`
+	Registered  []string             `json:"registered_carriers"`
+}
+
+func tunnelsErr(status int, code, msg string) error {
+	return &APIError{Status: status, Code: code, Message: msg}
+}
+
+// @Summary Tunnels overview for the management pane
+// @Description Catalog of the reserve tunnel kinds merged with runtime
+// @Description truth: config-enabled, carrier-registered, running/listening,
+// @Description region/location; the nested-chain presets with honest
+// @Description availability; the sets routed through tunnels.
+// @Tags tunnels
+// @Produce json
+// @Success 200 {object} tunnelsOverview
+// @Security BearerAuth
+// @Router /tunnels [get]
+func (api *API) handleTunnelsOverview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "GET only"))
+		return
+	}
+	cfg := api.cfgPtr.Load()
+	api.sendTunnelsOverview(w, cfg)
+}
+
+func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
+	registered := map[reserve.Kind]bool{}
+	for _, e := range reserve.List() {
+		registered[e.Kind] = true
+	}
+
+	cards := make([]tunnelsCard, 0, 7)
+
+	// warp — AWG-WARP: the transport/wg engine exists; the daemon-side
+	// assembly has no config section yet (service-profile control plane
+	// owns the enrollment flow). Honest unavailable card.
+	cards = append(cards, tunnelsCard{
+		Kind:             string(reserve.KindWarp),
+		Priority:         reserve.PriorityWarp,
+		Transport:        "udp-full-scope",
+		SupportsUDP:      true,
+		HasConfigSection: false,
+		ConfigEnabled:    false,
+		Restartable:      false,
+		Note:             "awg_warp_note",
+	})
+
+	// masque — MASQUE-WARP (warpservice, system.warp).
+	mq := tunnelsCard{
+		Kind:             string(reserve.KindMasque),
+		Priority:         reserve.PriorityMasque,
+		Transport:        "udp-full-scope",
+		SupportsUDP:      false, // netstack v1 carries IPv4 TCP only
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Warp.Enabled,
+		Restartable:      false, // supervisor-owned lifecycle
+	}
+	if rt := warpServiceRuntime.Load(); rt != nil {
+		snap := rt.Status()
+		mq.CarrierRegistered = true
+		mq.Running = true
+		mq.State = string(snap.Status.State)
+		mq.Listening = snap.Status.RouteHeld
+	} else if cfg.System.Warp.Enabled {
+		mq.Note = "engine_enabled_not_running"
+	}
+	cards = append(cards, mq)
+
+	// h3 — MASQUE-WARP H3 nested (reserved kind; catalog-only today).
+	cards = append(cards, tunnelsCard{
+		Kind:             string(reserve.KindH3),
+		Priority:         reserve.PriorityH3,
+		Transport:        "udp-full-scope",
+		SupportsUDP:      true,
+		HasConfigSection: false,
+		ConfigEnabled:    false,
+		Restartable:      false,
+		Note:             "h3_reserved_note",
+	})
+
+	// opera — Opera VPN (TCP-only).
+	op := tunnelsCard{
+		Kind:             string(reserve.KindOpera),
+		Priority:         reserve.PriorityOpera,
+		Transport:        "tcp-only",
+		SupportsUDP:      false,
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Opera.Enabled,
+		Region:           cfg.System.Opera.Region,
+		Restartable:      true,
+	}
+	if rt := operaRuntime.Load(); rt != nil {
+		st := rt.Status()
+		op.CarrierRegistered = true
+		op.Running = st.Running
+		op.Listening = st.Listening
+		if st.Degraded != "" {
+			op.State = st.Degraded
+		} else {
+			op.State = "healthy"
+		}
+		if st.DesiredRegion != "" && st.Region != "" {
+			op.Region = st.Region
+		}
+	}
+	cards = append(cards, op)
+
+	// fxvpn — Firefox VPN (TCP-only).
+	fx := tunnelsCard{
+		Kind:             string(reserve.KindFxvpn),
+		Priority:         reserve.PriorityFxvpn,
+		Transport:        "tcp-only",
+		SupportsUDP:      false,
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.FxVPN.Enabled,
+		LocationMode:     cfg.System.FxVPN.Location.Mode,
+		LocationValue:    fxvpnLocationValue(cfg),
+		Restartable:      true,
+	}
+	if rt := fxvpnRuntime.Load(); rt != nil {
+		st := rt.Status()
+		fx.CarrierRegistered = true
+		fx.Running = st.Running
+		fx.Listening = st.Listening
+		if st.LastFailure != "" {
+			fx.State = st.LastFailure
+		} else {
+			fx.State = "healthy"
+		}
+	}
+	cards = append(cards, fx)
+
+	// proton — Proton VPN AWG (the only UDP full-scope reserve).
+	pr := tunnelsCard{
+		Kind:             string(reserve.KindProton),
+		Priority:         reserve.PriorityProton,
+		Transport:        "udp-full-scope",
+		SupportsUDP:      true,
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Proton.Enabled,
+		LocationMode:     cfg.System.Proton.Location.Mode,
+		LocationValue:    protonLocationValue(cfg),
+		Restartable:      true,
+	}
+	if rt := protonRuntime.Load(); rt != nil {
+		st := rt.Status()
+		pr.CarrierRegistered = true
+		pr.Running = st.Running
+		pr.Listening = st.Listening
+		pr.State = st.State
+	}
+	cards = append(cards, pr)
+
+	// tor — Tor reserve (TCP-only, carrier of last resort).
+	tr := tunnelsCard{
+		Kind:             string(reserve.KindTor),
+		Priority:         reserve.PriorityTor,
+		Transport:        "tcp-only",
+		SupportsUDP:      false,
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Tor.Enabled,
+		LocationMode:     cfg.System.Tor.EffectiveEntryMode(),
+		Restartable:      true,
+	}
+	if rt := torRuntimeLoad(); rt != nil {
+		st := rt.Status()
+		tr.CarrierRegistered = true
+		tr.Running = st.Running
+		tr.Listening = st.Listening
+		tr.State = st.State
+	}
+	cards = append(cards, tr)
+
+	// Nested-chain presets: the transport/nested matrix engine is wired
+	// (PairConfig, both awg+masque orders); the config schema and the
+	// daemon assembly are pending. The pane shows them as presets with
+	// an honest unavailable marker.
+	chains := []tunnelsChainPreset{
+		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: false, Note: "chain_engine_pending"},
+		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
+		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
+		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: false, Note: "chain_engine_pending"},
+		{Kind: "nonru", Outer: "awg", Inner: "awg", Available: false, Note: "nonru_geo_gated"},
+	}
+
+	// Assignments: sets whose routing.mode=tunnel.
+	assignments := make([]tunnelsAssignment, 0)
+	kindRunning := map[string]bool{}
+	for _, c := range cards {
+		kindRunning[c.Kind] = c.Running
+	}
+	for _, set := range cfg.Sets {
+		if set == nil || set.Routing.Mode != config.RoutingModeTunnel {
+			continue
+		}
+		assignments = append(assignments, tunnelsAssignment{
+			SetID:           set.Id,
+			SetName:         set.Name,
+			Enabled:         set.Enabled,
+			Tunnel:          set.Routing.Tunnel,
+			TunnelRunning:   kindRunning[set.Routing.Tunnel],
+			Domains:         len(set.Targets.SNIDomains),
+			GeositeCategory: len(set.Targets.GeoSiteCategories),
+			UDP:             set.Routing.Upstream.UDP,
+			FailOpen:        set.Routing.Upstream.FailOpen,
+		})
+	}
+
+	registeredKinds := make([]string, 0, len(registered))
+	for _, e := range reserve.List() {
+		registeredKinds = append(registeredKinds, string(e.Kind))
+	}
+
+	sendResponse(w, tunnelsOverview{
+		Tunnels:     cards,
+		Chains:      chains,
+		Assignments: assignments,
+		Registered:  registeredKinds,
+	})
+}
+
+func fxvpnLocationValue(cfg *config.Config) string {
+	loc := cfg.System.FxVPN.Location
+	switch loc.Mode {
+	case "country":
+		return loc.Country
+	case "host":
+		return loc.Host
+	default:
+		return "auto"
+	}
+}
+
+func protonLocationValue(cfg *config.Config) string {
+	loc := cfg.System.Proton.Location
+	switch loc.Mode {
+	case "country":
+		return loc.Country
+	case "host":
+		return loc.Host
+	default:
+		return "auto"
+	}
+}
+
+// @Summary Restart one tunnel (one supervision cycle)
+// @Description Dispatches to the engine's own restart path (restart caps
+// @Description still apply inside each service). warp/masque lifecycle is
+// @Description supervisor-owned: the daemon restart is the honest answer.
+// @Tags tunnels
+// @Produce json
+// @Param kind query string true "tunnel kind (opera|fxvpn|proton|tor)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} APIError
+// @Failure 409 {object} APIError
+// @Security BearerAuth
+// @Router /tunnels/restart [post]
+func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "POST only"))
+		return
+	}
+	kind := r.URL.Query().Get("kind")
+	cfg := api.cfgPtr.Load()
+	switch kind {
+	case "opera":
+		rt := operaRuntime.Load()
+		if rt == nil || !cfg.System.Opera.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "opera disabled"))
+			return
+		}
+		rt.Kick(r.Context())
+	case "fxvpn":
+		rt := fxvpnRuntime.Load()
+		if rt == nil || !cfg.System.FxVPN.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "fxvpn disabled"))
+			return
+		}
+		rt.RestartNow(r.Context())
+	case "proton":
+		rt := protonRuntime.Load()
+		if rt == nil || !cfg.System.Proton.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "proton disabled"))
+			return
+		}
+		rt.RestartNow(r.Context())
+	case "tor":
+		rt := torRuntimeLoad()
+		if rt == nil || !cfg.System.Tor.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "tor disabled"))
+			return
+		}
+		go rt.RestartNow(r.Context())
+	default:
+		writeAPIError(w, tunnelsErr(http.StatusBadRequest, "unknown_kind", "unknown or non-restartable tunnel kind "+kind))
+		return
+	}
+	log.Infof("[tunnels] restart dispatched kind=%s", kind)
+	sendResponse(w, map[string]interface{}{"success": true, "kind": kind})
+}
+
+// @Summary MASQUE-WARP engine status
+// @Description The warpservice projection (supervisor state, route held,
+// @Description recent events). Nil-safe disabled shape like the other
+// @Description reserve handlers.
+// @Tags tunnels
+// @Produce json
+// @Success 200 {object} warpservice.StatusSnapshot
+// @Security BearerAuth
+// @Router /warp/status [get]
+func (api *API) handleWarpStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "GET only"))
+		return
+	}
+	cfg := api.cfgPtr.Load().System.Warp
+	rt := warpServiceRuntime.Load()
+	if !cfg.Enabled || rt == nil {
+		sendResponse(w, map[string]interface{}{
+			"enabled":   cfg.Enabled,
+			"running":   false,
+			"listening": false,
+			"transport": "masque-h2",
+		})
+		return
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	sendResponse(w, rt.Status())
+}

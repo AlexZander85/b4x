@@ -148,6 +148,8 @@ func RoutingHandleDNS(cfg *config.Config, set *config.SetConfig, ips []net.IP) {
 			log.Infof("Routing [%s]: enabled MTProto-WS set '%s' mark=0x%x port=%d", be.name(), set.Name, cur.mark, cur.tproxyPort)
 		case config.RoutingModeProxy:
 			log.Infof("Routing [%s]: enabled proxy set '%s' -> %s:%d mark=0x%x port=%d", be.name(), set.Name, set.Routing.Upstream.Host, set.Routing.Upstream.Port, cur.mark, cur.tproxyPort)
+		case config.RoutingModeTunnel:
+			log.Infof("Routing [%s]: enabled tunnel set '%s' -> kind=%s mark=0x%x port=%d", be.name(), set.Name, set.Routing.Tunnel, cur.mark, cur.tproxyPort)
 		case config.RoutingModeBlock:
 			log.Infof("Routing [%s]: enabled block set '%s' action=%s", be.name(), set.Name, cur.blockAction)
 		default:
@@ -233,7 +235,14 @@ func buildRouteState(cfg *config.Config, set *config.SetConfig) routeState {
 		st.mark = mark
 		st.table = proxyTable()
 		st.tproxyPort = port
-		st.upstreamKey = fmt.Sprintf("%s:%d|%s", set.Routing.Upstream.Host, set.Routing.Upstream.Port, set.Routing.Upstream.Username)
+		if mode == config.RoutingModeTunnel {
+			// The tunnel kind is part of the rule identity: switching the
+			// carrier must re-ensure the listener path (tproxy manager keys
+			// on the same string).
+			st.upstreamKey = "tunnel:" + set.Routing.Tunnel
+		} else {
+			st.upstreamKey = fmt.Sprintf("%s:%d|%s", set.Routing.Upstream.Host, set.Routing.Upstream.Port, set.Routing.Upstream.Username)
+		}
 	} else {
 		mark, table := routeResolveIDs(cfg, set)
 		st.mark = mark

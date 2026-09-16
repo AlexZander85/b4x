@@ -347,6 +347,155 @@ export interface SystemConfig {
   ai: AIConfig;
   timezone: string;
   memory_limit?: string;
+  warp?: WarpTunnelConfig;
+  opera?: OperaTunnelConfig;
+  fxvpn?: FxVPNTunnelConfig;
+  proton?: ProtonTunnelConfig;
+  tor?: TorTunnelConfig;
+}
+
+// ---- Reserve tunnel config sections (system.warp|opera|fxvpn|proton|tor) ----
+
+export interface WarpMasqueradeConfig {
+  fingerprint: string;
+}
+
+export interface WarpTunnelConfig {
+  enabled: boolean;
+  identity_path: string;
+  endpoint: string;
+  defer_revalidation: boolean;
+  masquerade: WarpMasqueradeConfig;
+}
+
+export interface OperaMasqueradeConfig {
+  profile: string;
+  sni_mode: string;
+  sni_pool: string[];
+  alpn: string[];
+  session_resumption?: boolean;
+  ttl_fake: boolean;
+}
+
+export interface OperaTunnelConfig {
+  enabled: boolean;
+  identity_path: string;
+  region: string;
+  fake_sni: string;
+  control_target: string;
+  masquerade: OperaMasqueradeConfig;
+}
+
+export interface FxVPNLocationConfig {
+  mode: string;
+  country: string;
+  city: string;
+  host: string;
+}
+
+export interface FxVPNMasqueradeConfig {
+  profile: string;
+  preflight_fake: boolean;
+  fake_sni_pool: string[];
+  fake_ttl: number;
+  fake_count: number;
+  initial_padding: number;
+  hello_shaping?: boolean;
+  nest_on_port_block: boolean;
+}
+
+export interface FxVPNTunnelConfig {
+  enabled: boolean;
+  accounts_path: string;
+  location: FxVPNLocationConfig;
+  prefer_h3: boolean;
+  rotate_threshold_pct: number;
+  bootstrap_through_carrier: boolean;
+  control_target: string;
+  masquerade: FxVPNMasqueradeConfig;
+}
+
+export interface ProtonLocationConfig {
+  mode: string;
+  country: string;
+  host: string;
+}
+
+export interface ProtonObfuscationConfig {
+  enabled: boolean;
+  preferred_profile?: string;
+  sni_pool?: string[];
+  i1_adaptation: boolean;
+}
+
+export interface ProtonTunnelConfig {
+  enabled: boolean;
+  identity_path: string;
+  location: ProtonLocationConfig;
+  obfuscation: ProtonObfuscationConfig;
+  port: number;
+  mtu: number;
+  bootstrap_through_carrier: boolean;
+  user_agent: string;
+  app_version: string;
+  api_version: string;
+  max_restarts_per_hour: number;
+  tunnel_mode: string;
+  kernel_device: string;
+  route_mark: number;
+  route_table: number;
+}
+
+export interface TorEntryConfig {
+  mode: string;
+  race_window?: number;
+}
+
+export interface TorBridgesConfig {
+  lines?: string[];
+  builtin_snowflake: boolean;
+  collect_urls?: string[];
+  country: string;
+  recollect_pause_sec?: number;
+}
+
+export interface TorEgressConfig {
+  through?: string;
+  bait_profile?: string;
+}
+
+export interface TorSpeedConfig {
+  conflux?: string;
+  padding?: string;
+  geoip: boolean;
+  snowflake_max?: number;
+  isolation?: string;
+}
+
+export interface TorScopesConfig {
+  suffixes?: string[];
+}
+
+export interface TorRelayScanConfig {
+  enabled: boolean;
+  ports?: number[];
+  countries?: string[];
+  goal?: number;
+  timeout_sec?: number;
+}
+
+export interface TorTunnelConfig {
+  enabled: boolean;
+  binary_path?: string;
+  data_path?: string;
+  entry: TorEntryConfig;
+  bridges: TorBridgesConfig;
+  egress: TorEgressConfig;
+  speed: TorSpeedConfig;
+  scopes: TorScopesConfig;
+  relay_scan: TorRelayScanConfig;
+  max_restarts_per_hour?: number;
+  bootstrap_timeout_sec?: number;
 }
 
 export interface B4Config {
@@ -411,7 +560,16 @@ export interface DNSConfig {
   fragment_query: boolean;
 }
 
-export type RoutingMode = "interface" | "proxy" | "mtproto-ws" | "block";
+export type RoutingMode = "interface" | "proxy" | "mtproto-ws" | "block" | "tunnel";
+
+export type TunnelKind =
+  | "warp"
+  | "masque"
+  | "h3"
+  | "opera"
+  | "fxvpn"
+  | "proton"
+  | "tor";
 
 export type BlockAction = "drop" | "reject";
 
@@ -430,6 +588,7 @@ export interface RoutingConfig {
   mode: RoutingMode;
   egress_interface: string;
   upstream: UpstreamProxyConfig;
+  tunnel?: TunnelKind;
   fwmark: number;
   table: number;
   source_interfaces: string[];

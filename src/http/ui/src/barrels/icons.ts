@@ -80,4 +80,7 @@ export {
   CallMade as EscalateOutIcon,
   CallReceived as EscalateInIcon,
   Telegram as TelegramIcon,
+  VpnLock as TunnelsIcon,
+  Tune as SettingsIcon,
+  Assignment as AssignIcon,
 } from "@mui/icons-material";

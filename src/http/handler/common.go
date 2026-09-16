@@ -208,6 +208,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterProtonApi()
 	api.RegisterOperaApi()
 	api.RegisterTorApi()
+	api.RegisterTunnelsApi()
 }
 
 func sendResponse(w http.ResponseWriter, response interface{}) {

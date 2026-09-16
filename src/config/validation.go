@@ -157,6 +157,16 @@ func (c *Config) Validate() error {
 		case "":
 			set.Routing.Mode = RoutingModeInterface
 		case RoutingModeProxy, RoutingModeInterface, RoutingModeMTProtoWS:
+		case RoutingModeTunnel:
+			set.Routing.Tunnel = strings.ToLower(strings.TrimSpace(set.Routing.Tunnel))
+			if set.Routing.Tunnel == "" {
+				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "tunnel_kind_required", map[string]any{"set": set.Name, "supported": RoutingTunnelKinds}, "set %q: routing mode %q requires routing.tunnel (one of %v)", set.Name, RoutingModeTunnel, RoutingTunnelKinds)
+				return v.result()
+			}
+			if !IsRoutingTunnelKind(set.Routing.Tunnel) {
+				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "unknown_tunnel_kind", map[string]any{"set": set.Name, "kind": set.Routing.Tunnel, "supported": RoutingTunnelKinds}, "set %q: unknown tunnel kind %q (supported: %v)", set.Name, set.Routing.Tunnel, RoutingTunnelKinds)
+				return v.result()
+			}
 		case RoutingModeBlock:
 			set.Routing.BlockAction = NormalizeBlockAction(set.Routing.BlockAction)
 		default:

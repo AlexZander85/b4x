@@ -7,6 +7,7 @@ import (
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/reserve"
 	"github.com/daniellavrushin/b4/socks5"
 )
 
@@ -83,15 +84,17 @@ func (m *Manager) SyncConfig(cfg *config.Config) {
 			desiredHost = "127.0.0.1"
 		}
 		isMTWS := set.Routing.Mode == config.RoutingModeMTProtoWS
+		_, tunnelKindKey, tunnelUDP, _, _ := tunnelPlan(set)
 		if l.Port != port ||
 			l.MTProtoWS != isMTWS ||
+			l.TunnelKind != tunnelKindKey ||
+			l.UDP != tunnelUDP ||
 			l.Upstream.Host != desiredHost ||
 			l.Upstream.Port != set.Routing.Upstream.Port ||
 			l.Upstream.Username != set.Routing.Upstream.Username ||
 			l.Upstream.Password != set.Routing.Upstream.Password ||
 			l.Upstream.BypassMark != bypassMark ||
 			l.UseDomain != set.Routing.Upstream.UseDomain ||
-			l.UDP != set.Routing.Upstream.UDP ||
 			l.FailOpen != set.Routing.Upstream.FailOpen {
 			log.Infof("tproxy: restarting listener for set %q (config changed)", set.Name)
 			_ = l.Stop()
@@ -109,10 +112,25 @@ func (m *Manager) SyncConfig(cfg *config.Config) {
 		if host == "" {
 			host = "127.0.0.1"
 		}
+
+		// routing.mode=tunnel: resolve the reserve carrier by kind. An
+		// unregistered kind (engine disabled / failed start / not wired
+		// yet) gets NO listener — the tproxy port stays closed, the marked
+		// traffic is refused. Fail-closed, never leaked around the tunnel.
+		var tunnelCarrier reserve.Carrier
+		_, tunnelKindKey, tunnelUDP, tunnelOK, entry := tunnelPlan(set)
+		if set.Routing.Mode == config.RoutingModeTunnel {
+			if !tunnelOK {
+				log.Errorf("tproxy: tunnel carrier %q is not registered for set %q (engine disabled, failed to start, or not wired); the set stays fail-closed until it registers", set.Routing.Tunnel, set.Name)
+				continue
+			}
+			tunnelCarrier = entry.Carrier
+		}
+
 		l := &Listener{
-			SetID:    set.Id,
-			SetName:  set.Name,
-			Port:     port,
+			SetID:   set.Id,
+			SetName: set.Name,
+			Port:    port,
 			Upstream: socks5.ClientConfig{
 				Host:       host,
 				Port:       set.Routing.Upstream.Port,
@@ -121,12 +139,14 @@ func (m *Manager) SyncConfig(cfg *config.Config) {
 				Timeout:    10 * time.Second,
 				BypassMark: bypassMark,
 			},
-			UseDomain: set.Routing.Upstream.UseDomain,
-			UDP:       set.Routing.Upstream.UDP,
-			FailOpen:  set.Routing.Upstream.FailOpen,
-			Resolver:  m.resolver,
-			MTProtoWS: set.Routing.Mode == config.RoutingModeMTProtoWS,
-			Bridge:    m.mtprotoBridge,
+			UseDomain:  set.Routing.Upstream.UseDomain,
+			UDP:        tunnelUDP,
+			FailOpen:   set.Routing.Upstream.FailOpen,
+			Resolver:   m.resolver,
+			MTProtoWS:  set.Routing.Mode == config.RoutingModeMTProtoWS,
+			Bridge:     m.mtprotoBridge,
+			Tunnel:     tunnelCarrier,
+			TunnelKind: tunnelKindKey,
 		}
 		if err := l.Start(m.ctx); err != nil {
 			log.Errorf("tproxy: failed to start listener for set %q: %v", set.Name, err)
@@ -134,6 +154,25 @@ func (m *Manager) SyncConfig(cfg *config.Config) {
 		}
 		m.listeners[id] = l
 	}
+}
+
+// tunnelPlan resolves the routing.mode=tunnel carrier parameters for one
+// set: the configured kind, the registry kind key ("" when unregistered),
+// the effective UDP flag (upstream.udp AND carrier support; plain
+// upstream.udp for the non-tunnel modes), the registration verdict, and the
+// registry entry (zero value when unregistered).
+func tunnelPlan(set *config.SetConfig) (kind, kindKey string, udp, registered bool, entry reserve.Entry) {
+	if set == nil {
+		return "", "", false, false, reserve.Entry{}
+	}
+	if set.Routing.Mode != config.RoutingModeTunnel {
+		return "", "", set.Routing.Upstream.UDP, true, reserve.Entry{}
+	}
+	e, ok := reserve.Lookup(reserve.Kind(set.Routing.Tunnel))
+	if !ok {
+		return set.Routing.Tunnel, "", false, false, reserve.Entry{}
+	}
+	return set.Routing.Tunnel, string(e.Kind), set.Routing.Upstream.UDP && e.Carrier.SupportsUDP(), true, e
 }
 
 func (m *Manager) Stop() {

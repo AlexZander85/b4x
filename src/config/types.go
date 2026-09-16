@@ -32,6 +32,11 @@ const (
 	RoutingModeProxy     = "proxy"
 	RoutingModeMTProtoWS = "mtproto-ws"
 	RoutingModeBlock     = "block"
+	// RoutingModeTunnel routes the set's traffic through one of the reserve
+	// tunnel carriers (routing.tunnel selects the kind). The tproxy listener
+	// dials through the registered reserve carrier instead of an upstream
+	// SOCKS5 proxy.
+	RoutingModeTunnel = "tunnel"
 )
 
 const (
@@ -39,8 +44,42 @@ const (
 	BlockActionReject = "reject"
 )
 
+// Tunnel kind selectors for RoutingModeTunnel (routing.tunnel). The strings
+// match the reserve registry kinds (src/reserve) so the lookup is a straight
+// reserve.Lookup(reserve.Kind(t)).
+const (
+	TunnelKindWarp   = "warp"   // AWG-WARP (UDP full-scope; carrier pending)
+	TunnelKindMasque = "masque" // MASQUE-WARP (UDP full-scope; carrier pending)
+	TunnelKindH3     = "h3"     // MASQUE-WARP H3 nested (carrier pending)
+	TunnelKindOpera  = "opera"  // Opera VPN (TCP-only)
+	TunnelKindFxvpn  = "fxvpn"  // Firefox VPN (TCP-only)
+	TunnelKindProton = "proton" // Proton VPN AWG (UDP full-scope)
+	TunnelKindTor    = "tor"    // Tor reserve (TCP-only, .onion egress)
+)
+
+// RoutingTunnelKinds is the closed set accepted by routing.tunnel.
+var RoutingTunnelKinds = []string{
+	TunnelKindWarp,
+	TunnelKindMasque,
+	TunnelKindH3,
+	TunnelKindOpera,
+	TunnelKindFxvpn,
+	TunnelKindProton,
+	TunnelKindTor,
+}
+
+// IsRoutingTunnelKind reports whether kind is a valid routing.tunnel value.
+func IsRoutingTunnelKind(kind string) bool {
+	switch kind {
+	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
+		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor:
+		return true
+	}
+	return false
+}
+
 func RoutingUsesTProxy(mode string) bool {
-	return mode == RoutingModeProxy || mode == RoutingModeMTProtoWS
+	return mode == RoutingModeProxy || mode == RoutingModeMTProtoWS || mode == RoutingModeTunnel
 }
 
 func RoutingIsBlock(mode string) bool {
@@ -600,15 +639,18 @@ type MSSClampConfig struct {
 }
 
 type RoutingConfig struct {
-	Enabled          bool                `json:"enabled"`
-	Mode             string              `json:"mode"`
-	EgressInterface  string              `json:"egress_interface"`
-	Upstream         UpstreamProxyConfig `json:"upstream"`
-	FWMark           uint32              `json:"fwmark"`
-	Table            int                 `json:"table"`
-	SourceInterfaces []string            `json:"source_interfaces"`
-	IPTTLSeconds     int                 `json:"ip_ttl_seconds"`
-	BlockAction      string              `json:"block_action"`
+	Enabled         bool                `json:"enabled"`
+	Mode            string              `json:"mode"`
+	EgressInterface string              `json:"egress_interface"`
+	Upstream        UpstreamProxyConfig `json:"upstream"`
+	// Tunnel selects the reserve carrier for RoutingModeTunnel ("proton",
+	// "tor", "opera", "fxvpn", ...). Empty is invalid in that mode.
+	Tunnel           string   `json:"tunnel,omitempty"`
+	FWMark           uint32   `json:"fwmark"`
+	Table            int      `json:"table"`
+	SourceInterfaces []string `json:"source_interfaces"`
+	IPTTLSeconds     int      `json:"ip_ttl_seconds"`
+	BlockAction      string   `json:"block_action"`
 }
 
 type UpstreamProxyConfig struct {
