@@ -46,20 +46,35 @@ type MonitorStatus struct {
 }
 
 type MonitorAPIProjection struct {
-	mu     sync.RWMutex
-	status map[string]MonitorStatus
+	mu         sync.RWMutex
+	status     map[string]MonitorStatus
+	correlator *FlowCorrelator
 }
 
 func NewMonitorAPIProjection() *MonitorAPIProjection {
-	return &MonitorAPIProjection{status: map[string]MonitorStatus{}}
+	return &MonitorAPIProjection{status: map[string]MonitorStatus{}, correlator: NewFlowCorrelator()}
 }
 func (p *MonitorAPIProjection) Update(s MonitorStatus) {
 	if p == nil || !s.Scope.Valid() {
 		return
 	}
+	if p.correlator != nil {
+		p.correlator.EnsureScope(s.Scope)
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.status[correlationKey(s.Scope)] = cloneMonitorStatus(s)
+	key := correlationKey(s.Scope)
+	current := p.status[key]
+	// Ordinary MON/ABD projection updates must not erase an active AFS status
+	// or already-published behavioral fingerprint summary.
+	if s.AdaptiveSynthesis.State == "" && current.AdaptiveSynthesis.State != "" {
+		s.AdaptiveSynthesis = current.AdaptiveSynthesis
+	}
+	if s.BehavioralFingerprint == nil && current.BehavioralFingerprint != nil {
+		copySummary := *current.BehavioralFingerprint
+		s.BehavioralFingerprint = &copySummary
+	}
+	p.status[key] = cloneMonitorStatus(s)
 }
 func (p *MonitorAPIProjection) Get(scope MonitorScopeKey) (MonitorStatus, bool) {
 	if p == nil {
@@ -83,11 +98,21 @@ func (p *MonitorAPIProjection) List() []MonitorStatus {
 	return out
 }
 
+func (p *MonitorAPIProjection) Correlator() *FlowCorrelator {
+	if p == nil {
+		return nil
+	}
+	return p.correlator
+}
+
 // PatchAdaptiveSynthesis updates only the AFS lifecycle projection while
 // preserving the existing health/visibility/queue status for the scope.
 func (p *MonitorAPIProjection) PatchAdaptiveSynthesis(scope MonitorScopeKey, status AdaptiveSynthesisStatus, now time.Time) {
 	if p == nil || !scope.Valid() {
 		return
+	}
+	if p.correlator != nil {
+		p.correlator.EnsureScope(scope)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -106,6 +131,9 @@ func (p *MonitorAPIProjection) PatchAdaptiveSynthesis(scope MonitorScopeKey, sta
 func (p *MonitorAPIProjection) PatchBehavioralFingerprint(scope MonitorScopeKey, summary *BehavioralFingerprintSummary, now time.Time) {
 	if p == nil || !scope.Valid() {
 		return
+	}
+	if p.correlator != nil {
+		p.correlator.EnsureScope(scope)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
