@@ -61,9 +61,10 @@ const (
 	// serves it); awg+masque is IPv4/TCP only (the inner MASQUE netstack
 	// v1); awg+awg (W+W, twg.NestedWgRuntime) carries UDP full-scope
 	// through the inner AWG netstack as well.
-	TunnelKindChainMasqueAwg = "masque+awg" // M+W: MASQUE outer, AWG inner
-	TunnelKindChainAwgMasque = "awg+masque" // W+M: AWG outer, MASQUE inner
-	TunnelKindChainAwgAwg    = "awg+awg"    // W+W: AWG outer, AWG inner
+	TunnelKindChainMasqueAwg    = "masque+awg"    // M+W: MASQUE outer, AWG inner
+	TunnelKindChainAwgMasque    = "awg+masque"    // W+M: AWG outer, MASQUE inner
+	TunnelKindChainAwgAwg       = "awg+awg"       // W+W: AWG outer, AWG inner
+	TunnelKindChainMasqueMasque = "masque+masque" // M+M: MASQUE outer, MASQUE inner
 )
 
 // RoutingTunnelKinds is the closed set accepted by routing.tunnel.
@@ -78,6 +79,7 @@ var RoutingTunnelKinds = []string{
 	TunnelKindChainMasqueAwg,
 	TunnelKindChainAwgMasque,
 	TunnelKindChainAwgAwg,
+	TunnelKindChainMasqueMasque,
 }
 
 // IsRoutingTunnelKind reports whether kind is a valid routing.tunnel value.
@@ -85,7 +87,8 @@ func IsRoutingTunnelKind(kind string) bool {
 	switch kind {
 	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
 		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
-		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque, TunnelKindChainAwgAwg:
+		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque, TunnelKindChainAwgAwg,
+		TunnelKindChainMasqueMasque:
 		return true
 	}
 	return false

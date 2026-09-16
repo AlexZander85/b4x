@@ -390,7 +390,7 @@ export interface WarpAWGConfig {
 
 // Nested chain entry (system.warp.chains[]).
 export interface WarpChainConfig {
-  kind: "masque+awg" | "awg+masque" | "awg+awg";
+  kind: "masque+awg" | "awg+masque" | "awg+awg" | "masque+masque";
   enabled: boolean;
   outer_identity_path: string;
   inner_identity_path: string;
@@ -619,7 +619,8 @@ export type TunnelKind =
   // the transport/nested and transport/wg engines.
   | "masque+awg"
   | "awg+masque"
-  | "awg+awg";
+  | "awg+awg"
+  | "masque+masque";
 
 export type BlockAction = "drop" | "reject";
 

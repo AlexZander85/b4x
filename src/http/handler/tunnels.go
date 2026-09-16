@@ -37,7 +37,8 @@ var awgWarpRuntime atomic.Pointer[awgwarpservice.Runtime]
 // SetAWGWarpRuntime binds (or unbinds, nil) the AWG-WARP engine.
 func SetAWGWarpRuntime(rt *awgwarpservice.Runtime) { awgWarpRuntime.Store(rt) }
 
-// chainRuntimes holds the per-kind chain engines (masque+awg, awg+masque).
+// chainRuntimes holds the per-kind chain engines (masque+awg, awg+masque,
+// awg+awg, masque+masque).
 var chainRuntimes sync.Map // string(kind) -> *warpchainservice.Runtime
 
 // SetChainRuntime binds (or unbinds, nil) one chain engine by kind.
@@ -68,9 +69,10 @@ func (api *API) RegisterTunnelsApi() {
 }
 
 // tunnelsChainPreset describes one nested-chain preset (transport/nested
-// matrix). The masque+awg and awg+masque compositions ship with the daemon
-// assembly (warpchainservice); the rest stay engine-pending and the card
-// reports that honestly instead of pretending availability.
+// matrix). The masque+awg, awg+masque, awg+awg and masque+masque
+// compositions ship with the daemon assembly (warpchainservice); the rest
+// stay engine-pending and the card reports that honestly instead of
+// pretending availability.
 type tunnelsChainPreset struct {
 	Kind      string `json:"kind"`
 	Outer     string `json:"outer"`
@@ -324,18 +326,18 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	}
 	cards = append(cards, tr)
 
-	// Nested-chain presets: the masque+awg, awg+masque and awg+awg
-	// compositions ship with the daemon assembly (warpchainservice over
-	// transport/nested and transport/wg); each preset reflects the config
-	// entry and the live engine. The engine-pending compositions stay
-	// honest-unavailable.
+	// Nested-chain presets: the masque+awg, awg+masque, awg+awg and
+	// masque+masque compositions ship with the daemon assembly
+	// (warpchainservice over transport/nested and transport/wg); each
+	// preset reflects the config entry and the live engine. The
+	// engine-pending compositions stay honest-unavailable.
 	chainConfigured := map[string]config.WarpChainConfig{}
 	for _, ch := range cfg.System.Warp.Chains {
 		chainConfigured[ch.Kind] = ch
 	}
 	chains := []tunnelsChainPreset{
 		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: true},
-		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
+		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: true},
 		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: true},
 		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: true},
 		{Kind: "nonru", Outer: "awg", Inner: "awg", Available: false, Note: "nonru_geo_gated"},

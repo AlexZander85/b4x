@@ -95,7 +95,8 @@ func TestWarpChainValidationDefaults(t *testing.T) {
 
 func TestWarpChainValidationBadKind(t *testing.T) {
 	c := NewConfig()
-	c.System.Warp.Chains = []WarpChainConfig{{Kind: "masque+masque", Enabled: true}}
+	// "nonru" is a geo-gated policy, not a pair — the honest schema rejection.
+	c.System.Warp.Chains = []WarpChainConfig{{Kind: "nonru", Enabled: true}}
 	err := c.Validate()
 	if err == nil || !strings.Contains(err.Error(), "chains[0].kind") {
 		t.Fatalf("expected kind rejection, got: %v", err)
@@ -158,11 +159,21 @@ func TestWarpChainValidationInnerMTU(t *testing.T) {
 
 func TestRoutingTunnelKindChains(t *testing.T) {
 	if !IsRoutingTunnelKind(TunnelKindChainMasqueAwg) || !IsRoutingTunnelKind(TunnelKindChainAwgMasque) ||
-		!IsRoutingTunnelKind(TunnelKindChainAwgAwg) {
+		!IsRoutingTunnelKind(TunnelKindChainAwgAwg) || !IsRoutingTunnelKind(TunnelKindChainMasqueMasque) {
 		t.Fatal("chain kinds must be routing tunnel kinds")
 	}
-	if IsRoutingTunnelKind("masque+masque") || IsRoutingTunnelKind("nonru") {
-		t.Fatal("engine-pending compositions must not be routing tunnel kinds")
+	if IsRoutingTunnelKind("nonru") {
+		t.Fatal("the geo-gated policy must not be a routing tunnel kind")
+	}
+}
+
+func TestWarpChainMasqueMasqueProfileRejected(t *testing.T) {
+	// M+M has no awg layer — a profile on it is a config lie.
+	c := chainTestConfig(ChainKindMasqueMasque)
+	c.System.Warp.Chains[0].AWGProfile = "quic-a"
+	err := c.Validate()
+	if err == nil || !strings.Contains(err.Error(), "awg_profile") {
+		t.Fatalf("expected M+M awg_profile rejection, got: %v", err)
 	}
 }
 

@@ -40,9 +40,10 @@ const (
 	KindTor    Kind = "tor"    // Tor reserve (TCP only, .onion egress)
 	// Nested chains (tunnels panel stage 2): the cross-transport compositions
 	// served by src/warpchainservice over transport/nested.
-	KindChainMasqueAwg Kind = "masque+awg" // M+W: MASQUE outer, AWG inner (UDP full-scope)
-	KindChainAwgMasque Kind = "awg+masque" // W+M: AWG outer, MASQUE inner (IPv4/TCP)
-	KindChainAwgAwg    Kind = "awg+awg"    // W+W: AWG outer, AWG inner (UDP full-scope)
+	KindChainMasqueAwg    Kind = "masque+awg"    // M+W: MASQUE outer, AWG inner (UDP full-scope)
+	KindChainAwgMasque    Kind = "awg+masque"    // W+M: AWG outer, MASQUE inner (IPv4/TCP)
+	KindChainAwgAwg       Kind = "awg+awg"       // W+W: AWG outer, AWG inner (UDP full-scope)
+	KindChainMasqueMasque Kind = "masque+masque" // M+M: MASQUE outer, MASQUE inner (IPv4/TCP)
 )
 
 // Priorities encode the design §7 tree order (HIGHER wins). Proton sits
@@ -72,6 +73,11 @@ const (
 	PriorityChainMasqueAwg = 15
 	PriorityChainAwgMasque = 14
 	PriorityChainAwgAwg    = 13
+	// PriorityChainMasqueMasque is the deepest chain: like W+W it rides one
+	// transport family on BOTH layers (homogeneity risk), and on top of
+	// that its inner MASQUE netstack v1 carries IPv4/TCP only — the most
+	// constrained escalation surface in the tree.
+	PriorityChainMasqueMasque = 12
 )
 
 // Carrier is the scoped-router contract of a reserve transport (review P2
@@ -186,6 +192,8 @@ func priorityOf(k Kind) int {
 		return PriorityChainAwgMasque
 	case KindChainAwgAwg:
 		return PriorityChainAwgAwg
+	case KindChainMasqueMasque:
+		return PriorityChainMasqueMasque
 	default:
 		return 0 // unknown kinds park at the tail until prioritized
 	}

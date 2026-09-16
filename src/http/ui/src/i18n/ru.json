@@ -2254,7 +2254,7 @@
       "chain_engine_pending": "Композиция готова на уровне движка; сборка в демоне ожидается.",
       "chain_disabled": "Настроена, но отключена в system.warp.chains.",
       "chain_not_configured": "Добавьте запись цепочки в system.warp.chains, чтобы включить её.",
-      "note": "masque+awg, awg+masque и awg+awg (W+W поверх transport/wg.NestedWgRuntime; два CF wg-девайса) поставляются со сборкой в демоне — каждый слой владеет отдельным слотом identity. Маршрутизируйте сеты на них через routing.mode=tunnel. masque+masque и geo-gated дерево nonru остаются в ожидании сборки — никаких полусостояний."
+      "note": "masque+awg, awg+masque, awg+awg (W+W поверх transport/wg.NestedWgRuntime; два CF wg-девайса) и masque+masque (два CF masque-девайса) поставляются со сборкой в демоне — каждый слой владеет отдельным слотом identity. Маршрутизируйте сеты на них через routing.mode=tunnel. Geo-gated дерево nonru остаётся в ожидании сборки — никаких полусостояний."
     },
     "assignments": {
       "title": "Назначения спискам доменов",

@@ -22,23 +22,24 @@ import (
 // forbidden), so AWG-WARP owns its own registration.
 const DefaultWarpAWGIdentityPath = "/opt/etc/b4/warp/awg-identity.json"
 
-// Chain kinds (closed set): the three nested compositions the engines
-// ship. masque+awg / awg+masque ride transport/nested; awg+awg (W+W) rides
-// transport/wg.NestedWgRuntime (design §7 R3 gool pattern). "masque+masque"
-// stays engine-pending and "nonru" is a geo-gated policy, not a pair —
-// neither is accepted by this schema.
+// Chain kinds (closed set): the four nested compositions the engines ship.
+// masque+awg / awg+masque / masque+masque ride transport/nested; awg+awg (W+W)
+// rides transport/wg.NestedWgRuntime (design §7 R3 gool pattern). "nonru" is
+// a geo-gated policy, not a pair — not accepted by this schema.
 const (
-	ChainKindMasqueAwg = "masque+awg" // MASQUE-H2 outer, AWG inner (M+W)
-	ChainKindAwgMasque = "awg+masque" // AWG outer, MASQUE-H2 inner (W+M)
-	ChainKindAwgAwg    = "awg+awg"    // AWG outer, AWG inner (W+W)
+	ChainKindMasqueAwg    = "masque+awg"    // MASQUE-H2 outer, AWG inner (M+W)
+	ChainKindAwgMasque    = "awg+masque"    // AWG outer, MASQUE-H2 inner (W+M)
+	ChainKindAwgAwg       = "awg+awg"       // AWG outer, AWG inner (W+W)
+	ChainKindMasqueMasque = "masque+masque" // MASQUE-H2 outer, MASQUE-H2 inner (M+M)
 )
 
 // WarpChainKinds is the closed chain-kind set (validation + UI catalogs).
-var WarpChainKinds = []string{ChainKindMasqueAwg, ChainKindAwgMasque, ChainKindAwgAwg}
+var WarpChainKinds = []string{ChainKindMasqueAwg, ChainKindAwgMasque, ChainKindAwgAwg, ChainKindMasqueMasque}
 
 // IsWarpChainKind reports kind membership in the chain set.
 func IsWarpChainKind(kind string) bool {
-	return kind == ChainKindMasqueAwg || kind == ChainKindAwgMasque || kind == ChainKindAwgAwg
+	return kind == ChainKindMasqueAwg || kind == ChainKindAwgMasque ||
+		kind == ChainKindAwgAwg || kind == ChainKindMasqueMasque
 }
 
 // Data-plane modes of the AWG-WARP transport.
@@ -226,6 +227,18 @@ func (c *WarpAWGConfig) EffectiveMaxRestarts() int {
 	return c.MaxRestartsPerHour
 }
 
+// DefaultMasqueInnerEndpoint is the M+M inner default: the OTHER measured
+// anycast gateway (162.159.198.1 — TCP MASQUE answers across the whole
+// catalog /24), distinct from the outer default 162.159.198.2 (gool hard
+// rule at defaults).
+func defaultMasqueInnerEndpoint(avoid netip.Addr) netip.AddrPort {
+	def := twarp.DefaultH2Endpoint()
+	if avoid.IsValid() && def.Addr() == avoid {
+		return netip.MustParseAddrPort("162.159.198.1:443")
+	}
+	return def
+}
+
 // resolveCfWarpProfile resolves a cf-warp vanilla-safe profile id.
 func resolveCfWarpProfile(field, id string) (twg.Profile, error) {
 	if id == "" {
@@ -350,8 +363,14 @@ func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, 
 		}
 		return ap, nil
 	}
-	masqueEp := func(field, raw string) (netip.AddrPort, error) {
+	masqueEp := func(field, raw string, avoid netip.Addr) (netip.AddrPort, error) {
 		if raw == "" {
+			// M+M: the default inner edge must differ from the outer's IP
+			// (gool hard rule at defaults); explicit values still collide-check
+			// below.
+			if avoid.IsValid() {
+				return defaultMasqueInnerEndpoint(avoid), nil
+			}
 			return twarp.DefaultH2Endpoint(), nil
 		}
 		ap, perr := netip.ParseAddrPort(raw)
@@ -369,7 +388,7 @@ func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, 
 
 	switch c.Kind {
 	case ChainKindMasqueAwg:
-		outer, err = masqueEp("system.warp.chains[masque+awg].outer_endpoint", c.OuterEndpoint)
+		outer, err = masqueEp("system.warp.chains[masque+awg].outer_endpoint", c.OuterEndpoint, netip.AddrPort{}.Addr())
 		if err != nil {
 			return
 		}
@@ -379,7 +398,7 @@ func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, 
 		if err != nil {
 			return
 		}
-		inner, err = masqueEp("system.warp.chains[awg+masque].inner_endpoint", c.InnerEndpoint)
+		inner, err = masqueEp("system.warp.chains[awg+masque].inner_endpoint", c.InnerEndpoint, netip.AddrPort{}.Addr())
 	case ChainKindAwgAwg:
 		// W+W: both layers resolve against the WG catalog; the inner default
 		// avoids the outer's IP (gool hard rule).
@@ -388,8 +407,16 @@ func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, 
 			return
 		}
 		inner, err = awgEp("system.warp.chains[awg+awg].inner_endpoint", c.InnerEndpoint, outer.Addr())
+	case ChainKindMasqueMasque:
+		// M+M: both layers resolve against the MASQUE-H2 catalog; the inner
+		// default avoids the outer's IP (gool hard rule).
+		outer, err = masqueEp("system.warp.chains[masque+masque].outer_endpoint", c.OuterEndpoint, netip.AddrPort{}.Addr())
+		if err != nil {
+			return
+		}
+		inner, err = masqueEp("system.warp.chains[masque+masque].inner_endpoint", c.InnerEndpoint, outer.Addr())
 	default:
-		err = fmt.Errorf("system.warp.chains.kind %q is not a nested chain kind (want masque+awg, awg+masque or awg+awg)", c.Kind)
+		err = fmt.Errorf("system.warp.chains.kind %q is not a nested chain kind (want masque+awg, awg+masque, awg+awg or masque+masque)", c.Kind)
 		return
 	}
 	if err != nil {
@@ -402,11 +429,16 @@ func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, 
 }
 
 // validateChainAWGProfile checks the AWG-layer profile head ("" is legal:
-// ladder default at assembly time). For awg+awg the resolved profile must
-// carry an ACTIVE junk family (the W+W outer layer's obfuscation is the
-// whole point of the composition — twg.ErrOuterObfRequired at the engine,
-// mirrored here so the config cannot lie).
+// ladder default at assembly time). awg+awg additionally requires an ACTIVE
+// junk family on the outer layer (twg.ErrOuterObfRequired mirrored);
+// masque+masque has NO awg layer — a profile on it is a config lie.
 func (c *WarpChainConfig) validateChainAWGProfile() error {
+	if c.Kind == ChainKindMasqueMasque {
+		if c.AWGProfile != "" {
+			return fmt.Errorf("system.warp.chains[masque+masque].awg_profile %q invalid: the M+M composition has no awg layer (leave empty)", c.AWGProfile)
+		}
+		return nil
+	}
 	if c.AWGProfile == "" {
 		if c.Kind == ChainKindAwgAwg {
 			p, err := resolveCfWarpProfile("system.warp.chains[awg+awg].awg_profile", "")
@@ -429,8 +461,10 @@ func (c *WarpChainConfig) validateChainAWGProfile() error {
 	return nil
 }
 
-// validateChainFingerprint checks the masque-layer fingerprint head. awg+awg
-// has NO masque layer — a fingerprint on it is a config lie and is rejected.
+// validateChainFingerprint checks the masque-layer fingerprint head. For
+// masque+masque the fingerprint applies to the INNER layer (the outer plane's
+// fingerprint is set on the supervisor template by the assembly); it stays
+// a single field covering the composition's masquerade posture.
 func (c *WarpChainConfig) validateChainFingerprint() error {
 	if c.Kind == ChainKindAwgAwg && c.Fingerprint != "" {
 		return fmt.Errorf("system.warp.chains[awg+awg].fingerprint %q invalid: the W+W composition has no masque layer (leave empty)", c.Fingerprint)

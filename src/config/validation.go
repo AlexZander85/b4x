@@ -482,7 +482,7 @@ func (c *Config) validateWarpChains(v *validator) {
 	for i, ch := range c.System.Warp.Chains {
 		field := fmt.Sprintf("system.warp.chains[%d]", i)
 		if !IsWarpChainKind(ch.Kind) {
-			v.addf(field+".kind", "invalid_value", nil, "chain kind %q is not a nested chain kind (want masque+awg, awg+masque or awg+awg)", ch.Kind)
+			v.addf(field+".kind", "invalid_value", nil, "chain kind %q is not a nested chain kind (want masque+awg, awg+masque, awg+awg or masque+masque)", ch.Kind)
 			continue
 		}
 		if seen[ch.Kind] {

@@ -687,9 +687,11 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// transport/wg, assembly in warpchainservice, config system.warp.chains[]).
 	// One runtime per chain entry; every layer owns a DISTINCT identity slot
 	// (one CF device per layer — the nested red line #3). Chain kinds:
-	// masque+awg (UDP full-scope inner), awg+masque (IPv4/TCP inner) and
+	// masque+awg (UDP full-scope inner), awg+masque (IPv4/TCP inner),
 	// awg+awg — the W+W composition over transportwg.NestedWgRuntime (UDP
-	// full-scope through the inner AWG netstack, two CF wg devices).
+	// full-scope through the inner AWG netstack, two CF wg devices) — and
+	// masque+masque — the M+M composition over nested.MasqueMasqueRuntime
+	// (IPv4/TCP through the inner MASQUE netstack, two CF masque devices).
 	var chainEngines []*warpchainservice.Runtime
 	for _, chain := range cfgPtr.Load().System.Warp.Chains {
 		if !chain.Enabled {

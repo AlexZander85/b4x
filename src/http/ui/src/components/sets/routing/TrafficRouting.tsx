@@ -502,6 +502,9 @@ export const TrafficRouting = ({
                   <MenuItem value="awg+awg">
                     {t("tunnels.chains.awg+awg")} (awg+awg)
                   </MenuItem>
+                  <MenuItem value="masque+masque">
+                    {t("tunnels.chains.masque+masque")} (masque+masque)
+                  </MenuItem>
                 </B4TextField>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>

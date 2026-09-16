@@ -50,8 +50,13 @@ func TestBuildBothCompositions(t *testing.T) {
 		if rt.Kind() != reserve.Kind(kind) {
 			t.Fatalf("kind = %q, want %q", string(rt.Kind()), kind)
 		}
-		// The AWG layer slot is inner for masque+awg, outer for awg+masque.
-		if rt.wgStore.Path == "" {
+		// The AWG layer slot is inner for masque+awg, outer for
+		// awg+masque / awg+awg; masque+masque owns NO wg identity.
+		if kind == config.ChainKindMasqueMasque {
+			if rt.wgStore != nil {
+				t.Fatalf("m+m must own no wg identity slot, got %q", rt.wgStore.Path)
+			}
+		} else if rt.wgStore.Path == "" {
 			t.Fatalf("awg slot not resolved for %s", kind)
 		}
 		v := rt.Status()
@@ -63,9 +68,10 @@ func TestBuildBothCompositions(t *testing.T) {
 
 func TestBuildRejectsBadKind(t *testing.T) {
 	dir := t.TempDir()
-	ch := chainCfg(dir, "masque+masque")
+	// "nonru" is a geo-gated policy, not a pair — the honest build refusal.
+	ch := chainCfg(dir, "nonru")
 	if _, err := Build(testConfig(ch), ch, Options{}); err == nil {
-		t.Fatal("engine-pending kind must fail the build")
+		t.Fatal("non-pair kind must fail the build")
 	}
 }
 
@@ -97,6 +103,44 @@ func TestBuildWgWg(t *testing.T) {
 	v := rt.Status()
 	if v.Enabled != true || v.Running || v.Listening {
 		t.Fatalf("fresh runtime must be inert: %+v", v)
+	}
+}
+
+// TestBuildMasqueMasque pins the M+M assembly shape: the outer supervisor
+// IS the composition plane (the M+W canon), no wg identity slots exist, and
+// the carrier posture is IPv4/TCP only (the inner MASQUE netstack v1).
+func TestBuildMasqueMasque(t *testing.T) {
+	dir := t.TempDir()
+	ch := chainCfg(dir, config.ChainKindMasqueMasque)
+	rt, err := Build(testConfig(ch), ch, Options{Now: time.Now})
+	if err != nil {
+		t.Fatalf("build m+m: %v", err)
+	}
+	if rt.Kind() != reserve.KindChainMasqueMasque {
+		t.Fatalf("kind = %q, want masque+masque", string(rt.Kind()))
+	}
+	// No wg identity slots at all (both layers are MASQUE).
+	if rt.wgStore != nil || rt.wgInnerStore != nil {
+		t.Fatal("m+m must own no wg identity slots")
+	}
+	// The outer supervisor is the capsule plane.
+	if rt.outerSup == nil {
+		t.Fatal("m+m requires the outer masque supervisor (the capsule plane)")
+	}
+	// The chain masque slots stay per-layer distinct (config red line #3).
+	if ch.EffectiveOuterIdentityPath() == ch.EffectiveInnerIdentityPath() {
+		t.Fatal("m+m layers must use distinct identity slots")
+	}
+	v := rt.Status()
+	if v.Enabled != true || v.Running || v.Listening {
+		t.Fatalf("fresh runtime must be inert: %+v", v)
+	}
+	// Carrier posture: the inner MASQUE netstack carries IPv4/TCP only.
+	if rt.SupportsUDP() {
+		t.Fatal("m+m carrier must be TCP-only")
+	}
+	if _, err := rt.DialUDP(context.Background(), netip.MustParseAddrPort("1.1.1.1:53")); err != reserve.ErrCarrierNoUDP {
+		t.Fatalf("m+m DialUDP must refuse with ErrCarrierNoUDP, got %v", err)
 	}
 }
 
