@@ -111,7 +111,7 @@ func (p SynthesisPlanner) ValidateCandidate(req SynthesisRequest, prior detector
 		cost.CPUUnits += definition.BaseCPUUnits
 		cost.LatencyPenaltyMS += definition.BaseLatencyMS
 		switch operation.Family {
-		case detector.OperatorSafeDuplicateOriginal:
+		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPrePadding, detector.OperatorPostPadding:
 			cost.Amplification += 0.25
 		case detector.OperatorSafeFakeProfile:
 			cost.Amplification += 0.5
@@ -152,7 +152,7 @@ func candidateActionBridgeShape(operations []CandidateOperation) string {
 			}
 		case detector.OperatorSafeFakeProfile:
 			fakeCount++
-		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter:
+		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter, detector.OperatorPrePadding, detector.OperatorPostPadding:
 			transformCount++
 		}
 	}
