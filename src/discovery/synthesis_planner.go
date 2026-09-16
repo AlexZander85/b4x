@@ -209,43 +209,18 @@ func (p SynthesisPlanner) Plan(req SynthesisRequest, prior detector.DiscoverySea
 	appendCandidatesBounded(&result.Candidates, frontier, int(limits.MaxCandidates))
 
 	for generation = 1; generation < limits.MaxGenerations && len(result.Candidates) < int(limits.MaxCandidates); generation++ {
-		next := make([]SynthesizedCandidatePlan, 0)
 		parents := append([]SynthesizedCandidatePlan(nil), frontier...)
 		if len(parents) == 0 {
 			break
 		}
-		for _, parent := range parents {
-			for _, seed := range seedOps {
-				if len(parent.Operations) >= int(limits.MaxActions) {
-					break
-				}
-				ops := append(cloneCandidateOperations(parent.Operations), seed)
-				candidate, err := newSynthesizedCandidate(req, generation, []string{parent.CandidateID}, parent.Trigger, ops, parent.Representation, parent.Preconditions, CandidateCost{}, CandidateRisk{}, []string{fmt.Sprintf("g%d:add:%s", generation, seed.Family)}, req.RequestedAt)
-				if err != nil {
-					return result, err
-				}
-				validation := p.ValidateCandidate(req, prior, candidate)
-				if !validation.Valid {
-					result.Rejected[candidate.CandidateID] = validation.Reason
-					continue
-				}
-				candidate.StaticCost, candidate.Risk = validation.Cost, validation.Risk
-				if _, duplicate := seen[candidate.CanonicalHash]; duplicate {
-					continue
-				}
-				if _, wasFailed := failed[candidate.CandidateID]; wasFailed {
-					result.Rejected[candidate.CandidateID] = "candidate already failed in current context"
-					continue
-				}
-				seen[candidate.CanonicalHash] = struct{}{}
-				next = append(next, candidate)
-				if len(next) >= 8 || len(result.Candidates)+len(next) >= int(limits.MaxCandidates) {
-					break
-				}
-			}
-			if len(next) >= 8 || len(result.Candidates)+len(next) >= int(limits.MaxCandidates) {
-				break
-			}
+		generationLimits := limits
+		remaining := int(limits.MaxCandidates) - len(result.Candidates)
+		if remaining < int(generationLimits.MaxCandidates) {
+			generationLimits.MaxCandidates = uint16(remaining)
+		}
+		next, err := p.evolveGeneration(req, prior, parents, seedOps, generation, seen, failed, result.Rejected, generationLimits)
+		if err != nil {
+			return result, err
 		}
 		orderCandidates(next, prior, req.DeterministicSeed+int64(generation))
 		appendCandidatesBounded(&result.Candidates, next, int(limits.MaxCandidates))
@@ -255,7 +230,7 @@ func (p SynthesisPlanner) Plan(req SynthesisRequest, prior detector.DiscoverySea
 	if len(result.Candidates) == 0 {
 		result.Reason = "no statically valid novel candidates within bounded grammar"
 	} else {
-		result.Reason = "bounded deterministic candidates ready for existing Discovery evaluation"
+		result.Reason = "bounded deterministic mutation/crossover candidates ready for existing Discovery evaluation"
 	}
 	return result, nil
 }
