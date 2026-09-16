@@ -3,7 +3,7 @@
 Branch: `agent/afs-addendum-v1`
 Base: `agent/classifier-v2.3-capture-envelope`
 Draft PR: `#8`
-Last code-bearing focused CI: `35085703795` — `PASS`
+Last code-bearing focused CI: `35088580460` — `PASS`
 
 This checkpoint records implementation progress for `B4X_POST_V23_BEHAVIORAL_FINGERPRINTING_AND_CONSTRAINED_STRATEGY_SYNTHESIS_ADDENDUM_v1.0.md` only.
 
@@ -23,8 +23,10 @@ This checkpoint records implementation progress for `B4X_POST_V23_BEHAVIORAL_FIN
 - exact-context synthesized winner persistence with bounded per-scope reuse and quarantine;
 - automatic synthesis preflight gate for opt-in, persistent regression, fresh profile/prior, generation, rollout, visibility, controls, catalog exhaustion, resource budget, resource ownership, cleanup, cooldown, and conflicting-run suppression;
 - synthesized promotion proof attached to the existing transactional runtime apply request, preserving one promotion path and requiring forwarded-client canary, action authorization, mandatory controls, rollback readiness, cleanup readiness, and stable observation;
+- synthesis lifecycle integrated into the existing Monitoring correlation scope, including persistent-regression recurrence, cooldown, stale-context cancellation, progress projection, and post-promotion stability observation;
+- monitor terminal/stability helpers preserve monotonic candidate/generation progress instead of weakening the lifecycle invariant;
 - fault-injection coverage for all zero-tolerance invariant families, including formerly declaration-only grammar/unsafe/direct-apply/collision/foreign-resource paths;
-- focused pull-request CI: `gofmt` plus tests for `config`, `detector`, `discovery`, `observability`, and `runtimecontrol` are green;
+- focused pull-request CI: `gofmt` plus tests for `config`, `detector`, `discovery`, `monitor`, `observability`, `runtimecontrol`, and `validation` are green in run `35088580460`;
 - all eight required AFS-13 evidence artifacts produced with target-dependent sections explicitly blocked rather than fabricated;
 - principal verdicts recorded in `AFS_PRINCIPAL_VERDICTS.json`.
 
