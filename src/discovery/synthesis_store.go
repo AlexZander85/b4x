@@ -3,6 +3,8 @@ package discovery
 import (
 	"errors"
 	"sync"
+
+	"github.com/daniellavrushin/b4/observability"
 )
 
 // SynthesisRunStore is intentionally transient and run-scoped. It provides
@@ -34,11 +36,13 @@ func (s *SynthesisRunStore) Put(plan SynthesizedCandidatePlan) error {
 	defer s.mu.Unlock()
 	if existing, ok := s.plans[plan.CandidateID]; ok {
 		if existing.CanonicalHash != plan.CanonicalHash {
+			observability.RecordSynthesisViolation(observability.MetricSynthesisCandidateIdentityCollision)
 			return errors.New("candidate identity collision")
 		}
 		return nil
 	}
 	if len(s.plans) >= s.maxEntries {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisUnboundedExecution)
 		return errors.New("synthesis run store bound reached")
 	}
 	s.plans[plan.CandidateID] = plan
