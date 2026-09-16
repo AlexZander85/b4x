@@ -98,8 +98,8 @@ func TestBoundedSynthesisSearchEarlyStopsOnlyAfterAllControls(t *testing.T) {
 	if len(result.TestedCandidates) != 1 {
 		t.Fatalf("early stop tested %d candidates, want 1", len(result.TestedCandidates))
 	}
-	if result.ProbesUsed != 8 {
-		t.Fatalf("probe use = %d, want 8 (2 baselines + 3 profiles x 2 stable samples)", result.ProbesUsed)
+	if result.ProbesUsed != 10 {
+		t.Fatalf("probe use = %d, want 10 ((2 baselines + 3 profiles) x 2 stable samples)", result.ProbesUsed)
 	}
 	if result.Applied {
 		t.Fatal("bounded synthesis search applied candidate directly")
