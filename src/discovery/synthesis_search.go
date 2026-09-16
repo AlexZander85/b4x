@@ -81,7 +81,11 @@ func (m *Runtime) RunBoundedSynthesisSearch(ctx context.Context, cfg *config.Con
 	}
 	req.Gate = gate
 
-	limits := req.Synthesis.Limits.normalized()
+	// Request-local bounds may narrow but never widen persisted automation
+	// policy. Apply the same clamp used by the single-candidate runtime path
+	// before creating the seed population.
+	req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
+	limits := req.Synthesis.Limits
 	policy := AdaptivePolicyFromRuntimeConfig(cfg.System.Classifier.Runtime.Discovery)
 	if req.Synthesis.ResourceBudget.MaxProbes > 0 && req.Synthesis.ResourceBudget.MaxProbes < policy.MaxProbes {
 		policy.MaxProbes = req.Synthesis.ResourceBudget.MaxProbes
