@@ -67,7 +67,7 @@ type AFSTargetEvidence struct {
 }
 
 type AFSReadinessEvidence struct {
-	Lab AFSLabEvidence `json:"lab"`
+	Lab    AFSLabEvidence    `json:"lab"`
 	Target AFSTargetEvidence `json:"target"`
 
 	// DependencyVerdicts supplies the current verdicts owned by the existing

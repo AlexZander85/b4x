@@ -10,19 +10,19 @@ import (
 type AdaptiveSynthesisState string
 
 const (
-	SynthesisIdle                 AdaptiveSynthesisState = "IDLE"
-	SynthesisRegressionCandidate  AdaptiveSynthesisState = "REGRESSION_CANDIDATE"
-	SynthesisRegressionConfirmed  AdaptiveSynthesisState = "REGRESSION_CONFIRMED"
-	SynthesisBehavioralProfiling  AdaptiveSynthesisState = "BEHAVIORAL_PROFILING"
-	SynthesisPlanning             AdaptiveSynthesisState = "SYNTHESIS_PLANNING"
-	SynthesisDiscoveryTest        AdaptiveSynthesisState = "DISCOVERY_TEST"
-	SynthesisAndroidCanary        AdaptiveSynthesisState = "ANDROID_CANARY"
-	SynthesisRollout              AdaptiveSynthesisState = "ROLLOUT"
-	SynthesisStabilityObserve     AdaptiveSynthesisState = "STABILITY_OBSERVE"
-	SynthesisCooldown             AdaptiveSynthesisState = "COOLDOWN"
-	SynthesisCancelled            AdaptiveSynthesisState = "CANCELLED"
-	SynthesisExhausted            AdaptiveSynthesisState = "EXHAUSTED"
-	SynthesisStaleContext         AdaptiveSynthesisState = "STALE_CONTEXT"
+	SynthesisIdle                AdaptiveSynthesisState = "IDLE"
+	SynthesisRegressionCandidate AdaptiveSynthesisState = "REGRESSION_CANDIDATE"
+	SynthesisRegressionConfirmed AdaptiveSynthesisState = "REGRESSION_CONFIRMED"
+	SynthesisBehavioralProfiling AdaptiveSynthesisState = "BEHAVIORAL_PROFILING"
+	SynthesisPlanning            AdaptiveSynthesisState = "SYNTHESIS_PLANNING"
+	SynthesisDiscoveryTest       AdaptiveSynthesisState = "DISCOVERY_TEST"
+	SynthesisAndroidCanary       AdaptiveSynthesisState = "ANDROID_CANARY"
+	SynthesisRollout             AdaptiveSynthesisState = "ROLLOUT"
+	SynthesisStabilityObserve    AdaptiveSynthesisState = "STABILITY_OBSERVE"
+	SynthesisCooldown            AdaptiveSynthesisState = "COOLDOWN"
+	SynthesisCancelled           AdaptiveSynthesisState = "CANCELLED"
+	SynthesisExhausted           AdaptiveSynthesisState = "EXHAUSTED"
+	SynthesisStaleContext        AdaptiveSynthesisState = "STALE_CONTEXT"
 )
 
 const (
