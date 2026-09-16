@@ -51,15 +51,18 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 	if len(ctx.Input.Payload) == 0 || ctx.Input.ProcessedMark == 0 { return out, action.ErrInvalidPacket }
 	if ctx.Budgets == (action.ActionBudgets{}) { ctx.Budgets = action.DefaultActionBudgets() }
 
-	var structural *CandidateOperation
+	structural := make([]CandidateOperation, 0, len(candidate.Operations))
 	transforms := make([]CandidateOperation, 0, 2)
+	var fake *CandidateOperation
 	for i := range candidate.Operations {
 		op := candidate.Operations[i]
 		switch op.Family {
-		case detector.OperatorTCPSplit, detector.OperatorTLSRecordSplit, detector.OperatorBoundedDisorder, detector.OperatorSafeFakeProfile:
-			if structural != nil { return out, ErrSynthesisActionStructure }
+		case detector.OperatorTCPSplit, detector.OperatorTLSRecordSplit, detector.OperatorBoundedDisorder:
+			structural = append(structural, op)
+		case detector.OperatorSafeFakeProfile:
+			if fake != nil || len(structural) != 0 { return out, ErrSynthesisActionStructure }
 			copyOp := op
-			structural = &copyOp
+			fake = &copyOp
 		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter:
 			transforms = append(transforms, op)
 		case detector.OperatorPrePadding, detector.OperatorPostPadding:
@@ -69,8 +72,8 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 		}
 	}
 
-	if structural != nil && structural.Family == detector.OperatorSafeFakeProfile {
-		if len(transforms) != 0 { return out, fmt.Errorf("%w: safe fake profile cannot be transformed in v1", ErrSynthesisActionStructure) }
+	if fake != nil {
+		if len(transforms) != 0 || len(structural) != 0 { return out, fmt.Errorf("%w: safe fake profile cannot be combined in grammar v1", ErrSynthesisActionStructure) }
 		if ctx.FakeMixTemplate == nil { return out, fmt.Errorf("%w: endpoint-safe fake profile template required", ErrSynthesisActionUnsupported) }
 		req := *ctx.FakeMixTemplate
 		req.Enabled = true
@@ -84,10 +87,10 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 		req.ConfigGen = ctx.ConfigGen
 		req.Tokens = ctx.Tokens
 		req.Budgets = ctx.Budgets
-		switch structural.Params["mode"] {
+		switch fake.Params["mode"] {
 		case string(action.FakeMixSplit): req.Mode = action.FakeMixSplit
 		case string(action.FakeMixDisorder): req.Mode = action.FakeMixDisorder
-		default: return out, fmt.Errorf("invalid safe fake mode %q", structural.Params["mode"])
+		default: return out, fmt.Errorf("invalid safe fake mode %q", fake.Params["mode"])
 		}
 		plan, err := action.PlanFakeMix(req)
 		if err != nil { return out, err }
@@ -96,7 +99,7 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 		return out, nil
 	}
 
-	plan, err := compileStructuralAction(candidate, structural, ctx)
+	plan, err := compileStructuralActions(candidate, structural, ctx)
 	if err != nil { return out, err }
 	generatedBytes := 0
 	for _, transform := range transforms {
@@ -127,32 +130,52 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 	return out, nil
 }
 
-func compileStructuralAction(candidate SynthesizedCandidatePlan, structural *CandidateOperation, ctx SynthesisActionContext) (action.ActionPlan, error) {
-	if structural == nil {
+func compileStructuralActions(candidate SynthesizedCandidatePlan, structural []CandidateOperation, ctx SynthesisActionContext) (action.ActionPlan, error) {
+	if len(structural) == 0 {
 		plan, err := action.Plan(ctx.Input)
 		if err != nil { return action.ActionPlan{}, err }
 		return plan, nil
 	}
-	marker, err := synthesisMarker(structural.Params["marker"])
-	if err != nil { return action.ActionPlan{}, err }
+	positions := make([]action.SplitPositionSpec, 0, len(structural))
+	technique := action.TechniqueMultiSplit
+	order := action.OrderForward
 	pre := action.StrategyPreconditions{MinConfidence: 80, RequiresCompleteCH: true, FirstFlightOnly: true, AllowedTCPPhases: []string{ctx.TCPPhase}}
-	if marker == action.MarkerSNIExtensionStart || marker == action.MarkerHostStart || marker == action.MarkerHostEnd || marker == action.MarkerSLDMiddle { pre.RequiresClearSNI = true }
-	switch structural.Family {
-	case detector.OperatorTCPSplit, detector.OperatorBoundedDisorder:
-		technique := action.TechniqueMultiSplit
-		order := action.OrderForward
-		if structural.Family == detector.OperatorBoundedDisorder { technique, order = action.TechniqueMultiDisorder, action.OrderReverse }
-		definition := action.StrategyDefinition{ID: candidate.CandidateID, Technique: technique, Positions: []action.SplitPositionSpec{{Marker: marker}}, SegmentOrder: order, Preconditions: pre, Budgets: ctx.Budgets}
-		planned, err := action.PlanStrategy(action.StrategyRequest{Input: ctx.Input, Definition: definition, Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, CompleteClientHello: ctx.CompleteClientHello, FlowHash: ctx.FlowHash, ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen, Tokens: ctx.Tokens})
+	disorderCount := 0
+	for _, operation := range structural {
+		marker, err := synthesisMarker(operation.Params["marker"])
 		if err != nil { return action.ActionPlan{}, err }
-		return planned.ActionPlan, nil
-	case detector.OperatorTLSRecordSplit:
-		planned, err := action.PlanTLSRecordSplit(action.TLSRecordSplitRequest{Enabled: true, StrategyID: candidate.CandidateID, Input: ctx.Input, Positions: []action.SplitPositionSpec{{Marker: marker}}, Preconditions: pre, Budgets: ctx.Budgets, Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, FlowHash: ctx.FlowHash, ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen, Tokens: ctx.Tokens})
-		if err != nil { return action.ActionPlan{}, err }
-		return planned.ActionPlan, nil
-	default:
-		return action.ActionPlan{}, fmt.Errorf("%w: %s", ErrSynthesisActionUnsupported, structural.Family)
+		if marker == action.MarkerSNIExtensionStart || marker == action.MarkerHostStart || marker == action.MarkerHostEnd || marker == action.MarkerSLDMiddle { pre.RequiresClearSNI = true }
+		position := action.SplitPositionSpec{Marker: marker}
+		positions = append(positions, position)
+		switch operation.Family {
+		case detector.OperatorBoundedDisorder:
+			disorderCount++
+			technique, order = action.TechniqueMultiDisorder, action.OrderReverse
+		case detector.OperatorTLSRecordSplit:
+			// Reuse the specialized parser/marker validator in dry-run mode,
+			// then compile all compatible split boundaries into one existing
+			// multi-split ActionPlan. No TLS/application bytes are rewritten.
+			validationInput := ctx.Input
+			validationInput.DryRun = true
+			_, err := action.PlanTLSRecordSplit(action.TLSRecordSplitRequest{
+				Enabled: true, StrategyID: candidate.CandidateID + "/tls-boundary-check", Input: validationInput,
+				Positions: []action.SplitPositionSpec{position}, Preconditions: pre, Budgets: ctx.Budgets,
+				Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, FlowHash: ctx.FlowHash,
+				ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen,
+			})
+			if err != nil { return action.ActionPlan{}, err }
+		case detector.OperatorTCPSplit:
+		default:
+			return action.ActionPlan{}, fmt.Errorf("%w: %s", ErrSynthesisActionUnsupported, operation.Family)
+		}
 	}
+	if disorderCount > 1 {
+		return action.ActionPlan{}, fmt.Errorf("%w: multiple disorder operators", ErrSynthesisActionStructure)
+	}
+	definition := action.StrategyDefinition{ID: candidate.CandidateID, Technique: technique, Positions: positions, SegmentOrder: order, Preconditions: pre, Budgets: ctx.Budgets}
+	planned, err := action.PlanStrategy(action.StrategyRequest{Input: ctx.Input, Definition: definition, Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, CompleteClientHello: ctx.CompleteClientHello, FlowHash: ctx.FlowHash, ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen, Tokens: ctx.Tokens})
+	if err != nil { return action.ActionPlan{}, err }
+	return planned.ActionPlan, nil
 }
 
 func synthesisMarker(value string) (action.LogicalMarkerKind, error) {
