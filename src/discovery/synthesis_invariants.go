@@ -12,7 +12,14 @@ import (
 // mutation attempts may be rejected freely, but anything emitted across this
 // boundary must be registered, finite and automatic-safe.
 func CheckSynthesizedEmission(candidate SynthesizedCandidatePlan) error {
-	grammar := AutomaticStrategyGrammarV1()
+	return checkSynthesizedEmission(candidate, AutomaticStrategyGrammarV1())
+}
+
+// checkSynthesizedEmission keeps the production boundary on the canonical
+// grammar while allowing fault-injection tests to exercise the unsafe-operator
+// branch without keeping a deliberately unsafe operator in the production
+// grammar registry.
+func checkSynthesizedEmission(candidate SynthesizedCandidatePlan, grammar StrategyGrammar) error {
 	if candidate.GrammarVersion != grammar.Version || !grammar.TriggerAllowed(candidate.Trigger) {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisGrammarEscape)
 		return errors.New("synthesized candidate escaped the active grammar version or trigger domain")
