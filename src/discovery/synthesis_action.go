@@ -58,7 +58,7 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 	}
 
 	structural := make([]CandidateOperation, 0, len(candidate.Operations))
-	transforms := make([]CandidateOperation, 0, 2)
+	transforms := make([]CandidateOperation, 0, 4)
 	var fake *CandidateOperation
 	for i := range candidate.Operations {
 		op := candidate.Operations[i]
@@ -71,10 +71,8 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 			}
 			copyOp := op
 			fake = &copyOp
-		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter:
+		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter, detector.OperatorPrePadding, detector.OperatorPostPadding:
 			transforms = append(transforms, op)
-		case detector.OperatorPrePadding, detector.OperatorPostPadding:
-			return out, fmt.Errorf("%w: %s", ErrSynthesisActionUnsupported, op.Family)
 		default:
 			return out, fmt.Errorf("%w: %s", ErrSynthesisActionUnsupported, op.Family)
 		}
@@ -147,6 +145,23 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 			for i := range plan.Writes {
 				plan.Writes[i].Delay += delay
 			}
+		case detector.OperatorPrePadding, detector.OperatorPostPadding:
+			paddingBytes, parseErr := strconv.Atoi(transform.Params["padding_bytes"])
+			if parseErr != nil {
+				return out, action.ErrClientHelloPadding
+			}
+			preBytes, postBytes := 0, 0
+			if transform.Family == detector.OperatorPrePadding {
+				preBytes = paddingBytes
+			} else {
+				postBytes = paddingBytes
+			}
+			var added int
+			plan, added, err = action.ApplyClientHelloPadding(plan, ctx.Input, preBytes, postBytes)
+			if err != nil {
+				return out, err
+			}
+			generatedBytes += added
 		}
 	}
 	if err := ctx.Budgets.Check(len(ctx.Input.Payload), len(plan.Writes), generatedBytes); err != nil {
