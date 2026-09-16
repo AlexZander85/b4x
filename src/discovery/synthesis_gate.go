@@ -28,6 +28,7 @@ type SynthesisGateInput struct {
 	TargetPlanComplete         bool
 	ActiveTestAuthorized       bool
 	ResourceBudgetAvailable    bool
+	ResourceOwnershipReady     bool
 	CleanupComplete            bool
 	CatalogEscalationSatisfied bool
 	NextEligibleAt             time.Time
@@ -76,7 +77,12 @@ func CheckAutomaticSynthesisGate(in SynthesisGateInput) error {
 		return errors.New("previous synthesis cleanup is incomplete")
 	}
 	if !in.ResourceBudgetAvailable {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisUnboundedExecution)
 		return errors.New("synthesis resource budget is unavailable")
+	}
+	if !in.ResourceOwnershipReady {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisForeignResourceMutation)
+		return errors.New("candidate resource ownership cannot be proven")
 	}
 	if !in.CatalogEscalationSatisfied {
 		return errors.New("catalog strategy escalation has not been exhausted")
