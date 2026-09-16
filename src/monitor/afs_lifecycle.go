@@ -230,7 +230,15 @@ func (c *FlowCorrelator) CancelAdaptiveSynthesis(scope MonitorScopeKey, runID, r
 }
 
 func (c *FlowCorrelator) MarkAdaptiveSynthesisStale(scope MonitorScopeKey, runID, reason string, now time.Time) error {
-	return c.UpdateAdaptiveSynthesis(scope, AdaptiveSynthesisUpdate{RunID: runID, State: SynthesisStaleContext, Reason: reason}, now)
+	current, ok := c.AdaptiveSynthesisStatus(scope)
+	if !ok {
+		return errors.New("monitoring correlation scope not found")
+	}
+	update := synthesisProgressUpdate(current)
+	update.RunID = runID
+	update.State = SynthesisStaleContext
+	update.Reason = reason
+	return c.UpdateAdaptiveSynthesis(scope, update, now)
 }
 
 // ObserveAdaptiveSynthesisStability closes Monitoring's post-promotion watch.
@@ -248,13 +256,34 @@ func (c *FlowCorrelator) ObserveAdaptiveSynthesisStability(scope MonitorScopeKey
 			reason = "post-promotion-regression; rollback-and-quarantine-required"
 		}
 	}
-	return c.UpdateAdaptiveSynthesis(scope, AdaptiveSynthesisUpdate{
-		RunID:             runID,
-		State:             state,
-		WinnerCandidateID: winnerID,
-		NextEligibleRun:   nextEligibleRun,
-		Reason:            reason,
-	}, now)
+	current, ok := c.AdaptiveSynthesisStatus(scope)
+	if !ok {
+		return errors.New("monitoring correlation scope not found")
+	}
+	update := synthesisProgressUpdate(current)
+	update.RunID = runID
+	update.State = state
+	update.WinnerCandidateID = winnerID
+	update.NextEligibleRun = nextEligibleRun
+	update.Reason = reason
+	return c.UpdateAdaptiveSynthesis(scope, update, now)
+}
+
+func synthesisProgressUpdate(current AdaptiveSynthesisStatus) AdaptiveSynthesisUpdate {
+	return AdaptiveSynthesisUpdate{
+		RunID:                current.RunID,
+		State:                current.State,
+		BlockingProfileID:    current.BlockingProfileID,
+		BehavioralEvidenceID: current.BehavioralEvidenceID,
+		CandidatesGenerated:  current.CandidatesGenerated,
+		CandidatesRejected:   current.CandidatesRejected,
+		CandidatesTested:     current.CandidatesTested,
+		CurrentGeneration:    current.CurrentGeneration,
+		BestCandidateID:      current.BestCandidateID,
+		WinnerCandidateID:    current.WinnerCandidateID,
+		RolloutGeneration:    current.RolloutGeneration,
+		NextEligibleRun:      current.NextEligibleRun,
+	}
 }
 
 func (c *FlowCorrelator) ResetAdaptiveSynthesis(scope MonitorScopeKey, now time.Time) error {
