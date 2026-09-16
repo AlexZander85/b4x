@@ -131,25 +131,36 @@ func (p SynthesisPlanner) ValidateCandidate(req SynthesisRequest, prior detector
 }
 
 func candidateActionBridgeShape(operations []CandidateOperation) string {
-	structural := 0
-	fake := false
-	transforms := 0
+	fakeCount := 0
+	disorderCount := 0
+	structuralCount := 0
+	transformCount := 0
+	markers := map[string]struct{}{}
 	for _, operation := range operations {
 		switch operation.Family {
 		case detector.OperatorTCPSplit, detector.OperatorTLSRecordSplit, detector.OperatorBoundedDisorder:
-			structural++
+			structuralCount++
+			if operation.Family == detector.OperatorBoundedDisorder {
+				disorderCount++
+			}
+			marker := operation.Params["marker"]
+			if marker != "" {
+				if _, duplicate := markers[marker]; duplicate {
+					return "candidate contains duplicate structural marker boundaries"
+				}
+				markers[marker] = struct{}{}
+			}
 		case detector.OperatorSafeFakeProfile:
-			structural++
-			fake = true
+			fakeCount++
 		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter:
-			transforms++
+			transformCount++
 		}
 	}
-	if structural > 1 {
-		return "candidate contains multiple structural operators unsupported by the existing ActionPlanner bridge"
+	if fakeCount > 1 || (fakeCount == 1 && (structuralCount > 0 || transformCount > 0)) {
+		return "safe fake profile must remain a standalone structural plan in grammar v1"
 	}
-	if fake && transforms > 0 {
-		return "safe fake profile cannot be combined with ActionPlan transforms in grammar v1"
+	if disorderCount > 1 {
+		return "candidate contains multiple disorder operators unsupported by the existing ActionPlanner bridge"
 	}
 	return ""
 }
