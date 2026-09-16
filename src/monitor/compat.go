@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// BehavioralFingerprintSummary is the bounded, privacy-safe projection of
+// behavioral evidence exposed by the existing monitoring status API. It
+// deliberately excludes raw domains/SNI, client addresses, payload bytes and
+// packet captures; the authoritative evidence remains owned by detector.
+type BehavioralFingerprintSummary struct {
+	EvidenceID        string    `json:"evidence_id"`
+	PanelHash         string    `json:"panel_hash"`
+	FeatureVectorHash string    `json:"feature_vector_hash"`
+	Confidence        float64   `json:"confidence"`
+	NoiseScore        float64   `json:"noise_score"`
+	ConclusiveCount   uint16    `json:"conclusive_count"`
+	InconclusiveCount uint16    `json:"inconclusive_count"`
+	CreatedAt         time.Time `json:"created_at"`
+	ValidUntil        time.Time `json:"valid_until,omitempty"`
+}
+
 type MonitorStatus struct {
 	SchemaVersion uint16
 	Scope         MonitorScopeKey
@@ -18,7 +34,15 @@ type MonitorStatus struct {
 	QueuedDeep    int
 	RunningQuick  int
 	RunningDeep   int
-	UpdatedAt     time.Time
+
+	// AFS extends the existing read model instead of adding another status
+	// service/endpoint. BehavioralFingerprint is an evidence summary only;
+	// AdaptiveSynthesis is lifecycle metadata only and carries no apply
+	// authority or packet program.
+	BehavioralFingerprint *BehavioralFingerprintSummary `json:"behavioral_fingerprint,omitempty"`
+	AdaptiveSynthesis     AdaptiveSynthesisStatus       `json:"adaptive_synthesis"`
+
+	UpdatedAt time.Time
 }
 
 type MonitorAPIProjection struct {
@@ -35,7 +59,7 @@ func (p *MonitorAPIProjection) Update(s MonitorStatus) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.status[correlationKey(s.Scope)] = s
+	p.status[correlationKey(s.Scope)] = cloneMonitorStatus(s)
 }
 func (p *MonitorAPIProjection) Get(scope MonitorScopeKey) (MonitorStatus, bool) {
 	if p == nil {
@@ -44,8 +68,7 @@ func (p *MonitorAPIProjection) Get(scope MonitorScopeKey) (MonitorStatus, bool) 
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	s, ok := p.status[correlationKey(scope)]
-	s.Suppressors = append([]SuppressorReason(nil), s.Suppressors...)
-	return s, ok
+	return cloneMonitorStatus(s), ok
 }
 func (p *MonitorAPIProjection) List() []MonitorStatus {
 	if p == nil {
@@ -55,10 +78,59 @@ func (p *MonitorAPIProjection) List() []MonitorStatus {
 	defer p.mu.RUnlock()
 	out := make([]MonitorStatus, 0, len(p.status))
 	for _, s := range p.status {
-		s.Suppressors = append([]SuppressorReason(nil), s.Suppressors...)
-		out = append(out, s)
+		out = append(out, cloneMonitorStatus(s))
 	}
 	return out
+}
+
+// PatchAdaptiveSynthesis updates only the AFS lifecycle projection while
+// preserving the existing health/visibility/queue status for the scope.
+func (p *MonitorAPIProjection) PatchAdaptiveSynthesis(scope MonitorScopeKey, status AdaptiveSynthesisStatus, now time.Time) {
+	if p == nil || !scope.Valid() {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	key := correlationKey(scope)
+	current := p.status[key]
+	current.SchemaVersion = SchemaVersion
+	current.Scope = scope
+	current.AdaptiveSynthesis = status
+	current.AdaptiveSynthesis.Reasons = append([]string(nil), status.Reasons...)
+	current.UpdatedAt = now
+	p.status[key] = current
+}
+
+// PatchBehavioralFingerprint updates only the privacy-safe behavioral summary
+// for the existing monitor scope.
+func (p *MonitorAPIProjection) PatchBehavioralFingerprint(scope MonitorScopeKey, summary *BehavioralFingerprintSummary, now time.Time) {
+	if p == nil || !scope.Valid() {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	key := correlationKey(scope)
+	current := p.status[key]
+	current.SchemaVersion = SchemaVersion
+	current.Scope = scope
+	if summary == nil {
+		current.BehavioralFingerprint = nil
+	} else {
+		copySummary := *summary
+		current.BehavioralFingerprint = &copySummary
+	}
+	current.UpdatedAt = now
+	p.status[key] = current
+}
+
+func cloneMonitorStatus(s MonitorStatus) MonitorStatus {
+	s.Suppressors = append([]SuppressorReason(nil), s.Suppressors...)
+	s.AdaptiveSynthesis.Reasons = append([]string(nil), s.AdaptiveSynthesis.Reasons...)
+	if s.BehavioralFingerprint != nil {
+		copySummary := *s.BehavioralFingerprint
+		s.BehavioralFingerprint = &copySummary
+	}
+	return s
 }
 
 // LegacyWatchdogAdapter keeps old status/force-check callers alive while
