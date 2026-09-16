@@ -44,6 +44,15 @@ const (
 	BehaviorOutcomeInconclusive BehaviorOutcome = "inconclusive"
 )
 
+func validBehaviorOutcome(outcome BehaviorOutcome) bool {
+	switch outcome {
+	case BehaviorOutcomeOK, BehaviorOutcomeFail, BehaviorOutcomeReset, BehaviorOutcomeStall, BehaviorOutcomeInconclusive:
+		return true
+	default:
+		return false
+	}
+}
+
 type BehaviorAttemptSummary struct {
 	ProbeID           string
 	Attempt           uint8
@@ -59,13 +68,22 @@ type BehaviorAttemptSummary struct {
 }
 
 func (a BehaviorAttemptSummary) Valid() bool {
-	return a.ProbeID != "" && a.Attempt > 0 && a.OperatorFamily != "" && a.ReferenceBaseline != "" && a.TargetBaseline != "" && a.ReferenceMutated != "" && a.TargetMutated != "" && !a.ObservedAt.IsZero()
+	return a.ProbeID != "" && a.Attempt > 0 && a.OperatorFamily != "" &&
+		validBehaviorOutcome(a.ReferenceBaseline) && validBehaviorOutcome(a.TargetBaseline) &&
+		validBehaviorOutcome(a.ReferenceMutated) && validBehaviorOutcome(a.TargetMutated) &&
+		!a.ObservedAt.IsZero()
 }
 
 // ClassifyFourWayBehavior implements the minimum R1/R2/R3/R4 differential
 // required by the AFS addendum. The result is evidence only; it never selects
 // or executes a strategy.
 func ClassifyFourWayBehavior(referenceBaseline, targetBaseline, referenceMutated, targetMutated BehaviorOutcome) (string, bool) {
+	outcomes := []BehaviorOutcome{referenceBaseline, targetBaseline, referenceMutated, targetMutated}
+	for _, outcome := range outcomes {
+		if !validBehaviorOutcome(outcome) || outcome == BehaviorOutcomeInconclusive {
+			return "inconclusive", false
+		}
+	}
 	if referenceBaseline != BehaviorOutcomeOK {
 		return "control-unhealthy", false
 	}
