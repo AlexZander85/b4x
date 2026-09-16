@@ -2,6 +2,7 @@ package detector
 
 import (
 	"sync"
+	"time"
 
 	"github.com/daniellavrushin/b4/monitor"
 )
@@ -14,6 +15,7 @@ const (
 	NodeControl     EvidenceNodeKind = "control"
 	NodeAssessment  EvidenceNodeKind = "assessment"
 	NodeResolution  EvidenceNodeKind = "resolution"
+	NodeBehavioral  EvidenceNodeKind = "behavioral"
 )
 
 type EvidenceNode struct {
@@ -119,4 +121,24 @@ func (g *EvidenceGraph) AddMonitorProvenance(assessmentID, requestID string, sco
 	g.AddNode(EvidenceNode{ID: assessmentID, Kind: NodeAssessment, Authority: monitor.AuthorityPassiveObservation, Scope: scope, Active: false, IndependentKey: "monitor:" + assessmentID})
 	g.AddNode(EvidenceNode{ID: requestID, Kind: NodeObservation, Authority: monitor.AuthorityProvisionalFast, Scope: scope, Active: false, IndependentKey: "request:" + requestID})
 	g.AddEdge(EvidenceEdge{From: assessmentID, To: requestID, Relation: "triggered", Weight: 0, Provenance: "monitor"})
+}
+
+// AddBehavioralEvidence adds the fingerprint bundle to the existing ABD graph.
+// It is authoritative evidence/provenance only; it does not create or select a
+// strategy and therefore cannot bypass DDI/Discovery.
+func (g *EvidenceGraph) AddBehavioralEvidence(e BehavioralFingerprintEvidence, hypothesisID string, now time.Time) bool {
+	if g == nil || hypothesisID == "" || !e.Valid(now) {
+		return false
+	}
+	g.AddNode(EvidenceNode{
+		ID:             e.EvidenceID,
+		Kind:           NodeBehavioral,
+		Authority:      monitor.AuthorityAuthoritativeABD,
+		Scope:          e.Scope,
+		Active:         true,
+		IndependentKey: "behavior:" + e.PanelHash,
+		Supports:       true,
+	})
+	g.AddEdge(EvidenceEdge{From: e.EvidenceID, To: hypothesisID, Relation: "behavioral-evidence", Weight: e.Confidence, Provenance: e.ProbeCatalogVersion})
+	return true
 }
