@@ -149,30 +149,30 @@ func parseClientHello(t *testing.T, raw []byte) parsedHello {
 
 // ja3 computes the JA3-style md5 over version+ciphers+sorted extensions
 // (extensions sorted to neutralize Chrome's authentic extension shuffle;
-// GREASE values skipped per the JA3 spec).
+// GREASE values skipped per the JA3 spec). The separator is appended between
+// APPENDED values only: an index-based separator would leave a leading dash
+// whenever the first element is GREASE (Chrome always opens the cipher list
+// with GREASE), and that artifact hash would match no real JA3 tool.
 func ja3(version uint16, ciphers, extensions []uint16) string {
 	isGREASE := func(v uint16) bool { return v&0x0f0f == 0x0a0a }
 	vals := fmt.Sprintf("%d,", version)
-	for i, c := range ciphers {
-		if isGREASE(c) {
-			continue
+	appendVals := func(list []uint16) {
+		first := true
+		for _, v := range list {
+			if isGREASE(v) {
+				continue
+			}
+			if !first {
+				vals += "-"
+			}
+			first = false
+			vals += fmt.Sprintf("%d", v)
 		}
-		if i > 0 {
-			vals += "-"
-		}
-		vals += fmt.Sprintf("%d", c)
 	}
+	appendVals(ciphers)
 	vals += ","
 	sort.Slice(extensions, func(i, j int) bool { return extensions[i] < extensions[j] })
-	for i, e := range extensions {
-		if isGREASE(e) {
-			continue
-		}
-		if i > 0 {
-			vals += "-"
-		}
-		vals += fmt.Sprintf("%d", e)
-	}
+	appendVals(extensions)
 	vals += ",,"
 	sum := md5.Sum([]byte(vals))
 	return hex.EncodeToString(sum[:])
@@ -182,69 +182,124 @@ func ja3(version uint16, ciphers, extensions []uint16) string {
 // layer must emit a Chrome-120 ClientHello with the OWNER'S ALPN override,
 // the real SNI, and a fingerprint distinct from any plain-Go hello.
 func TestUTLSChromeGoldenHello(t *testing.T) {
-	var helloRaw []byte
-	client := func(addr string) error {
-		raw, err := net.Dial("tcp", addr)
-		if err != nil {
+	// One production-path capture: a fresh uTLS dial against a listener
+	// that records the hello and never answers (the handshake cannot
+	// complete, which is fine — the hello bytes are the whole subject).
+	captureOnce := func() parsedHello {
+		client := func(addr string) error {
+			raw, err := net.Dial("tcp", addr)
+			if err != nil {
+				return err
+			}
+			defer raw.Close()
+			mq := DefaultMasquerade() // chrome120, ALPN http/1.1
+			_, err = dialUTLSClient(context.Background(), raw, "eu0.sec-tunnel.com", mq,
+				utls.NewLRUClientSessionCache(4), func(cs utls.ConnectionState) error { return nil })
 			return err
 		}
-		defer raw.Close()
-		mq := DefaultMasquerade() // chrome120, ALPN http/1.1
-		_, err = dialUTLSClient(context.Background(), raw, "eu0.sec-tunnel.com", mq,
-			utls.NewLRUClientSessionCache(4), func(cs utls.ConnectionState) error { return nil })
-		return err // the capture listener never answers; the hello is what matters
+		return parseClientHello(t, captureClientHello(t, client))
 	}
-	helloRaw = captureClientHello(t, client)
-
-	p := parseClientHello(t, helloRaw)
-	if p.sni != "eu0.sec-tunnel.com" {
-		t.Fatalf("SNI = %q, want the real node name", p.sni)
-	}
-	if len(p.alpn) != 2 || p.alpn[0] != "h2" || p.alpn[1] != "http/1.1" {
-		t.Fatalf("ALPN = %v, want the owner override [h2,http/1.1]", p.alpn)
-	}
-
-	// Chrome 120 cipher list (GREASE 0x?A?A filtered by the JA3 view).
-	wantCiphers := []uint16{
-		0x1301, 0x1302, 0x1303,
-		0xC02B, 0xC02F, 0xC02C, 0xC030, 0xCCA9, 0xCCA8,
-		0xC013, 0xC014, 0x009C, 0x009D, 0x002F, 0x0035,
-	}
-	if len(p.cipherSuites) < len(wantCiphers)-2 {
-		t.Fatalf("cipher count = %d (%x), want the Chrome-120 set", len(p.cipherSuites), p.cipherSuites)
-	}
-	first := make(map[uint16]bool)
-	for _, c := range p.cipherSuites {
-		first[c] = true
-	}
-	for _, want := range wantCiphers {
-		if !first[want] {
-			t.Fatalf("cipher 0x%04x missing from the Chrome-120 offer", want)
+	assertChromeShape := func(p parsedHello) {
+		if p.sni != "eu0.sec-tunnel.com" {
+			t.Fatalf("SNI = %q, want the real node name", p.sni)
 		}
-	}
-
-	// Extension set sanity: SNI, ALPN, key_share, PSK, supported_versions
-	// and padding must be present (GREASE omitted by the JA3 view).
-	ext := make(map[uint16]bool)
-	for _, e := range p.extensions {
-		ext[e] = true
-	}
-	for _, want := range []uint16{0x0000, 0x0010, 0x0033, 0x002b} {
-		if !ext[want] {
-			t.Fatalf("extension 0x%04x missing from the Chrome hello", want)
+		if len(p.alpn) != 2 || p.alpn[0] != "h2" || p.alpn[1] != "http/1.1" {
+			t.Fatalf("ALPN = %v, want the owner override [h2,http/1.1]", p.alpn)
 		}
+
+		// Chrome 120 cipher list (GREASE 0x?A?A filtered by the JA3 view).
+		wantCiphers := []uint16{
+			0x1301, 0x1302, 0x1303,
+			0xC02B, 0xC02F, 0xC02C, 0xC030, 0xCCA9, 0xCCA8,
+			0xC013, 0xC014, 0x009C, 0x009D, 0x002F, 0x0035,
+		}
+		if len(p.cipherSuites) < len(wantCiphers)-2 {
+			t.Fatalf("cipher count = %d (%x), want the Chrome-120 set", len(p.cipherSuites), p.cipherSuites)
+		}
+		first := make(map[uint16]bool)
+		for _, c := range p.cipherSuites {
+			first[c] = true
+		}
+		for _, want := range wantCiphers {
+			if !first[want] {
+				t.Fatalf("cipher 0x%04x missing from the Chrome-120 offer", want)
+			}
+		}
+
+		// Extension set sanity: SNI, ALPN, key_share and supported_versions
+		// must be present (GREASE omitted by the JA3 view; the padding
+		// extension is deliberately absent here — it is mode-dependent,
+		// see the golden below).
+		ext := make(map[uint16]bool)
+		for _, e := range p.extensions {
+			ext[e] = true
+		}
+		for _, want := range []uint16{0x0000, 0x0010, 0x0033, 0x002b} {
+			if !ext[want] {
+				t.Fatalf("extension 0x%04x missing from the Chrome hello", want)
+			}
+		}
+		// NOTE: the PSK extension (0x0029) is absent on a FRESH handshake by
+		// design (OmitEmptyPsk conceals it until a session ticket exists —
+		// Chrome behaves the same way).
 	}
-	// NOTE: the PSK extension (0x0029) is absent on a FRESH handshake by
-	// design (OmitEmptyPsk conceals it until a session ticket exists —
-	// Chrome behaves the same way).
 
 	// Deterministic golden: md5 over version+ciphers+sorted-extensions.
-	got := ja3(0x0303, p.cipherSuites, p.extensions)
-	want := "60b3ea9ff5201af35749d8a2a4db563a"
-	if got != want {
-		t.Fatalf("JA3-style golden drifted: got %s, want %s (re-pin after an intentional uTLS bump)", got, want)
+	//
+	// The Chrome-120 hello is LENGTH-BIMODAL BY DESIGN — this mirrors real
+	// Chrome and is NOT fingerprint drift. uTLS' BoringGREASEECH draws the
+	// ECH-GREASE payload length from {128,160,192,224}+16 bytes per
+	// connection, and BoringPaddingStyle adds the padding extension (0x0015)
+	// only when the UNPADDED hello lands in (255, 512): a short ECH draw is
+	// padded to exactly 512 bytes (the hello then carries ext 21), a long
+	// one sits above the threshold with no padding at all. The observable
+	// extension SET therefore has exactly two stable variants (the JA3
+	// hashes only IDs, not lengths, so payload draws inside one mode hash
+	// identically) — pin both, select by the padding extension seen, and
+	// capture until BOTH variants have been validated.
+	seenPadded, seenNoPad := false, false
+	for attempt := 0; attempt < 32 && !(seenPadded && seenNoPad); attempt++ {
+		p := captureOnce()
+		assertChromeShape(p)
+		got := ja3(0x0303, p.cipherSuites, p.extensions)
+		padded := false
+		for _, e := range p.extensions {
+			if e == 0x0015 {
+				padded = true
+			}
+		}
+		want := goldenJA3Chrome120NoPad
+		if padded {
+			want = goldenJA3Chrome120Padded
+		}
+		if got != want {
+			t.Fatalf("JA3-style golden drifted: got %s (padded=%v), want %s (re-pin after an intentional uTLS bump)", got, padded, want)
+		}
+		if padded {
+			seenPadded = true
+		} else {
+			seenNoPad = true
+		}
+	}
+	if !seenPadded || !seenNoPad {
+		// The golden never lies when it IS observed — but one variant may
+		// stay unobserved within the budget (the padded mode manifests on
+		// roughly every fourth draw). An unobserved variant is a coverage
+		// gap for the next run to close, not a fingerprint failure.
+		t.Skipf("JA3 golden covered only one bimodal variant in 32 captures (padded=%v, noPad=%v); re-run for full coverage", seenPadded, seenNoPad)
 	}
 }
+
+// The two pinned JA3-style goldens of the uTLS Chrome-120 ClientHello
+// (see TestUTLSChromeGoldenHello for the bimodality rationale).
+const (
+	// Long ECH-GREASE draw: the unpadded hello is above the BoringSSL pad
+	// threshold, so no padding extension is present.
+	goldenJA3Chrome120NoPad = "c6d2a29454c25daacb05f58703349e3d"
+	// Short ECH-GREASE draw: BoringPaddingStyle pads the hello to exactly
+	// 512 bytes and the extension set gains 0x0015 (padding).
+	goldenJA3Chrome120Padded = "5aba9b2856b0f458793999a2bed97dcd"
+)
 
 // TestUTLSFingerprintLadderFallback: the minimal profile drops the uTLS
 // layer by design (§7.5 rung 'plain-Go'), so a broken fingerprint layer can

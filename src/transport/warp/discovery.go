@@ -378,6 +378,18 @@ func (d *Discoverer) selectCandidates(maxTargets int) []scanCandidate {
 	return out
 }
 
+// scanResult pairs a verified score with the release signal of the worker
+// that produced it. The worker blocks on consumed until the collector has
+// APPLIED the outcome (and decided whether the early exit trips) — this is
+// the seam that keeps the "no dial budget wasted on candidates that would
+// be abandoned mid-flight" invariant honest: without it, a buffered result
+// send lets the worker start (and abandon) the next candidate before the
+// collector even sees the verified winner.
+type scanResult struct {
+	score    EndpointScore
+	consumed chan struct{} // closed by the collector once score is applied
+}
+
 // scan verifies candidates with a tier-sized worker pool; earlyExit stops
 // everything at the first verified result and runs SEQUENTIALLY so no dial
 // budget is wasted on candidates that would be abandoned mid-flight.
@@ -391,7 +403,7 @@ func (d *Discoverer) scan(ctx context.Context, cands []scanCandidate, earlyExit 
 		conc = len(cands)
 	}
 	jobs := make(chan scanCandidate)
-	results := make(chan EndpointScore, len(cands))
+	results := make(chan scanResult, len(cands))
 	workerCtx, cancelWorkers := context.WithCancel(ctx)
 
 	var wg sync.WaitGroup
@@ -400,18 +412,34 @@ func (d *Discoverer) scan(ctx context.Context, cands []scanCandidate, earlyExit 
 		go func() {
 			defer wg.Done()
 			for {
+				// Plain receive (no select over Done): the producer
+				// returns AND closes jobs on workerCtx cancellation, so a
+				// cancelled worker always wakes with ok=false. A select
+				// here could randomly pick a pending job over the Done
+				// case and start a candidate that cancellation was
+				// already supposed to prevent.
+				cand, ok := <-jobs
+				if !ok {
+					return
+				}
+				if workerCtx.Err() != nil {
+					return
+				}
+				res := scanResult{
+					score:    d.verifyCandidate(workerCtx, cand, verifyParams{}),
+					consumed: make(chan struct{}),
+				}
 				select {
+				case results <- res:
 				case <-workerCtx.Done():
 					return
-				case cand, ok := <-jobs:
-					if !ok {
-						return
-					}
-					select {
-					case results <- d.verifyCandidate(workerCtx, cand, verifyParams{}):
-					case <-workerCtx.Done():
-						return
-					}
+				}
+				// Wait until the collector has applied this score (or the
+				// scan is cancelled) before touching the next candidate.
+				select {
+				case <-res.consumed:
+				case <-workerCtx.Done():
+					return
 				}
 			}
 		}()
@@ -436,10 +464,11 @@ func (d *Discoverer) scan(ctx context.Context, cands []scanCandidate, earlyExit 
 		defer close(collectDone)
 		for i := 0; i < len(cands); i++ {
 			select {
-			case s := <-results:
-				d.applyOutcome(s)
-				scores = append(scores, s)
-				if s.Class == VerifiedHealthy || s.Class == VerifiedLossy {
+			case r := <-results:
+				d.applyOutcome(r.score)
+				close(r.consumed) // release the worker for the next candidate
+				scores = append(scores, r.score)
+				if r.score.Class == VerifiedHealthy || r.score.Class == VerifiedLossy {
 					verified++
 					if earlyExit {
 						return

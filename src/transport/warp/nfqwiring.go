@@ -231,7 +231,9 @@ func (g *ControlFlowGuard) run(ctx context.Context) {
 	defer ticker.Stop()
 
 	// Coverage starts ARMED (no validated session yet at Start time).
-	g.emit(GuardEvent{Name: EvCamouflageAuthorized, Detail: "guard started; establishment coverage armed"})
+	// State first, event second: an observer that saw the event must
+	// always see the state it announces (the emit sink is external code;
+	// the happens-before chain runs state -> emit -> sink -> observer).
 	g.mu.Lock()
 	g.authCount++
 	g.lastAuth = ControlAuthorization{
@@ -246,6 +248,7 @@ func (g *ControlFlowGuard) run(ctx context.Context) {
 	}
 	g.lastAssert = g.now().Add(-g.cfg.ReassertEvery) // force first assert pass
 	g.mu.Unlock()
+	g.emit(GuardEvent{Name: EvCamouflageAuthorized, Detail: "guard started; establishment coverage armed"})
 
 	for {
 		select {
@@ -321,17 +324,19 @@ func (g *ControlFlowGuard) run(ctx context.Context) {
 		case !wasExcluding && conn:
 			// Structural C.4 cutoff: reached ONLY because Connected() is
 			// fed from post-validation state (masque_connected semantics).
-			g.emit(GuardEvent{Name: EvCamouflageCutoff, Detail: "validated control flow excluded from generic desync", EndpointHash: hashAddrs(ips)})
+			// Counter first, event second (see the start-of-run note):
+			// Status() must already show the cutoff once the event is out.
 			g.mu.Lock()
 			g.cutoffCount++
 			g.mu.Unlock()
+			g.emit(GuardEvent{Name: EvCamouflageCutoff, Detail: "validated control flow excluded from generic desync", EndpointHash: hashAddrs(ips)})
 		case wasExcluding && !conn:
 			// Session lost: coverage re-arms for the next establishment.
-			g.emit(GuardEvent{Name: EvCamouflageAuthorized, Detail: "session lost; establishment coverage re-armed", EndpointHash: hashAddrs(ips)})
 			g.mu.Lock()
 			g.authCount++
 			g.lastAuth.Purpose = "camouflage"
 			g.mu.Unlock()
+			g.emit(GuardEvent{Name: EvCamouflageAuthorized, Detail: "session lost; establishment coverage re-armed", EndpointHash: hashAddrs(ips)})
 		}
 	}
 }
