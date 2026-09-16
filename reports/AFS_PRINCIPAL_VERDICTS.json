@@ -3,9 +3,9 @@
   "branch": "agent/afs-addendum-v1",
   "base": "agent/classifier-v2.3-capture-envelope",
   "last_code_validation": {
-    "ci_run": 35085703795,
+    "ci_run": 35088580460,
     "result": "PASS",
-    "packages": ["config", "detector", "discovery", "observability", "runtimecontrol"]
+    "packages": ["config", "detector", "discovery", "monitor", "observability", "runtimecontrol", "validation"]
   },
   "verdicts": {
     "BEHAVIORAL_FINGERPRINT_BOUNDED_READY": {
@@ -26,7 +26,7 @@
     "AUTONOMOUS_DPI_ADAPTATION_READY": {
       "verdict": "BLOCKED_BY_TARGET_EVIDENCE",
       "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED_ONLY",
-      "basis": "transactional promotion and forwarded-client canary guards are implemented, but no real Keenetic + forwarded Android target run has been captured"
+      "basis": "transactional promotion, Monitoring recurrence lifecycle, and forwarded-client canary guards are implemented, but no real Keenetic + forwarded Android target run has been captured"
     }
   },
   "release_status": "IMPLEMENTED / LAB_VALIDATED / BLOCKED_BY_TARGET_EVIDENCE",
