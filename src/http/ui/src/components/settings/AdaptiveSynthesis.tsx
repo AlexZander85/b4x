@@ -5,11 +5,13 @@ import { Box, Button, DialogContent, DialogContentText } from "@mui/material";
 import { DiscoveryIcon } from "@b4.icons";
 import { B4Alert, B4Dialog, B4Section, B4Switch } from "@b4.elements";
 import { B4Config } from "@models/config";
-import { SettingsPropHandlerType } from "@models/settings";
 
 interface AdaptiveSynthesisSettingsProps {
   config: B4Config;
-  onChange: (field: string, value: SettingsPropHandlerType) => void;
+  onChange: (
+    field: string,
+    value: string | boolean | number | string[],
+  ) => void;
 }
 
 export const AdaptiveSynthesisSettings = ({
