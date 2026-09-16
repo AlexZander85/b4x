@@ -105,20 +105,16 @@ func (c *Config) validateAdaptiveStrategySynthesis(v *validator) {
 		v.add("automation.adaptive_strategy_synthesis.fingerprinting.max_inconclusive_ratio", "out_of_range", "max_inconclusive_ratio must be in (0,0.5]", nil)
 	}
 
-	knownSets := make(map[string]struct{}, len(c.Sets))
-	for _, set := range c.Sets {
-		if set != nil && set.Id != "" {
-			knownSets[set.Id] = struct{}{}
-		}
-	}
-	for setID, policy := range p.ServiceProfilePolicy {
-		path := fmt.Sprintf("automation.adaptive_strategy_synthesis.service_profile_policy[%q]", setID)
-		if setID == "" {
-			v.add(path, "empty_profile_id", "service profile policy key must be a non-empty existing set ID", nil)
+	// The service-profile catalog is owned by serviceprofile, not config. AFS
+	// stores only a narrowing policy keyed by the existing ProfileID carried at
+	// runtime; duplicating catalog membership here would create a second source
+	// of truth. Unknown/non-loaded IDs are harmless because they can never match
+	// a runtime scope and therefore cannot widen global permission.
+	for profileID, policy := range p.ServiceProfilePolicy {
+		path := fmt.Sprintf("automation.adaptive_strategy_synthesis.service_profile_policy[%q]", profileID)
+		if profileID == "" {
+			v.add(path, "empty_profile_id", "service profile policy key must be a non-empty service profile ID", nil)
 			continue
-		}
-		if _, ok := knownSets[setID]; !ok {
-			v.add(path, "unknown_profile_id", "service profile policy must reference an existing set ID", nil)
 		}
 		switch policy {
 		case "", AdaptiveSynthesisProfileInherit, AdaptiveSynthesisProfileDisabled:
