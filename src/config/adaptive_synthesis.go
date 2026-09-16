@@ -34,9 +34,10 @@ type AdaptiveStrategySynthesisConfig struct {
 
 	Fingerprinting BehavioralFingerprintingConfig `json:"fingerprinting"`
 
-	// ServiceProfilePolicy reuses existing SetConfig.Id values rather than
-	// introducing a second service-profile subsystem. Missing/"inherit" keeps
-	// the global decision; "disabled" can only narrow the global permission.
+	// ServiceProfilePolicy is keyed by the existing serviceprofile ProfileID
+	// carried by MonitorScopeKey / synthesis scope. The config layer does not
+	// create or mirror the service-profile catalog; missing/"inherit" keeps the
+	// global decision and "disabled" can only narrow global permission.
 	ServiceProfilePolicy map[string]string `json:"service_profile_policy,omitempty"`
 }
 
@@ -79,12 +80,12 @@ var DefaultAutomationConfig = AutomationConfig{
 }
 
 // AdaptiveSynthesisAllowed applies the addendum's global-upper-bound rule to
-// an existing SetConfig/service-profile identity. A profile can disable AFS,
-// but can never enable it while the global setting is off.
-func (c *Config) AdaptiveSynthesisAllowed(setID string) bool {
+// the existing service-profile identity. A profile can disable AFS, but can
+// never enable it while the global setting is off.
+func (c *Config) AdaptiveSynthesisAllowed(serviceProfileID string) bool {
 	if c == nil || !c.Automation.AdaptiveStrategySynthesis.Enabled {
 		return false
 	}
-	policy := c.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy[setID]
+	policy := c.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy[serviceProfileID]
 	return policy != AdaptiveSynthesisProfileDisabled
 }
