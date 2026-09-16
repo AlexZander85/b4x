@@ -195,7 +195,10 @@ func minimumSynthesizedMatrixProbes(cfg *config.Config, profileCount int) int {
 	if discoveryCfg.StableSuccesses > samples {
 		samples = discoveryCfg.StableSuccesses
 	}
-	return 2 + profileCount*samples
+	// RunAdaptiveMatrix samples both mandatory baselines and each target/control
+	// profile with SamplesPerVariant. Count exactly what the shared evaluator
+	// will consume so AFS never under-reserves the Discovery probe budget.
+	return (2 + profileCount) * samples
 }
 
 func measuredParents(measured []measuredSynthesisCandidate) []SynthesizedCandidatePlan {
