@@ -83,8 +83,10 @@ func (m *Runtime) RunBoundedSynthesisSearch(ctx context.Context, cfg *config.Con
 
 	// Request-local bounds may narrow but never widen persisted automation
 	// policy. Apply the same clamp used by the single-candidate runtime path
-	// before creating the seed population.
+	// before creating the seed population, then project the already-selected
+	// endpoint-safe fake template into the request if policy permits it.
 	req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
+	bindSafeFakeProfiles(&req.Synthesis, req.ActionContext)
 	limits := req.Synthesis.Limits
 	policy := AdaptivePolicyFromRuntimeConfig(cfg.System.Classifier.Runtime.Discovery)
 	if req.Synthesis.ResourceBudget.MaxProbes > 0 && req.Synthesis.ResourceBudget.MaxProbes < policy.MaxProbes {
