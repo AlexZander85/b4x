@@ -10,6 +10,7 @@ on:
       - "src/detector/**"
       - "src/discovery/**"
       - "src/monitor/**"
+      - "src/monitoring/**"
       - "src/observability/**"
       - "src/runtimecontrol/**"
       - "src/validation/**"
@@ -18,7 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   focused-go-tests:
@@ -38,38 +39,14 @@ jobs:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
-      - name: Gofmt changed AFS Go files
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
-            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
-          else
-            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
-          fi
-          if [ -z "$files" ]; then
-            exit 0
-          fi
-          gofmt -w $files
-          if git diff --quiet -- $files; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add $files
-          git commit -m "chore(afs): gofmt changed files"
-          git push origin "HEAD:$TARGET_BRANCH"
-
       - name: Verify changed AFS Go files are formatted
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ -n "$BASE_SHA" ]; then
-            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|monitoring|observability|runtimecontrol|validation)/.*\.go$' || true)
           else
-            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|monitoring|observability|runtimecontrol|validation)/.*\.go$' || true)
           fi
           if [ -z "$files" ]; then
             exit 0
@@ -83,7 +60,7 @@ jobs:
 
       - name: Test AFS-affected packages
         working-directory: src
-        run: go test ./action ./config ./detector ./discovery ./monitor ./observability ./runtimecontrol ./validation
+        run: go test ./action ./config ./detector ./discovery ./monitor ./monitoring ./observability ./runtimecontrol ./validation
 
       - name: Generate UI defaults
         working-directory: src
