@@ -12,25 +12,25 @@ import (
 type SynthesizedProbeRunner func(context.Context, DiscoveryVariant, SynthesizedCandidatePlan, CompiledSynthesizedAction) ProbeOutcome
 
 type SynthesizedDiscoveryRequest struct {
-	Gate               SynthesisGateInput
-	Synthesis          SynthesisRequest
-	Candidate          SynthesizedCandidatePlan
-	Store              *SynthesisRunStore
-	ActionContext      SynthesisActionContext
-	Targets            []string
+	Gate                SynthesisGateInput
+	Synthesis           SynthesisRequest
+	Candidate           SynthesizedCandidatePlan
+	Store               *SynthesisRunStore
+	ActionContext       SynthesisActionContext
+	Targets             []string
 	SameServiceControls []string
 	UnrelatedControls   []string
-	FailureFamily      string
-	Authority          string
-	Hints              []SearchHint
-	BaselineStrategyID string
-	Axes               []VariantAxis
-	ShadowVariants     []DiscoveryVariant
+	FailureFamily       string
+	Authority           string
+	Hints               []SearchHint
+	BaselineStrategyID  string
+	Axes                 []VariantAxis
+	ShadowVariants      []DiscoveryVariant
 }
 
 type SynthesizedDiscoveryResult struct {
-	Adaptive   AdaptiveRunResult    `json:"adaptive"`
-	Evaluation CandidateEvaluation  `json:"evaluation"`
+	Adaptive   AdaptiveRunResult   `json:"adaptive"`
+	Evaluation CandidateEvaluation `json:"evaluation"`
 }
 
 // RunSynthesizedDiscovery is an adapter into the existing adaptive matrix. It
@@ -64,6 +64,10 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	if err := CheckAutomaticSynthesisGate(req.Gate); err != nil {
 		return AdaptiveRunResult{}, err
 	}
+	if !req.Synthesis.Valid(req.Gate.Now) {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisStaleGenerationUsed)
+		return AdaptiveRunResult{}, errors.New("synthesis request is stale or expired")
+	}
 	if req.Synthesis.Scope != req.Candidate.Scope || req.Synthesis.BlockingProfileID != req.Gate.Profile.ProfileID || req.Synthesis.BehavioralEvidenceID != req.Gate.Prior.BehavioralEvidenceID {
 		return AdaptiveRunResult{}, errors.New("synthesis request does not match gated profile/prior/candidate")
 	}
@@ -90,6 +94,7 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	candidate := DiscoveryVariant{Mode: SandboxCandidate, StrategyID: req.Candidate.CandidateID, Complexity: uint8(len(req.Candidate.Operations)), TargetProfile: allProfiles[0]}
 	adaptive := AdaptiveRunRequest{
 		Profile: req.Gate.Profile, Prior: req.Gate.Prior, Targets: allProfiles,
+		EligibilityCandidates: []string{req.Candidate.CandidateID},
 		FailureFamily: req.FailureFamily, Authority: req.Authority, Hints: append([]SearchHint(nil), req.Hints...),
 		BaselineStrategyID: req.BaselineStrategyID, Candidate: candidate, Axes: append([]VariantAxis(nil), req.Axes...),
 		ShadowVariants: append([]DiscoveryVariant(nil), req.ShadowVariants...),
