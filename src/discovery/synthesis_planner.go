@@ -85,9 +85,15 @@ func (p SynthesisPlanner) ValidateCandidate(req SynthesisRequest, prior detector
 			result.Reason = fmt.Sprintf("operator %q excluded by behavioral evidence", operation.Family)
 			return result
 		}
-		if operation.Family == detector.OperatorSafeFakeProfile && !limits.AllowSafeFake {
-			result.Reason = "safe fake operator disabled by policy"
-			return result
+		if operation.Family == detector.OperatorSafeFakeProfile {
+			if !limits.AllowSafeFake {
+				result.Reason = "safe fake operator disabled by policy"
+				return result
+			}
+			if !containsCandidate(req.SafeFakeProfileIDs, operation.Params["profile_id"]) {
+				result.Reason = "safe fake profile is not in the bounded validated request set"
+				return result
+			}
 		}
 		if operation.Family == detector.OperatorBoundedDisorder && !limits.AllowDisorder {
 			result.Reason = "bounded disorder disabled by policy"
@@ -190,7 +196,7 @@ func (p SynthesisPlanner) Plan(req SynthesisRequest, prior detector.DiscoverySea
 		failed[id] = struct{}{}
 	}
 
-	seedOps := p.seedOperations(prior, limits)
+	seedOps := p.seedOperations(prior, limits, req.SafeFakeProfileIDs)
 	trigger := CandidateTrigger{Phase: "complete-reassembled-clienthello", Marker: "host-start"}
 	generation := uint8(0)
 	frontier := make([]SynthesizedCandidatePlan, 0, len(seedOps))
@@ -246,7 +252,7 @@ func (p SynthesisPlanner) Plan(req SynthesisRequest, prior detector.DiscoverySea
 	return result, nil
 }
 
-func (p SynthesisPlanner) seedOperations(prior detector.DiscoverySearchPrior, limits SynthesisLimits) []CandidateOperation {
+func (p SynthesisPlanner) seedOperations(prior detector.DiscoverySearchPrior, limits SynthesisLimits, safeFakeProfileIDs []string) []CandidateOperation {
 	supported := operatorSet(prior.SupportedOperators)
 	penalized := operatorSet(prior.PenalizedOperators)
 	excluded := operatorSet(prior.ExcludedOperators)
@@ -263,23 +269,11 @@ func (p SynthesisPlanner) seedOperations(prior detector.DiscoverySearchPrior, li
 		if _, blocked := excluded[definition.Family]; blocked {
 			continue
 		}
-		if definition.Family == detector.OperatorSafeFakeProfile {
-			continue
-		}
 		if definition.Family == detector.OperatorBoundedDisorder && !limits.AllowDisorder {
 			continue
 		}
 		if definition.Family == detector.OperatorPerFlowJitter && !limits.AllowJitter {
 			continue
-		}
-		params := make(map[string]string, len(definition.ParameterDomain))
-		keys := make([]string, 0, len(definition.ParameterDomain))
-		for key := range definition.ParameterDomain {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			params[key] = definition.ParameterDomain[key][0]
 		}
 		rank := 1
 		if _, ok := supported[definition.Family]; ok {
@@ -288,7 +282,28 @@ func (p SynthesisPlanner) seedOperations(prior detector.DiscoverySearchPrior, li
 		if _, ok := penalized[definition.Family]; ok {
 			rank = 2
 		}
-		items = append(items, ranked{op: CandidateOperation{Family: definition.Family, Params: params}, rank: rank, family: string(definition.Family)})
+
+		if definition.Family == detector.OperatorSafeFakeProfile {
+			if !limits.AllowSafeFake {
+				continue
+			}
+			for _, profileID := range stableUniqueStrings(safeFakeProfileIDs) {
+				params := defaultOperationParams(definition)
+				params["profile_id"] = profileID
+				items = append(items, ranked{
+					op:     CandidateOperation{Family: definition.Family, Params: params},
+					rank:   rank,
+					family: string(definition.Family) + "/" + profileID,
+				})
+			}
+			continue
+		}
+
+		items = append(items, ranked{
+			op:     CandidateOperation{Family: definition.Family, Params: defaultOperationParams(definition)},
+			rank:   rank,
+			family: string(definition.Family),
+		})
 	}
 	sort.Slice(items, func(i, j int) bool {
 		if items[i].rank != items[j].rank {
@@ -301,6 +316,19 @@ func (p SynthesisPlanner) seedOperations(prior detector.DiscoverySearchPrior, li
 		out = append(out, item.op)
 	}
 	return out
+}
+
+func defaultOperationParams(definition OperatorDefinition) map[string]string {
+	params := make(map[string]string, len(definition.ParameterDomain)+len(definition.ExternalParams))
+	keys := make([]string, 0, len(definition.ParameterDomain))
+	for key := range definition.ParameterDomain {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		params[key] = definition.ParameterDomain[key][0]
+	}
+	return params
 }
 
 func operatorSet(in []detector.StrategyOperatorFamily) map[detector.StrategyOperatorFamily]struct{} {
