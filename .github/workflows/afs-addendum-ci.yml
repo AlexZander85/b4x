@@ -12,6 +12,7 @@ on:
       - "src/observability/**"
       - "src/runtimecontrol/**"
       - "src/validation/**"
+      - "src/http/ui/**"
       - ".github/workflows/afs-addendum-ci.yml"
   workflow_dispatch:
 
@@ -20,9 +21,9 @@ permissions:
 
 jobs:
   focused-go-tests:
-    name: Focused Go tests
+    name: Focused Go and UI tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout head branch
         uses: actions/checkout@v6
@@ -82,3 +83,22 @@ jobs:
       - name: Test AFS-affected packages
         working-directory: src
         run: go test ./config ./detector ./discovery ./monitor ./observability ./runtimecontrol ./validation
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.29.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: "pnpm"
+          cache-dependency-path: src/http/ui/pnpm-lock.yaml
+
+      - name: Build UI
+        working-directory: src/http/ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
