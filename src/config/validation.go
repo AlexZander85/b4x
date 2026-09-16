@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,11 @@ type ValidationField struct {
 	Message string         `json:"message"`
 	Params  map[string]any `json:"params,omitempty"`
 }
+
+// kernelIfaceNameRe is the kernel-TUN device-name grammar (linux ifnames:
+// <= 15 chars; the panel restricts to letters/digits/hyphen/underscore,
+// letter-first, to stay clear of alias/namespace syntax).
+var kernelIfaceNameRe = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_-]*$`)
 
 type ValidationError struct {
 	Fields []ValidationField
@@ -167,6 +174,14 @@ func (c *Config) Validate() error {
 			}
 			if !IsRoutingTunnelKind(set.Routing.Tunnel) {
 				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "unknown_tunnel_kind", map[string]any{"set": set.Name, "kind": set.Routing.Tunnel, "supported": RoutingTunnelKinds}, "set %q: unknown tunnel kind %q (supported: %v)", set.Name, set.Routing.Tunnel, RoutingTunnelKinds)
+				return v.result()
+			}
+			// Kernel-mode AWG-WARP serves the PBR field layer only:
+			// there is no userspace carrier for the tproxy sets to
+			// dial through — the honest cross-field rejection
+			// (tunnel routing through warp needs mode=netstack).
+			if set.Routing.Tunnel == TunnelKindWarp && c.System.Warp.AWG.KernelMode() {
+				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "kernel_mode_no_carrier", map[string]any{"set": set.Name, "kind": set.Routing.Tunnel, "mode": WarpAWGModeKernel}, "set %q: routing.tunnel=warp has no userspace carrier while system.warp.awg.mode=kernel (PBR field layer only; switch awg.mode to netstack or re-route the set)", set.Name)
 				return v.result()
 			}
 		case RoutingModeBlock:
@@ -397,8 +412,16 @@ func (c *Config) validateWarp(v *validator) {
 // disabled-shape rules mirror the MASQUE canon: heads are validated even
 // when disabled; the identity slot is required when enabled (the effective
 // default fills it, so an explicit relative path is the only honest error).
+// The mode/kernel heads are validated ALWAYS — the kernel-TUN PBR layer
+// ships whole or not at all (no half-states on switch day).
 func (c *Config) validateWarpAWG(v *validator) {
 	awg := c.System.Warp.AWG
+	switch strings.ToLower(strings.TrimSpace(awg.Mode)) {
+	case "", WarpAWGModeNetstack, WarpAWGModeKernel:
+	default:
+		v.addf("system.warp.awg.mode", "invalid_value", map[string]any{"mode": awg.Mode}, "awg mode %q invalid (netstack or kernel)", awg.Mode)
+	}
+	c.validateWarpAWGKernel(v)
 	if awg.Endpoint != "" {
 		if _, err := awg.EffectiveEndpoint(); err != nil {
 			v.add("system.warp.awg.endpoint", "invalid_value", err.Error(), nil)
@@ -418,6 +441,35 @@ func (c *Config) validateWarpAWG(v *validator) {
 	if p := awg.EffectiveIdentityPath(); !filepath.IsAbs(p) {
 		v.addf("system.warp.awg.identity_path", "must_be_absolute", map[string]any{"path": p}, "awg identity_path must be an absolute path (got: %q)", p)
 	}
+	if awg.KernelMode() && len(awg.Kernel.FromCIDRs) == 0 {
+		v.addf("system.warp.awg.kernel.from_cidrs", "required", nil, "kernel mode requires at least one from_cidrs source selector (a TUN without selectors is a half-state)")
+	}
+}
+
+// validateWarpAWGKernel checks the PBR field shape in every mode (a typo
+// cannot hide until the kernel switch day): interface name grammar, table /
+// priority ranges, IPv4 source selectors.
+func (c *Config) validateWarpAWGKernel(v *validator) {
+	k := c.System.Warp.AWG.Kernel
+	if k.Interface != "" {
+		if len(k.Interface) > 15 {
+			v.addf("system.warp.awg.kernel.interface", "invalid_value", map[string]any{"interface": k.Interface, "max": 15}, "kernel interface name %q longer than 15 chars", k.Interface)
+		} else if !kernelIfaceNameRe.MatchString(k.Interface) {
+			v.addf("system.warp.awg.kernel.interface", "invalid_value", map[string]any{"interface": k.Interface}, "kernel interface name %q invalid (letters, digits, '-' and '_' only, must start with a letter)", k.Interface)
+		}
+	}
+	if k.Table < 0 || k.Table > 0xFFFFFE {
+		v.addf("system.warp.awg.kernel.table", "out_of_range", map[string]any{"min": 0, "max": 0xFFFFFE}, "kernel table %d out of range (0 = default 51820)", k.Table)
+	}
+	if k.RulePriority < 0 || k.RulePriority > 32765 {
+		v.addf("system.warp.awg.kernel.rule_priority", "out_of_range", map[string]any{"min": 0, "max": 32765}, "kernel rule_priority %d out of range (0 = default 30000; must stay below the main table's 32766)", k.RulePriority)
+	}
+	for i, cidr := range k.FromCIDRs {
+		pfx, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+		if err != nil || !pfx.Addr().Is4() {
+			v.addf(fmt.Sprintf("system.warp.awg.kernel.from_cidrs[%d]", i), "invalid_value", map[string]any{"cidr": cidr}, "from_cidrs[%d] %q must be an IPv4 prefix", i, cidr)
+		}
+	}
 }
 
 // validateWarpChains checks the nested-chain list: closed kind set, distinct
@@ -430,7 +482,7 @@ func (c *Config) validateWarpChains(v *validator) {
 	for i, ch := range c.System.Warp.Chains {
 		field := fmt.Sprintf("system.warp.chains[%d]", i)
 		if !IsWarpChainKind(ch.Kind) {
-			v.addf(field+".kind", "invalid_value", nil, "chain kind %q is not a nested chain kind (want masque+awg or awg+masque)", ch.Kind)
+			v.addf(field+".kind", "invalid_value", nil, "chain kind %q is not a nested chain kind (want masque+awg, awg+masque or awg+awg)", ch.Kind)
 			continue
 		}
 		if seen[ch.Kind] {

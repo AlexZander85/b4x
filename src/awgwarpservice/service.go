@@ -8,10 +8,13 @@
 // One registration per boot, restart caps, honest states — no half-alive
 // shapes (the config gate belongs to main, exactly like warpservice).
 //
-// Data plane: the session's userspace netstack (gVisor) serves BOTH the
-// TCP streams and the UDP full-scope leg — the same carrier surface proton
-// exposes. Kernel-TUN/PBR wiring stays field-layer work and is not shipped
-// half-done here.
+// Data plane: in netstack mode (default) the session's userspace gVisor
+// stack serves BOTH the TCP streams and the UDP full-scope leg — the same
+// carrier surface proton exposes. In kernel mode the /dev/net/tun device
+// plus the scoped-PBR plane (KernelPBR — addresses, dedicated table, one
+// not-fwmark policy rule per source selector) is the ROUTER path: there is
+// no userspace carrier and the dial legs refuse honestly (ErrKernelMode);
+// routing belongs to the kernel policy, not to the tproxy trees.
 //
 // Secret discipline: the identity file (private key) never leaves the
 // store; StatusView carries derived fields only.
@@ -20,8 +23,10 @@ package awgwarpservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/netip"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,10 +50,13 @@ type Event struct {
 
 // StatusView is the externally visible state (no secrets).
 type StatusView struct {
-	Enabled         bool    `json:"enabled"`
-	Running         bool    `json:"running"`
-	Listening       bool    `json:"listening"`
-	State           string  `json:"state"`
+	Enabled   bool   `json:"enabled"`
+	Running   bool   `json:"running"`
+	Listening bool   `json:"listening"`
+	State     string `json:"state"`
+	// Mode is the data plane: "netstack" (userspace carrier) or "kernel"
+	// (kernel-TUN + PBR — the router path, no userspace carrier).
+	Mode            string  `json:"mode"`
 	IdentityPresent bool    `json:"identity_present"`
 	AssignedV4      string  `json:"assigned_v4,omitempty"`
 	Endpoint        string  `json:"endpoint,omitempty"`
@@ -72,6 +80,11 @@ const (
 // session (never a silent direct fallback).
 var ErrNotListening = errors.New("awgwarp: no established session to dial through")
 
+// ErrKernelMode is the honest refusal of the userspace carrier legs while
+// the kernel-TUN PBR data plane is armed: routing belongs to the kernel
+// policy selectors (from_cidrs), not to the tproxy trees.
+var ErrKernelMode = errors.New("awgwarp: kernel-TUN mode routes via kernel PBR; no userspace carrier")
+
 // Options carries the injection seams (tests wire httptest; production
 // leaves them nil).
 type Options struct {
@@ -80,6 +93,10 @@ type Options struct {
 	// EnrollBaseURL overrides the registration API base (tests point it at
 	// a fake server; production leaves it empty for the canonical API).
 	EnrollBaseURL string
+	// PBRRun overrides the KernelPBR command runner (tests assert the
+	// wiring plans without privileges; production leaves it nil for
+	// iproute2).
+	PBRRun func(name string, args ...string) error
 	// Now is the clock seam (tests).
 	Now func() time.Time
 	// OnEvent is the non-blocking event sink (the daemon log renderer).
@@ -97,6 +114,11 @@ type Runtime struct {
 	endpoint netip.AddrPort
 	profile  twg.Profile
 	guard    restartGuard
+
+	// kernelMode arms the kernel-TUN PBR data plane (design §7); pbr owns
+	// the wiring the session hooks call.
+	kernelMode bool
+	pbr        *KernelPBR
 
 	mu               sync.Mutex
 	cancel           context.CancelFunc
@@ -134,7 +156,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
-	return &Runtime{
+	r := &Runtime{
 		cfg:      awg,
 		opts:     opts,
 		store:    &twg.IdentityStore{Path: awg.EffectiveIdentityPath()},
@@ -143,7 +165,29 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		profile:  profile,
 		guard:    restartGuard{now: opts.Now, max: awg.EffectiveMaxRestarts()},
 		state:    StateIdle,
-	}, nil
+	}
+	// Kernel-TUN PBR mode: the no-half-state rule holds at Build too (the
+	// CLI path bypasses config validation) — the selectors are REQUIRED.
+	if awg.KernelMode() {
+		if len(awg.Kernel.FromCIDRs) == 0 {
+			return nil, errors.New("awgwarp: kernel mode requires pbr from_cidrs selectors (a TUN without selectors is a half-state)")
+		}
+		for _, raw := range awg.Kernel.FromCIDRs {
+			pfx, perr := netip.ParsePrefix(strings.TrimSpace(raw))
+			if perr != nil || !pfx.Addr().Is4() {
+				return nil, fmt.Errorf("awgwarp: kernel from_cidrs %q must be an IPv4 prefix", raw)
+			}
+		}
+		r.kernelMode = true
+		r.pbr = &KernelPBR{
+			Table:     awg.Kernel.EffectiveTable(),
+			Priority:  awg.Kernel.EffectiveRulePriority(),
+			FwMark:    awg.Kernel.EffectiveFwMark(),
+			FromCIDRs: append([]string(nil), awg.Kernel.FromCIDRs...),
+			Run:       opts.PBRRun,
+		}
+	}
+	return r, nil
 }
 
 // Start launches the supervisor loop (daemon mode only; the config gate
@@ -216,6 +260,7 @@ func (r *Runtime) Status() StatusView {
 		Restarts:    r.restarts,
 		Events:      append([]Event(nil), r.events...),
 		Endpoint:    r.endpoint.String(),
+		Mode:        r.cfg.EffectiveMode(),
 	}
 	if r.identity != nil {
 		v.IdentityPresent = true
@@ -223,7 +268,10 @@ func (r *Runtime) Status() StatusView {
 	}
 	if r.sess != nil && r.sess.State() == twg.StateEstablished {
 		v.Running = true
-		v.Listening = true
+		// Kernel mode has no userspace listener: Running (the session
+		// is up) and Listening (a dialable carrier) are DIFFERENT
+		// truths there.
+		v.Listening = !r.kernelMode
 	}
 	return v
 }
@@ -328,17 +376,43 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 		r.fail(StateBackoff, "identity assigned_v4: "+err.Error())
 		return
 	}
+	// Data plane per mode. Netstack (default): the userspace carrier
+	// surface. Kernel: /dev/net/tun + the PBR plane — the session hooks
+	// own the wiring (KernelUp arms addresses/rules BEFORE the trust
+	// gate, teardown calls KernelDown while the device still exists),
+	// the anti-loop mark rides the device fwmark (ListenFwMark).
+	tunCfg := twg.TunnelConfig{
+		Mode:      twg.ModeNetstack,
+		Addresses: []netip.Addr{v4},
+		// CF-native resolver: 1.1.1.1 rides inside the WARP tunnel.
+		DNS: []netip.Addr{netip.MustParseAddr("1.1.1.1")},
+		MTU: r.cfg.EffectiveMTU(),
+	}
+	var listenFwMark uint32
+	var kernelUp func(string) error
+	var kernelDown func(string)
+	if r.kernelMode {
+		tunCfg = twg.TunnelConfig{
+			Mode:          twg.ModeKernel,
+			InterfaceName: r.cfg.Kernel.EffectiveInterface(),
+			MTU:           r.cfg.EffectiveMTU(),
+		}
+		listenFwMark = r.cfg.Kernel.EffectiveFwMark()
+		r.pbr.AssignedV4 = ident.AssignedV4
+		kernelUp, kernelDown = r.pbr.Up, r.pbr.Down
+		r.appendEvent(Event{Name: "awgwarp_kernel_mode", Detail: r.cfg.Kernel.EffectiveInterface()})
+	}
 	s, err := twg.NewSession(twg.SessionConfig{
-		Ident:    ident,
-		Profile:  r.profile,
-		Endpoint: r.endpoint.String(),
-		Tunnel: twg.TunnelConfig{
-			Mode:      twg.ModeNetstack,
-			Addresses: []netip.Addr{v4},
-			// CF-native resolver: 1.1.1.1 rides inside the WARP tunnel.
-			DNS: []netip.Addr{netip.MustParseAddr("1.1.1.1")},
-			MTU: r.cfg.EffectiveMTU(),
-		},
+		Ident:        ident,
+		Profile:      r.profile,
+		Endpoint:     r.endpoint.String(),
+		ListenFwMark: listenFwMark,
+		Tunnel:       tunCfg,
+		// Kernel-TUN PBR hooks (nil in netstack mode — the plain userspace
+		// path): Up arms the addressing/rules BEFORE the trust gate, Down
+		// runs while the device still exists (teardown order).
+		KernelUp:   kernelUp,
+		KernelDown: kernelDown,
 		// The service owns rebuilds: one generation per session build, the
 		// supervisor loop re-ensures after a loss (proton canon).
 		MaxGenerations: 1,

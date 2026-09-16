@@ -56,11 +56,14 @@ const (
 	TunnelKindProton = "proton" // Proton VPN AWG (UDP full-scope)
 	TunnelKindTor    = "tor"    // Tor reserve (TCP-only, .onion egress)
 	// Nested chains (tunnels panel stage 2): the composition kinds served by
-	// src/warpchainservice over the transport/nested engine. masque+awg
-	// carries UDP full-scope (the inner AWG netstack serves it); awg+masque
-	// is IPv4/TCP only (the inner MASQUE netstack v1).
+	// src/warpchainservice over the transport/nested and transport/wg
+	// engines. masque+awg carries UDP full-scope (the inner AWG netstack
+	// serves it); awg+masque is IPv4/TCP only (the inner MASQUE netstack
+	// v1); awg+awg (W+W, twg.NestedWgRuntime) carries UDP full-scope
+	// through the inner AWG netstack as well.
 	TunnelKindChainMasqueAwg = "masque+awg" // M+W: MASQUE outer, AWG inner
 	TunnelKindChainAwgMasque = "awg+masque" // W+M: AWG outer, MASQUE inner
+	TunnelKindChainAwgAwg    = "awg+awg"    // W+W: AWG outer, AWG inner
 )
 
 // RoutingTunnelKinds is the closed set accepted by routing.tunnel.
@@ -74,6 +77,7 @@ var RoutingTunnelKinds = []string{
 	TunnelKindTor,
 	TunnelKindChainMasqueAwg,
 	TunnelKindChainAwgMasque,
+	TunnelKindChainAwgAwg,
 }
 
 // IsRoutingTunnelKind reports whether kind is a valid routing.tunnel value.
@@ -81,7 +85,7 @@ func IsRoutingTunnelKind(kind string) bool {
 	switch kind {
 	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
 		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
-		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque:
+		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque, TunnelKindChainAwgAwg:
 		return true
 	}
 	return false

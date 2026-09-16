@@ -3,6 +3,12 @@
 // DialUDP (the UDP full-scope leg through the same netstack) and the kind
 // registration the scoped-router trees consume. The Runtime itself carries
 // the reserve.Carrier implementation; this file holds only the dial paths.
+//
+// The NETSTACK mode owns these paths. In kernel mode the data plane is the
+// /dev/net/tun device plus the PBR plane — there is no userspace netstack
+// and every dial refuses with ErrKernelMode (the main.go wiring does not
+// register the carrier there at all; this is the belt-and-suspenders
+// posture for direct consumers).
 package awgwarpservice
 
 import (
@@ -19,8 +25,14 @@ import (
 func (r *Runtime) Kind() reserve.Kind { return reserve.KindWarp }
 
 // SupportsUDP implements reserve.Carrier: AWG-WARP serves native UDP
-// egress through the session's gVisor netstack (the QUIC-scope leg).
-func (r *Runtime) SupportsUDP() bool { return true }
+// egress through the session's gVisor netstack (the QUIC-scope leg) in
+// NETSTACK mode; kernel mode has no userspace carrier at all.
+func (r *Runtime) SupportsUDP() bool {
+	r.mu.Lock()
+	kernel := r.kernelMode
+	r.mu.Unlock()
+	return !kernel
+}
 
 // carrierSession snapshots the established session for one dial. No
 // self-loop guard is needed here (the warpservice canon): the WARP edge
@@ -29,8 +41,12 @@ func (r *Runtime) SupportsUDP() bool { return true }
 // domain-level bypasses.
 func (r *Runtime) carrierSession() (*twg.Session, error) {
 	r.mu.Lock()
+	kernel := r.kernelMode
 	sess := r.sess
 	r.mu.Unlock()
+	if kernel {
+		return nil, ErrKernelMode
+	}
 	if sess == nil || sess.State() != twg.StateEstablished {
 		return nil, ErrNotListening
 	}

@@ -160,25 +160,40 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	// warp — AWG-WARP (tunnels panel stage 2: system.warp.awg +
 	// awgwarpservice, kind=warp UDP full-scope through the session
 	// netstack). Honest card: config section present, runtime optional.
+	// In kernel mode the data plane is /dev/net/tun + PBR (the field
+	// layer): Running reflects the session, the carrier is honestly absent.
+	awgCfg := cfg.System.Warp.AWG
 	wp := tunnelsCard{
 		Kind:             string(reserve.KindWarp),
 		Priority:         reserve.PriorityWarp,
 		Transport:        "udp-full-scope",
 		SupportsUDP:      true,
 		HasConfigSection: true,
-		ConfigEnabled:    cfg.System.Warp.AWG.Enabled,
+		ConfigEnabled:    awgCfg.Enabled,
 		Restartable:      true, // RestartNow: retire + one supervision cycle
+	}
+	if awgCfg.KernelMode() {
+		wp.Transport = "kernel-pbr"
+		wp.SupportsUDP = false
 	}
 	if rt := awgWarpRuntime.Load(); rt != nil {
 		st := rt.Status()
-		wp.CarrierRegistered = true
-		wp.Running = st.Running
-		wp.Listening = st.Listening
-		wp.State = st.State
-		if !st.IdentityPresent {
-			wp.Note = "awg_warp_provisioning"
+		if awgCfg.KernelMode() {
+			// The engine owns the kernel session; the carrier registration
+			// is deliberately absent (no userspace dial legs).
+			wp.Running = st.Running
+			wp.State = st.State
+			wp.Note = "awg_warp_kernel_pbr"
+		} else {
+			wp.CarrierRegistered = true
+			wp.Running = st.Running
+			wp.Listening = st.Listening
+			wp.State = st.State
+			if !st.IdentityPresent {
+				wp.Note = "awg_warp_provisioning"
+			}
 		}
-	} else if cfg.System.Warp.AWG.Enabled {
+	} else if awgCfg.Enabled {
 		wp.Note = "engine_enabled_not_running"
 	}
 	cards = append(cards, wp)
@@ -309,16 +324,17 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	}
 	cards = append(cards, tr)
 
-	// Nested-chain presets: the masque+awg and awg+masque compositions ship
-	// with the daemon assembly (warpchainservice over transport/nested);
-	// each preset reflects the config entry and the live engine. The
-	// engine-pending compositions stay honest-unavailable.
+	// Nested-chain presets: the masque+awg, awg+masque and awg+awg
+	// compositions ship with the daemon assembly (warpchainservice over
+	// transport/nested and transport/wg); each preset reflects the config
+	// entry and the live engine. The engine-pending compositions stay
+	// honest-unavailable.
 	chainConfigured := map[string]config.WarpChainConfig{}
 	for _, ch := range cfg.System.Warp.Chains {
 		chainConfigured[ch.Kind] = ch
 	}
 	chains := []tunnelsChainPreset{
-		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: false, Note: "chain_engine_pending"},
+		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: true},
 		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
 		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: true},
 		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: true},
@@ -419,7 +435,7 @@ func protonLocationValue(cfg *config.Config) string {
 // @Description rebuild once.
 // @Tags tunnels
 // @Produce json
-// @Param kind query string true "tunnel kind (warp|opera|fxvpn|proton|tor|masque+awg|awg+masque)"
+// @Param kind query string true "tunnel kind (warp|opera|fxvpn|proton|tor|masque+awg|awg+masque|awg+awg)"
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} APIError
 // @Failure 409 {object} APIError
@@ -440,7 +456,7 @@ func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go rt.RestartNow(r.Context())
-	case config.ChainKindMasqueAwg, config.ChainKindAwgMasque:
+	case config.ChainKindMasqueAwg, config.ChainKindAwgMasque, config.ChainKindAwgAwg:
 		rt := chainRuntime(kind)
 		if rt == nil {
 			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "chain "+kind+" not running"))

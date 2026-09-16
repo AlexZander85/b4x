@@ -2128,7 +2128,8 @@
       "awg_warp_note": "AWG-WARP engine: the identity slot provisions on first use (one registration per boot); check the log if it stays down.",
       "awg_warp_provisioning": "Provisioning the WARP identity (first use on this slot).",
       "h3_reserved_note": "Reserved registry kind; no runtime wired yet.",
-      "engine_enabled_not_running": "Enabled in config but the engine is not wired this run (check the log)."
+      "engine_enabled_not_running": "Enabled in config but the engine is not wired this run (check the log).",
+      "awg_warp_kernel_pbr": "Kernel-TUN PBR mode: the session rides /dev/net/tun; the from_cidrs selectors own the routing (no userspace carrier)."
     },
     "fields": {
       "enabled": "Enabled",
@@ -2160,7 +2161,22 @@
       "mtu": "MTU (0 = 1280)",
       "mtuHint": "0 = engine default",
       "maxRestarts": "Max restarts/hour",
-      "maxRestartsHint": "Session rebuild cap (0 = 6)"
+      "maxRestartsHint": "Session rebuild cap (0 = 6)",
+      "mode": "Data plane",
+      "modeHint": "netstack: userspace carrier (per-domain routing). kernel: /dev/net/tun + PBR (router path; linux + CAP_NET_ADMIN)",
+      "modeNetstack": "netstack (userspace)",
+      "modeKernel": "kernel TUN + PBR (router)",
+      "kernelNote": "Kernel mode arms the field-layer PBR plane: the from_cidrs selectors route LAN sources through the TUN (a dedicated routing table plus not-fwmark policy rules; the session's own marked egress never loops). There is NO userspace carrier — sets with routing.tunnel=warp must be re-routed or awg.mode switched back to netstack.",
+      "kernelInterface": "Interface name",
+      "kernelInterfaceHint": "Empty = awgwarp0 (max 15 chars, kernel may still rename)",
+      "kernelTable": "Route table (0 = 51820)",
+      "kernelTableHint": "Dedicated policy table (wg-quick canon)",
+      "kernelPriority": "Rule priority (0 = 30000)",
+      "kernelPriorityHint": "Must stay below the main table (32766)",
+      "kernelFwmark": "fwmark (0 = 51820)",
+      "kernelFwmarkHint": "Anti-loop mark of the session's own UDP socket",
+      "kernelFromCidrs": "from_cidrs (IPv4 source selectors)",
+      "kernelFromCidrsHint": "LAN subnets routed through the TUN, e.g. 192.168.1.0/24 — required in kernel mode (a TUN without selectors is a half-state)"
     },
     "opera": {
       "region": "Megaregion",
@@ -2236,7 +2252,7 @@
       "chain_engine_pending": "Engine-ready composition; the daemon assembly is pending.",
       "chain_disabled": "Configured but disabled in system.warp.chains.",
       "chain_not_configured": "Add the chain entry to system.warp.chains to arm it.",
-      "note": "masque+awg and awg+masque ship with the daemon assembly (warpchainservice over transport/nested; each layer owns a distinct identity slot). Route sets to them via routing.mode=tunnel. W+W, masque+masque and the geo-gated nonru tree stay engine-pending — no silent half-states."
+      "note": "masque+awg, awg+masque and awg+awg (W+W over transport/wg.NestedWgRuntime; two CF wg devices) ship with the daemon assembly — each layer owns a distinct identity slot. Route sets to them via routing.mode=tunnel. masque+masque and the geo-gated nonru tree stay engine-pending — no silent half-states."
     },
     "assignments": {
       "title": "Domain-list assignments",

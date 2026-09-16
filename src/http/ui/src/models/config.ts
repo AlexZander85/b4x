@@ -361,18 +361,29 @@ export interface WarpMasqueradeConfig {
 }
 
 // AWG-WARP branch (system.warp.awg; tunnels panel stage 2).
+export interface WarpAWGKernelConfig {
+  interface: string;
+  table: number;
+  rule_priority: number;
+  fwmark: number;
+  from_cidrs: string[];
+}
+
 export interface WarpAWGConfig {
   enabled: boolean;
+  // Data plane: "" | "netstack" (userspace carrier) | "kernel" (TUN + PBR).
+  mode?: string;
   identity_path: string;
   endpoint: string;
   profile: string;
   mtu: number;
   max_restarts_per_hour: number;
+  kernel?: WarpAWGKernelConfig;
 }
 
 // Nested chain entry (system.warp.chains[]).
 export interface WarpChainConfig {
-  kind: "masque+awg" | "awg+masque";
+  kind: "masque+awg" | "awg+masque" | "awg+awg";
   enabled: boolean;
   outer_identity_path: string;
   inner_identity_path: string;
@@ -596,10 +607,11 @@ export type TunnelKind =
   | "fxvpn"
   | "proton"
   | "tor"
-  // Nested chains (tunnels panel stage 2): served by warpchainservice
-  // over the transport/nested engine.
+  // Nested chains (tunnels panel stage 2): served by warpchainservice over
+  // the transport/nested and transport/wg engines.
   | "masque+awg"
-  | "awg+masque";
+  | "awg+masque"
+  | "awg+awg";
 
 export type BlockAction = "drop" | "reject";
 

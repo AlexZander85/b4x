@@ -27,9 +27,12 @@
 | `warp` (AWG-WARP) | `src/awgwarpservice` (движок `transport/wg`, WG-enrollment мост) | `system.warp.awg` | **да** (Runtime сам carrier, UDP full-scope через netstack сессии) | UDP full-scope |
 | `masque+awg` (цепочка) | `src/warpchainservice` → `nested.MasqueAwgRuntime` | `system.warp.chains[]` | **да** (внутренний AWG netstack: TCP + UDP) | UDP full-scope |
 | `awg+masque` (цепочка) | `src/warpchainservice` → `nested.WgMasqueRuntime` | `system.warp.chains[]` | **да** (внутренний MASQUE netstack, re-attach канон warpservice) | IPv4/TCP |
+| `awg+awg` (цепочка W+W) | `src/warpchainservice` → `transportwg.NestedWgRuntime` (R3/gool) | `system.warp.chains[]` | **да** (внутренний AWG netstack: TCP + UDP; два wg-слота) | UDP full-scope |
 | `h3` | зарезервирован | — | нет | UDP full-scope |
 
-Цепочки, оставшиеся за этапом 2: `awg+awg` (W+W), `masque+masque` (WARP+WARP), `nonru` (geo-gate) — движки готовы, daemon-сборка ожидается; в панели честные недоступные пресеты.
+AWG-WARP режимы данных: `netstack` (умолчание — userspace-карриер, пор routing.mode=tunnel) и `kernel` (`/dev/net/tun` + PBR field-слой: `system.warp.awg.kernel.{interface,table,rule_priority,fwmark,from_cidrs}`; userspace-карриера нет — маршрутизацию ведут селекторы from_cidrs через policy-правила).
+
+Цепочки, оставшиеся за этапом 3: `masque+masque` (WARP+WARP), `nonru` (geo-gate) — в панели честные недоступные пресеты.
 
 ## 2. Маршрутизация доменных списков через туннель
 
@@ -78,8 +81,10 @@
 ## 6. Ограничения (honest boundaries)
 
 - ~~AWG-WARP (`warp`) и вложенные цепочки: движки есть, конфиг-схемы и daemon-сборка ожидают~~ **Этап 2 закрыл**: AWG-WARP (system.warp.awg + src/awgwarpservice, WG-enrollment POST-с-реальным-ключом) и цепочки masque+awg / awg+masque (system.warp.chains[] + src/warpchainservice над transport/nested). Каждая цепочка владеет ДВУМЯ отдельными identity-слотами (один CF-девайс на слой, red line #3); валидатор отвергает коллизии слотов со одиночными транспортами.
-- Остались за этапом: `awg+awg` (W+W), `masque+masque` (WARP+WARP) и `nonru` (geo-gate) — пресеты честно недоступны.
-- AWG-WARP: только userspace netstack (kernel-TUN/PBR — field-слой, не поставляется наполовину); WG-registration не имеет renewal-пути (перевыпуск = слот удалить + перезапуск); рестарты сервисные под cap max_restarts_per_hour (по умолчанию 6/час, proton-канон).
+- ~~`awg+awg` (W+W) остался за этапом~~ **Этап 3 закрыл**: цепочка awg+awg собрана в src/warpchainservice над `transportwg.NestedWgRuntime` (design §7 R3, gool-паттерн: Backend-B loopback-forwarder в netstack внешнего слоя). ДВА wg-слота (внешний junk-active профиль, внутренний vanilla), per-slot once-per-boot бюджет регистрации, MTU-градиент 1280/1200, keepalive 5/20; карриер — TCP+UDP через внутренний AWG netstack (приоритет 13 — глубже кросс-транспортных цепочек: двойной WG на одном семействе CF-краёв).
+- **Этап 3 закрыл kernel-TUN режим AWG-WARP** (PBR field-слой, design §7 «kernel-TUN PBR — основной путь роутера»): system.warp.awg.mode=kernel + подсекция kernel (interface/table/rule_priority/fwmark/from_cidrs). Проводит `awgwarpservice.KernelPBR` через session-хуки KernelUp/KernelDown (addr replace /32, link up, default в выделенной таблице, на каждый селектор правило `pref P not fwmark M from CIDR table T`; анти-луп — ListenFwMark устройства). Userspace-карриера в kernel-режиме НЕТ (ErrKernelMode, карриер не регистрируется, кросс-валидация отвергает routing.tunnel=warp); kernel-сессия — linux + CAP_NET_ADMIN, проверяется полевым ручным гейтом (как transport/wg tun.go).
+- Остались за этапом: `masque+masque` (WARP+WARP) и `nonru` (geo-gate) — пресеты честно недоступны.
+- AWG-WARP: WG-registration не имеет renewal-пути (перевыпуск = слот удалить + перезапуск); рестарты сервисные под cap max_restarts_per_hour (по умолчанию 6/час, proton-канон).
 - `awg+masque`: внутренний MASQUE netstack v1 — IPv4/TCP only (`reserve.ErrCarrierNoUDP` на UDP-ветке); `masque+awg` честно несёт UDP full-scope через внутренний AWG netstack.
 - MASQUE-carrier (одиночный): IPv4/TCP только (netstack v1); UDP-лег нет до появления UDP-capable carrier-адаптера.
 - Рестарт masque не поддерживается (lifecycle — супервизор WARP). Рестарты warp/цепочек: retire+rebuild под своими cap'ами.

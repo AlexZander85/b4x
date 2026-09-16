@@ -415,6 +415,74 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
                 helperText={t("tunnels.awg.maxRestartsHint")}
               />
             </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.awg.mode")}
+                select
+                value={s("mode", "netstack") || "netstack"}
+                onChange={(e) => setField("mode", e.target.value)}
+                helperText={t("tunnels.awg.modeHint")}
+              >
+                <MenuItem value="netstack">
+                  {t("tunnels.awg.modeNetstack")}
+                </MenuItem>
+                <MenuItem value="kernel">{t("tunnels.awg.modeKernel")}</MenuItem>
+              </B4TextField>
+            </Grid>
+            {(s("mode", "netstack") || "netstack") === "kernel" && (
+              <>
+                <Grid size={{ xs: 12 }}>
+                  <B4Alert severity="info">{t("tunnels.awg.kernelNote")}</B4Alert>
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <B4TextField
+                    label={t("tunnels.awg.kernelInterface")}
+                    value={s("kernel.interface")}
+                    onChange={(e) => setField("kernel.interface", e.target.value)}
+                    helperText={t("tunnels.awg.kernelInterfaceHint")}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <B4NumberField
+                    label={t("tunnels.awg.kernelTable")}
+                    value={n("kernel.table", 0)}
+                    onChange={(v) => setField("kernel.table", v)}
+                    min={0}
+                    max={4294967294}
+                    helperText={t("tunnels.awg.kernelTableHint")}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <B4NumberField
+                    label={t("tunnels.awg.kernelPriority")}
+                    value={n("kernel.rule_priority", 0)}
+                    onChange={(v) => setField("kernel.rule_priority", v)}
+                    min={0}
+                    max={32765}
+                    helperText={t("tunnels.awg.kernelPriorityHint")}
+                  />
+                </Grid>
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <B4NumberField
+                    label={t("tunnels.awg.kernelFwmark")}
+                    value={n("kernel.fwmark", 0)}
+                    onChange={(v) => setField("kernel.fwmark", v)}
+                    min={0}
+                    max={4294967295}
+                    helperText={t("tunnels.awg.kernelFwmarkHint")}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <StringListField
+                    label={t("tunnels.awg.kernelFromCidrs")}
+                    values={arr("kernel.from_cidrs")}
+                    onChange={(values) => setField("kernel.from_cidrs", values)}
+                    placeholder="192.168.1.0/24"
+                    helperText={t("tunnels.awg.kernelFromCidrsHint")}
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
         );
       case "masque":

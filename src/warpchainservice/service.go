@@ -1,22 +1,29 @@
 // Package warpchainservice assembles the nested chains (reserve kinds
-// "masque+awg" and "awg+masque", tunnels panel stage 2) from the
-// transport/nested composition engine and the system.warp.chains config.
+// "masque+awg", "awg+masque" and "awg+awg" — tunnels panel stage 2/3)
+// from the transport composition engines and the system.warp.chains config.
 //
 // One Runtime per chain entry. The identity discipline is the nested red
 // line #3: each layer owns a DISTINCT slot (one CF device per layer); the
 // M+W outer identity comes from the outer supervisor's own reconciler, the
 // inner AWG identity is provisioned by this service (wg enrollment client);
 // the W+M outer AWG identity is provisioned here, the inner MASQUE identity
-// by the inner supervisor embedded in the engine runtime.
+// by the inner supervisor embedded in the engine runtime; the W+W pair owns
+// TWO wg slots — the outer (obfuscated, junk-active profile) and the inner
+// (vanilla) — both provisioned here with a per-slot once-per-boot budget.
 //
 // Lifecycle ownership: M+W owns the outer MASQUE supervisor and passes it
-// as the composition plane; W+M owns the whole composition (the engine
-// builds outer session + inner supervisor per generation). RestartNow tears
-// the composition down and forces one rebuild under the restart caps.
+// as the composition plane; W+M and W+W own the whole composition (the
+// engines build outer session + inner layer per generation; the W+W
+// runtime is transportwg.NestedWgRuntime — design §7 R3, gool pattern, the
+// inner rides a Backend-B loopback forwarder carried inside the outer
+// netstack). RestartNow tears the composition down and forces one rebuild
+// under the restart caps.
 //
 // Data planes are honest per composition: masque+awg serves TCP + UDP
 // (the inner AWG netstack); awg+masque serves IPv4/TCP only (the inner
-// MASQUE netstack v1 — reserve.ErrCarrierNoUDP on the UDP leg).
+// MASQUE netstack v1 — reserve.ErrCarrierNoUDP on the UDP leg); awg+awg
+// serves TCP + UDP through the inner AWG netstack (same surface as the
+// single AWG-WARP transport).
 package warpchainservice
 
 import (
@@ -105,7 +112,10 @@ type Runtime struct {
 	innerEndpoint netip.AddrPort
 
 	// Identity slots, per layer (DISTINCT paths — red line #3).
-	wgStore *twg.IdentityStore // the AWG layer's wg identity (outer W+M / inner M+W)
+	wgStore *twg.IdentityStore // the AWG layer's wg identity (outer W+M / inner M+W / outer W+W)
+	// wgInnerStore is the W+W INNER AWG slot (a second CF wg device;
+	// nil unless kind == awg+awg).
+	wgInnerStore *twg.IdentityStore
 
 	// M+W: the outer MASQUE supervisor (the composition plane).
 	outerSup *twarp.Supervisor
@@ -116,6 +126,7 @@ type Runtime struct {
 	stopped     bool
 	mPlusW      *nested.MasqueAwgRuntime // masque+awg composition
 	wPlusM      *nested.WgMasqueRuntime  // awg+masque composition
+	wPlusW      *twg.NestedWgRuntime     // awg+awg composition (W+W)
 	state       string
 	events      []Event
 	lastFailure string
@@ -123,14 +134,15 @@ type Runtime struct {
 	dialOK      uint64
 	dialFail    uint64
 
-	// W+M carrier cache: one netstack attached to the CURRENT inner
-	// supervisor, re-attached after a dial failure (the warpservice canon).
+	// W+W carrier cache: one netstack attached to the CURRENT inner
+	// session, re-attached after a dial failure (the warpservice canon).
 	nsMu      sync.Mutex
 	nsCarrier *twarp.NetstackCarrier
 	nsRelease func()
 
-	registeredThisBoot atomic.Bool
-	guard              restartGuard
+	registeredThisBoot  atomic.Bool // the AWG layer slot budget (outer W+M / inner M+W / outer W+W)
+	registeredInnerBoot atomic.Bool // the W+W inner slot budget
+	guard               restartGuard
 }
 
 // Build validates the chain entry and constructs the runtime WITHOUT
@@ -146,6 +158,18 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 	awgProfile, err := resolveAWGProfile(chain)
 	if err != nil {
 		return nil, err
+	}
+	// W+W defense in depth (the config gates own the primary rules): the
+	// outer layer must carry an active junk family (the engine's
+	// ErrOuterObfRequired) and the composition has no masque layer — a
+	// fingerprint is a config lie.
+	if chain.Kind == config.ChainKindAwgAwg {
+		if awgProfile.JunkCount < 1 {
+			return nil, fmt.Errorf("warpchain: awg+awg outer layer requires a junk-active profile (got a vanilla one)")
+		}
+		if chain.Fingerprint != "" {
+			return nil, fmt.Errorf("warpchain: awg+awg has no masque layer (fingerprint must be empty)")
+		}
 	}
 	if err := validateFingerprint(chain.Fingerprint); err != nil {
 		return nil, err
@@ -169,6 +193,11 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 		state:         StateIdle,
 		guard:         restartGuard{now: opts.Now, max: chain.EffectiveMaxRestarts()},
 	}
+	if chain.Kind == config.ChainKindAwgAwg {
+		// W+W: a SECOND wg identity slot for the inner layer (a distinct CF
+		// device — red line #3; the outer slot is wgStore above).
+		r.wgInnerStore = &twg.IdentityStore{Path: chain.EffectiveInnerIdentityPath()}
+	}
 	if chain.Kind == config.ChainKindMasqueAwg {
 		// M+W: the outer supervisor owns the MASQUE identity (its reconciler
 		// provisions/renews it); we only hand it the template + slot.
@@ -191,9 +220,9 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 }
 
 // chainAWGSlot returns the AWG layer's identity path for either
-// composition: outer for awg+masque, inner for masque+awg.
+// composition: outer for awg+masque and awg+awg, inner for masque+awg.
 func chainAWGSlot(c *config.WarpChainConfig) string {
-	if c.Kind == config.ChainKindAwgMasque {
+	if c.Kind == config.ChainKindAwgMasque || c.Kind == config.ChainKindAwgAwg {
 		return c.EffectiveOuterIdentityPath()
 	}
 	return c.EffectiveInnerIdentityPath()
@@ -270,8 +299,8 @@ func (r *Runtime) Stop() {
 	}
 	r.stopped = true
 	cancel := r.cancel
-	mw, wm := r.mPlusW, r.wPlusM
-	r.mPlusW, r.wPlusM = nil, nil
+	mw, wm, ww := r.mPlusW, r.wPlusM, r.wPlusW
+	r.mPlusW, r.wPlusM, r.wPlusW = nil, nil, nil
 	r.state = StateStopped
 	r.mu.Unlock()
 	if cancel != nil {
@@ -283,6 +312,9 @@ func (r *Runtime) Stop() {
 	if wm != nil {
 		wm.Stop()
 	}
+	if ww != nil {
+		ww.Stop()
+	}
 	r.detachNetstack()
 	if r.outerSup != nil {
 		r.outerSup.Stop()
@@ -293,14 +325,17 @@ func (r *Runtime) Stop() {
 // (the caps still apply).
 func (r *Runtime) RestartNow(ctx context.Context) {
 	r.mu.Lock()
-	mw, wm := r.mPlusW, r.wPlusM
-	r.mPlusW, r.wPlusM = nil, nil
+	mw, wm, ww := r.mPlusW, r.wPlusM, r.wPlusW
+	r.mPlusW, r.wPlusM, r.wPlusW = nil, nil, nil
 	r.mu.Unlock()
 	if mw != nil {
 		mw.Stop()
 	}
 	if wm != nil {
 		wm.Stop()
+	}
+	if ww != nil {
+		ww.Stop()
 	}
 	r.detachNetstack()
 	r.appendEvent(Event{Name: "warpchain_composition_retired", Detail: "restart-now"})
@@ -332,6 +367,13 @@ func (r *Runtime) Status() StatusView {
 		v.ParentGen = gen
 		v.InnerState = fmt.Sprintf("child=%v", child)
 		v.Running = link == "up" && child
+		v.Listening = v.Running
+	} else if r.cfg.Kind == config.ChainKindAwgAwg && r.wPlusW != nil {
+		st := r.wPlusW.Status()
+		v.OuterState = string(st.Link)
+		v.ParentGen = st.ParentGen
+		v.InnerState = fmt.Sprintf("child=%v hs_out=%dms hs_in=%dms", st.ChildRunning, st.Outer.HandshakeMS, st.Inner.HandshakeMS)
+		v.Running = st.Link == twg.NestedUp && st.ChildRunning
 		v.Listening = v.Running
 	}
 	return v
@@ -373,10 +415,14 @@ func (r *Runtime) tick(ctx context.Context) {
 func (r *Runtime) compositionAlive() bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.cfg.Kind == config.ChainKindMasqueAwg {
+	switch r.cfg.Kind {
+	case config.ChainKindMasqueAwg:
 		return r.mPlusW != nil
+	case config.ChainKindAwgAwg:
+		return r.wPlusW != nil
+	default:
+		return r.wPlusM != nil
 	}
-	return r.wPlusM != nil
 }
 
 // assemble provisions the missing identity slots and builds the composed
@@ -384,7 +430,7 @@ func (r *Runtime) compositionAlive() bool {
 func (r *Runtime) assemble(ctx context.Context) error {
 	r.setState(StateProvisioning)
 
-	// The AWG layer's wg identity (outer for W+M, inner for M+W).
+	// The AWG layer's wg identity (outer for W+M / W+W, inner for M+W).
 	wgIdent, err := r.ensureWGIdentity(ctx)
 	if err != nil {
 		return err
@@ -393,38 +439,51 @@ func (r *Runtime) assemble(ctx context.Context) error {
 		return nil // provisioned this tick or waiting for a slot; next tick continues
 	}
 
-	if r.cfg.Kind == config.ChainKindMasqueAwg {
+	switch r.cfg.Kind {
+	case config.ChainKindMasqueAwg:
 		return r.assembleMasqueAwg(ctx, wgIdent)
+	case config.ChainKindAwgAwg:
+		return r.assembleWgWg(ctx, wgIdent)
+	default:
+		return r.assembleWgMasque(wgIdent)
 	}
-	return r.assembleWgMasque(wgIdent)
 }
 
 // ensureWGIdentity loads or provisions the AWG layer identity. Returns nil
 // (no error) when the slot simply is not ready yet.
 func (r *Runtime) ensureWGIdentity(ctx context.Context) (*twg.Identity, error) {
-	id, err := r.wgStore.Load()
+	return r.ensureWGIdentityAt(ctx, r.wgStore, &r.registeredThisBoot, "awg")
+}
+
+// ensureWGIdentityAt is the per-slot discipline (one registration budget per
+// slot per boot — the W+W pair burns at most two, one per layer).
+func (r *Runtime) ensureWGIdentityAt(ctx context.Context, store *twg.IdentityStore, budget *atomic.Bool, tag string) (*twg.Identity, error) {
+	if store == nil {
+		return nil, errors.New("warpchain: wg identity slot not configured for this chain kind")
+	}
+	id, err := store.Load()
 	switch {
 	case err == nil:
 		return id, nil
 	case errors.Is(err, twg.ErrIdentityAbsent):
 		// fall through to registration
 	case errors.Is(err, twg.ErrIdentityCorrupt):
-		r.appendEvent(Event{Name: "warpchain_awg_identity_corrupt", Detail: err.Error()})
+		r.appendEvent(Event{Name: "warpchain_" + tag + "_identity_corrupt", Detail: err.Error()})
 	default:
 		return nil, err
 	}
-	if !r.registeredThisBoot.CompareAndSwap(false, true) {
-		return nil, errors.New("warpchain: wg registration budget spent for this boot")
+	if !budget.CompareAndSwap(false, true) {
+		return nil, fmt.Errorf("warpchain: %s slot registration budget spent for this boot", tag)
 	}
 	r.setState(StateProvisioning)
 	id, out, err := (&twg.EnrollClient{HTTP: r.opts.HTTP, BaseURL: r.opts.WGEnrollBaseURL}).Enroll(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("awg layer registration (outcome %d): %w", out, err)
+		return nil, fmt.Errorf("%s layer registration (outcome %d): %w", tag, out, err)
 	}
-	if err := r.wgStore.Save(id); err != nil {
+	if err := store.Save(id); err != nil {
 		return nil, err
 	}
-	r.appendEvent(Event{Name: "warpchain_awg_registered", Detail: id.AssignedV4})
+	r.appendEvent(Event{Name: "warpchain_" + tag + "_registered", Detail: id.AssignedV4})
 	return id, nil
 }
 
@@ -543,6 +602,64 @@ func (r *Runtime) assembleWgMasque(outer *twg.Identity) error {
 	r.state = StateUp
 	r.mu.Unlock()
 	r.appendEvent(Event{Name: "warpchain_composition_started", Detail: "awg+masque"})
+	return nil
+}
+
+// assembleWgWg builds the W+W composition over transportwg.NestedWgRuntime
+// (design §7 R3, gool pattern): the obfuscated outer AWG session owns the
+// carrier netstack; the inner vanilla AWG session's ONLY egress is the
+// Backend-B loopback forwarder dialed through that netstack. Both identity
+// slots are provisioned by this service (a second CF device for the inner
+// layer — red line #3); the engine owns the per-generation child rebuilds
+// and the bounded child-retry ladder.
+func (r *Runtime) assembleWgWg(ctx context.Context, outer *twg.Identity) error {
+	inner, err := r.ensureWGIdentityAt(ctx, r.wgInnerStore, &r.registeredInnerBoot, "awg-inner")
+	if err != nil {
+		return err
+	}
+	if inner == nil {
+		return nil // provisioned this tick; the next tick continues
+	}
+
+	r.setState(StateAssembling)
+	rt, err := twg.NewNestedWgRuntime(twg.NestedWgConfig{
+		Outer: twg.NestedLayer{
+			Ident:   outer,
+			Profile: r.awgProfile, // junk-active (config + Build gates)
+			// MTU 0 -> DefaultMTU (1280); keepalive 0 -> 5 (nested canon).
+		},
+		Inner: twg.NestedLayer{
+			Ident: inner,
+			// Vanilla inner profile: the obfuscation duty is the outer
+			// layer's; the inner is the plain WG payload riding it.
+			// MTU -> r.innerMTU() (<= 1200, the gradient headroom);
+			// keepalive 0 -> 20 (separated from the outer's 5).
+			MTU: r.innerMTU(),
+		},
+		OuterEdge: r.outerEndpoint,
+		InnerEdge: r.innerEndpoint,
+		// Backend-B carrier proof: the inner dials ONLY the loopback
+		// forwarder; port 0 = assigned at bind (E8 lesson).
+		InnerDial: netip.MustParseAddrPort("127.0.0.1:0"),
+	}, twg.NestedWgOptions{
+		DNS: netip.MustParseAddr("1.1.1.1"),
+		OnEvent: func(ev twg.SessionEvent) {
+			r.appendEvent(Event{Name: "warpchain_composition_event", Detail: ev.Name + " " + string(ev.Class) + ": " + ev.Reason})
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("w+w assembly: %w", err)
+	}
+	if err := rt.Start(ctx); err != nil {
+		return fmt.Errorf("w+w start: %w", err)
+	}
+	r.guard.record()
+	r.mu.Lock()
+	r.wPlusW = rt
+	r.restarts++
+	r.state = StateUp
+	r.mu.Unlock()
+	r.appendEvent(Event{Name: "warpchain_composition_started", Detail: "awg+awg"})
 	return nil
 }
 

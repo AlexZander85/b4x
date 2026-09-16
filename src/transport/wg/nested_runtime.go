@@ -215,6 +215,21 @@ func (r *NestedWgRuntime) Status() NestedWgStatus {
 	return st
 }
 
+// InnerSession snapshots the live INNER session of the W+W composition (the
+// daemon-assembly accessor canon of transport/nested/accessors.go: the
+// service wiring is the legitimate consumer, snapshots only, never lifecycle
+// control). nil while the child is down. The consumer reads
+// Tunnel().Netstack for the carrier data plane — the same contract as every
+// single-transport wg service.
+func (r *NestedWgRuntime) InnerSession() *Session {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil || r.inner.State() == StateClosed {
+		return nil
+	}
+	return r.inner
+}
+
 // onParentEstablished / onParentLost / establishChild / loseChild: the
 // callback bridge. Events are collected under the lock and emitted after
 // unlock so user callbacks may call Status() freely.

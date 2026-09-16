@@ -654,7 +654,11 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// assembly in awgwarpservice, config system.warp.awg). Zero wire calls
 	// unless system.warp.awg.enabled=true — the identity slot provisions
 	// on first use, one registration per boot. The Runtime IS the carrier
-	// (kind=warp, UDP full-scope through the session netstack).
+	// (kind=warp, UDP full-scope through the session netstack) in NETSTACK
+	// mode; in KERNEL mode (/dev/net/tun + the PBR field layer — design §7
+	// "kernel-TUN PBR — основной путь роутера") there is no userspace
+	// carrier: the session hooks own the kernel wiring and the reserve tree
+	// never sees a dead dialer (honest absence, not a fail-closed facade).
 	var awgWarpEngine *awgwarpservice.Runtime
 	if cfgPtr.Load().System.Warp.AWG.Enabled {
 		rt, err := awgwarpservice.Build(cfgPtr.Load(), awgwarpservice.Options{})
@@ -665,21 +669,27 @@ func runB4(cmd *cobra.Command, args []string) error {
 		} else {
 			awgWarpEngine = rt
 			st := rt.Status()
-			log.Infof("[awgwarp] engine started state=%s endpoint=%s", st.State, st.Endpoint)
+			log.Infof("[awgwarp] engine started state=%s endpoint=%s mode=%s", st.State, st.Endpoint, st.Mode)
 		}
 	}
 	handler.SetAWGWarpRuntime(awgWarpEngine) // nil-safe: the handler answers the disabled shape
-	if awgWarpEngine != nil {
+	if awgWarpEngine != nil && !awgWarpEngine.SupportsUDP() {
+		// Kernel mode: the PBR field plane serves routing; the carrier stays
+		// OUT of the reserve tree (its dial legs refuse with ErrKernelMode).
+		log.Infof("[awgwarp] kernel-TUN PBR mode: no userspace carrier registered (from_cidrs selectors own the routing)")
+	} else if awgWarpEngine != nil {
 		reserve.Register(awgWarpEngine) // Register AFTER Start (proton canon)
 		log.Infof("[awgwarp] carrier registered kind=warp priority=%d udp=true",
 			reserve.PriorityWarp)
 	}
 
-	// Nested chains (tunnels panel stage 2; engine in transport/nested,
-	// assembly in warpchainservice, config system.warp.chains[]). One
-	// runtime per chain entry; every layer owns a DISTINCT identity slot
+	// Nested chains (tunnels panel stage 2; engines in transport/nested and
+	// transport/wg, assembly in warpchainservice, config system.warp.chains[]).
+	// One runtime per chain entry; every layer owns a DISTINCT identity slot
 	// (one CF device per layer — the nested red line #3). Chain kinds:
-	// masque+awg (UDP full-scope inner) and awg+masque (IPv4/TCP inner).
+	// masque+awg (UDP full-scope inner), awg+masque (IPv4/TCP inner) and
+	// awg+awg — the W+W composition over transportwg.NestedWgRuntime (UDP
+	// full-scope through the inner AWG netstack, two CF wg devices).
 	var chainEngines []*warpchainservice.Runtime
 	for _, chain := range cfgPtr.Load().System.Warp.Chains {
 		if !chain.Enabled {

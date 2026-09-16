@@ -1,9 +1,9 @@
 // Carrier exposure: the chain's INNER layer is the data plane. masque+awg
-// serves TCP + UDP through the inner AWG session's netstack (the proton
-// canon surface); awg+masque serves IPv4/TCP through the inner MASQUE
-// supervisor's attached netstack with the warpservice re-attach discipline
-// (one netstack per supervisor generation, rebuilt on the first dial
-// failure — a dead session's netstack fails on write, never silently).
+// and awg+awg serve TCP + UDP through the inner AWG session's netstack (the
+// proton canon surface); awg+masque serves IPv4/TCP through the inner
+// MASQUE supervisor's attached netstack with the warpservice re-attach
+// discipline (one netstack per supervisor generation, rebuilt on the first
+// dial failure — a dead session's netstack fails on write, never silently).
 package warpchainservice
 
 import (
@@ -17,14 +17,15 @@ import (
 	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
-// Kind implements reserve.Carrier: the chain kind ("masque+awg" | "awg+masque").
+// Kind implements reserve.Carrier: the chain kind ("masque+awg" |
+// "awg+masque" | "awg+awg").
 func (r *Runtime) Kind() reserve.Kind { return r.kind }
 
-// SupportsUDP implements reserve.Carrier: only the masque+awg composition
-// (its data plane is the inner AWG netstack). The awg+masque inner MASQUE
-// netstack carries IPv4/TCP only.
+// SupportsUDP implements reserve.Carrier: the compositions whose data plane
+// is the inner AWG netstack (masque+awg and awg+awg). The awg+masque inner
+// MASQUE netstack carries IPv4/TCP only.
 func (r *Runtime) SupportsUDP() bool {
-	return r.cfg.Kind == config.ChainKindMasqueAwg
+	return r.cfg.Kind == config.ChainKindMasqueAwg || r.cfg.Kind == config.ChainKindAwgAwg
 }
 
 // DialStream dials ONE TCP stream to addr through the chain's inner layer.
@@ -34,28 +35,23 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 		return r.dialMasqueAwg(ctx, addr)
 	case config.ChainKindAwgMasque:
 		return r.dialAwgMasque(ctx, addr)
+	case config.ChainKindAwgAwg:
+		return r.dialWgWg(ctx, addr)
 	default:
 		r.recordDial(false)
 		return nil, ErrNotListening
 	}
 }
 
-// DialUDP dials ONE UDP exchange through the chain's inner layer — the
-// masque+awg netstack leg; the honest refusal elsewhere.
+// DialUDP dials ONE UDP exchange through the chain's inner AWG netstack
+// leg (masque+awg and awg+awg); the honest refusal elsewhere.
 func (r *Runtime) DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
-	if r.cfg.Kind != config.ChainKindMasqueAwg {
+	if r.cfg.Kind != config.ChainKindMasqueAwg && r.cfg.Kind != config.ChainKindAwgAwg {
 		r.recordDial(false)
 		return nil, reserve.ErrCarrierNoUDP
 	}
-	r.mu.Lock()
-	mw := r.mPlusW
-	r.mu.Unlock()
-	if mw == nil {
-		r.recordDial(false)
-		return nil, ErrNotListening
-	}
-	sess := mw.InnerSession()
-	if sess == nil || sess.State() != twg.StateEstablished {
+	sess := r.innerAWGSession()
+	if sess == nil {
 		r.recordDial(false)
 		return nil, ErrNotListening
 	}
@@ -73,17 +69,53 @@ func (r *Runtime) DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, e
 	return conn, nil
 }
 
-// dialMasqueAwg: TCP through the inner AWG session's netstack.
-func (r *Runtime) dialMasqueAwg(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+// innerAWGSession snapshots the established INNER AWG session of the
+// masque+awg or awg+awg composition (nil while the child is down — the
+// accessor contracts, never a stale session).
+func (r *Runtime) innerAWGSession() *twg.Session {
+	if r.cfg.Kind == config.ChainKindAwgAwg {
+		r.mu.Lock()
+		ww := r.wPlusW
+		r.mu.Unlock()
+		if ww == nil {
+			return nil
+		}
+		sess := ww.InnerSession()
+		if sess == nil || sess.State() != twg.StateEstablished {
+			return nil
+		}
+		return sess
+	}
 	r.mu.Lock()
 	mw := r.mPlusW
 	r.mu.Unlock()
 	if mw == nil {
-		r.recordDial(false)
-		return nil, ErrNotListening
+		return nil
 	}
 	sess := mw.InnerSession()
 	if sess == nil || sess.State() != twg.StateEstablished {
+		return nil
+	}
+	return sess
+}
+
+// dialMasqueAwg: TCP through the inner AWG session's netstack.
+func (r *Runtime) dialMasqueAwg(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	return r.dialInnerAWGTCP(ctx, addr)
+}
+
+// dialWgWg: TCP through the inner AWG session's netstack of the W+W
+// composition (the InnerSession accessor snapshot — nil while the child is
+// down, never a stale netstack).
+func (r *Runtime) dialWgWg(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	return r.dialInnerAWGTCP(ctx, addr)
+}
+
+// dialInnerAWGTCP is the shared inner-AWG-netstack TCP leg (masque+awg and
+// awg+awg — the same carrier surface, different inner owners).
+func (r *Runtime) dialInnerAWGTCP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	sess := r.innerAWGSession()
+	if sess == nil {
 		r.recordDial(false)
 		return nil, ErrNotListening
 	}

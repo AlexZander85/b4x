@@ -2130,7 +2130,8 @@
       "awg_warp_note": "Движок AWG-WARP: слот identity пополняется при первом использовании (одна регистрация за загрузку); при простое см. лог.",
       "awg_warp_provisioning": "Идёт провижининг WARP-identity (первое использование слота).",
       "h3_reserved_note": "Зарезервированный вид реестра; рантайм ещё не подключён.",
-      "engine_enabled_not_running": "Включён в конфиге, но движок не подключён в этом запуске (см. лог)."
+      "engine_enabled_not_running": "Включён в конфиге, но движок не подключён в этом запуске (см. лог).",
+      "awg_warp_kernel_pbr": "Режим kernel-TUN PBR: сессия живёт на /dev/net/tun; маршрутизацией управляют селекторы from_cidrs (userspace-карриера нет)."
     },
     "fields": {
       "enabled": "Включён",
@@ -2162,7 +2163,22 @@
       "mtu": "MTU (0 = 1280)",
       "mtuHint": "0 = умолчание движка",
       "maxRestarts": "Макс. рестартов/час",
-      "maxRestartsHint": "Лимит пересборок сессии (0 = 6)"
+      "maxRestartsHint": "Лимит пересборок сессии (0 = 6)",
+      "mode": "Плоскость данных",
+      "modeHint": "netstack: userspace-карриер (маршрутизация по доменам через tproxy). kernel: /dev/net/tun + PBR (путь роутера; linux + CAP_NET_ADMIN)",
+      "modeNetstack": "netstack (userspace)",
+      "modeKernel": "kernel TUN + PBR (роутер)",
+      "kernelNote": "Kernel-режим активирует PBR-плоскость полевого слоя: селекторы from_cidrs маршрутизируют LAN-источники через TUN (выделенная таблица маршрутизации плюс not-fwmark policy-правила; собственный маркированный egress сессии не зацикливается). Userspace-карриеры НЕТ — сеты с routing.tunnel=warp нужно перенаправить или вернуть awg.mode=netstack.",
+      "kernelInterface": "Имя интерфейса",
+      "kernelInterfaceHint": "Пусто = awgwarp0 (макс. 15 символов, ядро может переименовать)",
+      "kernelTable": "Таблица маршрутов (0 = 51820)",
+      "kernelTableHint": "Выделенная policy-таблица (канон wg-quick)",
+      "kernelPriority": "Приоритет правил (0 = 30000)",
+      "kernelPriorityHint": "Должен быть ниже main (32766)",
+      "kernelFwmark": "fwmark (0 = 51820)",
+      "kernelFwmarkHint": "Анти-луп метка собственного UDP-сокета сессии",
+      "kernelFromCidrs": "from_cidrs (IPv4-селекторы источников)",
+      "kernelFromCidrsHint": "LAN-подсети, маршрутизируемые через TUN, напр. 192.168.1.0/24 — обязательны в kernel-режиме (TUN без селекторов — полусостояние)"
     },
     "opera": {
       "region": "Мегарегион",
@@ -2238,7 +2254,7 @@
       "chain_engine_pending": "Композиция готова на уровне движка; сборка в демоне ожидается.",
       "chain_disabled": "Настроена, но отключена в system.warp.chains.",
       "chain_not_configured": "Добавьте запись цепочки в system.warp.chains, чтобы включить её.",
-      "note": "masque+awg и awg+masque поставляются со сборкой в демоне (warpchainservice поверх transport/nested; каждый слой владеет отдельным слотом identity). Маршрутизируйте сеты на них через routing.mode=tunnel. W+W, masque+masque и geo-gated дерево nonru остаются в ожидании сборки — никаких полусостояний."
+      "note": "masque+awg, awg+masque и awg+awg (W+W поверх transport/wg.NestedWgRuntime; два CF wg-девайса) поставляются со сборкой в демоне — каждый слой владеет отдельным слотом identity. Маршрутизируйте сеты на них через routing.mode=tunnel. masque+masque и geo-gated дерево nonru остаются в ожидании сборки — никаких полусостояний."
     },
     "assignments": {
       "title": "Назначения спискам доменов",

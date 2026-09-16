@@ -63,9 +63,70 @@ func TestBuildBothCompositions(t *testing.T) {
 
 func TestBuildRejectsBadKind(t *testing.T) {
 	dir := t.TempDir()
-	ch := chainCfg(dir, "awg+awg")
+	ch := chainCfg(dir, "masque+masque")
 	if _, err := Build(testConfig(ch), ch, Options{}); err == nil {
 		t.Fatal("engine-pending kind must fail the build")
+	}
+}
+
+func TestBuildWgWg(t *testing.T) {
+	dir := t.TempDir()
+	ch := chainCfg(dir, config.ChainKindAwgAwg)
+	ch.AWGProfile = "quic-a" // junk-active outer (the W+W requirement)
+	rt, err := Build(testConfig(ch), ch, Options{Now: time.Now})
+	if err != nil {
+		t.Fatalf("build w+w: %v", err)
+	}
+	if rt.Kind() != reserve.KindChainAwgAwg {
+		t.Fatalf("kind = %q, want awg+awg", string(rt.Kind()))
+	}
+	// TWO wg slots: the outer in wgStore, the inner in wgInnerStore, on
+	// DISTINCT paths (one CF device per layer — red line #3).
+	if rt.wgStore.Path != ch.EffectiveOuterIdentityPath() {
+		t.Fatalf("outer slot = %q, want %q", rt.wgStore.Path, ch.EffectiveOuterIdentityPath())
+	}
+	if rt.wgInnerStore == nil || rt.wgInnerStore.Path != ch.EffectiveInnerIdentityPath() {
+		t.Fatalf("inner slot = %v, want %q", rt.wgInnerStore, ch.EffectiveInnerIdentityPath())
+	}
+	if rt.wgStore.Path == rt.wgInnerStore.Path {
+		t.Fatal("W+W slots must be distinct")
+	}
+	if rt.outerSup != nil {
+		t.Fatal("W+W owns no masque supervisor")
+	}
+	v := rt.Status()
+	if v.Enabled != true || v.Running || v.Listening {
+		t.Fatalf("fresh runtime must be inert: %+v", v)
+	}
+}
+
+func TestBuildWgWgRejectsFingerprint(t *testing.T) {
+	dir := t.TempDir()
+	ch := chainCfg(dir, config.ChainKindAwgAwg)
+	ch.AWGProfile = "quic-a"
+	ch.Fingerprint = "chrome120" // no masque layer in W+W
+	if _, err := Build(testConfig(ch), ch, Options{}); err == nil {
+		t.Fatal("fingerprint on a W+W chain must fail the build")
+	}
+}
+
+func TestCarrierUDPPostureWgWg(t *testing.T) {
+	dir := t.TempDir()
+	ch := chainCfg(dir, config.ChainKindAwgAwg)
+	ch.AWGProfile = "quic-a"
+	rt, err := Build(testConfig(ch), ch, Options{Now: time.Now})
+	if err != nil {
+		t.Fatalf("build w+w: %v", err)
+	}
+	if !rt.SupportsUDP() {
+		t.Fatal("awg+awg must advertise UDP (inner AWG netstack)")
+	}
+	// Without a live composition both legs fail closed.
+	if _, err := rt.DialStream(context.Background(), mustAP("93.184.216.34:443")); err == nil {
+		t.Fatal("stream dial without a composition must fail closed")
+	}
+	if _, err := rt.DialUDP(context.Background(), mustAP("93.184.216.34:443")); err == nil {
+		t.Fatal("udp dial without a composition must fail closed")
 	}
 }
 
