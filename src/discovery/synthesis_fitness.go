@@ -8,23 +8,23 @@ import (
 )
 
 const (
-	CandidateVerdictIncomplete       = "incomplete-evidence"
-	CandidateVerdictTargetFailed     = "target-failed"
-	CandidateVerdictControlsFailed   = "controls-failed"
-	CandidateVerdictResourceUnsafe   = "resource-unsafe"
-	CandidateVerdictDiscoveryViable  = "discovery-viable"
+	CandidateVerdictIncomplete      = "incomplete-evidence"
+	CandidateVerdictTargetFailed    = "target-failed"
+	CandidateVerdictControlsFailed  = "controls-failed"
+	CandidateVerdictResourceUnsafe  = "resource-unsafe"
+	CandidateVerdictDiscoveryViable = "discovery-viable"
 )
 
 // CandidateEvaluation is an AFS projection of the existing adaptive matrix.
 // Fitness is the mean of the matrix's already-computed ScoreOutcome values;
 // this type does not introduce a second scoring pipeline.
 type CandidateEvaluation struct {
-	CandidateID     string                   `json:"candidate_id"`
-	Scope           monitor.MonitorScopeKey  `json:"scope"`
-	TestSessionID   string                   `json:"test_session_id"`
-	TargetOutcomes  []ProbeOutcome           `json:"target_outcomes"`
-	ControlOutcomes []ProbeOutcome           `json:"control_outcomes"`
-	AndroidCanary   *ProbeOutcome            `json:"android_canary,omitempty"`
+	CandidateID     string                  `json:"candidate_id"`
+	Scope           monitor.MonitorScopeKey `json:"scope"`
+	TestSessionID   string                  `json:"test_session_id"`
+	TargetOutcomes  []ProbeOutcome          `json:"target_outcomes"`
+	ControlOutcomes []ProbeOutcome          `json:"control_outcomes"`
+	AndroidCanary   *ProbeOutcome           `json:"android_canary,omitempty"`
 
 	StabilityScore  float64 `json:"stability_score"`
 	LatencyScore    float64 `json:"latency_score"`
@@ -36,6 +36,12 @@ type CandidateEvaluation struct {
 	EvidenceRefs []string `json:"evidence_refs,omitempty"`
 }
 
+type candidateGroupedSample struct {
+	profile string
+	role    string
+	sample  MatrixSample
+}
+
 // EvaluateSynthesizedCandidate groups only samples produced for the exact
 // synthesized CandidateID. Target/control role lists are supplied by the AFS
 // request, while all numeric fitness comes from the existing MatrixSample.Score.
@@ -44,6 +50,7 @@ func EvaluateSynthesizedCandidate(
 	candidate SynthesizedCandidatePlan,
 	run AdaptiveRunResult,
 	targetProfiles, sameServiceControls, unrelatedControls []string,
+	maxAmplification float64,
 ) CandidateEvaluation {
 	evaluation := CandidateEvaluation{
 		CandidateID:   candidate.CandidateID,
@@ -60,21 +67,16 @@ func EvaluateSynthesizedCandidate(
 	for _, profile := range unrelatedControls {
 		role[profile] = "unrelated-control"
 	}
-
-	type groupedSample struct {
-		profile string
-		role    string
-		sample  MatrixSample
-	}
-	grouped := make([]groupedSample, 0)
-	var scoreSum float64
-	var scoreCount int
-	var latencySum time.Duration
-	var amplificationSafe, controlAvailable, controlSamples int
-	maxAmplification := candidate.StaticCost.Amplification
 	if maxAmplification <= 0 {
 		maxAmplification = 1.5
 	}
+
+	grouped := make([]candidateGroupedSample, 0)
+	var scoreSum float64
+	var scoreCount int
+	var latencySum time.Duration
+	var latencySamples int
+	var amplificationSafe, controlAvailable, controlSamples int
 	for _, sample := range run.Matrix.Samples {
 		if sample.Variant.StrategyID != candidate.CandidateID {
 			continue
@@ -83,11 +85,12 @@ func EvaluateSynthesizedCandidate(
 		if !ok {
 			continue
 		}
-		grouped = append(grouped, groupedSample{profile: sample.Variant.TargetProfile, role: kind, sample: sample})
+		grouped = append(grouped, candidateGroupedSample{profile: sample.Variant.TargetProfile, role: kind, sample: sample})
 		scoreSum += sample.Score
 		scoreCount++
 		if sample.Outcome.TTFB > 0 {
 			latencySum += sample.Outcome.TTFB
+			latencySamples++
 		}
 		if sample.Outcome.PacketAmplification <= 0 || sample.Outcome.PacketAmplification <= maxAmplification {
 			amplificationSafe++
@@ -111,8 +114,8 @@ func EvaluateSynthesizedCandidate(
 	if controlSamples > 0 {
 		evaluation.CollateralScore = float64(controlAvailable) / float64(controlSamples)
 	}
-	if latencySum > 0 {
-		avgMS := float64(latencySum.Microseconds()) / 1000 / float64(scoreCount)
+	if latencySamples > 0 {
+		avgMS := float64(latencySum.Microseconds()) / 1000 / float64(latencySamples)
 		evaluation.LatencyScore = 1 / (1 + avgMS)
 	}
 
@@ -147,11 +150,7 @@ func EvaluateSynthesizedCandidate(
 	return evaluation
 }
 
-func availableCount(samples []struct {
-	profile string
-	role    string
-	sample  MatrixSample
-}, profile string) int {
+func availableCount(samples []candidateGroupedSample, profile string) int {
 	count := 0
 	for _, grouped := range samples {
 		if grouped.profile == profile && grouped.sample.Outcome.Verdict == DiagnosticAvailable {
@@ -161,11 +160,7 @@ func availableCount(samples []struct {
 	return count
 }
 
-func profilesStable(samples []struct {
-	profile string
-	role    string
-	sample  MatrixSample
-}, profiles []string, required int) bool {
+func profilesStable(samples []candidateGroupedSample, profiles []string, required int) bool {
 	if len(profiles) == 0 || required <= 0 {
 		return false
 	}
@@ -177,11 +172,7 @@ func profilesStable(samples []struct {
 	return true
 }
 
-func candidateEvaluationRefs(runID string, samples []struct {
-	profile string
-	role    string
-	sample  MatrixSample
-}) []string {
+func candidateEvaluationRefs(runID string, samples []candidateGroupedSample) []string {
 	refs := make([]string, 0, len(samples))
 	seen := map[string]struct{}{}
 	for _, grouped := range samples {
