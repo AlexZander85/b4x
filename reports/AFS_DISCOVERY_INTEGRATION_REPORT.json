@@ -1,0 +1,38 @@
+{
+  "schema": "afs-discovery-integration-report-v1",
+  "status": "LAB_VALIDATED",
+  "validated_ci_run": 35085703795,
+  "integration": {
+    "guided_search_plan_has_synthesized_refs": true,
+    "catalog_and_synthesized_share_adaptive_matrix": true,
+    "shared_score_outcome": true,
+    "mandatory_baselines_preserved": true,
+    "target_same_service_and_unrelated_controls_required": true,
+    "direct_apply_allowed": false,
+    "transactional_promotion_external": true
+  },
+  "compatibility": {
+    "ordinary_fb24_adaptive_runtime_preserved": true,
+    "afs_behavioral_prior_required_only_on_synthesized_path": true,
+    "existing_discovery_probe_budget_reused": true
+  },
+  "probe_accounting": {
+    "rule": "both mandatory baselines and every target/control profile consume SamplesPerVariant from the existing Discovery budget",
+    "stable_success_example": {
+      "samples_per_variant": 2,
+      "baseline_variants": 2,
+      "target_control_profiles": 3,
+      "minimum_probes": 10
+    },
+    "under_reservation_rejected": true
+  },
+  "tests": {
+    "gofmt": "PASS",
+    "config": "PASS",
+    "detector": "PASS",
+    "discovery": "PASS",
+    "observability": "PASS",
+    "runtimecontrol": "PASS"
+  },
+  "release_note": "No real-target effectiveness claim is made by this integration report."
+}
