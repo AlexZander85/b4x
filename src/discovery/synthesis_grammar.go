@@ -76,7 +76,9 @@ func AutomaticStrategyGrammarV1() StrategyGrammar {
 
 func (g StrategyGrammar) Operator(family detector.StrategyOperatorFamily) (OperatorDefinition, bool) {
 	for _, op := range g.Operators {
-		if op.Family == family { return op, true }
+		if op.Family == family {
+			return op, true
+		}
 	}
 	return OperatorDefinition{}, false
 }
@@ -87,15 +89,23 @@ func (g StrategyGrammar) Validate() error {
 	}
 	seen := map[detector.StrategyOperatorFamily]struct{}{}
 	for _, op := range g.Operators {
-		if op.Family == "" || op.Compiler == "" { return errors.New("grammar operator is incomplete") }
-		if _, ok := seen[op.Family]; ok { return fmt.Errorf("duplicate grammar operator %q", op.Family) }
+		if op.Family == "" || op.Compiler == "" {
+			return errors.New("grammar operator is incomplete")
+		}
+		if _, ok := seen[op.Family]; ok {
+			return fmt.Errorf("duplicate grammar operator %q", op.Family)
+		}
 		seen[op.Family] = struct{}{}
 		for name, values := range op.ParameterDomain {
-			if name == "" || len(values) == 0 { return fmt.Errorf("operator %q has empty parameter domain", op.Family) }
+			if name == "" || len(values) == 0 {
+				return fmt.Errorf("operator %q has empty parameter domain", op.Family)
+			}
 			copyValues := append([]string(nil), values...)
 			sort.Strings(copyValues)
 			for i := 1; i < len(copyValues); i++ {
-				if copyValues[i] == copyValues[i-1] { return fmt.Errorf("operator %q domain %q contains duplicates", op.Family, name) }
+				if copyValues[i] == copyValues[i-1] {
+					return fmt.Errorf("operator %q domain %q contains duplicates", op.Family, name)
+				}
 			}
 		}
 	}
@@ -104,41 +114,70 @@ func (g StrategyGrammar) Validate() error {
 
 func (g StrategyGrammar) ValidateOperation(operation CandidateOperation, automatic bool) error {
 	definition, ok := g.Operator(operation.Family)
-	if !ok { return fmt.Errorf("operator %q is not registered", operation.Family) }
-	if automatic && !definition.AutomaticSafe { return fmt.Errorf("operator %q has no automatic ActionPlanner bridge", operation.Family) }
+	if !ok {
+		return fmt.Errorf("operator %q is not registered", operation.Family)
+	}
+	if automatic && !definition.AutomaticSafe {
+		return fmt.Errorf("operator %q has no automatic ActionPlanner bridge", operation.Family)
+	}
 	external := make(map[string]struct{}, len(definition.ExternalParams))
-	for _, name := range definition.ExternalParams { external[name] = struct{}{} }
+	for _, name := range definition.ExternalParams {
+		external[name] = struct{}{}
+	}
 	for name, value := range operation.Params {
 		values, known := definition.ParameterDomain[name]
 		if !known {
-			if _, ok := external[name]; ok && value != "" { continue }
+			if _, ok := external[name]; ok && value != "" {
+				continue
+			}
 			return fmt.Errorf("operator %q parameter %q is not registered", operation.Family, name)
 		}
 		matched := false
-		for _, allowed := range values { if value == allowed { matched = true; break } }
-		if !matched { return fmt.Errorf("operator %q parameter %q value %q is outside finite domain", operation.Family, name, value) }
+		for _, allowed := range values {
+			if value == allowed {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return fmt.Errorf("operator %q parameter %q value %q is outside finite domain", operation.Family, name, value)
+		}
 	}
 	for name := range definition.ParameterDomain {
-		if _, ok := operation.Params[name]; !ok { return fmt.Errorf("operator %q parameter %q is required", operation.Family, name) }
+		if _, ok := operation.Params[name]; !ok {
+			return fmt.Errorf("operator %q parameter %q is required", operation.Family, name)
+		}
 	}
 	for _, name := range definition.ExternalParams {
-		if operation.Params[name] == "" { return fmt.Errorf("operator %q external parameter %q is required", operation.Family, name) }
+		if operation.Params[name] == "" {
+			return fmt.Errorf("operator %q external parameter %q is required", operation.Family, name)
+		}
 	}
 	return nil
 }
 
 func (g StrategyGrammar) TriggerAllowed(trigger CandidateTrigger) bool {
 	for _, domain := range g.TriggerDomains {
-		if trigger.Phase != domain.Phase { continue }
-		if trigger.Marker == "" { return true }
-		for _, marker := range domain.Markers { if trigger.Marker == marker { return true } }
+		if trigger.Phase != domain.Phase {
+			continue
+		}
+		if trigger.Marker == "" {
+			return true
+		}
+		for _, marker := range domain.Markers {
+			if trigger.Marker == marker {
+				return true
+			}
+		}
 	}
 	return false
 }
 
 func representationAllowed(required action.PacketRepresentation, supported []action.PacketRepresentation) bool {
 	for _, v := range supported {
-		if required == v || required == action.RepresentationAny { return true }
+		if required == v || required == action.RepresentationAny {
+			return true
+		}
 	}
 	return false
 }

@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	discoveryHistoryFile             = "discovery_history.json"
-	maxHistoryEntries                = 100
-	maxSynthesizedWinnerEntries      = 64
-	maxSynthesizedWinnersPerScope    = 4
+	discoveryHistoryFile          = "discovery_history.json"
+	maxHistoryEntries             = 100
+	maxSynthesizedWinnerEntries   = 64
+	maxSynthesizedWinnersPerScope = 4
 )
 
 // HistoryEntry represents a completed discovery result for a single domain.
@@ -74,14 +74,14 @@ func (k SynthesizedWinnerCompatibilityKey) ExactMatch(other SynthesizedWinnerCom
 }
 
 type SynthesizedWinnerRecord struct {
-	Compatibility   SynthesizedWinnerCompatibilityKey `json:"compatibility"`
-	Candidate       SynthesizedCandidatePlan           `json:"candidate"`
-	EvidenceRefs    []string                           `json:"evidence_refs"`
-	PromotedAt      time.Time                          `json:"promoted_at"`
-	ExpiresAt       time.Time                          `json:"expires_at"`
-	RevalidateAt    time.Time                          `json:"revalidate_at"`
-	QuarantinedAt   time.Time                          `json:"quarantined_at,omitempty"`
-	QuarantineReason string                             `json:"quarantine_reason,omitempty"`
+	Compatibility    SynthesizedWinnerCompatibilityKey `json:"compatibility"`
+	Candidate        SynthesizedCandidatePlan          `json:"candidate"`
+	EvidenceRefs     []string                          `json:"evidence_refs"`
+	PromotedAt       time.Time                         `json:"promoted_at"`
+	ExpiresAt        time.Time                         `json:"expires_at"`
+	RevalidateAt     time.Time                         `json:"revalidate_at"`
+	QuarantinedAt    time.Time                         `json:"quarantined_at,omitempty"`
+	QuarantineReason string                            `json:"quarantine_reason,omitempty"`
 }
 
 // Valid validates persistence integrity. Quarantine is intentionally not an
@@ -102,7 +102,7 @@ func (r SynthesizedWinnerRecord) NeedsRevalidation(now time.Time) bool {
 type DiscoveryHistory struct {
 	Entries            []HistoryEntry            `json:"entries"`
 	SynthesizedWinners []SynthesizedWinnerRecord `json:"synthesized_winners,omitempty"`
-	mu                 sync.Mutex                 `json:"-"`
+	mu                 sync.Mutex                `json:"-"`
 }
 
 func historyFilePath(configPath string) string {

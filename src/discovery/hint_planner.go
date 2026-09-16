@@ -75,10 +75,18 @@ func CompileHintPlanWithSynthesized(prior detector.DiscoverySearchPrior, current
 
 func MergeSynthesizedCandidates(plan GuidedSearchPlan, synthesized []string) GuidedSearchPlan {
 	seen := make(map[string]struct{}, len(plan.Ordered)+len(synthesized))
-	for _, id := range plan.Ordered { if id != "" { seen[id] = struct{}{} } }
+	for _, id := range plan.Ordered {
+		if id != "" {
+			seen[id] = struct{}{}
+		}
+	}
 	for _, id := range synthesized {
-		if id == "" { continue }
-		if _, exists := seen[id]; exists { continue }
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
 		seen[id] = struct{}{}
 		plan.SynthesizedCandidates = append(plan.SynthesizedCandidates, id)
 		plan.Ordered = append(plan.Ordered, id)

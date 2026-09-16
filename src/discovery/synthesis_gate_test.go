@@ -52,17 +52,17 @@ func validSynthesisGateInput(t *testing.T, now time.Time) SynthesisGateInput {
 		detector.BehaviorOutcomeOK,
 	)
 	attempt := detector.BehaviorAttemptSummary{
-		ProbeID:            "probe-a",
-		Attempt:            1,
-		OperatorFamily:     detector.OperatorTCPSplit,
-		ReferenceBaseline:  detector.BehaviorOutcomeOK,
-		TargetBaseline:     detector.BehaviorOutcomeFail,
-		ReferenceMutated:   detector.BehaviorOutcomeOK,
-		TargetMutated:      detector.BehaviorOutcomeOK,
-		Interpretation:     interpretation,
-		Conclusive:         conclusive,
-		ObservedAt:         now,
-		EvidenceRefs:       []string{"probe-a/r1", "probe-a/r2", "probe-a/r3", "probe-a/r4"},
+		ProbeID:           "probe-a",
+		Attempt:           1,
+		OperatorFamily:    detector.OperatorTCPSplit,
+		ReferenceBaseline: detector.BehaviorOutcomeOK,
+		TargetBaseline:    detector.BehaviorOutcomeFail,
+		ReferenceMutated:  detector.BehaviorOutcomeOK,
+		TargetMutated:     detector.BehaviorOutcomeOK,
+		Interpretation:    interpretation,
+		Conclusive:        conclusive,
+		ObservedAt:        now,
+		EvidenceRefs:      []string{"probe-a/r1", "probe-a/r2", "probe-a/r3", "probe-a/r4"},
 	}
 	feature := detector.BehaviorFeature{
 		FeatureID:    "tcp-split-sensitive",

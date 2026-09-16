@@ -24,7 +24,7 @@ type SynthesizedDiscoveryRequest struct {
 	Authority           string
 	Hints               []SearchHint
 	BaselineStrategyID  string
-	Axes                 []VariantAxis
+	Axes                []VariantAxis
 	ShadowVariants      []DiscoveryVariant
 }
 
@@ -95,7 +95,7 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	adaptive := AdaptiveRunRequest{
 		Profile: req.Gate.Profile, Prior: req.Gate.Prior, Targets: allProfiles,
 		EligibilityCandidates: []string{req.Candidate.CandidateID},
-		FailureFamily: req.FailureFamily, Authority: req.Authority, Hints: append([]SearchHint(nil), req.Hints...),
+		FailureFamily:         req.FailureFamily, Authority: req.Authority, Hints: append([]SearchHint(nil), req.Hints...),
 		BaselineStrategyID: req.BaselineStrategyID, Candidate: candidate, Axes: append([]VariantAxis(nil), req.Axes...),
 		ShadowVariants: append([]DiscoveryVariant(nil), req.ShadowVariants...),
 	}
@@ -168,8 +168,14 @@ func synthesisEvaluationProfiles(targets, sameServiceControls, unrelatedControls
 		}
 		return nil
 	}
-	if err := appendRole("target", targets); err != nil { return nil, err }
-	if err := appendRole("same-service-control", sameServiceControls); err != nil { return nil, err }
-	if err := appendRole("unrelated-control", unrelatedControls); err != nil { return nil, err }
+	if err := appendRole("target", targets); err != nil {
+		return nil, err
+	}
+	if err := appendRole("same-service-control", sameServiceControls); err != nil {
+		return nil, err
+	}
+	if err := appendRole("unrelated-control", unrelatedControls); err != nil {
+		return nil, err
+	}
 	return out, nil
 }

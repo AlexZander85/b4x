@@ -12,24 +12,24 @@ import (
 // runtime path. It is evidence/gating metadata only: runtimecontrol still owns
 // the single Prepare -> Canary -> Promote/Rollback implementation.
 type SynthesizedPromotionProof struct {
-	CandidateID       string `json:"candidate_id"`
-	ServiceProfileID  string `json:"service_profile_id"`
-	ComponentID       string `json:"component_id"`
-	SourceClientRole  string `json:"source_client_role"` // forwarded | router-origin
+	CandidateID      string `json:"candidate_id"`
+	ServiceProfileID string `json:"service_profile_id"`
+	ComponentID      string `json:"component_id"`
+	SourceClientRole string `json:"source_client_role"` // forwarded | router-origin
 
-	CandidateConfigGeneration   uint64 `json:"candidate_config_generation"`
-	CurrentConfigGeneration     uint64 `json:"current_config_generation"`
-	ActionAuthorizationID       string `json:"action_authorization_id"`
-	AuthorizationConfigGeneration uint64 `json:"authorization_config_generation"`
-	AuthorizationValidUntil     time.Time `json:"authorization_valid_until"`
+	CandidateConfigGeneration     uint64    `json:"candidate_config_generation"`
+	CurrentConfigGeneration       uint64    `json:"current_config_generation"`
+	ActionAuthorizationID         string    `json:"action_authorization_id"`
+	AuthorizationConfigGeneration uint64    `json:"authorization_config_generation"`
+	AuthorizationValidUntil       time.Time `json:"authorization_valid_until"`
 
-	TargetEvidenceRefs          []string `json:"target_evidence_refs"`
-	SameServiceControlRefs      []string `json:"same_service_control_refs"`
-	UnrelatedControlRefs        []string `json:"unrelated_control_refs"`
+	TargetEvidenceRefs     []string `json:"target_evidence_refs"`
+	SameServiceControlRefs []string `json:"same_service_control_refs"`
+	UnrelatedControlRefs   []string `json:"unrelated_control_refs"`
 
-	RollbackReady          bool `json:"rollback_ready"`
-	CleanupReady           bool `json:"cleanup_ready"`
-	StableObservationReady bool `json:"stable_observation_ready"`
+	RollbackReady          bool      `json:"rollback_ready"`
+	CleanupReady           bool      `json:"cleanup_ready"`
+	StableObservationReady bool      `json:"stable_observation_ready"`
 	CheckedAt              time.Time `json:"checked_at"`
 	ValidUntil             time.Time `json:"valid_until"`
 }

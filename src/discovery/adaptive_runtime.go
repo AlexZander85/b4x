@@ -13,17 +13,17 @@ import (
 )
 
 type AdaptiveRunRequest struct {
-	Profile                NetworkDiagnosticProfile
-	Prior                  detector.DiscoverySearchPrior
-	Targets                []string
-	EligibilityCandidates  []string
-	FailureFamily          string
-	Authority              string
-	Hints                   []SearchHint
-	BaselineStrategyID      string
-	Candidate               DiscoveryVariant
-	Axes                    []VariantAxis
-	ShadowVariants          []DiscoveryVariant
+	Profile               NetworkDiagnosticProfile
+	Prior                 detector.DiscoverySearchPrior
+	Targets               []string
+	EligibilityCandidates []string
+	FailureFamily         string
+	Authority             string
+	Hints                 []SearchHint
+	BaselineStrategyID    string
+	Candidate             DiscoveryVariant
+	Axes                  []VariantAxis
+	ShadowVariants        []DiscoveryVariant
 }
 
 type AdaptiveRunResult struct {

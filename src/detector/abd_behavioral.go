@@ -90,8 +90,8 @@ type BehavioralFingerprintEvidence struct {
 	PanelHash           string
 	FeatureVectorHash   string
 
-	Features  []BehaviorFeature
-	Attempts  []BehaviorAttemptSummary
+	Features   []BehaviorFeature
+	Attempts   []BehaviorAttemptSummary
 	Confidence float64
 	NoiseScore float64
 

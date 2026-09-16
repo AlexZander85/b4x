@@ -17,27 +17,39 @@ type SynthesisRunStore struct {
 }
 
 func NewSynthesisRunStore(requestID string, maxEntries int) *SynthesisRunStore {
-	if maxEntries <= 0 { maxEntries = int(DefaultSynthesisLimits().MaxCandidates) }
+	if maxEntries <= 0 {
+		maxEntries = int(DefaultSynthesisLimits().MaxCandidates)
+	}
 	return &SynthesisRunStore{requestID: requestID, maxEntries: maxEntries, plans: make(map[string]SynthesizedCandidatePlan)}
 }
 
 func (s *SynthesisRunStore) Put(plan SynthesizedCandidatePlan) error {
-	if s == nil || s.requestID == "" { return errors.New("synthesis run store unavailable") }
-	if !plan.ValidIdentity() { return errors.New("invalid synthesized candidate identity") }
+	if s == nil || s.requestID == "" {
+		return errors.New("synthesis run store unavailable")
+	}
+	if !plan.ValidIdentity() {
+		return errors.New("invalid synthesized candidate identity")
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if existing, ok := s.plans[plan.CandidateID]; ok {
-		if existing.CanonicalHash != plan.CanonicalHash { return errors.New("candidate identity collision") }
+		if existing.CanonicalHash != plan.CanonicalHash {
+			return errors.New("candidate identity collision")
+		}
 		return nil
 	}
-	if len(s.plans) >= s.maxEntries { return errors.New("synthesis run store bound reached") }
+	if len(s.plans) >= s.maxEntries {
+		return errors.New("synthesis run store bound reached")
+	}
 	s.plans[plan.CandidateID] = plan
 	s.order = append(s.order, plan.CandidateID)
 	return nil
 }
 
 func (s *SynthesisRunStore) Get(candidateID string) (SynthesizedCandidatePlan, bool) {
-	if s == nil { return SynthesizedCandidatePlan{}, false }
+	if s == nil {
+		return SynthesizedCandidatePlan{}, false
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	plan, ok := s.plans[candidateID]
@@ -45,16 +57,22 @@ func (s *SynthesisRunStore) Get(candidateID string) (SynthesizedCandidatePlan, b
 }
 
 func (s *SynthesisRunStore) IDs() []string {
-	if s == nil { return nil }
+	if s == nil {
+		return nil
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return append([]string(nil), s.order...)
 }
 
 func (s *SynthesisRunStore) Close() {
-	if s == nil { return }
+	if s == nil {
+		return
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for k := range s.plans { delete(s.plans, k) }
+	for k := range s.plans {
+		delete(s.plans, k)
+	}
 	s.order = nil
 }

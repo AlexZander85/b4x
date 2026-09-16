@@ -42,7 +42,7 @@ func synthesisFitnessRun(candidate SynthesizedCandidatePlan, outcomes map[string
 			Variant: DiscoveryVariant{Mode: SandboxCandidate, StrategyID: candidate.CandidateID, TargetProfile: profile, Complexity: uint8(len(candidate.Operations))},
 			Attempt: 1,
 			Outcome: outcome,
-			Score: ScoreOutcome(outcome, uint8(len(candidate.Operations)), DefaultScoreWeights()),
+			Score:   ScoreOutcome(outcome, uint8(len(candidate.Operations)), DefaultScoreWeights()),
 		})
 	}
 	return AdaptiveRunResult{RunID: "afs-eval", Policy: AdaptivePolicy{StableSuccesses: 1}, Matrix: MatrixResult{Samples: samples}}

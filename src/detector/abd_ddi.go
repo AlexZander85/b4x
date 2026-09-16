@@ -21,19 +21,19 @@ func (e NetworkDiagnosticProfileEnvelope) Fresh(now time.Time) bool {
 }
 
 type DiscoverySearchPrior struct {
-	Scope                 monitor.MonitorScopeKey
-	ProfileID             string
-	BehavioralEvidenceID  string
-	Hypotheses            []string
-	TargetOrder           []string
-	ExcludedTargets       []string
-	SupportedOperators    []StrategyOperatorFamily
-	PenalizedOperators    []StrategyOperatorFamily
-	ExcludedOperators     []StrategyOperatorFamily
-	CoverageDenominator   int
-	MandatoryBaselines    []string
-	Applied               bool
-	Explanation           string
+	Scope                monitor.MonitorScopeKey
+	ProfileID            string
+	BehavioralEvidenceID string
+	Hypotheses           []string
+	TargetOrder          []string
+	ExcludedTargets      []string
+	SupportedOperators   []StrategyOperatorFamily
+	PenalizedOperators   []StrategyOperatorFamily
+	ExcludedOperators    []StrategyOperatorFamily
+	CoverageDenominator  int
+	MandatoryBaselines   []string
+	Applied              bool
+	Explanation          string
 }
 
 func (p DiscoverySearchPrior) Valid() bool {

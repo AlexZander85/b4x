@@ -11,33 +11,33 @@ import (
 )
 
 type BoundedSynthesisSearchRequest struct {
-	Gate                SynthesisGateInput
-	Synthesis           SynthesisRequest
-	Store               *SynthesisRunStore
-	ActionContext       SynthesisActionContext
-	Targets             []string
-	SameServiceControls []string
-	UnrelatedControls   []string
-	FailureFamily       string
-	Authority           string
-	Hints               []SearchHint
-	BaselineStrategyID  string
-	Axes                []VariantAxis
-	ShadowVariants      []DiscoveryVariant
+	Gate                    SynthesisGateInput
+	Synthesis               SynthesisRequest
+	Store                   *SynthesisRunStore
+	ActionContext           SynthesisActionContext
+	Targets                 []string
+	SameServiceControls     []string
+	UnrelatedControls       []string
+	FailureFamily           string
+	Authority               string
+	Hints                   []SearchHint
+	BaselineStrategyID      string
+	Axes                    []VariantAxis
+	ShadowVariants          []DiscoveryVariant
 	ExistingCanonicalHashes map[string]struct{}
 }
 
 type BoundedSynthesisSearchResult struct {
-	RequestID       string                          `json:"request_id"`
-	Evaluations     []CandidateEvaluation           `json:"evaluations"`
-	TestedCandidates []string                       `json:"tested_candidates"`
-	BestCandidateID string                          `json:"best_candidate_id,omitempty"`
-	ViableCandidate *SynthesizedCandidatePlan       `json:"viable_candidate,omitempty"`
-	ProbesUsed      int                             `json:"probes_used"`
-	Generated       int                             `json:"generated"`
-	Rejected        map[string]string               `json:"rejected,omitempty"`
-	StopReason      string                          `json:"stop_reason"`
-	Applied         bool                            `json:"applied"`
+	RequestID        string                    `json:"request_id"`
+	Evaluations      []CandidateEvaluation     `json:"evaluations"`
+	TestedCandidates []string                  `json:"tested_candidates"`
+	BestCandidateID  string                    `json:"best_candidate_id,omitempty"`
+	ViableCandidate  *SynthesizedCandidatePlan `json:"viable_candidate,omitempty"`
+	ProbesUsed       int                       `json:"probes_used"`
+	Generated        int                       `json:"generated"`
+	Rejected         map[string]string         `json:"rejected,omitempty"`
+	StopReason       string                    `json:"stop_reason"`
+	Applied          bool                      `json:"applied"`
 }
 
 type measuredSynthesisCandidate struct {

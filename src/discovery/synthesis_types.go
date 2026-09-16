@@ -36,28 +36,38 @@ func DefaultSynthesisLimits() SynthesisLimits {
 
 func (l SynthesisLimits) normalized() SynthesisLimits {
 	d := DefaultSynthesisLimits()
-	if l.MaxCandidates == 0 { l.MaxCandidates = d.MaxCandidates }
-	if l.MaxGenerations == 0 { l.MaxGenerations = d.MaxGenerations }
-	if l.MaxActions == 0 { l.MaxActions = d.MaxActions }
-	if l.MaxBranches == 0 { l.MaxBranches = d.MaxBranches }
-	if l.MaxAmplification == 0 { l.MaxAmplification = d.MaxAmplification }
+	if l.MaxCandidates == 0 {
+		l.MaxCandidates = d.MaxCandidates
+	}
+	if l.MaxGenerations == 0 {
+		l.MaxGenerations = d.MaxGenerations
+	}
+	if l.MaxActions == 0 {
+		l.MaxActions = d.MaxActions
+	}
+	if l.MaxBranches == 0 {
+		l.MaxBranches = d.MaxBranches
+	}
+	if l.MaxAmplification == 0 {
+		l.MaxAmplification = d.MaxAmplification
+	}
 	return l
 }
 
 type SynthesisRequest struct {
-	RequestID              string
-	Scope                  monitor.MonitorScopeKey
-	ConfigGeneration       uint64
-	BlockingProfileID      string
-	BehavioralEvidenceID   string
-	FailedCandidateIDs     []string
-	BaselineCandidateIDs   []string
-	AllowedGrammarVersion  string
-	ResourceBudget         AdaptivePolicy
-	Limits                 SynthesisLimits
-	RequestedAt            time.Time
-	ExpiresAt              time.Time
-	DeterministicSeed      int64
+	RequestID             string
+	Scope                 monitor.MonitorScopeKey
+	ConfigGeneration      uint64
+	BlockingProfileID     string
+	BehavioralEvidenceID  string
+	FailedCandidateIDs    []string
+	BaselineCandidateIDs  []string
+	AllowedGrammarVersion string
+	ResourceBudget        AdaptivePolicy
+	Limits                SynthesisLimits
+	RequestedAt           time.Time
+	ExpiresAt             time.Time
+	DeterministicSeed     int64
 }
 
 func (r SynthesisRequest) Valid(now time.Time) bool {
@@ -140,29 +150,39 @@ func CanonicalCandidateHash(grammar string, trigger CandidateTrigger, operations
 	}
 	canonical := make([]canonicalOperation, 0, len(operations))
 	for _, op := range operations {
-		if op.Family == "" { return "", errors.New("operator family required") }
+		if op.Family == "" {
+			return "", errors.New("operator family required")
+		}
 		keys := make([]string, 0, len(op.Params))
-		for k := range op.Params { keys = append(keys, k) }
+		for k := range op.Params {
+			keys = append(keys, k)
+		}
 		sort.Strings(keys)
 		pairs := make([][2]string, 0, len(keys))
-		for _, k := range keys { pairs = append(pairs, [2]string{k, op.Params[k]}) }
+		for _, k := range keys {
+			pairs = append(pairs, [2]string{k, op.Params[k]})
+		}
 		canonical = append(canonical, canonicalOperation{Family: op.Family, Params: pairs})
 	}
 	payload := struct {
-		Grammar        string                  `json:"grammar"`
-		Trigger        CandidateTrigger        `json:"trigger"`
-		Operations     []canonicalOperation    `json:"operations"`
+		Grammar        string                      `json:"grammar"`
+		Trigger        CandidateTrigger            `json:"trigger"`
+		Operations     []canonicalOperation        `json:"operations"`
 		Representation action.PacketRepresentation `json:"representation"`
 	}{grammar, trigger, canonical, representation}
 	raw, err := json.Marshal(payload)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:]), nil
 }
 
 func newSynthesizedCandidate(req SynthesisRequest, generation uint8, parents []string, trigger CandidateTrigger, operations []CandidateOperation, representation action.PacketRepresentation, preconditions []string, cost CandidateCost, risk CandidateRisk, trace []string, now time.Time) (SynthesizedCandidatePlan, error) {
 	hash, err := CanonicalCandidateHash(req.AllowedGrammarVersion, trigger, operations, representation)
-	if err != nil { return SynthesizedCandidatePlan{}, err }
+	if err != nil {
+		return SynthesizedCandidatePlan{}, err
+	}
 	parents = stableUniqueStrings(parents)
 	preconditions = stableUniqueStrings(preconditions)
 	trace = append([]string(nil), trace...)
@@ -171,7 +191,7 @@ func newSynthesizedCandidate(req SynthesisRequest, generation uint8, parents []s
 		ParentIDs: parents, Generation: generation, Trigger: trigger, Operations: cloneCandidateOperations(operations), Representation: representation,
 		Preconditions: preconditions, StaticCost: cost, Risk: risk, CanonicalHash: hash,
 		Provenance: CandidateProvenance{Kind: SynthesisProvenanceKind, FingerprintEvidenceID: req.BehavioralEvidenceID, BlockingProfileID: req.BlockingProfileID, SeedIDs: parents, MutationTrace: trace, SynthesizerVersion: SynthesisEngineVersion},
-		CreatedAt: now,
+		CreatedAt:  now,
 	}, nil
 }
 
@@ -181,7 +201,9 @@ func cloneCandidateOperations(in []CandidateOperation) []CandidateOperation {
 		out[i].Family = op.Family
 		if op.Params != nil {
 			out[i].Params = make(map[string]string, len(op.Params))
-			for k, v := range op.Params { out[i].Params[k] = v }
+			for k, v := range op.Params {
+				out[i].Params[k] = v
+			}
 		}
 	}
 	return out
@@ -191,8 +213,12 @@ func stableUniqueStrings(in []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(in))
 	for _, v := range in {
-		if v == "" { continue }
-		if _, ok := seen[v]; ok { continue }
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
 		seen[v] = struct{}{}
 		out = append(out, v)
 	}

@@ -21,17 +21,17 @@ func synthesisSearchRequest(t *testing.T, now time.Time) (*config.Config, Bounde
 	cfg.System.Classifier.Runtime.Discovery.MaxConcurrency = 1
 
 	synthesis := SynthesisRequest{
-		RequestID:              "afs-search-a",
-		Scope:                  gate.Profile.Scope,
-		ConfigGeneration:       gate.Profile.Scope.ConfigGeneration,
-		BlockingProfileID:      gate.Profile.ProfileID,
-		BehavioralEvidenceID:   gate.Prior.BehavioralEvidenceID,
-		BaselineCandidateIDs:   []string{"baseline-none", "baseline-production"},
-		AllowedGrammarVersion:  SynthesisGrammarV1,
-		Limits:                 DefaultSynthesisLimits(),
-		RequestedAt:            now,
-		ExpiresAt:              now.Add(time.Minute),
-		DeterministicSeed:      77,
+		RequestID:             "afs-search-a",
+		Scope:                 gate.Profile.Scope,
+		ConfigGeneration:      gate.Profile.Scope.ConfigGeneration,
+		BlockingProfileID:     gate.Profile.ProfileID,
+		BehavioralEvidenceID:  gate.Prior.BehavioralEvidenceID,
+		BaselineCandidateIDs:  []string{"baseline-none", "baseline-production"},
+		AllowedGrammarVersion: SynthesisGrammarV1,
+		Limits:                DefaultSynthesisLimits(),
+		RequestedAt:           now,
+		ExpiresAt:             now.Add(time.Minute),
+		DeterministicSeed:     77,
 	}
 	payload := []byte{
 		0x16, 0x03, 0x03, 0x00, 0x08,
@@ -61,14 +61,14 @@ func synthesisSearchRequest(t *testing.T, now time.Time) (*config.Config, Bounde
 	}
 	request := BoundedSynthesisSearchRequest{
 		Gate: gate, Synthesis: synthesis,
-		Store: NewSynthesisRunStore(synthesis.RequestID, int(synthesis.Limits.MaxCandidates)),
-		ActionContext: actionContext,
-		Targets: []string{"target"},
+		Store:               NewSynthesisRunStore(synthesis.RequestID, int(synthesis.Limits.MaxCandidates)),
+		ActionContext:       actionContext,
+		Targets:             []string{"target"},
 		SameServiceControls: []string{"same-control"},
-		UnrelatedControls: []string{"unrelated-control"},
-		FailureFamily: "tls_fingerprint_specific",
-		Authority: "authoritative-abd",
-		BaselineStrategyID: "baseline-production",
+		UnrelatedControls:   []string{"unrelated-control"},
+		FailureFamily:       "tls_fingerprint_specific",
+		Authority:           "authoritative-abd",
+		BaselineStrategyID:  "baseline-production",
 	}
 	return &cfg, request
 }

@@ -44,12 +44,18 @@ type CompiledSynthesizedAction struct {
 // configuration. Callers still own ActionAuthorization, canary and rollout.
 func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx SynthesisActionContext) (CompiledSynthesizedAction, error) {
 	out := CompiledSynthesizedAction{CandidateID: candidate.CandidateID, DryRun: ctx.Input.DryRun}
-	if !candidate.ValidIdentity() { return out, errors.New("invalid synthesized candidate identity") }
+	if !candidate.ValidIdentity() {
+		return out, errors.New("invalid synthesized candidate identity")
+	}
 	if ctx.ConfigGen == 0 || ctx.ConfigGen != candidate.ConfigGeneration || ctx.Input.ConfigGen != candidate.ConfigGeneration {
 		return out, errors.New("candidate/action config generation mismatch")
 	}
-	if len(ctx.Input.Payload) == 0 || ctx.Input.ProcessedMark == 0 { return out, action.ErrInvalidPacket }
-	if ctx.Budgets == (action.ActionBudgets{}) { ctx.Budgets = action.DefaultActionBudgets() }
+	if len(ctx.Input.Payload) == 0 || ctx.Input.ProcessedMark == 0 {
+		return out, action.ErrInvalidPacket
+	}
+	if ctx.Budgets == (action.ActionBudgets{}) {
+		ctx.Budgets = action.DefaultActionBudgets()
+	}
 
 	structural := make([]CandidateOperation, 0, len(candidate.Operations))
 	transforms := make([]CandidateOperation, 0, 2)
@@ -60,7 +66,9 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 		case detector.OperatorTCPSplit, detector.OperatorTLSRecordSplit, detector.OperatorBoundedDisorder:
 			structural = append(structural, op)
 		case detector.OperatorSafeFakeProfile:
-			if fake != nil || len(structural) != 0 { return out, ErrSynthesisActionStructure }
+			if fake != nil || len(structural) != 0 {
+				return out, ErrSynthesisActionStructure
+			}
 			copyOp := op
 			fake = &copyOp
 		case detector.OperatorSafeDuplicateOriginal, detector.OperatorPerFlowJitter:
@@ -73,8 +81,12 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 	}
 
 	if fake != nil {
-		if len(transforms) != 0 || len(structural) != 0 { return out, fmt.Errorf("%w: safe fake profile cannot be combined in grammar v1", ErrSynthesisActionStructure) }
-		if ctx.FakeMixTemplate == nil { return out, fmt.Errorf("%w: endpoint-safe fake profile template required", ErrSynthesisActionUnsupported) }
+		if len(transforms) != 0 || len(structural) != 0 {
+			return out, fmt.Errorf("%w: safe fake profile cannot be combined in grammar v1", ErrSynthesisActionStructure)
+		}
+		if ctx.FakeMixTemplate == nil {
+			return out, fmt.Errorf("%w: endpoint-safe fake profile template required", ErrSynthesisActionUnsupported)
+		}
 		req := *ctx.FakeMixTemplate
 		req.Enabled = true
 		req.StrategyID = candidate.CandidateID
@@ -88,41 +100,58 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 		req.Tokens = ctx.Tokens
 		req.Budgets = ctx.Budgets
 		switch fake.Params["mode"] {
-		case string(action.FakeMixSplit): req.Mode = action.FakeMixSplit
-		case string(action.FakeMixDisorder): req.Mode = action.FakeMixDisorder
-		default: return out, fmt.Errorf("invalid safe fake mode %q", fake.Params["mode"])
+		case string(action.FakeMixSplit):
+			req.Mode = action.FakeMixSplit
+		case string(action.FakeMixDisorder):
+			req.Mode = action.FakeMixDisorder
+		default:
+			return out, fmt.Errorf("invalid safe fake mode %q", fake.Params["mode"])
 		}
 		plan, err := action.PlanFakeMix(req)
-		if err != nil { return out, err }
+		if err != nil {
+			return out, err
+		}
 		out.FakeMixPlan = &plan
 		out.Reason = "compiled through existing PlanFakeMix"
 		return out, nil
 	}
 
 	plan, err := compileStructuralActions(candidate, structural, ctx)
-	if err != nil { return out, err }
+	if err != nil {
+		return out, err
+	}
 	generatedBytes := 0
 	for _, transform := range transforms {
 		switch transform.Family {
 		case detector.OperatorSafeDuplicateOriginal:
-			if len(plan.Writes) == 0 { return out, action.ErrInvalidStreamRange }
+			if len(plan.Writes) == 0 {
+				return out, action.ErrInvalidStreamRange
+			}
 			duplicate := plan.Writes[0]
 			duplicate.Payload = append([]byte(nil), duplicate.Payload...)
 			generatedBytes += len(duplicate.Payload)
 			writes := make([]action.PlannedWrite, 0, len(plan.Writes)+1)
 			writes = append(writes, plan.Writes[0], duplicate)
 			writes = append(writes, plan.Writes[1:]...)
-			for i := range writes { writes[i].Order = i }
+			for i := range writes {
+				writes[i].Order = i
+			}
 			plan.Writes = writes
 			plan.TotalBytes += len(duplicate.Payload)
 		case detector.OperatorPerFlowJitter:
 			ms, parseErr := strconv.Atoi(transform.Params["jitter_ms"])
-			if parseErr != nil || ms < 0 || ms > 8 { return out, errors.New("invalid bounded jitter") }
+			if parseErr != nil || ms < 0 || ms > 8 {
+				return out, errors.New("invalid bounded jitter")
+			}
 			delay := time.Duration(ms) * time.Millisecond
-			for i := range plan.Writes { plan.Writes[i].Delay += delay }
+			for i := range plan.Writes {
+				plan.Writes[i].Delay += delay
+			}
 		}
 	}
-	if err := ctx.Budgets.Check(len(ctx.Input.Payload), len(plan.Writes), generatedBytes); err != nil { return out, err }
+	if err := ctx.Budgets.Check(len(ctx.Input.Payload), len(plan.Writes), generatedBytes); err != nil {
+		return out, err
+	}
 	plan.StrategyID = candidate.CandidateID
 	plan.Reason = "synthesized plan compiled through existing ActionPlanner primitives"
 	out.ActionPlan = &plan
@@ -133,7 +162,9 @@ func CompileSynthesizedCandidate(candidate SynthesizedCandidatePlan, ctx Synthes
 func compileStructuralActions(candidate SynthesizedCandidatePlan, structural []CandidateOperation, ctx SynthesisActionContext) (action.ActionPlan, error) {
 	if len(structural) == 0 {
 		plan, err := action.Plan(ctx.Input)
-		if err != nil { return action.ActionPlan{}, err }
+		if err != nil {
+			return action.ActionPlan{}, err
+		}
 		return plan, nil
 	}
 	positions := make([]action.SplitPositionSpec, 0, len(structural))
@@ -143,8 +174,12 @@ func compileStructuralActions(candidate SynthesizedCandidatePlan, structural []C
 	disorderCount := 0
 	for _, operation := range structural {
 		marker, err := synthesisMarker(operation.Params["marker"])
-		if err != nil { return action.ActionPlan{}, err }
-		if marker == action.MarkerSNIExtensionStart || marker == action.MarkerHostStart || marker == action.MarkerHostEnd || marker == action.MarkerSLDMiddle { pre.RequiresClearSNI = true }
+		if err != nil {
+			return action.ActionPlan{}, err
+		}
+		if marker == action.MarkerSNIExtensionStart || marker == action.MarkerHostStart || marker == action.MarkerHostEnd || marker == action.MarkerSLDMiddle {
+			pre.RequiresClearSNI = true
+		}
 		position := action.SplitPositionSpec{Marker: marker}
 		positions = append(positions, position)
 		switch operation.Family {
@@ -163,7 +198,9 @@ func compileStructuralActions(candidate SynthesizedCandidatePlan, structural []C
 				Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, FlowHash: ctx.FlowHash,
 				ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen,
 			})
-			if err != nil { return action.ActionPlan{}, err }
+			if err != nil {
+				return action.ActionPlan{}, err
+			}
 		case detector.OperatorTCPSplit:
 		default:
 			return action.ActionPlan{}, fmt.Errorf("%w: %s", ErrSynthesisActionUnsupported, operation.Family)
@@ -174,18 +211,27 @@ func compileStructuralActions(candidate SynthesizedCandidatePlan, structural []C
 	}
 	definition := action.StrategyDefinition{ID: candidate.CandidateID, Technique: technique, Positions: positions, SegmentOrder: order, Preconditions: pre, Budgets: ctx.Budgets}
 	planned, err := action.PlanStrategy(action.StrategyRequest{Input: ctx.Input, Definition: definition, Confidence: ctx.Confidence, TCPPhase: ctx.TCPPhase, CompleteClientHello: ctx.CompleteClientHello, FlowHash: ctx.FlowHash, ClientHelloID: ctx.ClientHelloID, ConfigGen: ctx.ConfigGen, Tokens: ctx.Tokens})
-	if err != nil { return action.ActionPlan{}, err }
+	if err != nil {
+		return action.ActionPlan{}, err
+	}
 	return planned.ActionPlan, nil
 }
 
 func synthesisMarker(value string) (action.LogicalMarkerKind, error) {
 	switch value {
-	case string(action.MarkerClientHelloStart): return action.MarkerClientHelloStart, nil
-	case string(action.MarkerClientHelloEnd): return action.MarkerClientHelloEnd, nil
-	case string(action.MarkerSNIExtensionStart): return action.MarkerSNIExtensionStart, nil
-	case string(action.MarkerHostStart): return action.MarkerHostStart, nil
-	case string(action.MarkerHostEnd): return action.MarkerHostEnd, nil
-	case string(action.MarkerSLDMiddle): return action.MarkerSLDMiddle, nil
-	default: return "", fmt.Errorf("unknown logical marker %q", value)
+	case string(action.MarkerClientHelloStart):
+		return action.MarkerClientHelloStart, nil
+	case string(action.MarkerClientHelloEnd):
+		return action.MarkerClientHelloEnd, nil
+	case string(action.MarkerSNIExtensionStart):
+		return action.MarkerSNIExtensionStart, nil
+	case string(action.MarkerHostStart):
+		return action.MarkerHostStart, nil
+	case string(action.MarkerHostEnd):
+		return action.MarkerHostEnd, nil
+	case string(action.MarkerSLDMiddle):
+		return action.MarkerSLDMiddle, nil
+	default:
+		return "", fmt.Errorf("unknown logical marker %q", value)
 	}
 }

@@ -78,16 +78,30 @@ func RunBehavioralPanel(ctx context.Context, scope monitor.MonitorScopeKey, cata
 				return BehavioralFingerprintEvidence{}, fmt.Errorf("behavioral panel bounded execution: %w", err)
 			}
 			r1, err := runBehaviorCase(panelCtx, runner, mutation, attempt, "reference", false)
-			if err != nil { return BehavioralFingerprintEvidence{}, err }
-			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil { return BehavioralFingerprintEvidence{}, err }
+			if err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
+			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
 			r2, err := runBehaviorCase(panelCtx, runner, mutation, attempt, "target", false)
-			if err != nil { return BehavioralFingerprintEvidence{}, err }
-			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil { return BehavioralFingerprintEvidence{}, err }
+			if err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
+			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
 			r3, err := runBehaviorCase(panelCtx, runner, mutation, attempt, "reference", true)
-			if err != nil { return BehavioralFingerprintEvidence{}, err }
-			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil { return BehavioralFingerprintEvidence{}, err }
+			if err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
+			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
 			r4, err := runBehaviorCase(panelCtx, runner, mutation, attempt, "target", true)
-			if err != nil { return BehavioralFingerprintEvidence{}, err }
+			if err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
 			interpretation, conclusive := ClassifyFourWayBehavior(r1.Outcome, r2.Outcome, r3.Outcome, r4.Outcome)
 			observedAt := latestBehaviorTime(r1.ObservedAt, r2.ObservedAt, r3.ObservedAt, r4.ObservedAt)
 			attempts = append(attempts, BehaviorAttemptSummary{
@@ -97,7 +111,9 @@ func RunBehavioralPanel(ctx context.Context, scope monitor.MonitorScopeKey, cata
 				Interpretation: interpretation, Conclusive: conclusive, ObservedAt: observedAt,
 				EvidenceRefs: uniqueStrings([]string{r1.EvidenceRef, r2.EvidenceRef, r3.EvidenceRef, r4.EvidenceRef}),
 			})
-			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil { return BehavioralFingerprintEvidence{}, err }
+			if err := waitBehavioralDelay(panelCtx, policy.InterProbeDelay); err != nil {
+				return BehavioralFingerprintEvidence{}, err
+			}
 		}
 	}
 
@@ -127,26 +143,33 @@ func runBehaviorCase(ctx context.Context, runner BehavioralProbeRunner, mutation
 }
 
 func waitBehavioralDelay(ctx context.Context, delay time.Duration) error {
-	if delay <= 0 { return ctx.Err() }
+	if delay <= 0 {
+		return ctx.Err()
+	}
 	t := time.NewTimer(delay)
 	defer t.Stop()
 	select {
-	case <-ctx.Done(): return ctx.Err()
-	case <-t.C: return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
 	}
 }
 
 func behaviorFeaturesFromAttempts(attempts []BehaviorAttemptSummary) ([]BehaviorFeature, float64, float64) {
 	type aggregate struct {
-		family StrategyOperatorFamily
+		family                                       StrategyOperatorFamily
 		support, penalty, exclude, conclusive, total int
-		refs []string
+		refs                                         []string
 	}
 	byFamily := map[StrategyOperatorFamily]*aggregate{}
 	inconclusive := 0
 	for _, attempt := range attempts {
 		a := byFamily[attempt.OperatorFamily]
-		if a == nil { a = &aggregate{family: attempt.OperatorFamily}; byFamily[attempt.OperatorFamily] = a }
+		if a == nil {
+			a = &aggregate{family: attempt.OperatorFamily}
+			byFamily[attempt.OperatorFamily] = a
+		}
 		a.total++
 		a.refs = append(a.refs, attempt.EvidenceRefs...)
 		if !attempt.Conclusive {
@@ -155,19 +178,26 @@ func behaviorFeaturesFromAttempts(attempts []BehaviorAttemptSummary) ([]Behavior
 		}
 		a.conclusive++
 		switch attempt.Interpretation {
-		case "mutation-bypass-signal": a.support++
-		case "mutation-target-regression": a.exclude++
-		case "mutation-breaks-control": a.penalty++
+		case "mutation-bypass-signal":
+			a.support++
+		case "mutation-target-regression":
+			a.exclude++
+		case "mutation-breaks-control":
+			a.penalty++
 		}
 	}
 	families := make([]StrategyOperatorFamily, 0, len(byFamily))
-	for family := range byFamily { families = append(families, family) }
+	for family := range byFamily {
+		families = append(families, family)
+	}
 	sort.Slice(families, func(i, j int) bool { return families[i] < families[j] })
 	features := make([]BehaviorFeature, 0, len(families))
 	totalConclusive := 0
 	for _, family := range families {
 		a := byFamily[family]
-		if a.conclusive == 0 { continue }
+		if a.conclusive == 0 {
+			continue
+		}
 		feature := BehaviorFeature{FeatureID: "operator-response/" + string(family), Group: "operator-response", Confidence: float64(a.conclusive) / float64(a.total), EvidenceRefs: uniqueStrings(a.refs)}
 		switch {
 		case a.exclude > 0:
@@ -185,7 +215,9 @@ func behaviorFeaturesFromAttempts(attempts []BehaviorAttemptSummary) ([]Behavior
 		features = append(features, feature)
 		totalConclusive += a.conclusive
 	}
-	if len(attempts) == 0 { return features, 0, 1 }
+	if len(attempts) == 0 {
+		return features, 0, 1
+	}
 	noise := float64(inconclusive) / float64(len(attempts))
 	confidence := float64(totalConclusive) / float64(len(attempts))
 	return features, confidence, noise
@@ -193,13 +225,21 @@ func behaviorFeaturesFromAttempts(attempts []BehaviorAttemptSummary) ([]Behavior
 
 func latestBehaviorTime(values ...time.Time) time.Time {
 	var latest time.Time
-	for _, value := range values { if value.After(latest) { latest = value } }
+	for _, value := range values {
+		if value.After(latest) {
+			latest = value
+		}
+	}
 	return latest
 }
 
 func cloneStringMap(in map[string]string) map[string]string {
-	if in == nil { return nil }
+	if in == nil {
+		return nil
+	}
 	out := make(map[string]string, len(in))
-	for k, v := range in { out[k] = v }
+	for k, v := range in {
+		out[k] = v
+	}
 	return out
 }
