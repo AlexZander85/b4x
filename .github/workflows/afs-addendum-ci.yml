@@ -8,6 +8,7 @@ on:
       - "src/config/**"
       - "src/detector/**"
       - "src/discovery/**"
+      - "src/observability/**"
       - "src/runtimecontrol/**"
       - ".github/workflows/afs-addendum-ci.yml"
   workflow_dispatch:
@@ -38,9 +39,9 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
-            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|runtimecontrol)/.*\.go$' || true)
+            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|observability|runtimecontrol)/.*\.go$' || true)
           else
-            files=$(git ls-files 'src/config/*.go' 'src/detector/*.go' 'src/discovery/*.go' 'src/runtimecontrol/*.go')
+            files=$(git ls-files 'src/config/*.go' 'src/detector/*.go' 'src/discovery/*.go' 'src/observability/*.go' 'src/runtimecontrol/*.go')
           fi
           if [ -z "$files" ]; then
             exit 0
@@ -54,4 +55,4 @@ jobs:
 
       - name: Test AFS-affected packages
         working-directory: src
-        run: go test ./config ./detector ./discovery ./runtimecontrol
+        run: go test ./config ./detector ./discovery ./observability ./runtimecontrol
