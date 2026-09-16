@@ -21,6 +21,10 @@ type Config struct {
 	// (B4X_POST_V23_SNI_ADBLOCK_LAYER_ADDENDUM_v1.0.md); DNS is untouched.
 	AdBlock AdBlockConfig `json:"adblock"`
 
+	// Automation owns user-controlled autonomous features. Individual runtime
+	// subsystems still retain execution ownership and their existing budgets.
+	Automation AutomationConfig `json:"automation"`
+
 	// DNSMode is the global adaptive DNS operating mode (addendum §19):
 	// current | manual | adaptive | diagnostic. Default "current" —
 	// adaptive selection never runs implicitly on existing installs.
@@ -218,7 +222,8 @@ var DefaultConfig = Config{
 		},
 	},
 
-	Sets: []*SetConfig{},
+	Sets:       []*SetConfig{},
+	Automation: DefaultAutomationConfig,
 
 	System: SystemConfig{
 		Classifier: DefaultClassifierConfig,
@@ -350,9 +355,13 @@ func NewSetConfig() SetConfig {
 
 func NewConfig() Config {
 	cfg := DefaultConfig
-
 	cfg.Sets = []*SetConfig{}
-
+	if DefaultConfig.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy != nil {
+		cfg.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy = make(map[string]string, len(DefaultConfig.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy))
+		for k, v := range DefaultConfig.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy {
+			cfg.Automation.AdaptiveStrategySynthesis.ServiceProfilePolicy[k] = v
+		}
+	}
 	return cfg
 }
 
