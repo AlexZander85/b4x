@@ -62,6 +62,7 @@ type SynthesisRequest struct {
 	BehavioralEvidenceID  string
 	FailedCandidateIDs    []string
 	BaselineCandidateIDs  []string
+	SafeFakeProfileIDs    []string
 	AllowedGrammarVersion string
 	ResourceBudget        AdaptivePolicy
 	Limits                SynthesisLimits
@@ -73,6 +74,14 @@ type SynthesisRequest struct {
 func (r SynthesisRequest) Valid(now time.Time) bool {
 	if r.RequestID == "" || !r.Scope.Valid() || r.ConfigGeneration == 0 || r.ConfigGeneration != r.Scope.ConfigGeneration || r.BlockingProfileID == "" || r.BehavioralEvidenceID == "" || r.AllowedGrammarVersion != SynthesisGrammarV1 || r.RequestedAt.IsZero() {
 		return false
+	}
+	if len(r.SafeFakeProfileIDs) > 4 {
+		return false
+	}
+	for _, profileID := range r.SafeFakeProfileIDs {
+		if profileID == "" || len(profileID) > 128 {
+			return false
+		}
 	}
 	return r.ExpiresAt.IsZero() || now.Before(r.ExpiresAt)
 }
