@@ -19,6 +19,7 @@ func completeAFSLabEvidence() AFSReadinessEvidence {
 			if _, internal := afsNames[dep]; !internal {
 				deps[dep] = Pass
 			}
+		}
 	}
 	counters := make(map[string]uint64, len(AFSZeroToleranceCounters))
 	for _, name := range AFSZeroToleranceCounters {
@@ -40,7 +41,7 @@ func completeAFSLabEvidence() AFSReadinessEvidence {
 			TransactionalPromotion:     true,
 			FaultInjectionValidated:    true,
 		},
-		DependencyVerdicts:   deps,
+		DependencyVerdicts:    deps,
 		ZeroToleranceCounters: counters,
 		TestRefs: []string{
 			"focused-ci:35085703795",
