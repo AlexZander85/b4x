@@ -108,7 +108,7 @@ func (g StrategyGrammar) Validate() error {
 					return fmt.Errorf("operator %q domain %q contains duplicates", op.Family, name)
 				}
 			}
-	}
+		}
 	}
 	return nil
 }
@@ -169,7 +169,7 @@ func (g StrategyGrammar) TriggerAllowed(trigger CandidateTrigger) bool {
 			if trigger.Marker == marker {
 				return true
 			}
-	}
+		}
 	}
 	return false
 }
