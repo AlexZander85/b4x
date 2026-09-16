@@ -32,12 +32,26 @@ type BlockingProfile struct {
 	Hypothesis   string
 	Confidence   ConfidenceSummary
 	EvidenceRefs []string
+	Behavioral   *BehavioralFingerprintEvidence
 	ContentHash  string
 	CompiledAt   time.Time
 }
 
 func (p BlockingProfile) Valid() bool {
-	return p.ProfileID != "" && p.Status == ProfileReady && p.Scope.Valid() && p.Assessment.AssessmentID != "" && p.Assessment.RequestID != "" && p.Assessment.ConfigGeneration == p.Scope.ConfigGeneration && p.ContentHash != "" && len(p.EvidenceRefs) > 0
+	if p.ProfileID == "" || p.Status != ProfileReady || !p.Scope.Valid() || p.Assessment.AssessmentID == "" || p.Assessment.RequestID == "" || p.Assessment.ConfigGeneration != p.Scope.ConfigGeneration || p.ContentHash == "" || len(p.EvidenceRefs) == 0 {
+		return false
+	}
+	if p.Behavioral != nil {
+		return p.Behavioral.Valid(p.CompiledAt) && p.Behavioral.Scope == p.Scope
+	}
+	return true
+}
+
+func (p BlockingProfile) Fresh(now time.Time) bool {
+	if !p.Valid() {
+		return false
+	}
+	return p.Behavioral == nil || p.Behavioral.Valid(now)
 }
 
 type MonitorDiagnosticResultStatus string
@@ -99,4 +113,43 @@ func CompileBlockingProfile(graph *EvidenceGraph, assessment MonitorAssessmentRe
 	result.EvidenceRefs = append([]string(nil), evidenceRefs...)
 	result.Explanation = "authoritative complete evidence compiled; action authorization remains external"
 	return p, result, nil
+}
+
+// AttachBehavioralEvidence derives a new immutable BlockingProfile revision
+// from an ordinary ABD profile. No parallel profile store is created and the
+// original profile remains valid for the ordinary guided-Discovery path.
+func AttachBehavioralEvidence(profile BlockingProfile, evidence BehavioralFingerprintEvidence, graph *EvidenceGraph, now time.Time) (BlockingProfile, error) {
+	if !profile.Valid() {
+		return BlockingProfile{}, errors.New("ready blocking profile required")
+	}
+	if profile.Behavioral != nil {
+		if profile.Behavioral.EvidenceID == evidence.EvidenceID {
+			return profile, nil
+		}
+		return BlockingProfile{}, errors.New("blocking profile already has behavioral evidence")
+	}
+	if !evidence.Valid(now) || evidence.Scope != profile.Scope {
+		return BlockingProfile{}, errors.New("fresh behavioral evidence with exact profile scope required")
+	}
+	if graph != nil && !graph.AddBehavioralEvidence(evidence, profile.Hypothesis, now) {
+		return BlockingProfile{}, errors.New("behavioral evidence could not be added to evidence graph")
+	}
+
+	refs := append(append([]string(nil), profile.EvidenceRefs...), evidence.EvidenceRefs...)
+	refs = append(refs, evidence.EvidenceID)
+	refs = uniqueStrings(refs)
+	raw, _ := json.Marshal(struct {
+		PriorContentHash  string
+		EvidenceID        string
+		PanelHash         string
+		FeatureVectorHash string
+		EvidenceRefs      []string
+	}{profile.ContentHash, evidence.EvidenceID, evidence.PanelHash, evidence.FeatureVectorHash, refs})
+	h := sha256.Sum256(raw)
+	profile.ProfileID = "bp-" + hex.EncodeToString(h[:8])
+	profile.ContentHash = hex.EncodeToString(h[:])
+	profile.EvidenceRefs = refs
+	profile.Behavioral = &evidence
+	profile.CompiledAt = now
+	return profile, nil
 }
