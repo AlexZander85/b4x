@@ -2248,6 +2248,7 @@
       "awg+masque": "AWG outer, MASQUE inner",
       "masque+awg": "MASQUE outer, AWG inner",
       "nonru": "Always non-RU (geo-gated)",
+      "nonru_geo_gated": "Geo-gated nested WARP (НЕ РФ): a second WARP session forced through the base one, promoted only on a fresh multi-provider non-RU attestation. The engine and the gate are ready in transport/warp; the daemon assembly is pending — the preset stays unavailable, no half-states.",
       "chain_running": "Chain composition is up (both layers established).",
       "chain_engine_pending": "Engine-ready composition; the daemon assembly is pending.",
       "chain_disabled": "Configured but disabled in system.warp.chains.",

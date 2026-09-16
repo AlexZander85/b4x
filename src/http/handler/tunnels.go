@@ -340,7 +340,17 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: true},
 		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: true},
 		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: true},
-		{Kind: "nonru", Outer: "awg", Inner: "awg", Available: false, Note: "nonru_geo_gated"},
+		// nonru (НЕ РФ, addendum §3.2 / ADR-WARP-6): a SECOND isolated WARP
+		// session whose control path is forced through the verified BASE
+		// WARP — both layers are WARP/MASQUE sessions (outer = the base warp
+		// transport, inner = the nested warp), gated by multi-provider geo
+		// attestation before any route is promoted. The engine and the gate
+		// live in transport/warp (nonru.go / nonru_gate.go); the daemon
+		// assembly (E6/E7 wiring, route promotion hooks) is pending, so the
+		// preset stays honestly-unavailable: no config schema, no runtime
+		// facade, no restart — and the closed chain-kind set makes a config
+		// entry impossible by validation.
+		{Kind: "nonru", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "nonru_geo_gated"},
 	}
 	for i := range chains {
 		ch := chains[i]
@@ -458,7 +468,7 @@ func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go rt.RestartNow(r.Context())
-	case config.ChainKindMasqueAwg, config.ChainKindAwgMasque, config.ChainKindAwgAwg:
+	case config.ChainKindMasqueAwg, config.ChainKindAwgMasque, config.ChainKindAwgAwg, config.ChainKindMasqueMasque:
 		rt := chainRuntime(kind)
 		if rt == nil {
 			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "chain "+kind+" not running"))
