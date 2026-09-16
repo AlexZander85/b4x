@@ -45,6 +45,31 @@ func NewFlowCorrelator() *FlowCorrelator {
 func correlationKey(s MonitorScopeKey) string {
 	return fmt.Sprintf("%s|%s|%s|%s|%d|%s", s.ClientScope.ID, s.ServiceProfileID, s.ComponentID, s.DomainIdentityID, s.ConfigGeneration, s.NetworkContextID)
 }
+
+// EnsureScope registers an already-observed monitoring scope without
+// fabricating a success/failure sample. This lets the existing status
+// projection and AFS lifecycle share one scope owner while neutral evidence
+// remains neutral.
+func (c *FlowCorrelator) EnsureScope(scope MonitorScopeKey) bool {
+	if c == nil || !scope.Valid() {
+		return false
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	key := correlationKey(scope)
+	if _, ok := c.flows[key]; ok {
+		return true
+	}
+	c.flows[key] = &CorrelationSnapshot{
+		Scope:        scope,
+		Health:       HealthUnknown,
+		Forwarded:    scope.ClientScope.Role == "forwarded",
+		RouterOrigin: scope.ClientScope.Role == "router-origin",
+		Control:      scope.TargetRole == "control",
+	}
+	return true
+}
+
 func (c *FlowCorrelator) Observe(o MonitorObservation, endpoint string, success bool) {
 	if c == nil || !o.Scope.Valid() {
 		return
