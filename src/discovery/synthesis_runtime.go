@@ -86,6 +86,23 @@ func constrainSynthesisLimitsToConfig(requested SynthesisLimits, policy config.A
 	return effective
 }
 
+// bindSafeFakeProfiles projects the already-selected endpoint-safe fake
+// template into the existing synthesis request envelope. The synthesizer never
+// owns a second fake-profile registry and cannot invent raw profile IDs.
+func bindSafeFakeProfiles(request *SynthesisRequest, ctx SynthesisActionContext) {
+	if request == nil {
+		return
+	}
+	request.SafeFakeProfileIDs = nil
+	if !request.Limits.AllowSafeFake || ctx.FakeMixTemplate == nil {
+		return
+	}
+	profileID := ctx.FakeMixTemplate.Profile.Profile.ID
+	if profileID != "" {
+		request.SafeFakeProfileIDs = []string{profileID}
+	}
+}
+
 // RunSynthesizedDiscovery is an adapter into the existing adaptive matrix. It
 // performs the AFS hard/static gates and dry-run ActionPlanner compilation,
 // then reuses RunAdaptiveDiscovery and ScoreOutcome unchanged. It never
@@ -114,6 +131,7 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	// The persisted automation policy is an upper bound over caller-provided
 	// request limits. This is applied before any static validation or planning.
 	req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
+	bindSafeFakeProfiles(&req.Synthesis, req.ActionContext)
 
 	// User opt-in comes from the canonical config policy, never from a caller
 	// boolean. Service-profile policy may only narrow this permission.
@@ -205,6 +223,7 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 func (m *Runtime) RunSynthesizedDiscoveryEvaluated(ctx context.Context, cfg *config.Config, req SynthesizedDiscoveryRequest, baselineRunner ProbeRunner, synthesizedRunner SynthesizedProbeRunner) (SynthesizedDiscoveryResult, error) {
 	if cfg != nil {
 		req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
+		bindSafeFakeProfiles(&req.Synthesis, req.ActionContext)
 	}
 	run, err := m.RunSynthesizedDiscovery(ctx, cfg, req, baselineRunner, synthesizedRunner)
 	if err != nil {
