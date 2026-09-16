@@ -71,6 +71,9 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	if req.Synthesis.Scope != req.Candidate.Scope || req.Synthesis.BlockingProfileID != req.Gate.Profile.ProfileID || req.Synthesis.BehavioralEvidenceID != req.Gate.Prior.BehavioralEvidenceID {
 		return AdaptiveRunResult{}, errors.New("synthesis request does not match gated profile/prior/candidate")
 	}
+	if err := CheckSynthesizedEmission(req.Candidate); err != nil {
+		return AdaptiveRunResult{}, err
+	}
 	validation := NewSynthesisPlanner().ValidateCandidate(req.Synthesis, req.Gate.Prior, req.Candidate)
 	if !validation.Valid {
 		return AdaptiveRunResult{}, fmt.Errorf("synthesized candidate static validation failed: %s", validation.Reason)
@@ -123,7 +126,8 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	if discoveryCfg.StableSuccesses > 0 && discoveryCfg.SamplesPerVariant < discoveryCfg.StableSuccesses {
 		discoveryCfg.SamplesPerVariant = discoveryCfg.StableSuccesses
 	}
-	minimumProbes := 2 + len(allProfiles)*maxInt(discoveryCfg.SamplesPerVariant, 1)
+	samples := maxInt(discoveryCfg.SamplesPerVariant, 1)
+	minimumProbes := (2 + len(allProfiles)) * samples
 	if discoveryCfg.MaxProbes > 0 && minimumProbes > discoveryCfg.MaxProbes {
 		observability.RecordSynthesisViolation(observability.MetricSynthesisUnboundedExecution)
 		return AdaptiveRunResult{}, fmt.Errorf("existing Discovery probe budget %d cannot cover mandatory AFS matrix minimum %d", discoveryCfg.MaxProbes, minimumProbes)
@@ -132,7 +136,9 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 	if err != nil {
 		return AdaptiveRunResult{}, err
 	}
-	result.Applied = false
+	if err := RejectSynthesizedDirectApply(result); err != nil {
+		return AdaptiveRunResult{}, err
+	}
 	result.Explanation += "; synthesized candidate passed static ActionPlanner dry-run and shared target/control scoring; no direct apply"
 	return result, nil
 }
