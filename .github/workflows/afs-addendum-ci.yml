@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   focused-go-tests:
@@ -22,10 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout
+      - name: Checkout head branch
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -33,15 +34,38 @@ jobs:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
-      - name: Gofmt check for PR changes
+      - name: Gofmt changed AFS Go files
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
             files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|observability|runtimecontrol)/.*\.go$' || true)
           else
-            files=$(git ls-files 'src/config/*.go' 'src/detector/*.go' 'src/discovery/*.go' 'src/observability/*.go' 'src/runtimecontrol/*.go')
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|observability|runtimecontrol)/.*\.go$' || true)
+          fi
+          if [ -z "$files" ]; then
+            exit 0
+          fi
+          gofmt -w $files
+          if git diff --quiet -- $files; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $files
+          git commit -m "chore(afs): gofmt changed files"
+          git push origin "HEAD:$TARGET_BRANCH"
+
+      - name: Verify changed AFS Go files are formatted
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|observability|runtimecontrol)/.*\.go$' || true)
+          else
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|observability|runtimecontrol)/.*\.go$' || true)
           fi
           if [ -z "$files" ]; then
             exit 0
