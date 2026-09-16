@@ -261,6 +261,112 @@ func resolveCfWarpProfile(field, id string) (twg.Profile, error) {
 	return tpl.Build()
 }
 
+// DefaultWarpNonRUIdentityPath is the nested НЕ РФ inner warp slot. A
+// SEPARATE file from the base warp identity on purpose (ADR-WARP-6 + nested
+// red line #3: the nested session is a SECOND CF device — the base warp
+// slot serves the outer layer only).
+const DefaultWarpNonRUIdentityPath = "/opt/etc/b4/warp/nonru-identity.json"
+
+// WarpNonRUConfig arms the experimental НЕ РФ (non-RU) mode (addendum §3.2,
+// ADR-WARP-6): a SECOND isolated WARP session whose control TCP is forced
+// through the verified BASE warp (system.warp), promoted as a routable
+// carrier ONLY while a fresh multi-provider non-RU geo attestation holds
+// (transport/warp NonRUGate). The base warp stays the prerequisite — this
+// section is rejected by validation when system.warp.enabled is false.
+type WarpNonRUConfig struct {
+	Enabled bool `json:"enabled"`
+	// IdentityPath is the INNER warp identity slot (a second CF device).
+	// Empty -> EffectiveIdentityPath.
+	IdentityPath string `json:"identity_path"`
+	// Endpoint overrides the INNER layer's catalog default ("ip:port").
+	// Empty -> the MASQUE-H2 default avoiding the BASE warp's edge IP (the
+	// gool different-edge rule at defaults); explicit values must pass the
+	// catalog gates and differ from the base endpoint IP.
+	Endpoint string `json:"endpoint"`
+	// Fingerprint is the INNER layer's uTLS ClientHello ("", "chrome120",
+	// "firefox" — the system.warp.masquerade canon).
+	Fingerprint string `json:"fingerprint"`
+	// InnerMTU caps the inner layer MTU. 0 -> the nested engine's
+	// MaxInnerMTU (1200).
+	InnerMTU int `json:"inner_mtu"`
+	// AttestationTTLSeconds bounds how long a geo attestation may serve the
+	// open route. 0 -> 120 (addendum §45 ttl).
+	AttestationTTLSeconds int `json:"attestation_ttl_seconds"`
+	// RefreshIntervalSeconds is the probe round period. 0 -> 60 (addendum
+	// §45 refresh_interval). Must stay <= TTL/2 so a route never rides a
+	// stale attestation by scheduling alone.
+	RefreshIntervalSeconds int `json:"refresh_interval_seconds"`
+	// RUCountries lists ISO-3166 alpha-2 codes classified RU (default RU).
+	RUCountries []string `json:"ru_countries"`
+	// FallbackToBase enables the §47 advanced-policy event emission on
+	// fail-closed revocations (fail_closed + fallback_to_base events; the
+	// actual base-fallback routing is the operator's explicit choice, never
+	// automatic).
+	FallbackToBase bool `json:"fallback_to_base"`
+}
+
+// EffectiveIdentityPath fills the inner slot default.
+func (c *WarpNonRUConfig) EffectiveIdentityPath() string {
+	if c.IdentityPath == "" {
+		return DefaultWarpNonRUIdentityPath
+	}
+	return c.IdentityPath
+}
+
+// EffectiveEndpoint resolves the INNER layer endpoint against the MASQUE-H2
+// catalog. The default avoids the base warp's edge IP (gool rule at
+// defaults); explicit endpoints are collision-checked against the base by
+// validation.
+func (c *WarpNonRUConfig) EffectiveEndpoint(avoid netip.Addr) (netip.AddrPort, error) {
+	if c.Endpoint == "" {
+		if avoid.IsValid() {
+			return defaultMasqueInnerEndpoint(avoid), nil
+		}
+		return twarp.DefaultH2Endpoint(), nil
+	}
+	ap, err := netip.ParseAddrPort(c.Endpoint)
+	if err != nil {
+		return netip.AddrPort{}, fmt.Errorf("system.warp.nonru.endpoint %q: %v", c.Endpoint, err)
+	}
+	if !twarp.InCatalog(twarp.KindMasqueH2, ap.Addr()) {
+		return ap, fmt.Errorf("system.warp.nonru.endpoint %q: address outside the versioned MASQUE-H2 catalog (addendum §34)", c.Endpoint)
+	}
+	if !twarp.KnownPort(ap.Port()) {
+		return ap, fmt.Errorf("system.warp.nonru.endpoint %q: port outside the catalog port set", c.Endpoint)
+	}
+	return ap, nil
+}
+
+// EffectiveAttestationTTL fills the attestation TTL default (120s).
+func (c *WarpNonRUConfig) EffectiveAttestationTTL() int {
+	if c.AttestationTTLSeconds <= 0 {
+		return 120
+	}
+	return c.AttestationTTLSeconds
+}
+
+// EffectiveRefreshInterval fills the refresh default (60s).
+func (c *WarpNonRUConfig) EffectiveRefreshInterval() int {
+	if c.RefreshIntervalSeconds <= 0 {
+		return 60
+	}
+	return c.RefreshIntervalSeconds
+}
+
+// EffectiveRUCountries fills the RU-country set (default {"RU"}).
+func (c *WarpNonRUConfig) EffectiveRUCountries() map[string]bool {
+	out := make(map[string]bool, len(c.RUCountries))
+	for _, cc := range c.RUCountries {
+		if cc = strings.ToUpper(strings.TrimSpace(cc)); cc != "" {
+			out[cc] = true
+		}
+	}
+	if len(out) == 0 {
+		out["RU"] = true
+	}
+	return out
+}
+
 // WarpChainConfig declares one nested chain. Each layer owns a DISTINCT
 // identity slot (one CF device per layer, nested red line #3): the outer
 // identity of masque+awg never serves the inner AWG layer and vice versa;

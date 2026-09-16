@@ -75,6 +75,7 @@ func (c *Config) Validate() error {
 	c.validateWarp(v)
 	c.validateWarpAWG(v)
 	c.validateWarpChains(v)
+	c.validateWarpNonRU(v)
 	c.validateOpera(v)
 	c.validateProton(v)
 	c.validateTor(v)
@@ -1011,3 +1012,84 @@ func (c *Config) validateTor(v *validator) {
 			"tor binary_path must be an absolute path (got: %q)", t.BinaryPath)
 	}
 }
+
+// validateWarpNonRU checks the experimental НЕ РФ section (addendum §3.2 /
+// ADR-WARP-6). Heads are validated ALWAYS (the warp canon: a typo cannot hide
+// until enable day): the inner endpoint against the MASQUE-H2 catalog, the
+// fingerprint enum, the inner MTU cap, the TTL/refresh ordering and the
+// RU-country shape. The ENABLED head additionally enforces the structural
+// prerequisites: the BASE warp must be enabled (base WARP not ACTIVE → the
+// nested mode is not eligible), and the inner identity slot must stay
+// DISTINCT from every existing CF device slot (the base warp, the AWG single
+// and every chain layer — one device per layer, red line #3), and the inner
+// endpoint must terminate on a DIFFERENT edge IP than the base (gool rule).
+func (c *Config) validateWarpNonRU(v *validator) {
+	nr := c.System.Warp.NonRU
+
+	// The prerequisite is structural, not a head: an enabled nested mode
+	// over a disabled base warp is a config lie and fails closed.
+	if nr.Enabled && !c.System.Warp.Enabled {
+		v.add("system.warp.nonru.enabled", "conflict", "nonru requires the base warp (system.warp.enabled=true): base WARP not ACTIVE makes the nested mode ineligible (ADR-WARP-6)", nil)
+	}
+
+	baseEp, baseEpErr := c.System.Warp.EffectiveEndpoint()
+	if _, err := nr.EffectiveEndpoint(baseEp.Addr()); err != nil {
+		v.add("system.warp.nonru.endpoint", "invalid_value", err.Error(), nil)
+	}
+
+	switch nr.Fingerprint {
+	case "", "chrome120", "firefox":
+	default:
+		v.addf("system.warp.nonru.fingerprint", "invalid_value", map[string]any{"fingerprint": nr.Fingerprint}, "nonru fingerprint %q invalid (empty, chrome120 or firefox)", nr.Fingerprint)
+	}
+
+	if nr.InnerMTU < 0 || (nr.InnerMTU > 0 && nr.InnerMTU < 576) {
+		v.addf("system.warp.nonru.inner_mtu", "invalid_value", nil, "nonru inner mtu %d invalid (0 = default, minimum 576)", nr.InnerMTU)
+	} else if nr.InnerMTU > 1200 {
+		v.addf("system.warp.nonru.inner_mtu", "invalid_value", nil, "nonru inner mtu %d exceeds the nested cap 1200 (encapsulation headroom)", nr.InnerMTU)
+	}
+
+	ttl := nr.EffectiveAttestationTTL()
+	refresh := nr.EffectiveRefreshInterval()
+	if ttl < 2*refresh {
+		v.addf("system.warp.nonru.attestation_ttl_seconds", "out_of_range", map[string]any{"ttl": ttl, "refresh": refresh},
+			"attestation ttl %ds below 2x the refresh interval %ds (a route must not ride a stale attestation by scheduling alone)", ttl, refresh)
+	}
+	for i, cc := range nr.RUCountries {
+		if !isoCountryRe.MatchString(strings.ToUpper(strings.TrimSpace(cc))) {
+			v.addf(fmt.Sprintf("system.warp.nonru.ru_countries[%d]", i), "invalid_value", map[string]any{"country": cc}, "ru_countries[%d] %q must be an ISO-3166 alpha-2 code", i, cc)
+		}
+	}
+
+	if !nr.Enabled {
+		return
+	}
+	if p := nr.EffectiveIdentityPath(); !filepath.IsAbs(p) {
+		v.addf("system.warp.nonru.identity_path", "must_be_absolute", map[string]any{"path": p}, "nonru identity_path must be an absolute path (got: %q)", p)
+	}
+	// Slot collisions: the nested inner device is a SECOND CF device —
+	// never the base warp slot, never the AWG single, never a chain layer.
+	p := nr.EffectiveIdentityPath()
+	awgPath := c.System.Warp.AWG.EffectiveIdentityPath()
+	if p == c.System.Warp.IdentityPath || p == awgPath {
+		v.addf("system.warp.nonru.identity_path", "conflict", nil, "nonru identity_path %q collides with a single-transport slot (one CF device per layer)", p)
+	}
+	for i, ch := range c.System.Warp.Chains {
+		if p == ch.EffectiveOuterIdentityPath() || p == ch.EffectiveInnerIdentityPath() {
+			v.addf("system.warp.nonru.identity_path", "conflict", nil,
+				"nonru identity_path %q collides with the chain[%d] (%s) layer slot (one CF device per layer)", p, i, ch.Kind)
+		}
+	}
+	// Gool rule: the nested warp must terminate on a different edge IP than
+	// the base (self-nesting on one edge is the collision the design forbids).
+	if baseEpErr == nil {
+		innerEp, err := nr.EffectiveEndpoint(baseEp.Addr())
+		if err == nil && innerEp.Addr() == baseEp.Addr() {
+			v.addf("system.warp.nonru.endpoint", "conflict", map[string]any{"endpoint": nr.Endpoint},
+				"nonru endpoint terminates on the base warp's edge IP %s (gool hard rule: different edges per layer)", baseEp.Addr())
+		}
+	}
+}
+
+// isoCountryRe matches ISO-3166 alpha-2 country codes (upper-case).
+var isoCountryRe = regexp.MustCompile(`^[A-Z]{2}$`)

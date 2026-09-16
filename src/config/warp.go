@@ -45,6 +45,10 @@ type WarpConfig struct {
 	// transport/nested. Each entry owns two DISTINCT identity slots (one CF
 	// device per layer, red line #3).
 	Chains []WarpChainConfig `json:"chains"`
+	// NonRU arms the experimental НЕ РФ mode (addendum §3.2 / ADR-WARP-6):
+	// a nested WARP session over THIS base warp, geo-gated by the
+	// transport/warp NonRUGate. Requires the base (system.warp.enabled).
+	NonRU WarpNonRUConfig `json:"nonru"`
 }
 
 // WarpMasqueradeConfig configures the uTLS ClientHello of the MASQUE H3

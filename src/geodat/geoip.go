@@ -13,6 +13,43 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// LoadCountryPrefixes loads the FULL per-country IPv4 prefix index from a
+// geoip.dat (the E7 nonru classify-oracle source). Unlike the per-category
+// loaders, this walks every entry: the nonru geo quorum needs the ACTUAL
+// country of an arbitrary non-RU egress IP, not membership in one pinned
+// category. Non-country pseudo-tags (private, cloudflare "1", ...) are kept
+// verbatim — the oracle decides what a hit means; a prefix that maps only
+// to a pseudo-tag classifies as "" (unknown), never as a country.
+func LoadCountryPrefixes(geoipPath string) (map[string][]netip.Prefix, error) {
+	b, err := os.ReadFile(geoipPath)
+	if err != nil {
+		return nil, err
+	}
+	geoIPList, err := v2data.LoadGeoIPListFromDAT(b)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string][]netip.Prefix, len(geoIPList.GetEntry()))
+	for _, geo := range geoIPList.GetEntry() {
+		tag := strings.ToLower(geo.GetCountryCode())
+		if tag == "" {
+			continue
+		}
+		for _, cidr := range geo.GetCidr() {
+			addr, ok := netip.AddrFromSlice(cidr.GetIp())
+			if !ok || !addr.Is4() {
+				continue // v4 index: the §43 egress observations are IPv4 by design
+			}
+			pfx, perr := addr.Prefix(int(cidr.GetPrefix()))
+			if perr != nil {
+				continue
+			}
+			out[tag] = append(out[tag], pfx)
+		}
+	}
+	return out, nil
+}
+
 func UnpackGeoIP(args *UnpackArgs) error {
 	filePath, wantTags := args.File, args.Filters
 

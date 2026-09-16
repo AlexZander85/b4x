@@ -19,6 +19,7 @@ import (
 	"github.com/daniellavrushin/b4/awgwarpservice"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/nonruservice"
 	"github.com/daniellavrushin/b4/reserve"
 	"github.com/daniellavrushin/b4/warpchainservice"
 	"github.com/daniellavrushin/b4/warpservice"
@@ -60,12 +61,23 @@ func chainRuntime(kind string) *warpchainservice.Runtime {
 	return rt
 }
 
+// nonruRuntime is the НЕ РФ engine seam (tunnels panel stage 6; the E6/E7
+// daemon assembly in src/nonruservice).
+var nonruRuntime atomic.Pointer[nonruservice.Runtime]
+
+// SetNonRURuntime binds (or unbinds, nil) the nonru engine.
+func SetNonRURuntime(rt *nonruservice.Runtime) { nonruRuntime.Store(rt) }
+
+// nonruRuntimeLoad snapshots the engine (nil when absent).
+func nonruRuntimeLoad() *nonruservice.Runtime { return nonruRuntime.Load() }
+
 // RegisterTunnelsApi mounts the tunnels control plane.
 func (api *API) RegisterTunnelsApi() {
 	api.mux.HandleFunc("/api/tunnels", api.handleTunnelsOverview)
 	api.mux.HandleFunc("/api/tunnels/restart", api.handleTunnelsRestart)
 	api.mux.HandleFunc("/api/warp/status", api.handleWarpStatus)
 	api.mux.HandleFunc("/api/awgwarp/status", api.handleAWGWarpStatus)
+	api.mux.HandleFunc("/api/nonru/status", api.handleNonRUStatus)
 }
 
 // tunnelsChainPreset describes one nested-chain preset (transport/nested
@@ -335,26 +347,53 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	for _, ch := range cfg.System.Warp.Chains {
 		chainConfigured[ch.Kind] = ch
 	}
+	// nonru (НЕ РФ, addendum §3.2 / ADR-WARP-6): a SECOND isolated WARP
+	// session whose control path is forced through the verified BASE
+	// WARP — both layers are WARP/MASQUE sessions (outer = the base warp
+	// transport, inner = the nested warp), gated by multi-provider geo
+	// attestation before any route is promoted. Stage 6 ships the daemon
+	// assembly (src/nonruservice: nested M+M over the base plane + the
+	// NonRUGate route hooks). The preset reflects system.warp.nonru and
+	// the live engine; Running means the COMPOSITION is up (the gate may
+	// still be honestly closed — see /api/nonru/status for the gate view).
+	nrCfg := cfg.System.Warp.NonRU
+	nr := tunnelsChainPreset{
+		Kind:       "nonru",
+		Outer:      "masque-h2",
+		Inner:      "masque-h2",
+		Available:  true,
+		Configured: true, // the section exists in the config schema
+		Enabled:    nrCfg.Enabled,
+	}
+	if rt := nonruRuntimeLoad(); rt != nil {
+		st := rt.Status()
+		nr.Running = st.Running
+		nr.State = st.State
+		if st.Listening {
+			nr.Note = "nonru_gate_open"
+		} else {
+			nr.Note = "nonru_gate_closed"
+		}
+	} else if nrCfg.Enabled {
+		nr.Note = "nonru_assembly_pending"
+	} else {
+		nr.Note = "chain_not_configured"
+	}
 	chains := []tunnelsChainPreset{
 		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: true},
 		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: true},
 		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: true},
 		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: true},
-		// nonru (НЕ РФ, addendum §3.2 / ADR-WARP-6): a SECOND isolated WARP
-		// session whose control path is forced through the verified BASE
-		// WARP — both layers are WARP/MASQUE sessions (outer = the base warp
-		// transport, inner = the nested warp), gated by multi-provider geo
-		// attestation before any route is promoted. The engine and the gate
-		// live in transport/warp (nonru.go / nonru_gate.go); the daemon
-		// assembly (E6/E7 wiring, route promotion hooks) is pending, so the
-		// preset stays honestly-unavailable: no config schema, no runtime
-		// facade, no restart — and the closed chain-kind set makes a config
-		// entry impossible by validation.
-		{Kind: "nonru", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "nonru_geo_gated"},
+		nr,
 	}
 	for i := range chains {
 		ch := chains[i]
 		if !ch.Available {
+			continue
+		}
+		if ch.Kind == "nonru" {
+			// nonru carries its own preset state above (system.warp.nonru +
+			// the live engine); it has no system.warp.chains entry.
 			continue
 		}
 		cfgEntry, configured := chainConfigured[ch.Kind]
@@ -475,6 +514,13 @@ func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		go rt.RestartNow(r.Context())
+	case "nonru":
+		rt := nonruRuntimeLoad()
+		if rt == nil || !cfg.System.Warp.NonRU.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "nonru disabled"))
+			return
+		}
+		go rt.RestartNow(r.Context())
 	case "opera":
 		rt := operaRuntime.Load()
 		if rt == nil || !cfg.System.Opera.Enabled {
@@ -564,6 +610,44 @@ func (api *API) handleAWGWarpStatus(w http.ResponseWriter, r *http.Request) {
 			"running":   false,
 			"listening": false,
 			"transport": "awg",
+		})
+		return
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	sendResponse(w, rt.Status())
+}
+
+// @Summary НЕ РФ (nonru) engine status
+// @Description The nonruservice projection: the nested composition state,
+// @Description the geo-gate view (verdict, attestation freshness, revocations)
+// @Description and the classify-oracle posture. Nil-safe disabled shape.
+// @Tags tunnels
+// @Produce json
+// @Success 200 {object} nonruservice.StatusView
+// @Security BearerAuth
+// @Router /nonru/status [get]
+func (api *API) handleNonRUStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "GET only"))
+		return
+	}
+	cfg := api.cfgPtr.Load().System.Warp.NonRU
+	rt := nonruRuntimeLoad()
+	if !cfg.Enabled || rt == nil {
+		sendResponse(w, map[string]interface{}{
+			"enabled":   cfg.Enabled,
+			"running":   false,
+			"listening": false,
+			"transport": "nonru",
+			"gate": map[string]interface{}{
+				"open":      false,
+				"verdict":   "",
+				"country":   "",
+				"providers": 3,
+			},
 		})
 		return
 	}

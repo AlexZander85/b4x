@@ -31,6 +31,7 @@ import (
 	"github.com/daniellavrushin/b4/monitoring"
 	"github.com/daniellavrushin/b4/mtproto"
 	"github.com/daniellavrushin/b4/nfq"
+	"github.com/daniellavrushin/b4/nonruservice"
 	"github.com/daniellavrushin/b4/observability"
 	"github.com/daniellavrushin/b4/operaservice"
 	"github.com/daniellavrushin/b4/protonservice"
@@ -713,6 +714,40 @@ func runB4(cmd *cobra.Command, args []string) error {
 			chain.Kind, chain.Kind, reserve.PriorityOf(reserve.Kind(chain.Kind)), rt.SupportsUDP())
 	}
 
+	// НЕ РФ experimental mode (tunnels panel stage 6; addendum §3.2 /
+	// ADR-WARP-6, the E6/E7 daemon assembly in src/nonruservice): a nested
+	// WARP session riding the verified BASE warp (warpservice plane), gated
+	// by multi-provider geo attestation. Zero wire calls unless
+	// system.warp.nonru.enabled=true AND the base warp is up — ADR-WARP-6:
+	// base WARP not ACTIVE makes the nested mode ineligible (the runtime
+	// parks in waiting-base until the base identity materializes).
+	// Carrier registration is DYNAMIC: the gate's route hooks register
+	// kind=nonru on a fresh PASS_NON_RU attestation and revoke it on every
+	// §62.5 close reason (the reserve registry IS the route).
+	var nonruEngine *nonruservice.Runtime
+	if cfgPtr.Load().System.Warp.NonRU.Enabled {
+		if warpEngine == nil {
+			log.Errorf("[nonru] engine disabled this run: the base warp runtime is absent (ADR-WARP-6)")
+		} else {
+			rt, err := nonruservice.Build(cfgPtr.Load(), warpEngine, nonruservice.Options{
+				OnEvent: func(ev nonruservice.Event) {
+					log.Infof("[nonru] %s %s", ev.Name, ev.Detail)
+				},
+			})
+			if err != nil {
+				log.Errorf("[nonru] engine disabled this run: %v", err)
+			} else if err := rt.Start(appCtx); err != nil {
+				log.Errorf("[nonru] engine start failed: %v", err)
+			} else {
+				nonruEngine = rt
+				st := rt.Status()
+				log.Infof("[nonru] engine started state=%s oracle=%t (gate=probing, carrier registered only on a fresh non-RU attestation)",
+					st.State, st.OracleLoaded)
+			}
+		}
+	}
+	handler.SetNonRURuntime(nonruEngine) // nil-safe: the handler answers the disabled shape
+
 	// E-PROTON reserve transport (design v2; control plane in
 	// src/transport/proton, data plane reuses the transport/wg engine).
 	// Zero goroutines and zero wire calls unless system.proton.enabled=true
@@ -881,10 +916,15 @@ func runB4(cmd *cobra.Command, args []string) error {
 	warpRT.Stop()
 	// Child-first teardown discipline: the chains ride their own CF
 	// devices but compose two transports each — they stop before the
-	// single-transport engines; AWG-WARP follows the same canon.
+	// single-transport engines; AWG-WARP follows the same canon. The nonru
+	// assembly rides the BASE warp plane — it stops before warpEngine (its
+	// Stop is gate → nested composition; the plane is never touched).
 	for _, rt := range chainEngines {
 		reserve.Unregister(rt.Kind()) // trees see the stop immediately
 		rt.Stop()
+	}
+	if nonruEngine != nil {
+		nonruEngine.Stop() // unregisters kind=nonru + tears the gate/composition down
 	}
 	if awgWarpEngine != nil {
 		reserve.Unregister(reserve.KindWarp) // trees see the stop immediately

@@ -15,6 +15,7 @@ import {
   TorTunnelConfig,
   TunnelKind,
   WarpAWGConfig,
+  WarpNonRUConfig,
   WarpTunnelConfig,
 } from "@models/config";
 import { StringListField } from "./StringListField";
@@ -27,6 +28,7 @@ interface TunnelSettingsDialogProps {
 const CONFIG_SECTION: Record<string, keyof B4Config["system"]> = {
   masque: "warp",
   warp: "warp", // the AWG-WARP branch lives in system.warp.awg
+  nonru: "warp", // the НЕ РФ branch lives in system.warp.nonru
   opera: "opera",
   fxvpn: "fxvpn",
   proton: "proton",
@@ -63,6 +65,18 @@ function defaultsFor(kind: TunnelKind): unknown {
         defer_revalidation: false,
         masquerade: { fingerprint: "" },
       } satisfies WarpTunnelConfig;
+    case "nonru":
+      return {
+        enabled: false,
+        identity_path: "",
+        endpoint: "",
+        fingerprint: "",
+        inner_mtu: 0,
+        attestation_ttl_seconds: 0,
+        refresh_interval_seconds: 0,
+        ru_countries: [],
+        fallback_to_base: false,
+      } satisfies WarpNonRUConfig;
     case "opera":
       return {
         enabled: false,
@@ -182,11 +196,14 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
       .then((cfg) => {
         setConfig(cfg);
         // The warp kind edits the AWG-WARP BRANCH (system.warp.awg), not the
-        // whole system.warp section — the MASQUE fields keep their own dialog.
+        // whole system.warp section — the MASQUE fields keep their own dialog;
+        // the nonru kind edits the НЕ РФ branch (system.warp.nonru) the same way.
         const raw =
           kind === "warp"
             ? (cfg.system[sectionKey] as WarpTunnelConfig | undefined)?.awg
-            : cfg.system[sectionKey];
+            : kind === "nonru"
+              ? (cfg.system[sectionKey] as WarpTunnelConfig | undefined)?.nonru
+              : cfg.system[sectionKey];
         const base = defaultsFor(kind) as Record<string, unknown>;
         const merged = { ...base, ...((raw ?? {}) as Record<string, unknown>) };
         if (kind === "opera") {
@@ -283,7 +300,9 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
     const original =
       kind === "warp"
         ? (config.system[sectionKey] as WarpTunnelConfig | undefined)?.awg ?? defaultsFor("warp")
-        : config.system[sectionKey] ?? defaultsFor(kind ?? "masque");
+        : kind === "nonru"
+          ? (config.system[sectionKey] as WarpTunnelConfig | undefined)?.nonru ?? defaultsFor("nonru")
+          : config.system[sectionKey] ?? defaultsFor(kind ?? "masque");
     return JSON.stringify(section) !== JSON.stringify(original);
   }, [config, section, sectionKey, kind]);
 
@@ -308,6 +327,17 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
                 } as WarpTunnelConfig,
               },
             }
+          : kind === "nonru"
+            ? {
+                ...config,
+                system: {
+                  ...config.system,
+                  warp: {
+                    ...(config.system.warp ?? {}),
+                    nonru: section as unknown as WarpNonRUConfig,
+                  } as WarpTunnelConfig,
+                },
+              }
           : {
               ...config,
               system: { ...config.system, [sectionKey]: section },
@@ -531,6 +561,100 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
                 checked={b("defer_revalidation")}
                 onChange={(v) => setField("defer_revalidation", v)}
                 description={t("tunnels.masque.deferRevalidationDesc")}
+              />
+            </Grid>
+          </Grid>
+        );
+      case "nonru":
+        return (
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <B4Switch
+                label={t("tunnels.fields.enabled")}
+                checked={b("enabled")}
+                onChange={(v) => setField("enabled", v)}
+                description={t("tunnels.nonru.enabledDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <B4Alert severity="warning">
+                {t("tunnels.nonru.experimental")}
+              </B4Alert>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.identityPath")}
+                value={s("identity_path")}
+                onChange={(e) => setField("identity_path", e.target.value)}
+                helperText={t("tunnels.nonru.identityPathHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.endpoint")}
+                value={s("endpoint")}
+                onChange={(e) => setField("endpoint", e.target.value)}
+                helperText={t("tunnels.nonru.endpointHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.fingerprint")}
+                select
+                value={s("fingerprint")}
+                onChange={(e) => setField("fingerprint", e.target.value)}
+                helperText={t("tunnels.nonru.fingerprintHint")}
+              >
+                <MenuItem value="">{t("tunnels.masque.fpAuto")}</MenuItem>
+                <MenuItem value="chrome120">chrome120</MenuItem>
+                <MenuItem value="firefox">firefox</MenuItem>
+              </B4TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.innerMtu")}
+                type="number"
+                value={n("inner_mtu")}
+                onChange={(e) => setField("inner_mtu", Number(e.target.value) || 0)}
+                inputProps={{ min: 0, max: 1200, step: 1 }}
+                helperText={t("tunnels.nonru.innerMtuHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.attestationTtl")}
+                type="number"
+                value={n("attestation_ttl_seconds")}
+                onChange={(e) => setField("attestation_ttl_seconds", Number(e.target.value) || 0)}
+                inputProps={{ min: 0, step: 1 }}
+                helperText={t("tunnels.nonru.attestationTtlHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.nonru.refreshInterval")}
+                type="number"
+                value={n("refresh_interval_seconds")}
+                onChange={(e) => setField("refresh_interval_seconds", Number(e.target.value) || 0)}
+                inputProps={{ min: 0, step: 1 }}
+                helperText={t("tunnels.nonru.refreshIntervalHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <StringListField
+                label={t("tunnels.nonru.ruCountries")}
+                values={arr("ru_countries")}
+                onChange={(values) => setField("ru_countries", values)}
+                placeholder="RU"
+                helperText={t("tunnels.nonru.ruCountriesHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4Switch
+                label={t("tunnels.nonru.fallbackToBase")}
+                checked={b("fallback_to_base")}
+                onChange={(v) => setField("fallback_to_base", v)}
+                description={t("tunnels.nonru.fallbackToBaseDesc")}
               />
             </Grid>
           </Grid>

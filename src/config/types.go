@@ -65,6 +65,12 @@ const (
 	TunnelKindChainAwgMasque    = "awg+masque"    // W+M: AWG outer, MASQUE inner
 	TunnelKindChainAwgAwg       = "awg+awg"       // W+W: AWG outer, AWG inner
 	TunnelKindChainMasqueMasque = "masque+masque" // M+M: MASQUE outer, MASQUE inner
+	// TunnelKindNonRU is the geo-gated nested WARP (НЕ РФ, ADR-WARP-6): a
+	// second WARP session through the BASE warp, routable only while a fresh
+	// multi-provider non-RU geo attestation holds (transport/warp NonRUGate;
+	// assembly src/nonruservice). IPv4/TCP through the inner MASQUE netstack
+	// v1 — the honest v1 posture (addendum §38).
+	TunnelKindNonRU = "nonru"
 )
 
 // RoutingTunnelKinds is the closed set accepted by routing.tunnel.
@@ -80,6 +86,7 @@ var RoutingTunnelKinds = []string{
 	TunnelKindChainAwgMasque,
 	TunnelKindChainAwgAwg,
 	TunnelKindChainMasqueMasque,
+	TunnelKindNonRU,
 }
 
 // IsRoutingTunnelKind reports whether kind is a valid routing.tunnel value.
@@ -88,7 +95,7 @@ func IsRoutingTunnelKind(kind string) bool {
 	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
 		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
 		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque, TunnelKindChainAwgAwg,
-		TunnelKindChainMasqueMasque:
+		TunnelKindChainMasqueMasque, TunnelKindNonRU:
 		return true
 	}
 	return false

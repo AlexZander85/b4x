@@ -81,21 +81,38 @@ func TestTunnelsOverviewChainPresets(t *testing.T) {
 		t.Fatalf("masque+masque must reflect the config entry: %v", mm)
 	}
 
-	// nonru: the honest-unavailable preset — availability off, the geo-gate
-	// note set, the ADR-WARP-6 topology (nested WARP through the base warp:
-	// both layers masque-h2), and NO config-state pickup of any kind.
+	// nonru (stage 6 — the daemon assembly shipped): available, the ADR-WARP-6
+	// topology (nested WARP through the base warp: both layers masque-h2),
+	// the config section reflected (system.warp.nonru), and no runtime wired
+	// in this test → the honest assembly-pending note.
 	nr := tunnelChainPreset(t, out, "nonru")
-	if nr["available"] != false {
-		t.Fatalf("nonru must be honestly-unavailable (daemon assembly pending): %v", nr)
-	}
-	if nr["note"] != "nonru_geo_gated" {
-		t.Fatalf("nonru note = %v, want nonru_geo_gated", nr["note"])
+	if nr["available"] != true {
+		t.Fatalf("nonru must be available (the stage-6 daemon assembly): %v", nr)
 	}
 	if nr["outer"] != "masque-h2" || nr["inner"] != "masque-h2" {
 		t.Fatalf("nonru topology = %v -> %v, want masque-h2 -> masque-h2 (nested WARP through the base warp)", nr["outer"], nr["inner"])
 	}
-	if nr["configured"] != false || nr["enabled"] != false || nr["running"] != false {
-		t.Fatalf("unavailable preset must carry no config/runtime state: %v", nr)
+	if nr["configured"] != true {
+		t.Fatalf("nonru must reflect the config schema section: %v", nr)
+	}
+	if nr["enabled"] != false {
+		t.Fatalf("nonru disabled in config must surface enabled=false: %v", nr)
+	}
+	if nr["running"] != false {
+		t.Fatalf("no runtime wired must surface running=false: %v", nr)
+	}
+	if nr["note"] != "chain_not_configured" {
+		t.Fatalf("disabled nonru note = %v, want chain_not_configured", nr["note"])
+	}
+
+	// An ENABLED nonru section with no runtime wired: the honest pending note.
+	enabled := config.NewConfig()
+	enabled.System.Warp.NonRU.Enabled = true
+	_, mux2, _ := newTunnelsTestAPI(t, &enabled)
+	_, out2 := doReq(t, mux2, http.MethodGet, "/api/tunnels", "")
+	nr2 := tunnelChainPreset(t, out2, "nonru")
+	if nr2["enabled"] != true || nr2["running"] != false || nr2["note"] != "nonru_assembly_pending" {
+		t.Fatalf("enabled-not-running nonru = %v", nr2)
 	}
 }
 
@@ -123,19 +140,17 @@ func TestTunnelsOverviewNonruNoFacade(t *testing.T) {
 	}
 }
 
-// TestTunnelsRestartKindPosture: nonru is refused as an unknown kind (no
-// runtime facade exists for it); masque+masque is a KNOWN chain kind and is
-// refused with an honest 409 when no runtime is wired (not a 400 — the
-// stage-4 gap fixed with the dispatcher case); the shipped chains share the
-// same 409 posture without a runtime.
+// TestTunnelsRestartKindPosture: nonru is a KNOWN kind — without a runtime
+// (or disabled in config) it refuses with an honest 409, never a 400; the
+// shipped chains share the same posture. Unknown kinds keep the 400.
 func TestTunnelsRestartKindPosture(t *testing.T) {
 	SetAWGWarpRuntime(nil)
 	_, mux, _ := newTunnelsTestAPI(t, nil)
 
-	// nonru: honest 400 — there is no such restartable kind.
+	// nonru: known kind — disabled in config and no runtime → honest 409.
 	w, _ := doReq(t, mux, http.MethodPost, "/api/tunnels/restart?kind=nonru", "")
-	if w.Code != http.StatusBadRequest {
-		t.Fatalf("nonru restart code = %d, want 400 (unknown kind — no facade)", w.Code)
+	if w.Code != http.StatusConflict {
+		t.Fatalf("nonru restart code = %d, want 409 (known kind, disabled/no runtime)", w.Code)
 	}
 
 	// Unknown kinds keep the 400 posture.
@@ -153,5 +168,28 @@ func TestTunnelsRestartKindPosture(t *testing.T) {
 		if w.Code != http.StatusConflict {
 			t.Fatalf("chain %s restart code = %d, want 409 (known kind, no runtime)", kind, w.Code)
 		}
+	}
+}
+
+// TestNonRUStatusDisabledShape: without an engine the status answers the
+// truthful minimal shape (config facts + the zero gate view).
+func TestNonRUStatusDisabledShape(t *testing.T) {
+	SetNonRURuntime(nil)
+	enabled := config.NewConfig()
+	enabled.System.Warp.NonRU.Enabled = true
+	_, mux, _ := newTunnelsTestAPI(t, &enabled)
+	w, out := doReq(t, mux, http.MethodGet, "/api/nonru/status", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("code = %d", w.Code)
+	}
+	if out["enabled"] != true || out["running"] != false || out["listening"] != false {
+		t.Fatalf("disabled shape wrong: %v", out)
+	}
+	if out["transport"] != "nonru" {
+		t.Fatalf("transport = %v, want nonru", out["transport"])
+	}
+	gate, ok := out["gate"].(map[string]interface{})
+	if !ok || gate["open"] != false || gate["verdict"] != "" {
+		t.Fatalf("gate view must be the honest zero shape: %v", out["gate"])
 	}
 }

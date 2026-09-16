@@ -113,17 +113,19 @@ export function TunnelsPane() {
               : live
                 ? "chain_running"
                 : null;
+            const gateOpen = chain.kind === "nonru" && chain.note === "nonru_gate_open";
             return (
               <Chip
                 key={chain.kind}
                 label={`${chain.kind}  (${chain.outer} → ${chain.inner})${
-                  live ? "  ●" : ""
+                  live ? (gateOpen ? "  ●" : "  ◌") : ""
                 }`}
                 variant={live ? "filled" : "outlined"}
-                color={live ? "primary" : chain.enabled ? "secondary" : "default"}
+                color={live ? (gateOpen ? "primary" : "secondary") : chain.enabled ? "secondary" : "default"}
                 disabled={!chain.available}
-                sx={{ fontFamily: "monospace" }}
+                sx={{ fontFamily: "monospace", cursor: chain.kind === "nonru" ? "pointer" : "default" }}
                 title={noteKey ? t(`tunnels.chains.${noteKey}`) : t(`tunnels.chains.${chain.kind}`)}
+                onClick={chain.kind === "nonru" ? () => setConfigureKind("nonru") : undefined}
               />
             );
           })}

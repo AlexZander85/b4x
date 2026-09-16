@@ -157,6 +157,45 @@ func (r *Runtime) AttachNetstack() (*warp.NetstackCarrier, func(), error) {
 	return r.sup.AttachNetstack(local, 0)
 }
 
+// Plane is the BASE warp's capsule surface for nested compositions (ADR-WARP-6:
+// the nested НЕ РФ session rides the verified base path): packet writes into
+// the live session, the generation-surviving tap fan-out, and the status
+// snapshot. Read-only data plane — no lifecycle control leaks (the nested
+// runtime composes ON TOP of the base session; it never restarts or stops it).
+// The method set is exactly the nested CapsulePlane contract, satisfied
+// structurally so warpservice stays free of the transport/nested import.
+type Plane struct{ sup *warp.Supervisor }
+
+// WritePacket implements the nested CapsulePlane contract.
+func (p Plane) WritePacket(pkt []byte) error {
+	if p.sup == nil {
+		return errors.New("warpservice: plane not bound to a supervisor")
+	}
+	return p.sup.WritePacket(pkt)
+}
+
+// SubscribePackets implements the nested CapsulePlane contract.
+func (p Plane) SubscribePackets() (<-chan []byte, func()) {
+	if p.sup == nil {
+		ch := make(chan []byte)
+		return ch, func() {}
+	}
+	return p.sup.SubscribePackets()
+}
+
+// Snapshot implements the nested CapsulePlane contract.
+func (p Plane) Snapshot() warp.Status {
+	if p.sup == nil {
+		return warp.Status{}
+	}
+	return p.sup.Snapshot()
+}
+
+// Plane exposes the base warp capsule surface (the nonru nested-composition
+// seam). The surface is live for the lifetime of the base supervisor; the
+// caller composes on top without owning the lifecycle.
+func (r *Runtime) Plane() Plane { return Plane{sup: r.sup} }
+
 // EnrollSummary converts an EnsureResult into a redacted CLI summary.
 func EnrollSummary(res warp.EnsureResult, identityPath string) Summary {
 	s := Summary{

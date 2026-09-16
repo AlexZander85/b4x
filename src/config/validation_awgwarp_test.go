@@ -162,8 +162,14 @@ func TestRoutingTunnelKindChains(t *testing.T) {
 		!IsRoutingTunnelKind(TunnelKindChainAwgAwg) || !IsRoutingTunnelKind(TunnelKindChainMasqueMasque) {
 		t.Fatal("chain kinds must be routing tunnel kinds")
 	}
-	if IsRoutingTunnelKind("nonru") {
-		t.Fatal("the geo-gated policy must not be a routing tunnel kind")
+	// Stage 6: nonru SHIPPED as a routable kind — the geo gate owns the
+	// carrier's dynamic registration (route promotion/revocation), and the
+	// closed kind set keeps everything else honest.
+	if !IsRoutingTunnelKind(TunnelKindNonRU) {
+		t.Fatal("nonru must be a routing tunnel kind (stage 6: the daemon assembly shipped)")
+	}
+	if IsRoutingTunnelKind("nonru-x") || IsRoutingTunnelKind("chain") {
+		t.Fatal("unknown kinds must stay outside the routing set")
 	}
 }
 

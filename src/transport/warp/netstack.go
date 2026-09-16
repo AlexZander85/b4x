@@ -281,6 +281,26 @@ func (c *NetstackCarrier) Close() {
 	c.ep.Drain()
 }
 
+// CurrentSession snapshots the live H2 session (nil while the supervisor is
+// idle/backoff/stopped, or when the current carrier is not the H2 *Session —
+// e.g. an established H3 transport). The data-plane accessor canon:
+// snapshots only, never lifecycle control — the supervisor keeps owning the
+// session's lifetime; consumers attach their own taps/netstacks to it. The
+// E7 geo wiring (TunnelGeoTransport) is the first consumer: it needs the
+// session's packet surface + counters for the §43 counter-delta proof.
+func (s *Supervisor) CurrentSession() *Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur == nil {
+		return nil
+	}
+	sess, ok := s.cur.(*Session)
+	if !ok {
+		return nil
+	}
+	return sess
+}
+
 // AttachNetstack mounts the userspace TCP/IP carrier (bd b4x-9aa) on the
 // CURRENT session generation: egress writes into the live session, inbound
 // rides the generation-surviving supervisor tap fan-out. The returned closer

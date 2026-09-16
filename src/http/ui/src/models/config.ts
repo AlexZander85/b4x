@@ -410,6 +410,24 @@ export interface WarpTunnelConfig {
   masquerade: WarpMasqueradeConfig;
   awg?: WarpAWGConfig;
   chains?: WarpChainConfig[];
+  // НЕ РФ experimental mode (ADR-WARP-6): a nested WARP session over the
+  // base warp, geo-gated by multi-provider attestation (nonruservice).
+  nonru?: WarpNonRUConfig;
+}
+
+// WarpNonRUConfig is the system.warp.nonru section (tunnels panel stage 6):
+// the inner layer of the nested НЕ РФ composition (the outer layer IS the
+// base warp — its knobs live on the base section above).
+export interface WarpNonRUConfig {
+  enabled: boolean;
+  identity_path: string;
+  endpoint: string;
+  fingerprint: string;
+  inner_mtu: number;
+  attestation_ttl_seconds: number;
+  refresh_interval_seconds: number;
+  ru_countries: string[];
+  fallback_to_base: boolean;
 }
 
 export interface OperaMasqueradeConfig {
@@ -620,7 +638,10 @@ export type TunnelKind =
   | "masque+awg"
   | "awg+masque"
   | "awg+awg"
-  | "masque+masque";
+  | "masque+masque"
+  // The geo-gated nested WARP (stage 6, nonruservice): routable only while
+  // a fresh multi-provider non-RU geo attestation holds.
+  | "nonru";
 
 export type BlockAction = "drop" | "reject";
 

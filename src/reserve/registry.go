@@ -44,6 +44,11 @@ const (
 	KindChainAwgMasque    Kind = "awg+masque"    // W+M: AWG outer, MASQUE inner (IPv4/TCP)
 	KindChainAwgAwg       Kind = "awg+awg"       // W+W: AWG outer, AWG inner (UDP full-scope)
 	KindChainMasqueMasque Kind = "masque+masque" // M+M: MASQUE outer, MASQUE inner (IPv4/TCP)
+	// KindNonRU is the geo-gated nested WARP (НЕ РФ, ADR-WARP-6): a second
+	// WARP session through the base warp, promoted ONLY while a fresh
+	// multi-provider non-RU geo attestation holds (assembly src/nonruservice;
+	// registration is DYNAMIC — the gate's route hooks register/unregister).
+	KindNonRU Kind = "nonru"
 )
 
 // Priorities encode the design §7 tree order (HIGHER wins). Proton sits
@@ -78,6 +83,11 @@ const (
 	// that its inner MASQUE netstack v1 carries IPv4/TCP only — the most
 	// constrained escalation surface in the tree.
 	PriorityChainMasqueMasque = 12
+	// PriorityNonRU sits below EVERY chain: the НЕ РФ mode stacks the same
+	// homogeneity risk as M+M (two WARP hops on CF edges) on top of the geo
+	// gate — the deepest, most constrained experimental escalation, above
+	// only tor's last resort.
+	PriorityNonRU = 11
 )
 
 // Carrier is the scoped-router contract of a reserve transport (review P2
@@ -194,6 +204,8 @@ func priorityOf(k Kind) int {
 		return PriorityChainAwgAwg
 	case KindChainMasqueMasque:
 		return PriorityChainMasqueMasque
+	case KindNonRU:
+		return PriorityNonRU
 	default:
 		return 0 // unknown kinds park at the tail until prioritized
 	}

@@ -165,3 +165,34 @@ func FuzzReadCountryCodeNeverPanics(f *testing.F) {
 		_, _ = readCountryCode(b)
 	})
 }
+
+func TestLoadCountryPrefixesFullIndex(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "geoip.dat")
+	writeGeoIPFile(t, path, map[string][]*v2data.CIDR{
+		"ru":      {{Ip: []byte{62, 76, 0, 0}, Prefix: 14}},
+		"de":      {{Ip: []byte{81, 9, 0, 0}, Prefix: 16}},
+		"1":       {{Ip: []byte{1, 0, 0, 0}, Prefix: 24}},
+		"private": {{Ip: []byte{192, 0, 2, 0}, Prefix: 24}},
+		"v6tag":   {{Ip: []byte{0x20, 0x01, 0x0d, 0xb8}, Prefix: 32}}, // v4 parser ignores nothing here; the row is 4 bytes so it lands as a v4 /32 — callers keep pseudo/no-country tags verbatim
+	})
+	byCountry, err := LoadCountryPrefixes(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(byCountry["ru"]) != 1 || byCountry["ru"][0].String() != "62.76.0.0/14" {
+		t.Fatalf("ru prefixes = %v", byCountry["ru"])
+	}
+	if len(byCountry["de"]) != 1 || byCountry["de"][0].String() != "81.9.0.0/16" {
+		t.Fatalf("de prefixes = %v", byCountry["de"])
+	}
+	// Pseudo tags are kept verbatim — the oracle decides their meaning.
+	if len(byCountry["1"]) != 1 || len(byCountry["private"]) != 1 {
+		t.Fatalf("pseudo tags = %v", byCountry)
+	}
+
+	// Missing file: honest error (the caller surfaces the unloaded posture).
+	if _, err := LoadCountryPrefixes(filepath.Join(dir, "missing.dat")); err == nil {
+		t.Fatal("missing file must fail")
+	}
+}

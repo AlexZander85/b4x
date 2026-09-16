@@ -2242,6 +2242,26 @@
       "scopeSuffixes": "Суффиксы scope",
       "scopeSuffixesHint": "Суффиксы назначений, маршрутизируемые в tor помимо .onion"
     },
+    "nonru": {
+      "enabledDesc": "Включить вложенный не-РФ режим поверх базового warp (ADR-WARP-6)",
+      "experimental": "Экспериментально: доступность не гарантируется. Маршрут активируется только пока собственная свежая multi-provider проверка B4 подтверждает не-РФ egress — если не-РФ egress не найден, у выбранного трафика нет карриера (fail-closed).",
+      "identityPath": "Путь до слота внутреннего identity",
+      "identityPathHint": "Пусто = /opt/etc/b4/warp/nonru-identity.json (второе CF-устройство)",
+      "endpoint": "Внутренний endpoint (ip:port)",
+      "endpointHint": "Край каталога MASQUE-H2, должен отличаться от IP края базового warp (пусто = умолчание)",
+      "fingerprint": "uTLS-отпечаток внутреннего слоя",
+      "fingerprintHint": "ClientHello вложенного слоя (внешний следует настройкам базового warp)",
+      "innerMtu": "Внутренний MTU",
+      "innerMtuHint": "0 = 1200 (вложенный потолок)",
+      "attestationTtl": "TTL аттестации (сек)",
+      "attestationTtlHint": "Сколько гео-аттестация может служить открытому маршруту (0 = 120; минимум 2x refresh)",
+      "refreshInterval": "Интервал опроса (сек)",
+      "refreshIntervalHint": "Период раунда гео-проб (0 = 60)",
+      "ruCountries": "Страны РФ",
+      "ruCountriesHint": "ISO-3166 alpha-2 коды, классифицируемые как РФ (пусто = RU)",
+      "fallbackToBase": "Эмитить события fallback-to-base",
+      "fallbackToBaseDesc": "§47: при fail-closed ревокациях также эмитить событие fallback_to_base (без автоматической маршрутизации)"
+    },
     "chains": {
       "title": "Вложенные цепочки",
       "description": "Пресеты двухслойных туннелей (внешний -> внутренний)",
@@ -2251,11 +2271,14 @@
       "masque+awg": "MASQUE снаружи, AWG внутри",
       "nonru": "Всегда не РФ (geo-gate)",
       "nonru_geo_gated": "Geo-gated вложенный WARP (НЕ РФ): вторая WARP-сессия через базовую, маршрут продвигается только при свежей multi-provider аттестации не-РФ. Движок и гейт готовы в transport/warp; сборка в демоне ожидается — пресет остаётся недоступным, никаких полусостояний.",
+      "nonru_gate_open": "Гейт открыт: свежая multi-provider аттестация держит не-РФ egress; карриер kind=nonru зарегистрирован.",
+      "nonru_gate_closed": "Композиция поднята, но гео-гейт закрыт (нет свежей не-РФ аттестации; РФ / разногласие / устаревание / пробы в процессе). Карриер не зарегистрирован.",
+      "nonru_assembly_pending": "Включён в конфиге, но сборка в демоне не запущена (нет базового warp или сборка не удалась — см. /api/nonru/status).",
       "chain_running": "Композиция цепочки поднята (оба слоя установлены).",
       "chain_engine_pending": "Композиция готова на уровне движка; сборка в демоне ожидается.",
       "chain_disabled": "Настроена, но отключена в system.warp.chains.",
       "chain_not_configured": "Добавьте запись цепочки в system.warp.chains, чтобы включить её.",
-      "note": "masque+awg, awg+masque, awg+awg (W+W поверх transport/wg.NestedWgRuntime; два CF wg-девайса) и masque+masque (два CF masque-девайса) поставляются со сборкой в демоне — каждый слой владеет отдельным слотом identity. Маршрутизируйте сеты на них через routing.mode=tunnel. Geo-gated дерево nonru остаётся в ожидании сборки — никаких полусостояний."
+      "note": "masque+awg, awg+masque, awg+awg (W+W поверх transport/wg.NestedWgRuntime; два CF wg-девайса) и masque+masque (два CF masque-девайса) поставляются со сборкой в демоне — каждый слой владеет отдельным слотом identity. Маршрутизируйте сеты на них через routing.mode=tunnel. Чип nonru (НЕ РФ) открывает свои настройки по клику; его карриер регистрируется только при свежей не-РФ гео-аттестации — никаких полусостояний."
     },
     "assignments": {
       "title": "Назначения спискам доменов",

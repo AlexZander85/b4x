@@ -2240,6 +2240,26 @@
       "scopeSuffixes": "Scope suffixes",
       "scopeSuffixesHint": "Destination suffixes routed to tor besides .onion"
     },
+    "nonru": {
+      "enabledDesc": "Arm the nested non-RU mode over the base warp (ADR-WARP-6)",
+      "experimental": "Experimental: availability is not guaranteed. The route activates only while B4's own fresh multi-provider check confirms a non-RU egress — if no non-RU egress is found, selected traffic has no carrier (fail-closed).",
+      "identityPath": "Inner identity path",
+      "identityPathHint": "Empty = /opt/etc/b4/warp/nonru-identity.json (a second CF device)",
+      "endpoint": "Inner endpoint (ip:port)",
+      "endpointHint": "MASQUE-H2 catalog edge, must differ from the base warp's edge IP (empty = default)",
+      "fingerprint": "Inner uTLS fingerprint",
+      "fingerprintHint": "ClientHello of the nested layer (the outer rides the base warp settings)",
+      "innerMtu": "Inner MTU",
+      "innerMtuHint": "0 = 1200 (nested cap)",
+      "attestationTtl": "Attestation TTL (s)",
+      "attestationTtlHint": "How long a geo attestation may serve the open route (0 = 120; at least 2x the refresh)",
+      "refreshInterval": "Refresh interval (s)",
+      "refreshIntervalHint": "Geo probe round period (0 = 60)",
+      "ruCountries": "RU countries",
+      "ruCountriesHint": "ISO-3166 alpha-2 codes classified as RU (empty = RU)",
+      "fallbackToBase": "Emit fallback-to-base events",
+      "fallbackToBaseDesc": "§47: on fail-closed revocations also emit the fallback_to_base event (no automatic routing)"
+    },
     "chains": {
       "title": "Nested chains",
       "description": "Two-layer tunnel presets (outer -> inner)",
@@ -2249,11 +2269,14 @@
       "masque+awg": "MASQUE outer, AWG inner",
       "nonru": "Always non-RU (geo-gated)",
       "nonru_geo_gated": "Geo-gated nested WARP (НЕ РФ): a second WARP session forced through the base one, promoted only on a fresh multi-provider non-RU attestation. The engine and the gate are ready in transport/warp; the daemon assembly is pending — the preset stays unavailable, no half-states.",
+      "nonru_gate_open": "Gate open: a fresh multi-provider attestation holds a non-RU egress; the kind=nonru carrier is registered.",
+      "nonru_gate_closed": "The composition is up but the geo gate is closed (no fresh non-RU attestation yet; RU / disagreement / stale / probes pending). No carrier is registered.",
+      "nonru_assembly_pending": "Enabled in config but the daemon assembly is not running (base warp absent or the assembly failed — see /api/nonru/status).",
       "chain_running": "Chain composition is up (both layers established).",
       "chain_engine_pending": "Engine-ready composition; the daemon assembly is pending.",
       "chain_disabled": "Configured but disabled in system.warp.chains.",
       "chain_not_configured": "Add the chain entry to system.warp.chains to arm it.",
-      "note": "masque+awg, awg+masque, awg+awg (W+W over transport/wg.NestedWgRuntime; two CF wg devices) and masque+masque (two CF masque devices) ship with the daemon assembly — each layer owns a distinct identity slot. Route sets to them via routing.mode=tunnel. The geo-gated nonru tree stays engine-pending — no silent half-states."
+      "note": "masque+awg, awg+masque, awg+awg (W+W over transport/wg.NestedWgRuntime; two CF wg devices) and masque+masque (two CF masque devices) ship with the daemon assembly — each layer owns a distinct identity slot. Route sets to them via routing.mode=tunnel. The nonru chip (НЕ РФ) opens its settings on click; its carrier registers only while a fresh non-RU geo attestation holds — no silent half-states."
     },
     "assignments": {
       "title": "Domain-list assignments",
