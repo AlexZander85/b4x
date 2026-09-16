@@ -33,6 +33,59 @@ type SynthesizedDiscoveryResult struct {
 	Evaluation CandidateEvaluation `json:"evaluation"`
 }
 
+// constrainSynthesisLimitsToConfig keeps the canonical automation config as an
+// upper bound. A request may narrow limits or disable an operator family, but
+// it can never widen configured numeric budgets or re-enable a disabled family.
+func constrainSynthesisLimitsToConfig(requested SynthesisLimits, policy config.AdaptiveStrategySynthesisConfig) SynthesisLimits {
+	defaults := DefaultSynthesisLimits()
+	effective := SynthesisLimits{
+		MaxCandidates:    policy.MaxCandidates,
+		MaxGenerations:   policy.MaxGenerations,
+		MaxActions:       policy.MaxActions,
+		MaxBranches:      policy.MaxBranches,
+		MaxAmplification: policy.MaxAmplification,
+		AllowSafeFake:    policy.AllowSafeFake,
+		AllowDisorder:    policy.AllowBoundedDisorder,
+		AllowJitter:      policy.AllowJitter,
+	}
+	if effective.MaxCandidates == 0 {
+		effective.MaxCandidates = defaults.MaxCandidates
+	}
+	if effective.MaxGenerations == 0 {
+		effective.MaxGenerations = defaults.MaxGenerations
+	}
+	if effective.MaxActions == 0 {
+		effective.MaxActions = defaults.MaxActions
+	}
+	if effective.MaxBranches == 0 {
+		effective.MaxBranches = defaults.MaxBranches
+	}
+	if effective.MaxAmplification == 0 {
+		effective.MaxAmplification = defaults.MaxAmplification
+	}
+
+	r := requested.normalized()
+	if r.MaxCandidates < effective.MaxCandidates {
+		effective.MaxCandidates = r.MaxCandidates
+	}
+	if r.MaxGenerations < effective.MaxGenerations {
+		effective.MaxGenerations = r.MaxGenerations
+	}
+	if r.MaxActions < effective.MaxActions {
+		effective.MaxActions = r.MaxActions
+	}
+	if r.MaxBranches < effective.MaxBranches {
+		effective.MaxBranches = r.MaxBranches
+	}
+	if r.MaxAmplification < effective.MaxAmplification {
+		effective.MaxAmplification = r.MaxAmplification
+	}
+	effective.AllowSafeFake = effective.AllowSafeFake && requested.AllowSafeFake
+	effective.AllowDisorder = effective.AllowDisorder && requested.AllowDisorder
+	effective.AllowJitter = effective.AllowJitter && requested.AllowJitter
+	return effective
+}
+
 // RunSynthesizedDiscovery is an adapter into the existing adaptive matrix. It
 // performs the AFS hard/static gates and dry-run ActionPlanner compilation,
 // then reuses RunAdaptiveDiscovery and ScoreOutcome unchanged. It never
@@ -57,6 +110,10 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 		observability.RecordSynthesisViolation(observability.MetricSynthesisScopeEscape)
 		return AdaptiveRunResult{}, err
 	}
+
+	// The persisted automation policy is an upper bound over caller-provided
+	// request limits. This is applied before any static validation or planning.
+	req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
 
 	// User opt-in comes from the canonical config policy, never from a caller
 	// boolean. Service-profile policy may only narrow this permission.
@@ -146,6 +203,9 @@ func (m *Runtime) RunSynthesizedDiscovery(ctx context.Context, cfg *config.Confi
 // RunSynthesizedDiscoveryEvaluated keeps the network execution and fitness
 // projection separate while exposing the canonical AFS evaluation object.
 func (m *Runtime) RunSynthesizedDiscoveryEvaluated(ctx context.Context, cfg *config.Config, req SynthesizedDiscoveryRequest, baselineRunner ProbeRunner, synthesizedRunner SynthesizedProbeRunner) (SynthesizedDiscoveryResult, error) {
+	if cfg != nil {
+		req.Synthesis.Limits = constrainSynthesisLimitsToConfig(req.Synthesis.Limits, cfg.Automation.AdaptiveStrategySynthesis)
+	}
 	run, err := m.RunSynthesizedDiscovery(ctx, cfg, req, baselineRunner, synthesizedRunner)
 	if err != nil {
 		return SynthesizedDiscoveryResult{}, err
