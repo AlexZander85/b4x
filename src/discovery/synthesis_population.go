@@ -49,7 +49,7 @@ func (p SynthesisPlanner) SeedPopulation(req SynthesisRequest, prior detector.Di
 		return nil, errors.New("exact-scope synthesis request and behavioral prior required")
 	}
 	limits := req.Limits.normalized()
-	seedOps := p.seedOperations(prior, limits)
+	seedOps := p.seedOperations(prior, limits, req.SafeFakeProfileIDs)
 	trigger := CandidateTrigger{Phase: "complete-reassembled-clienthello", Marker: "host-start"}
 	population := make([]SynthesizedCandidatePlan, 0, minInt(len(seedOps), maxSynthesisParents))
 	for _, operation := range seedOps {
@@ -110,7 +110,7 @@ func (p SynthesisPlanner) NextPopulation(req SynthesisRequest, prior detector.Di
 	if remaining < int(generationLimits.MaxCandidates) {
 		generationLimits.MaxCandidates = uint16(remaining)
 	}
-	next, err := p.evolveGeneration(req, prior, parents, p.seedOperations(prior, limits), generation, state.SeenCanonical, state.FailedIDs, state.Rejected, generationLimits)
+	next, err := p.evolveGeneration(req, prior, parents, p.seedOperations(prior, limits, req.SafeFakeProfileIDs), generation, state.SeenCanonical, state.FailedIDs, state.Rejected, generationLimits)
 	if err != nil {
 		return nil, err
 	}
