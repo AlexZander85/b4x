@@ -84,6 +84,10 @@ jobs:
         working-directory: src
         run: go test ./config ./detector ./discovery ./monitor ./observability ./runtimecontrol ./validation
 
+      - name: Generate UI defaults
+        working-directory: src
+        run: go run tools/gendefaults.go
+
       - name: Setup PNPM
         uses: pnpm/action-setup@v6
         with:
