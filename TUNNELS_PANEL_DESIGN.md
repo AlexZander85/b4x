@@ -1,6 +1,6 @@
 # Tunnels Management Pane — Design & Implementation
 
-**Статус:** реализовано (этап 1: панель + routing.mode=tunnel + carrier-реестр)
+**Статус:** реализовано (этап 1: панель + routing.mode=tunnel + carrier-реестр; этап 2: AWG-WARP сборка + цепочки masque+awg / awg+masque)
 **Ветка:** `agent/classifier-v2.3-capture-envelope`
 
 ## 0. Назначение
@@ -24,10 +24,12 @@
 | `opera` | `src/operaservice` | `system.opera` | **да** (новая регистрация) | TCP only |
 | `fxvpn` | `src/fxvpservice` | `system.fxvpn` | **да** (новая регистрация) | TCP only |
 | `tor` | `src/torservice` | `system.tor` | да | TCP only |
-| `warp` (AWG-WARP) | `src/transport/wg` | — (сборка ожидается) | нет | UDP full-scope |
+| `warp` (AWG-WARP) | `src/awgwarpservice` (движок `transport/wg`, WG-enrollment мост) | `system.warp.awg` | **да** (Runtime сам carrier, UDP full-scope через netstack сессии) | UDP full-scope |
+| `masque+awg` (цепочка) | `src/warpchainservice` → `nested.MasqueAwgRuntime` | `system.warp.chains[]` | **да** (внутренний AWG netstack: TCP + UDP) | UDP full-scope |
+| `awg+masque` (цепочка) | `src/warpchainservice` → `nested.WgMasqueRuntime` | `system.warp.chains[]` | **да** (внутренний MASQUE netstack, re-attach канон warpservice) | IPv4/TCP |
 | `h3` | зарезервирован | — | нет | UDP full-scope |
 
-Цепочки (`awg+awg`, `masque+masque`, `awg+masque`, `masque+awg`, `nonru`): движок `src/transport/nested` (PairConfig, обе композиции) готов и e2e-тестирован; схемы в b4.json пока нет — в панели отображаются как пресеты с честным «движок ожидает сборки», без молчаливых полусостояний.
+Цепочки, оставшиеся за этапом 2: `awg+awg` (W+W), `masque+masque` (WARP+WARP), `nonru` (geo-gate) — движки готовы, daemon-сборка ожидается; в панели честные недоступные пресеты.
 
 ## 2. Маршрутизация доменных списков через туннель
 
@@ -75,13 +77,18 @@
 
 ## 6. Ограничения (honest boundaries)
 
-- AWG-WARP (`warp`) и вложенные цепочки: движки есть, конфиг-схемы и daemon-сборка ожидают следующих этапов; панель показывает их состояние честно (недоступно, с примечанием), не предлагая неработающих переключателей.
-- MASQUE-carrier: IPv4/TCP только (netstack v1); UDP-лег нет до появления UDP-capable carrier-адаптера.
-- Рестарт masque не поддерживается (lifecycle — супервизор WARP).
+- ~~AWG-WARP (`warp`) и вложенные цепочки: движки есть, конфиг-схемы и daemon-сборка ожидают~~ **Этап 2 закрыл**: AWG-WARP (system.warp.awg + src/awgwarpservice, WG-enrollment POST-с-реальным-ключом) и цепочки masque+awg / awg+masque (system.warp.chains[] + src/warpchainservice над transport/nested). Каждая цепочка владеет ДВУМЯ отдельными identity-слотами (один CF-девайс на слой, red line #3); валидатор отвергает коллизии слотов со одиночными транспортами.
+- Остались за этапом: `awg+awg` (W+W), `masque+masque` (WARP+WARP) и `nonru` (geo-gate) — пресеты честно недоступны.
+- AWG-WARP: только userspace netstack (kernel-TUN/PBR — field-слой, не поставляется наполовину); WG-registration не имеет renewal-пути (перевыпуск = слот удалить + перезапуск); рестарты сервисные под cap max_restarts_per_hour (по умолчанию 6/час, proton-канон).
+- `awg+masque`: внутренний MASQUE netstack v1 — IPv4/TCP only (`reserve.ErrCarrierNoUDP` на UDP-ветке); `masque+awg` честно несёт UDP full-scope через внутренний AWG netstack.
+- MASQUE-carrier (одиночный): IPv4/TCP только (netstack v1); UDP-лег нет до появления UDP-capable carrier-адаптера.
+- Рестарт masque не поддерживается (lifecycle — супервизор WARP). Рестарты warp/цепочек: retire+rebuild под своими cap'ами.
 - Locales-списки стран для proton/fxvpn не тянутся в панель автоматически — выбор country/host по ISO-коду вручную (валидация на сервере против живого каталога при применении на лету).
 
 ## 7. Файлы
 
 Бэкенд: `src/config/{types,validation}.go`, `src/reserve/registry.go`, `src/warpservice/carrier.go`, `src/{operaservice,fxvpservice}/carrier.go`, `src/tproxy/{carrier,manager,listener,listener_udp}.go`, `src/tables/{routing,routing_proxy}.go`, `src/http/handler/{tunnels,common}.go`, `src/main.go`, `src/config/validation_tunnel_test.go`.
 
-Фронтенд: `src/http/ui/src/{components/tunnels/*, api/tunnels.ts, hooks/useTunnels.ts, models/tunnels.ts, barrels/tunnels.ts}`, интеграция в `App.tsx`, `tsconfig.json`, `barrels/icons.ts`, `components/sets/routing/TrafficRouting.tsx`, `models/config.ts`, `i18n/{en,ru}.json`.
+Этап 2 (AWG-WARP + цепочки): `src/transport/wg/{enrollment.go,enrollment_test.go}` (WG-registration мост: POST с реальным curve25519 ключом, hex client_id → base64 reserved), `src/config/awgwarp.go` + `validation_awgwarp_test.go` (system.warp.awg + system.warp.chains[]: каталоги по слоям, разные edge, cap inner MTU 1200, коллизии слотов), `src/awgwarpservice/{service,carrier}.go` + тесты (supervisor-канон proton: once-per-boot регистрация, restart caps, carrier kind=warp UDP full-scope), `src/transport/nested/accessors.go` (InnerSession/InnerSupervisor снапшоты), `src/warpchainservice/{service,carrier}.go` + тесты (M+W: outer supervisor как plane; W+M: inner supervisor из движка; carriers masque+awg / awg+masque), `src/main.go` (wiring + child-first shutdown), `src/http/handler/tunnels.go` (живые карточки, chain-пресеты, restart warp|chains, /api/awgwarp/status).
+
+Фронтенд: `src/http/ui/src/{components/tunnels/*, api/tunnels.ts, hooks/useTunnels.ts, models/tunnels.ts}`, интеграция в `App.tsx`, `tsconfig.json`, `barrels/icons.ts`, `components/sets/routing/TrafficRouting.tsx`, `models/config.ts`, `i18n/{en,ru}.json` (этапы 1+2).

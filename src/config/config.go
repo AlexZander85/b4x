@@ -270,6 +270,10 @@ var DefaultConfig = Config{
 			Enabled:      false,
 			IdentityPath: DefaultWarpIdentityPath,
 			Endpoint:     "",
+			AWG: WarpAWGConfig{
+				Enabled:      false,
+				IdentityPath: DefaultWarpAWGIdentityPath,
+			},
 		},
 
 		Opera: OperaConfig{

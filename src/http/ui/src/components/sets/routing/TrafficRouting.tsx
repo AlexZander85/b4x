@@ -493,6 +493,12 @@ export const TrafficRouting = ({
                   <MenuItem value="tor">{t("tunnels.kind.tor")} (tor)</MenuItem>
                   <MenuItem value="warp">{t("tunnels.kind.warp")} (warp)</MenuItem>
                   <MenuItem value="h3">{t("tunnels.kind.h3")} (h3)</MenuItem>
+                  <MenuItem value="masque+awg">
+                    {t("tunnels.chains.masque+awg")} (masque+awg)
+                  </MenuItem>
+                  <MenuItem value="awg+masque">
+                    {t("tunnels.chains.awg+masque")} (awg+masque)
+                  </MenuItem>
                 </B4TextField>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>

@@ -2116,7 +2116,7 @@
       "tor": "Tor"
     },
     "kindDesc": {
-      "warp": "Amnezia-WireGuard engine for Cloudflare WARP. UDP full-scope; assembly pending.",
+      "warp": "Amnezia-WireGuard over the Cloudflare WARP WG edge. UDP full-scope reserve carrier (kind=warp).",
       "masque": "Cloudflare WARP over MASQUE (CONNECT-IP). IPv4/TCP carrier with uTLS masquerade.",
       "h3": "Reserved kind for the H3-nested WARP transport.",
       "opera": "Opera/SurfEasy reserve. TCP-only, EU/AS/AM megaregions with node rotation.",
@@ -2125,7 +2125,8 @@
       "tor": "Tor reserve: TCP-only, carrier of last resort, .onion scope, bridge conveyor."
     },
     "note": {
-      "awg_warp_note": "The transport/wg engine exists; daemon-side assembly and config schema are pending (the service-profile control plane owns enrollment).",
+      "awg_warp_note": "AWG-WARP engine: the identity slot provisions on first use (one registration per boot); check the log if it stays down.",
+      "awg_warp_provisioning": "Provisioning the WARP identity (first use on this slot).",
       "h3_reserved_note": "Reserved registry kind; no runtime wired yet.",
       "engine_enabled_not_running": "Enabled in config but the engine is not wired this run (check the log)."
     },
@@ -2147,6 +2148,19 @@
       "fpAuto": "(engine default)",
       "deferRevalidation": "Defer revalidation",
       "deferRevalidationDesc": "Trust the local identity on the first connect of a boot"
+    },
+    "awg": {
+      "endpoint": "Endpoint (ip:port)",
+      "endpointHint": "WG catalog edge, e.g. 162.159.193.5:2408 (empty = seed default)",
+      "identityPath": "Identity path",
+      "identityPathHint": "Empty = /opt/etc/b4/warp/awg-identity.json (separate MASQUE slot)",
+      "profile": "AWG profile",
+      "profileHint": "Vanilla-safe cf-warp family",
+      "profileAuto": "(ladder default: quic-a)",
+      "mtu": "MTU (0 = 1280)",
+      "mtuHint": "0 = engine default",
+      "maxRestarts": "Max restarts/hour",
+      "maxRestartsHint": "Session rebuild cap (0 = 6)"
     },
     "opera": {
       "region": "Megaregion",
@@ -2218,7 +2232,11 @@
       "awg+masque": "AWG outer, MASQUE inner",
       "masque+awg": "MASQUE outer, AWG inner",
       "nonru": "Always non-RU (geo-gated)",
-      "note": "The nested-pair engine (transport/nested) is wired and e2e-tested; the b4.json schema and daemon assembly are pending. The presets stay disabled until that wiring lands — no silent half-states."
+      "chain_running": "Chain composition is up (both layers established).",
+      "chain_engine_pending": "Engine-ready composition; the daemon assembly is pending.",
+      "chain_disabled": "Configured but disabled in system.warp.chains.",
+      "chain_not_configured": "Add the chain entry to system.warp.chains to arm it.",
+      "note": "masque+awg and awg+masque ship with the daemon assembly (warpchainservice over transport/nested; each layer owns a distinct identity slot). Route sets to them via routing.mode=tunnel. W+W, masque+masque and the geo-gated nonru tree stay engine-pending — no silent half-states."
     },
     "assignments": {
       "title": "Domain-list assignments",

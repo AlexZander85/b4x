@@ -25,6 +25,12 @@ export interface ChainPreset {
   outer: string;
   inner: string;
   available: boolean;
+  // Stage 2: the shipped compositions reflect the config entry and the
+  // live engine (warpchainservice).
+  configured?: boolean;
+  enabled?: boolean;
+  running?: boolean;
+  state?: string;
   note?: string;
 }
 

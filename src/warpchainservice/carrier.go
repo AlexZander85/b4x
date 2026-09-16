@@ -1,0 +1,192 @@
+// Carrier exposure: the chain's INNER layer is the data plane. masque+awg
+// serves TCP + UDP through the inner AWG session's netstack (the proton
+// canon surface); awg+masque serves IPv4/TCP through the inner MASQUE
+// supervisor's attached netstack with the warpservice re-attach discipline
+// (one netstack per supervisor generation, rebuilt on the first dial
+// failure — a dead session's netstack fails on write, never silently).
+package warpchainservice
+
+import (
+	"context"
+	"net"
+	"net/netip"
+
+	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/reserve"
+	twarp "github.com/daniellavrushin/b4/transport/warp"
+	twg "github.com/daniellavrushin/b4/transport/wg"
+)
+
+// Kind implements reserve.Carrier: the chain kind ("masque+awg" | "awg+masque").
+func (r *Runtime) Kind() reserve.Kind { return r.kind }
+
+// SupportsUDP implements reserve.Carrier: only the masque+awg composition
+// (its data plane is the inner AWG netstack). The awg+masque inner MASQUE
+// netstack carries IPv4/TCP only.
+func (r *Runtime) SupportsUDP() bool {
+	return r.cfg.Kind == config.ChainKindMasqueAwg
+}
+
+// DialStream dials ONE TCP stream to addr through the chain's inner layer.
+func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	switch r.cfg.Kind {
+	case config.ChainKindMasqueAwg:
+		return r.dialMasqueAwg(ctx, addr)
+	case config.ChainKindAwgMasque:
+		return r.dialAwgMasque(ctx, addr)
+	default:
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+}
+
+// DialUDP dials ONE UDP exchange through the chain's inner layer — the
+// masque+awg netstack leg; the honest refusal elsewhere.
+func (r *Runtime) DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	if r.cfg.Kind != config.ChainKindMasqueAwg {
+		r.recordDial(false)
+		return nil, reserve.ErrCarrierNoUDP
+	}
+	r.mu.Lock()
+	mw := r.mPlusW
+	r.mu.Unlock()
+	if mw == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	sess := mw.InnerSession()
+	if sess == nil || sess.State() != twg.StateEstablished {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	tun := sess.Tunnel()
+	if tun == nil || tun.Netstack == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	conn, err := tun.Netstack.DialUDPAddrPort(netip.AddrPort{}, addr)
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	r.recordDial(true)
+	return conn, nil
+}
+
+// dialMasqueAwg: TCP through the inner AWG session's netstack.
+func (r *Runtime) dialMasqueAwg(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	r.mu.Lock()
+	mw := r.mPlusW
+	r.mu.Unlock()
+	if mw == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	sess := mw.InnerSession()
+	if sess == nil || sess.State() != twg.StateEstablished {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	tun := sess.Tunnel()
+	if tun == nil || tun.Netstack == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	conn, err := tun.Netstack.DialContextTCPAddrPort(ctx, addr)
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	r.recordDial(true)
+	return conn, nil
+}
+
+// dialAwgMasque: TCP through the inner MASQUE supervisor's attached
+// netstack (cached per generation; one re-attach on the first failure).
+func (r *Runtime) dialAwgMasque(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
+	r.mu.Lock()
+	wm := r.wPlusM
+	r.mu.Unlock()
+	if wm == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	sup := wm.InnerSupervisor()
+	if sup == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	snap := sup.Snapshot()
+	if !snap.RouteHeld {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	nc, err := r.attachedNetstack(sup)
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	conn, derr := nc.DialStream(ctx, addr)
+	if derr == nil {
+		r.recordDial(true)
+		return conn, nil
+	}
+	// The cached netstack may belong to a dead inner generation (the
+	// warpservice canon): drop it, re-attach once, retry.
+	r.detachNetstack()
+	nc, err = r.attachedNetstack(sup)
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	conn, derr = nc.DialStream(ctx, addr)
+	if derr != nil {
+		r.recordDial(false)
+	}
+	return conn, derr
+}
+
+// attachedNetstack returns the cached inner netstack, attaching one on
+// first use.
+func (r *Runtime) attachedNetstack(sup *twarp.Supervisor) (*twarp.NetstackCarrier, error) {
+	r.nsMu.Lock()
+	defer r.nsMu.Unlock()
+	if r.nsCarrier != nil {
+		return r.nsCarrier, nil
+	}
+	local, ok := sup.AssignedLocalV4()
+	if !ok {
+		return nil, ErrNotListening
+	}
+	nc, release, err := sup.AttachNetstack(local, r.innerMTU())
+	if err != nil {
+		return nil, err
+	}
+	r.nsCarrier, r.nsRelease = nc, release
+	return nc, nil
+}
+
+// detachNetstack drops the cached inner netstack (generation switch /
+// teardown path; safe to call twice).
+func (r *Runtime) detachNetstack() {
+	r.nsMu.Lock()
+	defer r.nsMu.Unlock()
+	if r.nsRelease != nil {
+		r.nsRelease()
+		r.nsRelease = nil
+	}
+	r.nsCarrier = nil
+}
+
+func (r *Runtime) recordDial(ok bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if ok {
+		r.dialOK++
+	} else {
+		r.dialFail++
+	}
+}
+
+// Compile-time proof the Runtime satisfies the reserve contract.
+var _ reserve.Carrier = (*Runtime)(nil)

@@ -2118,7 +2118,7 @@
       "tor": "Tor"
     },
     "kindDesc": {
-      "warp": "Amnezia-WireGuard-движок для Cloudflare WARP. UDP full-scope; сборка ожидается.",
+      "warp": "Amnezia-WireGuard поверх WG-edge Cloudflare WARP. Резервный carrier с UDP full-scope (kind=warp).",
       "masque": "Cloudflare WARP через MASQUE (CONNECT-IP). IPv4/TCP-carrier с uTLS-маскарадом.",
       "h3": "Зарезервированный вид для H3-nested WARP-транспорта.",
       "opera": "Резерв Opera/SurfEasy. Только TCP, мегарегионы EU/AS/AM с ротацией нод.",
@@ -2127,7 +2127,8 @@
       "tor": "Резерв Tor: только TCP, carrier последней надежды, .onion-scope, конвейер бриджей."
     },
     "note": {
-      "awg_warp_note": "Движок transport/wg существует; сборка в демоне и схема конфига ожидаются (enrollment управляется service-profile).",
+      "awg_warp_note": "Движок AWG-WARP: слот identity пополняется при первом использовании (одна регистрация за загрузку); при простое см. лог.",
+      "awg_warp_provisioning": "Идёт провижининг WARP-identity (первое использование слота).",
       "h3_reserved_note": "Зарезервированный вид реестра; рантайм ещё не подключён.",
       "engine_enabled_not_running": "Включён в конфиге, но движок не подключён в этом запуске (см. лог)."
     },
@@ -2149,6 +2150,19 @@
       "fpAuto": "(по умолчанию движка)",
       "deferRevalidation": "Отложить ревалидацию",
       "deferRevalidationDesc": "Доверять локальной identity при первом коннекте после загрузки"
+    },
+    "awg": {
+      "endpoint": "Endpoint (ip:port)",
+      "endpointHint": "WG-edge из каталога, напр. 162.159.193.5:2408 (пусто = seed-умолчание)",
+      "identityPath": "Путь к identity",
+      "identityPathHint": "Пусто = /opt/etc/b4/warp/awg-identity.json (отдельный слот MASQUE)",
+      "profile": "AWG-профиль",
+      "profileHint": "Vanilla-safe семейство cf-warp",
+      "profileAuto": "(умолчание лестницы: quic-a)",
+      "mtu": "MTU (0 = 1280)",
+      "mtuHint": "0 = умолчание движка",
+      "maxRestarts": "Макс. рестартов/час",
+      "maxRestartsHint": "Лимит пересборок сессии (0 = 6)"
     },
     "opera": {
       "region": "Мегарегион",
@@ -2220,7 +2234,11 @@
       "awg+masque": "AWG снаружи, MASQUE внутри",
       "masque+awg": "MASQUE снаружи, AWG внутри",
       "nonru": "Всегда не РФ (geo-gate)",
-      "note": "Движок вложенных пар (transport/nested) подключён и e2e-протестирован; схема b4.json и сборка в демоне ожидаются. Пресеты отключены до этой сборки — никаких полусостояний."
+      "chain_running": "Композиция цепочки поднята (оба слоя установлены).",
+      "chain_engine_pending": "Композиция готова на уровне движка; сборка в демоне ожидается.",
+      "chain_disabled": "Настроена, но отключена в system.warp.chains.",
+      "chain_not_configured": "Добавьте запись цепочки в system.warp.chains, чтобы включить её.",
+      "note": "masque+awg и awg+masque поставляются со сборкой в демоне (warpchainservice поверх transport/nested; каждый слой владеет отдельным слотом identity). Маршрутизируйте сеты на них через routing.mode=tunnel. W+W, masque+masque и geo-gated дерево nonru остаются в ожидании сборки — никаких полусостояний."
     },
     "assignments": {
       "title": "Назначения спискам доменов",

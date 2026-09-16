@@ -66,6 +66,8 @@ func (c *Config) Validate() error {
 	v := &validator{}
 	c.validateClassifierConfig(v)
 	c.validateWarp(v)
+	c.validateWarpAWG(v)
+	c.validateWarpChains(v)
 	c.validateOpera(v)
 	c.validateProton(v)
 	c.validateTor(v)
@@ -388,6 +390,90 @@ func (c *Config) validateWarp(v *validator) {
 	}
 	if !filepath.IsAbs(w.IdentityPath) {
 		v.addf("system.warp.identity_path", "must_be_absolute", map[string]any{"path": w.IdentityPath}, "warp identity_path must be an absolute path (got: %q)", w.IdentityPath)
+	}
+}
+
+// validateWarpAWG checks the AWG-WARP branch (tunnels panel stage 2). The
+// disabled-shape rules mirror the MASQUE canon: heads are validated even
+// when disabled; the identity slot is required when enabled (the effective
+// default fills it, so an explicit relative path is the only honest error).
+func (c *Config) validateWarpAWG(v *validator) {
+	awg := c.System.Warp.AWG
+	if awg.Endpoint != "" {
+		if _, err := awg.EffectiveEndpoint(); err != nil {
+			v.add("system.warp.awg.endpoint", "invalid_value", err.Error(), nil)
+		}
+	}
+	if awg.Profile != "" {
+		if _, err := awg.EffectiveProfile(); err != nil {
+			v.add("system.warp.awg.profile", "invalid_value", err.Error(), nil)
+		}
+	}
+	if awg.MTU < 0 || (awg.MTU > 0 && awg.MTU < 576) {
+		v.addf("system.warp.awg.mtu", "invalid_value", nil, "awg mtu %d invalid (0 = default, minimum 576)", awg.MTU)
+	}
+	if !awg.Enabled {
+		return
+	}
+	if p := awg.EffectiveIdentityPath(); !filepath.IsAbs(p) {
+		v.addf("system.warp.awg.identity_path", "must_be_absolute", map[string]any{"path": p}, "awg identity_path must be an absolute path (got: %q)", p)
+	}
+}
+
+// validateWarpChains checks the nested-chain list: closed kind set, distinct
+// kinds, per-layer catalog endpoints, different edges, inner MTU cap, the
+// vanilla-safe AWG profile and the masque fingerprint. Endpoint heads are
+// validated ALWAYS (even disabled — the warp canon: a typo cannot hide
+// until enable day); slot paths only when the chain is enabled.
+func (c *Config) validateWarpChains(v *validator) {
+	seen := map[string]bool{}
+	for i, ch := range c.System.Warp.Chains {
+		field := fmt.Sprintf("system.warp.chains[%d]", i)
+		if !IsWarpChainKind(ch.Kind) {
+			v.addf(field+".kind", "invalid_value", nil, "chain kind %q is not a nested chain kind (want masque+awg or awg+masque)", ch.Kind)
+			continue
+		}
+		if seen[ch.Kind] {
+			v.addf(field+".kind", "duplicate", nil, "chain kind %q declared twice", ch.Kind)
+			continue
+		}
+		seen[ch.Kind] = true
+
+		if _, _, err := ch.resolveChainEndpoints(); err != nil {
+			v.add(field+".endpoints", "invalid_value", err.Error(), nil)
+		}
+		if err := ch.validateChainAWGProfile(); err != nil {
+			v.add(field+".awg_profile", "invalid_value", err.Error(), nil)
+		}
+		if err := ch.validateChainFingerprint(); err != nil {
+			v.add(field+".fingerprint", "invalid_value", err.Error(), nil)
+		}
+		if ch.InnerMTU < 0 || (ch.InnerMTU > 0 && ch.InnerMTU < 576) {
+			v.addf(field+".inner_mtu", "invalid_value", nil, "chain inner mtu %d invalid (0 = default, minimum 576)", ch.InnerMTU)
+		} else if ch.InnerMTU > 1200 {
+			v.addf(field+".inner_mtu", "invalid_value", nil, "chain inner mtu %d exceeds the nested cap 1200 (encapsulation headroom)", ch.InnerMTU)
+		}
+		if !ch.Enabled {
+			continue
+		}
+		if p := ch.EffectiveOuterIdentityPath(); !filepath.IsAbs(p) {
+			v.addf(field+".outer_identity_path", "must_be_absolute", map[string]any{"path": p}, "chain outer identity_path must be an absolute path (got: %q)", p)
+		}
+		if p := ch.EffectiveInnerIdentityPath(); !filepath.IsAbs(p) {
+			v.addf(field+".inner_identity_path", "must_be_absolute", map[string]any{"path": p}, "chain inner identity_path must be an absolute path (got: %q)", p)
+		}
+		// The chain slots must be DISTINCT from the single-transport slots:
+		// one CF device per layer, never shared with masque or awg singles.
+		awgPath := c.System.Warp.AWG.EffectiveIdentityPath()
+		if p := ch.EffectiveOuterIdentityPath(); p == awgPath || p == c.System.Warp.IdentityPath {
+			v.addf(field+".outer_identity_path", "conflict", nil, "chain outer identity_path %q collides with a single-transport slot (one CF device per layer)", p)
+		}
+		if p := ch.EffectiveInnerIdentityPath(); p == awgPath || p == c.System.Warp.IdentityPath {
+			v.addf(field+".inner_identity_path", "conflict", nil, "chain inner identity_path %q collides with a single-transport slot (one CF device per layer)", p)
+		}
+		if ch.EffectiveOuterIdentityPath() == ch.EffectiveInnerIdentityPath() {
+			v.addf(field+".inner_identity_path", "conflict", nil, "chain layers must use distinct identity slots (got %q for both)", ch.EffectiveInnerIdentityPath())
+		}
 	}
 }
 

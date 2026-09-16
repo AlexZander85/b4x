@@ -38,6 +38,10 @@ const (
 	KindFxvpn  Kind = "fxvpn"  // Firefox VPN (TCP only)
 	KindProton Kind = "proton" // Proton VPN AWG (UDP full-scope)
 	KindTor    Kind = "tor"    // Tor reserve (TCP only, .onion egress)
+	// Nested chains (tunnels panel stage 2): the cross-transport compositions
+	// served by src/warpchainservice over transport/nested.
+	KindChainMasqueAwg Kind = "masque+awg" // M+W: MASQUE outer, AWG inner (UDP full-scope)
+	KindChainAwgMasque Kind = "awg+masque" // W+M: AWG outer, MASQUE inner (IPv4/TCP)
 )
 
 // Priorities encode the design §7 tree order (HIGHER wins). Proton sits
@@ -56,6 +60,13 @@ const (
 	// when every faster reserve failed (and for .onion, where it is the
 	// only transport at all).
 	PriorityTor = 5
+	// Chain priorities (tunnels panel stage 2): a nested composition is an
+	// ESCALATION depth — tried after the single transports proved unusable,
+	// before tor's last resort. masque+awg outranks awg+masque because its
+	// data plane is the AWG netstack (UDP full-scope), while the W+M inner
+	// MASQUE netstack carries IPv4/TCP only.
+	PriorityChainMasqueAwg = 15
+	PriorityChainAwgMasque = 14
 )
 
 // Carrier is the scoped-router contract of a reserve transport (review P2
@@ -143,6 +154,11 @@ func Reset() {
 	registry = map[Kind]Entry{}
 }
 
+// PriorityOf exposes the design priority of a kind (0 = unknown/parked at
+// the tail). The daemon log and the pane render it without a registry
+// round-trip.
+func PriorityOf(k Kind) int { return priorityOf(k) }
+
 func priorityOf(k Kind) int {
 	switch k {
 	case KindWarp:
@@ -159,6 +175,10 @@ func priorityOf(k Kind) int {
 		return PriorityProton
 	case KindTor:
 		return PriorityTor
+	case KindChainMasqueAwg:
+		return PriorityChainMasqueAwg
+	case KindChainAwgMasque:
+		return PriorityChainAwgMasque
 	default:
 		return 0 // unknown kinds park at the tail until prioritized
 	}

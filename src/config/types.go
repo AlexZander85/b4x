@@ -48,13 +48,19 @@ const (
 // match the reserve registry kinds (src/reserve) so the lookup is a straight
 // reserve.Lookup(reserve.Kind(t)).
 const (
-	TunnelKindWarp   = "warp"   // AWG-WARP (UDP full-scope; carrier pending)
-	TunnelKindMasque = "masque" // MASQUE-WARP (UDP full-scope; carrier pending)
-	TunnelKindH3     = "h3"     // MASQUE-WARP H3 nested (carrier pending)
+	TunnelKindWarp   = "warp"   // AWG-WARP (UDP full-scope)
+	TunnelKindMasque = "masque" // MASQUE-WARP (IPv4/TCP through netstack v1)
+	TunnelKindH3     = "h3"     // MASQUE-WARP H3 nested (reserved; carrier pending)
 	TunnelKindOpera  = "opera"  // Opera VPN (TCP-only)
 	TunnelKindFxvpn  = "fxvpn"  // Firefox VPN (TCP-only)
 	TunnelKindProton = "proton" // Proton VPN AWG (UDP full-scope)
 	TunnelKindTor    = "tor"    // Tor reserve (TCP-only, .onion egress)
+	// Nested chains (tunnels panel stage 2): the composition kinds served by
+	// src/warpchainservice over the transport/nested engine. masque+awg
+	// carries UDP full-scope (the inner AWG netstack serves it); awg+masque
+	// is IPv4/TCP only (the inner MASQUE netstack v1).
+	TunnelKindChainMasqueAwg = "masque+awg" // M+W: MASQUE outer, AWG inner
+	TunnelKindChainAwgMasque = "awg+masque" // W+M: AWG outer, MASQUE inner
 )
 
 // RoutingTunnelKinds is the closed set accepted by routing.tunnel.
@@ -66,13 +72,16 @@ var RoutingTunnelKinds = []string{
 	TunnelKindFxvpn,
 	TunnelKindProton,
 	TunnelKindTor,
+	TunnelKindChainMasqueAwg,
+	TunnelKindChainAwgMasque,
 }
 
 // IsRoutingTunnelKind reports whether kind is a valid routing.tunnel value.
 func IsRoutingTunnelKind(kind string) bool {
 	switch kind {
 	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
-		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor:
+		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
+		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque:
 		return true
 	}
 	return false

@@ -37,6 +37,14 @@ type WarpConfig struct {
 	// chapter 7 of the E-FXVPN review, applied to this transport via the
 	// b4x quic-go fork). Zero values keep the vanilla crypto/tls handshake.
 	Masquerade WarpMasqueradeConfig `json:"masquerade"`
+	// AWG arms the AWG-WARP transport (kind "warp"): one AmneziaWG session
+	// over the CF WARP WG edge (tunnels panel stage 2). Independent of the
+	// MASQUE branch above: each transport owns its identity slot.
+	AWG WarpAWGConfig `json:"awg"`
+	// Chains arms the nested compositions (masque+awg, awg+masque) from
+	// transport/nested. Each entry owns two DISTINCT identity slots (one CF
+	// device per layer, red line #3).
+	Chains []WarpChainConfig `json:"chains"`
 }
 
 // WarpMasqueradeConfig configures the uTLS ClientHello of the MASQUE H3

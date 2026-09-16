@@ -14,6 +14,7 @@ import {
   ProtonTunnelConfig,
   TorTunnelConfig,
   TunnelKind,
+  WarpAWGConfig,
   WarpTunnelConfig,
 } from "@models/config";
 import { StringListField } from "./StringListField";
@@ -25,14 +26,35 @@ interface TunnelSettingsDialogProps {
 
 const CONFIG_SECTION: Record<string, keyof B4Config["system"]> = {
   masque: "warp",
+  warp: "warp", // the AWG-WARP branch lives in system.warp.awg
   opera: "opera",
   fxvpn: "fxvpn",
   proton: "proton",
   tor: "tor",
 };
 
+// AWG-WARP profiles (vanilla-safe cf-warp family of the versioned catalog).
+const AWG_PROFILE_IDS = [
+  "",
+  "quic-a",
+  "quic-b",
+  "sip-invite",
+  "crlf-light",
+  "crlf-aggressive",
+  "vanilla-off",
+];
+
 function defaultsFor(kind: TunnelKind): unknown {
   switch (kind) {
+    case "warp":
+      return {
+        enabled: false,
+        identity_path: "",
+        endpoint: "",
+        profile: "",
+        mtu: 0,
+        max_restarts_per_hour: 6,
+      } satisfies WarpAWGConfig;
     case "masque":
       return {
         enabled: false,
@@ -159,7 +181,12 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
       .get()
       .then((cfg) => {
         setConfig(cfg);
-        const raw = cfg.system[sectionKey];
+        // The warp kind edits the AWG-WARP BRANCH (system.warp.awg), not the
+        // whole system.warp section — the MASQUE fields keep their own dialog.
+        const raw =
+          kind === "warp"
+            ? (cfg.system[sectionKey] as WarpTunnelConfig | undefined)?.awg
+            : cfg.system[sectionKey];
         const base = defaultsFor(kind) as Record<string, unknown>;
         const merged = { ...base, ...((raw ?? {}) as Record<string, unknown>) };
         if (kind === "opera") {
@@ -253,7 +280,11 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
 
   const dirty = useMemo(() => {
     if (!config || !sectionKey || !section) return false;
-    return JSON.stringify(section) !== JSON.stringify(config.system[sectionKey] ?? defaultsFor(kind ?? "masque"));
+    const original =
+      kind === "warp"
+        ? (config.system[sectionKey] as WarpTunnelConfig | undefined)?.awg ?? defaultsFor("warp")
+        : config.system[sectionKey] ?? defaultsFor(kind ?? "masque");
+    return JSON.stringify(section) !== JSON.stringify(original);
   }, [config, section, sectionKey, kind]);
 
   const applyNow = useMemo(() => {
@@ -265,10 +296,22 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
     if (!config || !sectionKey || !section) return;
     try {
       setSaving(true);
-      const next = {
-        ...config,
-        system: { ...config.system, [sectionKey]: section },
-      };
+      const next =
+        kind === "warp"
+          ? {
+              ...config,
+              system: {
+                ...config.system,
+                warp: {
+                  ...(config.system.warp ?? {}),
+                  awg: section as unknown as WarpAWGConfig,
+                } as WarpTunnelConfig,
+              },
+            }
+          : {
+              ...config,
+              system: { ...config.system, [sectionKey]: section },
+            };
       await configApi.save(next);
       showSuccess(t("core.configSavedRestart"));
       if (applyNow) {
@@ -310,6 +353,70 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
 
   const renderFields = () => {
     switch (kind) {
+      case "warp":
+        return (
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <B4Switch
+                label={t("tunnels.fields.enabled")}
+                checked={b("enabled")}
+                onChange={(v) => setField("enabled", v)}
+                description={t("tunnels.fields.enabledDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.awg.endpoint")}
+                value={s("endpoint")}
+                onChange={(e) => setField("endpoint", e.target.value)}
+                helperText={t("tunnels.awg.endpointHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.awg.identityPath")}
+                value={s("identity_path")}
+                onChange={(e) => setField("identity_path", e.target.value)}
+                helperText={t("tunnels.awg.identityPathHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.awg.profile")}
+                select
+                value={s("profile")}
+                onChange={(e) => setField("profile", e.target.value)}
+                helperText={t("tunnels.awg.profileHint")}
+              >
+                {AWG_PROFILE_IDS.map((id) => (
+                  <MenuItem key={id || "default"} value={id}>
+                    {id === "" ? t("tunnels.awg.profileAuto") : id}
+                  </MenuItem>
+                ))}
+              </B4TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <B4NumberField
+                label={t("tunnels.awg.mtu")}
+                value={n("mtu", 0)}
+                onChange={(v) => setField("mtu", v)}
+                min={0}
+                max={1480}
+                helperText={t("tunnels.awg.mtuHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 3 }}>
+              <B4NumberField
+                label={t("tunnels.awg.maxRestarts")}
+                value={n("max_restarts_per_hour", 6)}
+                onChange={(v) => setField("max_restarts_per_hour", v)}
+                min={0}
+                max={60}
+                helperText={t("tunnels.awg.maxRestartsHint")}
+              />
+            </Grid>
+          </Grid>
+        );
       case "masque":
         return (
           <Grid container spacing={2}>

@@ -20,6 +20,7 @@ import (
 
 	"github.com/daniellavrushin/b4/adblock"
 	"github.com/daniellavrushin/b4/ai"
+	"github.com/daniellavrushin/b4/awgwarpservice"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discovery"
 	"github.com/daniellavrushin/b4/fxvpservice"
@@ -43,6 +44,7 @@ import (
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/validation"
 	"github.com/daniellavrushin/b4/warp"
+	"github.com/daniellavrushin/b4/warpchainservice"
 	"github.com/daniellavrushin/b4/warpservice"
 	"github.com/daniellavrushin/b4/watchdog"
 	"github.com/spf13/cobra"
@@ -648,6 +650,57 @@ func runB4(cmd *cobra.Command, args []string) error {
 			reserve.PriorityMasque)
 	}
 
+	// AWG-WARP transport (tunnels panel stage 2; engine in transport/wg,
+	// assembly in awgwarpservice, config system.warp.awg). Zero wire calls
+	// unless system.warp.awg.enabled=true — the identity slot provisions
+	// on first use, one registration per boot. The Runtime IS the carrier
+	// (kind=warp, UDP full-scope through the session netstack).
+	var awgWarpEngine *awgwarpservice.Runtime
+	if cfgPtr.Load().System.Warp.AWG.Enabled {
+		rt, err := awgwarpservice.Build(cfgPtr.Load(), awgwarpservice.Options{})
+		if err != nil {
+			log.Errorf("[awgwarp] engine disabled this run: %v", err)
+		} else if err := rt.Start(appCtx); err != nil {
+			log.Errorf("[awgwarp] engine start failed: %v", err)
+		} else {
+			awgWarpEngine = rt
+			st := rt.Status()
+			log.Infof("[awgwarp] engine started state=%s endpoint=%s", st.State, st.Endpoint)
+		}
+	}
+	handler.SetAWGWarpRuntime(awgWarpEngine) // nil-safe: the handler answers the disabled shape
+	if awgWarpEngine != nil {
+		reserve.Register(awgWarpEngine) // Register AFTER Start (proton canon)
+		log.Infof("[awgwarp] carrier registered kind=warp priority=%d udp=true",
+			reserve.PriorityWarp)
+	}
+
+	// Nested chains (tunnels panel stage 2; engine in transport/nested,
+	// assembly in warpchainservice, config system.warp.chains[]). One
+	// runtime per chain entry; every layer owns a DISTINCT identity slot
+	// (one CF device per layer — the nested red line #3). Chain kinds:
+	// masque+awg (UDP full-scope inner) and awg+masque (IPv4/TCP inner).
+	var chainEngines []*warpchainservice.Runtime
+	for _, chain := range cfgPtr.Load().System.Warp.Chains {
+		if !chain.Enabled {
+			continue
+		}
+		rt, err := warpchainservice.Build(cfgPtr.Load(), chain, warpchainservice.Options{})
+		if err != nil {
+			log.Errorf("[chain %s] engine disabled this run: %v", chain.Kind, err)
+			continue
+		}
+		if err := rt.Start(appCtx); err != nil {
+			log.Errorf("[chain %s] engine start failed: %v", chain.Kind, err)
+			continue
+		}
+		chainEngines = append(chainEngines, rt)
+		handler.SetChainRuntime(chain.Kind, rt) // nil-safe per kind
+		reserve.Register(rt)                    // Register AFTER Start (proton canon)
+		log.Infof("[chain %s] engine started carrier kind=%s priority=%d udp=%t",
+			chain.Kind, chain.Kind, reserve.PriorityOf(reserve.Kind(chain.Kind)), rt.SupportsUDP())
+	}
+
 	// E-PROTON reserve transport (design v2; control plane in
 	// src/transport/proton, data plane reuses the transport/wg engine).
 	// Zero goroutines and zero wire calls unless system.proton.enabled=true
@@ -814,6 +867,17 @@ func runB4(cmd *cobra.Command, args []string) error {
 	wd.Stop()
 	monitoringRT.Stop()
 	warpRT.Stop()
+	// Child-first teardown discipline: the chains ride their own CF
+	// devices but compose two transports each — they stop before the
+	// single-transport engines; AWG-WARP follows the same canon.
+	for _, rt := range chainEngines {
+		reserve.Unregister(rt.Kind()) // trees see the stop immediately
+		rt.Stop()
+	}
+	if awgWarpEngine != nil {
+		reserve.Unregister(reserve.KindWarp) // trees see the stop immediately
+		awgWarpEngine.Stop()
+	}
 	if warpMasqueCarrier != nil {
 		reserve.Unregister(reserve.KindMasque) // trees see the stop immediately
 		warpMasqueCarrier.Detach()

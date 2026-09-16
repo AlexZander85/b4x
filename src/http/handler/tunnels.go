@@ -13,11 +13,14 @@ package handler
 
 import (
 	"net/http"
+	"sync"
 	"sync/atomic"
 
+	"github.com/daniellavrushin/b4/awgwarpservice"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/reserve"
+	"github.com/daniellavrushin/b4/warpchainservice"
 	"github.com/daniellavrushin/b4/warpservice"
 )
 
@@ -28,23 +31,59 @@ var warpServiceRuntime atomic.Pointer[warpservice.Runtime]
 // SetWarpServiceRuntime binds (or unbinds, nil) the warpservice engine.
 func SetWarpServiceRuntime(rt *warpservice.Runtime) { warpServiceRuntime.Store(rt) }
 
+// awgWarpRuntime is the AWG-WARP seam (tunnels panel stage 2).
+var awgWarpRuntime atomic.Pointer[awgwarpservice.Runtime]
+
+// SetAWGWarpRuntime binds (or unbinds, nil) the AWG-WARP engine.
+func SetAWGWarpRuntime(rt *awgwarpservice.Runtime) { awgWarpRuntime.Store(rt) }
+
+// chainRuntimes holds the per-kind chain engines (masque+awg, awg+masque).
+var chainRuntimes sync.Map // string(kind) -> *warpchainservice.Runtime
+
+// SetChainRuntime binds (or unbinds, nil) one chain engine by kind.
+func SetChainRuntime(kind string, rt *warpchainservice.Runtime) {
+	if rt == nil {
+		chainRuntimes.Delete(kind)
+		return
+	}
+	chainRuntimes.Store(kind, rt)
+}
+
+// chainRuntime snapshots one chain engine (nil when absent).
+func chainRuntime(kind string) *warpchainservice.Runtime {
+	v, ok := chainRuntimes.Load(kind)
+	if !ok {
+		return nil
+	}
+	rt, _ := v.(*warpchainservice.Runtime)
+	return rt
+}
+
 // RegisterTunnelsApi mounts the tunnels control plane.
 func (api *API) RegisterTunnelsApi() {
 	api.mux.HandleFunc("/api/tunnels", api.handleTunnelsOverview)
 	api.mux.HandleFunc("/api/tunnels/restart", api.handleTunnelsRestart)
 	api.mux.HandleFunc("/api/warp/status", api.handleWarpStatus)
+	api.mux.HandleFunc("/api/awgwarp/status", api.handleAWGWarpStatus)
 }
 
 // tunnelsChainPreset describes one nested-chain preset (transport/nested
-// matrix). The engine exists (PairConfig, both awg+masque orders); the
-// b4.json schema and the daemon assembly are pending — the card reports
-// that honestly instead of pretending availability.
+// matrix). The masque+awg and awg+masque compositions ship with the daemon
+// assembly (warpchainservice); the rest stay engine-pending and the card
+// reports that honestly instead of pretending availability.
 type tunnelsChainPreset struct {
 	Kind      string `json:"kind"`
 	Outer     string `json:"outer"`
 	Inner     string `json:"inner"`
 	Available bool   `json:"available"`
-	Note      string `json:"note,omitempty"`
+	// Configured: the chain entry exists in system.warp.chains (any state).
+	Configured bool `json:"configured"`
+	// Enabled mirrors the config entry's enabled flag.
+	Enabled bool `json:"enabled"`
+	// Running: the chain engine reports a live composition.
+	Running bool   `json:"running"`
+	State   string `json:"state,omitempty"`
+	Note    string `json:"note,omitempty"`
 }
 
 // tunnelsCard is one tunnel row of the overview.
@@ -118,19 +157,31 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 
 	cards := make([]tunnelsCard, 0, 7)
 
-	// warp — AWG-WARP: the transport/wg engine exists; the daemon-side
-	// assembly has no config section yet (service-profile control plane
-	// owns the enrollment flow). Honest unavailable card.
-	cards = append(cards, tunnelsCard{
+	// warp — AWG-WARP (tunnels panel stage 2: system.warp.awg +
+	// awgwarpservice, kind=warp UDP full-scope through the session
+	// netstack). Honest card: config section present, runtime optional.
+	wp := tunnelsCard{
 		Kind:             string(reserve.KindWarp),
 		Priority:         reserve.PriorityWarp,
 		Transport:        "udp-full-scope",
 		SupportsUDP:      true,
-		HasConfigSection: false,
-		ConfigEnabled:    false,
-		Restartable:      false,
-		Note:             "awg_warp_note",
-	})
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Warp.AWG.Enabled,
+		Restartable:      true, // RestartNow: retire + one supervision cycle
+	}
+	if rt := awgWarpRuntime.Load(); rt != nil {
+		st := rt.Status()
+		wp.CarrierRegistered = true
+		wp.Running = st.Running
+		wp.Listening = st.Listening
+		wp.State = st.State
+		if !st.IdentityPresent {
+			wp.Note = "awg_warp_provisioning"
+		}
+	} else if cfg.System.Warp.AWG.Enabled {
+		wp.Note = "engine_enabled_not_running"
+	}
+	cards = append(cards, wp)
 
 	// masque — MASQUE-WARP (warpservice, system.warp).
 	mq := tunnelsCard{
@@ -258,22 +309,51 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	}
 	cards = append(cards, tr)
 
-	// Nested-chain presets: the transport/nested matrix engine is wired
-	// (PairConfig, both awg+masque orders); the config schema and the
-	// daemon assembly are pending. The pane shows them as presets with
-	// an honest unavailable marker.
+	// Nested-chain presets: the masque+awg and awg+masque compositions ship
+	// with the daemon assembly (warpchainservice over transport/nested);
+	// each preset reflects the config entry and the live engine. The
+	// engine-pending compositions stay honest-unavailable.
+	chainConfigured := map[string]config.WarpChainConfig{}
+	for _, ch := range cfg.System.Warp.Chains {
+		chainConfigured[ch.Kind] = ch
+	}
 	chains := []tunnelsChainPreset{
 		{Kind: "awg+awg", Outer: "awg", Inner: "awg", Available: false, Note: "chain_engine_pending"},
 		{Kind: "masque+masque", Outer: "masque-h2", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
-		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: false, Note: "chain_engine_pending"},
-		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: false, Note: "chain_engine_pending"},
+		{Kind: "awg+masque", Outer: "awg", Inner: "masque-h2", Available: true},
+		{Kind: "masque+awg", Outer: "masque-h2", Inner: "awg", Available: true},
 		{Kind: "nonru", Outer: "awg", Inner: "awg", Available: false, Note: "nonru_geo_gated"},
+	}
+	for i := range chains {
+		ch := chains[i]
+		if !ch.Available {
+			continue
+		}
+		cfgEntry, configured := chainConfigured[ch.Kind]
+		ch.Configured = configured
+		if configured {
+			ch.Enabled = cfgEntry.Enabled
+		}
+		if rt := chainRuntime(ch.Kind); rt != nil {
+			st := rt.Status()
+			ch.Running = st.Running
+			ch.State = st.State
+		}
+		if configured && !cfgEntry.Enabled {
+			ch.Note = "chain_disabled"
+		} else if !configured {
+			ch.Note = "chain_not_configured"
+		}
+		chains[i] = ch
 	}
 
 	// Assignments: sets whose routing.mode=tunnel.
 	assignments := make([]tunnelsAssignment, 0)
 	kindRunning := map[string]bool{}
 	for _, c := range cards {
+		kindRunning[c.Kind] = c.Running
+	}
+	for _, c := range chains {
 		kindRunning[c.Kind] = c.Running
 	}
 	for _, set := range cfg.Sets {
@@ -333,10 +413,13 @@ func protonLocationValue(cfg *config.Config) string {
 // @Summary Restart one tunnel (one supervision cycle)
 // @Description Dispatches to the engine's own restart path (restart caps
 // @Description still apply inside each service). warp/masque lifecycle is
-// @Description supervisor-owned: the daemon restart is the honest answer.
+// @Description supervisor-owned: the daemon restart is the honest answer;
+// @Description the AWG-WARP engine retires the session and rebuilds it
+// @Description under its own caps; chains tear the composition down and
+// @Description rebuild once.
 // @Tags tunnels
 // @Produce json
-// @Param kind query string true "tunnel kind (opera|fxvpn|proton|tor)"
+// @Param kind query string true "tunnel kind (warp|opera|fxvpn|proton|tor|masque+awg|awg+masque)"
 // @Success 200 {object} map[string]interface{}
 // @Failure 400 {object} APIError
 // @Failure 409 {object} APIError
@@ -350,6 +433,20 @@ func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
 	kind := r.URL.Query().Get("kind")
 	cfg := api.cfgPtr.Load()
 	switch kind {
+	case "warp":
+		rt := awgWarpRuntime.Load()
+		if rt == nil || !cfg.System.Warp.AWG.Enabled {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "awg-warp disabled"))
+			return
+		}
+		go rt.RestartNow(r.Context())
+	case config.ChainKindMasqueAwg, config.ChainKindAwgMasque:
+		rt := chainRuntime(kind)
+		if rt == nil {
+			writeAPIError(w, tunnelsErr(http.StatusConflict, "disabled", "chain "+kind+" not running"))
+			return
+		}
+		go rt.RestartNow(r.Context())
 	case "opera":
 		rt := operaRuntime.Load()
 		if rt == nil || !cfg.System.Opera.Enabled {
@@ -408,6 +505,37 @@ func (api *API) handleWarpStatus(w http.ResponseWriter, r *http.Request) {
 			"running":   false,
 			"listening": false,
 			"transport": "masque-h2",
+		})
+		return
+	}
+	if r.Method == http.MethodHead {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	sendResponse(w, rt.Status())
+}
+
+// @Summary AWG-WARP engine status
+// @Description The awgwarpservice projection (state, identity presence,
+// @Description restarts, recent events). Nil-safe disabled shape.
+// @Tags tunnels
+// @Produce json
+// @Success 200 {object} awgwarpservice.StatusView
+// @Security BearerAuth
+// @Router /awgwarp/status [get]
+func (api *API) handleAWGWarpStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "GET only"))
+		return
+	}
+	cfg := api.cfgPtr.Load().System.Warp.AWG
+	rt := awgWarpRuntime.Load()
+	if !cfg.Enabled || rt == nil {
+		sendResponse(w, map[string]interface{}{
+			"enabled":   cfg.Enabled,
+			"running":   false,
+			"listening": false,
+			"transport": "awg",
 		})
 		return
 	}

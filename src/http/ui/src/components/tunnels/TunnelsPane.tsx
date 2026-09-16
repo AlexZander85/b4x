@@ -106,16 +106,27 @@ export function TunnelsPane() {
         description={t("tunnels.chains.description")}
       >
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-          {(overview?.chains ?? []).map((chain) => (
-            <Chip
-              key={chain.kind}
-              label={`${chain.kind}  (${chain.outer} → ${chain.inner})`}
-              variant="outlined"
-              disabled={!chain.available}
-              sx={{ fontFamily: "monospace" }}
-              title={t(`tunnels.chains.${chain.kind}`)}
-            />
-          ))}
+          {(overview?.chains ?? []).map((chain) => {
+            const live = chain.available && chain.running;
+            const noteKey = chain.note
+              ? chain.note
+              : live
+                ? "chain_running"
+                : null;
+            return (
+              <Chip
+                key={chain.kind}
+                label={`${chain.kind}  (${chain.outer} → ${chain.inner})${
+                  live ? "  ●" : ""
+                }`}
+                variant={live ? "filled" : "outlined"}
+                color={live ? "primary" : chain.enabled ? "secondary" : "default"}
+                disabled={!chain.available}
+                sx={{ fontFamily: "monospace" }}
+                title={noteKey ? t(`tunnels.chains.${noteKey}`) : t(`tunnels.chains.${chain.kind}`)}
+              />
+            );
+          })}
         </Box>
         <B4Alert severity="info" sx={{ mt: 2 }}>
           {t("tunnels.chains.note")}
