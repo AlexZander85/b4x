@@ -11,11 +11,13 @@ Status: `LAB_VALIDATED`
 | `tcp_split` | enabled | `PlanStrategy` | registered logical marker domain |
 | `tls_record_split` | enabled | `PlanTLSRecordSplit` validation + existing multi-split plan | registered TLS/SNI marker domain |
 | `bounded_disorder` | enabled by policy | `PlanStrategy` multi-disorder | marker + `swap_adjacent_once` |
-| `safe_duplicate_original` | enabled | existing ActionPlan write transform | `count=1` |
-| `per_flow_jitter` | enabled by policy | existing ActionPlan delay transform | `0,1,2,4,8 ms` |
-| `safe_fake_profile` | enabled only when policy permits and validated template is supplied | `PlanFakeMix` | finite mode; profile ID comes from existing validated registry |
-| `pre_padding` | registered but **not automatic** | unavailable | finite byte domain |
-| `post_padding` | registered but **not automatic** | unavailable | finite byte domain |
+| `safe_duplicate_original` | enabled | existing `ActionPlan` write transform | `count=1` |
+| `pre_padding` | enabled | existing `action.ApplyClientHelloPadding` pure `ActionPlan` transform | `1,4,8,16,32` bytes |
+| `post_padding` | enabled | existing `action.ApplyClientHelloPadding` pure `ActionPlan` transform | `1,4,8,16,32` bytes |
+| `per_flow_jitter` | enabled by policy | existing `ActionPlan` delay transform | `0,1,2,4,8 ms` |
+| `safe_fake_profile` | enabled only when policy permits and an existing validated endpoint-safe `FakeMixRequest` template is supplied | `PlanFakeMix` | finite mode; profile ID is sourced from the existing validated action template/registry |
+
+All eight grammar-v1 operator families are automatic-safe only through existing Action-layer primitives. The synthesis layer does not create a second packet engine or raw-packet execution path.
 
 ## Global bounds
 
@@ -37,4 +39,4 @@ Before a synthesized candidate enters Discovery, the emission guard re-checks:
 4. automatic-safe status and available existing compiler bridge;
 5. every parameter against its finite domain.
 
-Grammar escape and unsafe emission raise dedicated zero-tolerance counters. Focused CI run `35085703795` passed after fault-injection coverage was added.
+Grammar escape and unsafe emission raise dedicated zero-tolerance counters. Current focused CI run `35098015343` (`AFS Addendum CI` #93) passed the Action, config, detector, Discovery, Monitoring, observability, runtimecontrol, validation and UI checks on branch commit `fa8a7c8da3fc6563d2349697e76933a89f85583a`.
