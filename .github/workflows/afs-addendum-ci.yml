@@ -5,6 +5,7 @@ on:
     branches:
       - agent/classifier-v2.3-capture-envelope
     paths:
+      - "src/action/**"
       - "src/config/**"
       - "src/detector/**"
       - "src/discovery/**"
@@ -44,9 +45,9 @@ jobs:
           TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: |
           if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
-            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
           else
-            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
           fi
           if [ -z "$files" ]; then
             exit 0
@@ -66,9 +67,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           if [ -n "$BASE_SHA" ]; then
-            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
           else
-            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|observability|runtimecontrol|validation)/.*\.go$' || true)
           fi
           if [ -z "$files" ]; then
             exit 0
@@ -82,7 +83,7 @@ jobs:
 
       - name: Test AFS-affected packages
         working-directory: src
-        run: go test ./config ./detector ./discovery ./monitor ./observability ./runtimecontrol ./validation
+        run: go test ./action ./config ./detector ./discovery ./monitor ./observability ./runtimecontrol ./validation
 
       - name: Generate UI defaults
         working-directory: src
