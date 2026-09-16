@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -30,13 +32,22 @@ jobs:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
-      - name: Gofmt check
-        working-directory: src
+      - name: Gofmt check for PR changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          files=$(find config detector discovery runtimecontrol -name '*.go' -type f -print)
+          if [ -n "$BASE_SHA" ] && [ -n "$HEAD_SHA" ]; then
+            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(config|detector|discovery|runtimecontrol)/.*\.go$' || true)
+          else
+            files=$(git ls-files 'src/config/*.go' 'src/detector/*.go' 'src/discovery/*.go' 'src/runtimecontrol/*.go')
+          fi
+          if [ -z "$files" ]; then
+            exit 0
+          fi
           bad=$(gofmt -l $files)
           if [ -n "$bad" ]; then
-            echo "Files requiring gofmt:"
+            echo "Changed files requiring gofmt:"
             echo "$bad"
             exit 1
           fi
