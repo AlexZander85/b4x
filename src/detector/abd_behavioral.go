@@ -73,7 +73,10 @@ func ClassifyFourWayBehavior(referenceBaseline, targetBaseline, referenceMutated
 		return "mutation-bypass-signal", true
 	}
 	if targetBaseline != BehaviorOutcomeOK && referenceMutated != BehaviorOutcomeOK && targetMutated != BehaviorOutcomeOK {
-		return "mutation-breaks-control", false
+		// The mutation itself damages the healthy reference path. That is
+		// conclusive control-sensitivity evidence: DDI may penalize the family,
+		// while the synthesizer still cannot treat it as a bypass signal.
+		return "mutation-breaks-control", true
 	}
 	if targetBaseline == BehaviorOutcomeOK && referenceMutated == BehaviorOutcomeOK && targetMutated != BehaviorOutcomeOK {
 		return "mutation-target-regression", true
