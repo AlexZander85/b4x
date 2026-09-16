@@ -47,6 +47,7 @@ func AutomaticStrategyGrammarV1() StrategyGrammar {
 	// Action.Plan rejects split offset 0, so automatic split seeds begin at
 	// the first non-zero semantic marker rather than ClientHelloStart.
 	markerDomain := []string{"host-start", "sni-extension-start", "sld-middle", "host-end"}
+	paddingDomain := []string{"1", "4", "8", "16", "32"}
 	return StrategyGrammar{
 		Version: SynthesisGrammarV1,
 		Operators: []OperatorDefinition{
@@ -54,10 +55,10 @@ func AutomaticStrategyGrammarV1() StrategyGrammar {
 			{Family: detector.OperatorTLSRecordSplit, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "plan_tls_record_split", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP, action.RepresentationGSOSafe}, ParameterDomain: map[string][]string{"marker": []string{"sni-extension-start", "host-start", "sld-middle", "host-end"}}, BasePackets: 2, BaseCPUUnits: 2},
 			{Family: detector.OperatorBoundedDisorder, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "plan_strategy", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"marker": markerDomain, "order": []string{"swap_adjacent_once"}}, BasePackets: 2, BaseCPUUnits: 2, BaseLatencyMS: 1},
 			{Family: detector.OperatorSafeDuplicateOriginal, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "action_plan_duplicate", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"count": []string{"1"}}, BasePackets: 1, BaseCPUUnits: 1},
+			{Family: detector.OperatorPrePadding, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "action_plan_clienthello_padding", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"padding_bytes": paddingDomain}, BasePackets: 1, BaseCPUUnits: 1},
+			{Family: detector.OperatorPostPadding, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "action_plan_clienthello_padding", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"padding_bytes": paddingDomain}, BasePackets: 1, BaseCPUUnits: 1},
 			{Family: detector.OperatorPerFlowJitter, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "action_plan_jitter", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP, action.RepresentationGSOSafe}, ParameterDomain: map[string][]string{"jitter_ms": []string{"0", "1", "2", "4", "8"}}, BaseCPUUnits: 1, BaseLatencyMS: 8},
 			{Family: detector.OperatorSafeFakeProfile, RiskTier: "endpoint-safe", AutomaticSafe: true, Compiler: "plan_fake_mix", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ExternalParams: []string{"profile_id"}, ParameterDomain: map[string][]string{"mode": []string{"fakedsplit", "fakeddisorder"}}, BasePackets: 2, BaseCPUUnits: 3},
-			{Family: detector.OperatorPrePadding, RiskTier: "endpoint-safe", AutomaticSafe: false, Compiler: "unavailable", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"padding_bytes": []string{"1", "4", "8", "16", "32"}}},
-			{Family: detector.OperatorPostPadding, RiskTier: "endpoint-safe", AutomaticSafe: false, Compiler: "unavailable", Representations: []action.PacketRepresentation{action.RepresentationNormalTCP}, ParameterDomain: map[string][]string{"padding_bytes": []string{"1", "4", "8", "16", "32"}}},
 		},
 		TriggerDomains: []TriggerDomain{
 			{Phase: "first-outbound-clienthello", Markers: []string{"clienthello-start", "sni-extension-start", "host-start", "sld-middle", "host-end"}},
@@ -107,7 +108,7 @@ func (g StrategyGrammar) Validate() error {
 					return fmt.Errorf("operator %q domain %q contains duplicates", op.Family, name)
 				}
 			}
-		}
+	}
 	}
 	return nil
 }
@@ -168,7 +169,7 @@ func (g StrategyGrammar) TriggerAllowed(trigger CandidateTrigger) bool {
 			if trigger.Marker == marker {
 				return true
 			}
-		}
+	}
 	}
 	return false
 }
