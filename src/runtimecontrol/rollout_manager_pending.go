@@ -31,6 +31,12 @@ func (m *Manager) Prepare(ctx context.Context, candidate *config.Config, request
 	if err := request.Canary.Validate(); err != nil {
 		return PrepareResult{}, &TransactionError{Stage: StageValidate, Err: err}
 	}
+	if request.Synthesized != nil {
+		if err := request.Synthesized.validatePrepare(m.clk.Now(), request.Canary); err != nil {
+			m.appendHistoryLocked(HistoryEntry{Action: "synthesized-prepare-gate", Reason: err.Error(), Success: false, At: m.clk.Now()})
+			return PrepareResult{}, &TransactionError{Stage: StageValidate, Err: err}
+		}
+	}
 	if err := ctx.Err(); err != nil {
 		return PrepareResult{}, &TransactionError{Stage: StageValidate, Err: err}
 	}
@@ -131,11 +137,20 @@ func (m *Manager) PromotePending(ctx context.Context) (ApplyResult, error) {
 	if !pending.canaryComplete || !pending.canary.Passed {
 		return ApplyResult{}, ErrCanaryRequired
 	}
+	old := m.active.Load()
+	if pending.request.Synthesized != nil {
+		if err := pending.request.Synthesized.validatePromote(m.clk.Now(), pending.request.Canary, pending.canary, old != nil); err != nil {
+			m.cooldown.RecordFailure(cooldownKey(pending.meta, pending.request.Canary))
+			m.cleanupCandidateLocked(ctx, pending.runtime, pending.meta.ID, err)
+			m.appendHistoryLocked(HistoryEntry{Action: "synthesized-promotion-gate", Generation: pending.meta.ID, Reason: err.Error(), Success: false, At: m.clk.Now(), Canary: pending.canary})
+			m.pending = nil
+			return ApplyResult{}, &TransactionError{Stage: StagePromote, Err: err}
+		}
+	}
 	record := recordFrom(pending.meta, pending.canary, m.b4Version, m.clk.Now())
 	if err := m.store.Prepare(record); err != nil {
 		return ApplyResult{}, &TransactionError{Stage: StagePrepare, Err: err}
 	}
-	old := m.active.Load()
 	if m.hardGateCheck != nil {
 		if err := m.hardGateCheck(pending.meta.clone()); err != nil {
 			_ = m.store.Abort()
