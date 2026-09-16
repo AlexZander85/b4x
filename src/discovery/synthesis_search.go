@@ -62,6 +62,25 @@ func (m *Runtime) RunBoundedSynthesisSearch(ctx context.Context, cfg *config.Con
 		return result, err
 	}
 
+	// The automatic gate is a precondition for candidate generation itself,
+	// not merely for probing a generated candidate. Reuse the same canonical
+	// config opt-in and preflight contract that RunSynthesizedDiscovery checks
+	// again at the evaluation boundary.
+	gate := req.Gate
+	gate.UserOptIn = cfg.AdaptiveSynthesisAllowed(gate.Profile.Scope.ServiceProfileID)
+	if err := CheckAutomaticSynthesisGate(gate); err != nil {
+		return result, err
+	}
+	if !req.Synthesis.Valid(gate.Now) {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisStaleGenerationUsed)
+		return result, errors.New("synthesis request is stale or expired before candidate generation")
+	}
+	if req.Synthesis.Scope != gate.Profile.Scope || req.Synthesis.BlockingProfileID != gate.Profile.ProfileID || req.Synthesis.BehavioralEvidenceID != gate.Prior.BehavioralEvidenceID {
+		observability.RecordSynthesisViolation(observability.MetricSynthesisScopeEscape)
+		return result, errors.New("synthesis request does not match gated profile/prior scope")
+	}
+	req.Gate = gate
+
 	limits := req.Synthesis.Limits.normalized()
 	policy := AdaptivePolicyFromRuntimeConfig(cfg.System.Classifier.Runtime.Discovery)
 	if req.Synthesis.ResourceBudget.MaxProbes > 0 && req.Synthesis.ResourceBudget.MaxProbes < policy.MaxProbes {
