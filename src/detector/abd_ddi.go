@@ -17,23 +17,30 @@ type NetworkDiagnosticProfileEnvelope struct {
 }
 
 func (e NetworkDiagnosticProfileEnvelope) Fresh(now time.Time) bool {
-	return e.EnvelopeID != "" && e.Profile.Valid() && e.Profile.Scope == e.Scope && e.Scope.Valid() && (e.ExpiresAt.IsZero() || now.Before(e.ExpiresAt))
+	return e.EnvelopeID != "" && e.Profile.Fresh(now) && e.Profile.Scope == e.Scope && e.Scope.Valid() && (e.ExpiresAt.IsZero() || now.Before(e.ExpiresAt))
 }
 
 type DiscoverySearchPrior struct {
-	Scope               monitor.MonitorScopeKey
-	ProfileID           string
-	Hypotheses          []string
-	TargetOrder         []string
-	ExcludedTargets     []string
-	CoverageDenominator int
-	MandatoryBaselines  []string
-	Applied             bool
-	Explanation         string
+	Scope                monitor.MonitorScopeKey
+	ProfileID            string
+	BehavioralEvidenceID string
+	Hypotheses           []string
+	TargetOrder          []string
+	ExcludedTargets      []string
+	SupportedOperators   []StrategyOperatorFamily
+	PenalizedOperators   []StrategyOperatorFamily
+	ExcludedOperators    []StrategyOperatorFamily
+	CoverageDenominator  int
+	MandatoryBaselines   []string
+	Applied              bool
+	Explanation          string
 }
 
 func (p DiscoverySearchPrior) Valid() bool {
-	return p.ProfileID != "" && p.Scope.Valid() && p.CoverageDenominator > 0 && len(p.MandatoryBaselines) > 0
+	if p.ProfileID == "" || !p.Scope.Valid() || p.CoverageDenominator <= 0 || len(p.MandatoryBaselines) == 0 {
+		return false
+	}
+	return !operatorListsOverlap(p.SupportedOperators, p.ExcludedOperators) && !operatorListsOverlap(p.PenalizedOperators, p.ExcludedOperators)
 }
 
 type CandidateCoverageVector struct {
@@ -65,6 +72,11 @@ func BuildDiscoverySearchPrior(in GuidedPlannerInput, now time.Time) (DiscoveryS
 			p.TargetOrder = append(p.TargetOrder, c.TargetID)
 		}
 	}
+	if b := in.Envelope.Profile.Behavioral; b != nil {
+		p.BehavioralEvidenceID = b.EvidenceID
+		p.SupportedOperators, p.PenalizedOperators, p.ExcludedOperators = compileOperatorConstraints(b.Features)
+		p.Explanation = "ABD behavioral evidence constrains synthesis and orders bounded search; current baseline and exhaustive fallback remain mandatory"
+	}
 	sort.Strings(p.TargetOrder)
 	sort.Strings(p.ExcludedTargets)
 	if !p.Valid() {
@@ -91,4 +103,43 @@ func (p DiscoverySearchPrior) MergeBaseline(candidates []string) []string {
 		}
 	}
 	return out
+}
+
+func compileOperatorConstraints(features []BehaviorFeature) (supported, penalized, excluded []StrategyOperatorFamily) {
+	for _, f := range features {
+		if f.Confidence <= 0 {
+			continue
+		}
+		supported = append(supported, f.Supports...)
+		penalized = append(penalized, f.Penalizes...)
+		excluded = append(excluded, f.Excludes...)
+	}
+	excluded = uniqueOperatorFamilies(excluded)
+	excludedSet := make(map[StrategyOperatorFamily]struct{}, len(excluded))
+	for _, op := range excluded {
+		excludedSet[op] = struct{}{}
+	}
+	filter := func(in []StrategyOperatorFamily) []StrategyOperatorFamily {
+		out := make([]StrategyOperatorFamily, 0, len(in))
+		for _, op := range uniqueOperatorFamilies(in) {
+			if _, blocked := excludedSet[op]; !blocked {
+				out = append(out, op)
+			}
+		}
+		return out
+	}
+	return filter(supported), filter(penalized), excluded
+}
+
+func operatorListsOverlap(a, b []StrategyOperatorFamily) bool {
+	seen := make(map[StrategyOperatorFamily]struct{}, len(a))
+	for _, op := range a {
+		seen[op] = struct{}{}
+	}
+	for _, op := range b {
+		if _, ok := seen[op]; ok {
+			return true
+		}
+	}
+	return false
 }

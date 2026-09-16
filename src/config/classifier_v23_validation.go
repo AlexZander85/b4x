@@ -68,6 +68,7 @@ func (c *Config) validateClassifierRuntimeConfig(v *validator) {
 	s.validateFlowControls()
 	s.validateDiscoveryLabRollout()
 	s.validateFallbackPrivacyStrategies()
+	c.validateAdaptiveStrategySynthesis(v)
 }
 
 func (s classifierRuntimeValidation) defaultInt(value *int, fallback int) {

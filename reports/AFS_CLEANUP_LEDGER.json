@@ -1,0 +1,32 @@
+{
+  "schema": "afs-cleanup-ledger-v1",
+  "status": "LAB_VALIDATED_TARGET_PENDING",
+  "validated_ci_run": 35085703795,
+  "owners": {
+    "candidate_plan_refs": "SynthesisRunStore",
+    "runtime_candidate": "runtimecontrol.Manager",
+    "persistent_winner_metadata": "DiscoveryHistory",
+    "metrics": "observability.Default"
+  },
+  "bounded_cleanup_rules": [
+    "a new automatic synthesis run is rejected while prior cleanup is incomplete",
+    "run-scoped candidate store Close removes transient synthesized plans",
+    "failed runtime candidates use existing Rollback and Close paths",
+    "promotion proof requires CleanupReady before Prepare/Promote",
+    "quarantined persistent winners remain audit records but are excluded from compatible reuse",
+    "foreign resource ownership failure aborts before synthesis starts"
+  ],
+  "fault_injection": {
+    "cleanup_incomplete_preflight_rejected": true,
+    "cleanup_not_ready_promotion_rejected": true,
+    "foreign_resource_ownership_unproven_rejected": true,
+    "bounded_store_overflow_rejected": true
+  },
+  "target_cleanup_evidence": {
+    "router_success_run": null,
+    "router_failed_candidate_run": null,
+    "router_cancelled_run": null,
+    "post_rollback_resource_diff": null
+  },
+  "release_note": "Lab cleanup invariants pass. Hardware resource cleanup must still be demonstrated before autonomous production readiness."
+}

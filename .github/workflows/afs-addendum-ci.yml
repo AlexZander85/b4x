@@ -1,0 +1,86 @@
+name: AFS Addendum CI
+
+on:
+  pull_request:
+    branches:
+      - agent/classifier-v2.3-capture-envelope
+    paths:
+      - "src/action/**"
+      - "src/config/**"
+      - "src/detector/**"
+      - "src/discovery/**"
+      - "src/monitor/**"
+      - "src/monitoring/**"
+      - "src/observability/**"
+      - "src/runtimecontrol/**"
+      - "src/validation/**"
+      - "src/http/ui/**"
+      - ".github/workflows/afs-addendum-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-go-tests:
+    name: Focused Go and UI tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout head branch
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Verify changed AFS Go files are formatted
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -n "$BASE_SHA" ]; then
+            files=$(git diff --name-only "$BASE_SHA" HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|monitoring|observability|runtimecontrol|validation)/.*\.go$' || true)
+          else
+            files=$(git diff --name-only origin/agent/classifier-v2.3-capture-envelope...HEAD -- 'src/*.go' 'src/**/*.go' | grep -E '^src/(action|config|detector|discovery|monitor|monitoring|observability|runtimecontrol|validation)/.*\.go$' || true)
+          fi
+          if [ -z "$files" ]; then
+            exit 0
+          fi
+          bad=$(gofmt -l $files)
+          if [ -n "$bad" ]; then
+            echo "Changed files requiring gofmt:"
+            echo "$bad"
+            exit 1
+          fi
+
+      - name: Test AFS-affected packages
+        working-directory: src
+        run: go test ./action ./config ./detector ./discovery ./monitor ./monitoring ./observability ./runtimecontrol ./validation
+
+      - name: Generate UI defaults
+        working-directory: src
+        run: go run tools/gendefaults.go
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.29.2
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: "pnpm"
+          cache-dependency-path: src/http/ui/pnpm-lock.yaml
+
+      - name: Build UI
+        working-directory: src/http/ui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build

@@ -207,7 +207,8 @@ type CanaryOutcome struct {
 }
 
 type ApplyRequest struct {
-	Canary CanarySpec
+	Canary      CanarySpec                 `json:"canary"`
+	Synthesized *SynthesizedPromotionProof `json:"synthesized,omitempty"`
 }
 
 type ApplyResult struct {

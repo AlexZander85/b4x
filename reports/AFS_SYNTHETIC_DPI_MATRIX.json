@@ -1,0 +1,54 @@
+{
+  "schema": "afs-synthetic-dpi-matrix-v1",
+  "status": "LAB_VALIDATED",
+  "validated_ci_run": 35085703795,
+  "scope": "synthetic/lab only; no real target claim",
+  "four_way_panel": {
+    "required_legs": ["R1_reference_baseline", "R2_target_baseline", "R3_reference_mutated", "R4_target_mutated"],
+    "cases": [
+      {
+        "id": "mutation-bypass-signal",
+        "R1": "ok",
+        "R2": "fail",
+        "R3": "ok",
+        "R4": "ok",
+        "expected": "mutation-bypass-signal",
+        "conclusive": true
+      },
+      {
+        "id": "mutation-breaks-control",
+        "R1": "ok",
+        "R2": "fail",
+        "R3": "fail",
+        "R4": "fail",
+        "expected": "mutation-breaks-control",
+        "conclusive": false
+      },
+      {
+        "id": "mutation-target-regression",
+        "R1": "ok",
+        "R2": "ok",
+        "R3": "ok",
+        "R4": "fail",
+        "expected": "mutation-target-regression",
+        "conclusive": true
+      },
+      {
+        "id": "unhealthy-reference-control",
+        "R1": "fail",
+        "R2": "fail",
+        "R3": "fail",
+        "R4": "fail",
+        "expected": "control-unhealthy",
+        "conclusive": false
+      }
+    ]
+  },
+  "discovery_control_matrix": {
+    "roles": ["mandatory_baseline_none", "mandatory_baseline_production", "target", "same_service_control", "unrelated_control"],
+    "stable_success_samples": 2,
+    "example_minimum_probe_count": 10,
+    "winner_rule": "target success alone cannot produce DISCOVERY_VIABLE; mandatory controls and stability must pass"
+  },
+  "release_note": "Synthetic evidence supports lab validation only. Real router and forwarded Android evidence is still required."
+}

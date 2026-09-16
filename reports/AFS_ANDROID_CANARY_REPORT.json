@@ -1,0 +1,32 @@
+{
+  "schema": "afs-android-canary-report-v1",
+  "status": "BLOCKED_BY_TARGET_EVIDENCE",
+  "validated_ci_run": 35085703795,
+  "implemented_gate": {
+    "existing_transactional_canary_reused": true,
+    "client_group_must_be_forwarded_ip_or_mac": true,
+    "router_origin_winner_requires_passed_forwarded_client_canary": true,
+    "target_evidence_required": true,
+    "same_service_control_required": true,
+    "unrelated_control_required": true,
+    "rollback_ready_required": true,
+    "cleanup_ready_required": true,
+    "stable_observation_required": true
+  },
+  "fault_injection": {
+    "missing_action_authorization_rejected": true,
+    "missing_control_rejected": true,
+    "router_origin_without_passed_forwarded_canary_rejected": true,
+    "missing_rollback_state_rejected": true,
+    "zero_tolerance_counters_verified": true
+  },
+  "real_android_evidence": {
+    "device_or_forwarded_android_client": null,
+    "target_success_samples": null,
+    "same_service_control_samples": null,
+    "unrelated_control_samples": null,
+    "stability_window": null,
+    "rollback_drill": null
+  },
+  "verdict": "Forwarded-client canary enforcement is lab-validated, but Android/real-client readiness is blocked until target evidence is captured."
+}

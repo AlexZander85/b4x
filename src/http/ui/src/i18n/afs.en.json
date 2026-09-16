@@ -1,0 +1,14 @@
+{
+  "afs": {
+    "settings": {
+      "title": "Automation",
+      "description": "Bounded automatic adaptation after a confirmed persistent regression.",
+      "adaptiveSynthesis": "Automatically create new bypass combinations when DPI behavior changes",
+      "adaptiveSynthesisDesc": "After a persistent regression, B4X may run bounded active diagnostics, synthesize safe combinations from existing primitives, and evaluate them through the normal Discovery and canary pipeline.",
+      "enabledNotice": "Adaptive synthesis is enabled. Existing last-good configuration remains active until a synthesized candidate passes ordinary controls, forwarded-client canary, and transactional promotion.",
+      "confirmTitle": "Enable adaptive strategy synthesis?",
+      "confirmBody": "When a persistent regression is confirmed, B4X may run a limited active diagnostic and test newly combined safe techniques. This can take several minutes and temporarily increase router load and test connections. The working configuration remains in place until a candidate passes canary validation.",
+      "confirmEnable": "Enable automation"
+    }
+  }
+}

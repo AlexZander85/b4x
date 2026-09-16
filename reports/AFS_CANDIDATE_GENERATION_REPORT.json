@@ -1,0 +1,44 @@
+{
+  "schema": "afs-candidate-generation-report-v1",
+  "status": "LAB_VALIDATED",
+  "validated_ci_run": 35085703795,
+  "grammar_version": "afs-grammar-v1",
+  "engine_version": "afs-synth-v1",
+  "defaults": {
+    "max_candidates": 24,
+    "max_generations": 3,
+    "max_actions": 4,
+    "max_branches": 1,
+    "max_amplification": 1.5
+  },
+  "pipeline": [
+    "behaviorally_ordered_seed_population",
+    "static_validation",
+    "canonical_hash_dedupe",
+    "score_and_prune_from_shared_discovery_results",
+    "finite_parameter_mutation",
+    "operator_add_replace_remove_swap",
+    "bounded_crossover",
+    "static_revalidation",
+    "shared_discovery_evaluation"
+  ],
+  "determinism": {
+    "canonical_identity": "sha256(grammar + trigger + ordered operations + bounded params + representation)",
+    "stable_seed_order": true,
+    "same_request_and_seed_tested": true
+  },
+  "fault_guards": {
+    "grammar_escape": "counter + rejection at emission boundary",
+    "unsafe_operator_emitted": "counter + rejection at emission boundary",
+    "identity_collision": "counter + rejection in run-scoped store",
+    "store_bound_exceeded": "unbounded-execution counter + rejection"
+  },
+  "test_evidence": [
+    "deterministic and bounded candidate order",
+    "novel multi-operator combination generated",
+    "finite parameter/marker mutation generated",
+    "behaviorally excluded operator cannot escape",
+    "zero-tolerance emission faults rejected"
+  ],
+  "production_readiness": "requires target evidence before autonomous verdict"
+}

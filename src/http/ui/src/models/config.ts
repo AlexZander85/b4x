@@ -201,6 +201,14 @@ export interface DiscoveryConfig {
   watchdog: WatchdogConfig;
 }
 
+export interface AdaptiveStrategySynthesisConfig {
+  enabled: boolean;
+}
+
+export interface AutomationConfig {
+  adaptive_strategy_synthesis: AdaptiveStrategySynthesisConfig;
+}
+
 export type WindowMode = "off" | "oscillate" | "zero" | "random" | "escalate";
 export type DesyncMode = "off" | "rst" | "fin" | "ack" | "combo" | "full";
 export type IncomingMode = "off" | "fake" | "reset" | "fin" | "desync";
@@ -333,7 +341,6 @@ export interface MTProtoConfig {
   dc_fallback_enabled: boolean;
   dc_fallback_url: string;
 }
-
 
 export interface SystemConfig {
   logging: LoggingConfig;
@@ -539,6 +546,7 @@ export interface B4Config {
   queue: QueueConfig;
   system: SystemConfig;
   sets: B4SetConfig[];
+  automation?: AutomationConfig;
   available_ifaces: string[];
 }
 

@@ -24,11 +24,11 @@ type NetworkDiagnosticProfile struct {
 }
 
 func (p NetworkDiagnosticProfile) Valid(now time.Time) bool {
-	return p.SchemaVersion == DiagnosticProfileSchemaVersion && p.ProfileID != "" && p.Scope.Valid() && p.Blocking.Valid() && p.Blocking.Scope == p.Scope && !p.CreatedAt.IsZero() && (p.ExpiresAt.IsZero() || now.Before(p.ExpiresAt)) && p.ContentHash != ""
+	return p.SchemaVersion == DiagnosticProfileSchemaVersion && p.ProfileID != "" && p.Scope.Valid() && p.Blocking.Fresh(now) && p.Blocking.Scope == p.Scope && !p.CreatedAt.IsZero() && (p.ExpiresAt.IsZero() || now.Before(p.ExpiresAt)) && p.ContentHash != ""
 }
 func NewNetworkDiagnosticProfile(blocking detector.BlockingProfile, expires time.Time, now time.Time) (NetworkDiagnosticProfile, error) {
-	if !blocking.Valid() {
-		return NetworkDiagnosticProfile{}, errors.New("blocking profile is not ready")
+	if !blocking.Fresh(now) {
+		return NetworkDiagnosticProfile{}, errors.New("blocking profile is not ready or fresh")
 	}
 	p := NetworkDiagnosticProfile{SchemaVersion: DiagnosticProfileSchemaVersion, ProfileID: blocking.ProfileID, Scope: blocking.Scope, Blocking: blocking, CreatedAt: now, ExpiresAt: expires, MigrationVersion: "ddi-v1"}
 	raw, _ := json.Marshal(struct {

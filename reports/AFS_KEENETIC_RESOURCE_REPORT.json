@@ -1,0 +1,30 @@
+{
+  "schema": "afs-keenetic-resource-report-v1",
+  "status": "BLOCKED_BY_TARGET_EVIDENCE",
+  "validated_ci_run": 35085703795,
+  "lab_guards": {
+    "resource_budget_required": true,
+    "resource_ownership_required": true,
+    "foreign_resource_mutation_counter": "synthesis_foreign_resource_mutation_total",
+    "unbounded_execution_counter": "synthesis_unbounded_execution_total",
+    "cleanup_complete_before_new_run": true,
+    "single_existing_discovery_budget": true,
+    "bounded_candidate_store": true
+  },
+  "router_evidence": {
+    "keenetic_device_run": false,
+    "cpu_measurement": null,
+    "memory_measurement": null,
+    "queue_drop_measurement": null,
+    "resource_cleanup_measurement": null,
+    "foreign_resource_audit": null
+  },
+  "required_for_target_pass": [
+    "run bounded synthesis on target Keenetic hardware",
+    "record CPU and memory envelope during panel/search/canary",
+    "verify queue/user drops stay within existing runtime acceptance limits",
+    "verify candidate-owned resources only",
+    "verify cleanup returns resource ledger to baseline after success, failure and cancellation"
+  ],
+  "verdict": "Implementation and lab guards are present; router resource readiness cannot PASS without hardware evidence."
+}

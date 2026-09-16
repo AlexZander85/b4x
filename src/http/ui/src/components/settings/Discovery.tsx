@@ -12,6 +12,7 @@ import {
   B4ChipList,
   B4Switch,
 } from "@b4.elements";
+import { AdaptiveSynthesisSettings } from "./AdaptiveSynthesis";
 
 interface CheckerSettingsProps {
   config: B4Config;
@@ -284,6 +285,8 @@ export const CheckerSettings = ({ config, onChange }: CheckerSettingsProps) => {
         )}
       </Grid>
     </B4Section>
+
+    <AdaptiveSynthesisSettings config={config} onChange={onChange} />
     </Stack>
   );
 };

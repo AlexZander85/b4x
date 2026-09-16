@@ -1,0 +1,34 @@
+{
+  "schema": "afs-principal-verdicts-v1",
+  "branch": "agent/afs-addendum-v1",
+  "base": "agent/classifier-v2.3-capture-envelope",
+  "last_code_validation": {
+    "ci_run": 35088580460,
+    "result": "PASS",
+    "packages": ["config", "detector", "discovery", "monitor", "observability", "runtimecontrol", "validation"]
+  },
+  "verdicts": {
+    "BEHAVIORAL_FINGERPRINT_BOUNDED_READY": {
+      "verdict": "PASS",
+      "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED",
+      "basis": "bounded four-way behavioral panel, immutable fingerprint evidence, exact scope/freshness, DDI feature/operator projection"
+    },
+    "CONSTRAINED_SYNTHESIS_READY": {
+      "verdict": "PASS",
+      "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED",
+      "basis": "finite versioned grammar, deterministic bounded evolution, canonical identity, static validation, ActionPlanner bridge, zero-tolerance emission guards"
+    },
+    "SYNTHESIZED_DISCOVERY_READY": {
+      "verdict": "PASS",
+      "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED",
+      "basis": "existing adaptive Discovery matrix/scoring reused, target/control matrix mandatory, exact probe accounting, no direct apply"
+    },
+    "AUTONOMOUS_DPI_ADAPTATION_READY": {
+      "verdict": "BLOCKED_BY_TARGET_EVIDENCE",
+      "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED_ONLY",
+      "basis": "transactional promotion, Monitoring recurrence lifecycle, and forwarded-client canary guards are implemented, but no real Keenetic + forwarded Android target run has been captured"
+    }
+  },
+  "release_status": "IMPLEMENTED / LAB_VALIDATED / BLOCKED_BY_TARGET_EVIDENCE",
+  "production_ready": false
+}

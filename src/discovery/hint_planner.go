@@ -24,11 +24,12 @@ type SearchHint struct {
 	Threshold  uint64
 }
 type GuidedSearchPlan struct {
-	Baseline           []string
-	Ordered            []string
-	Hints              []SearchHint
-	ExhaustiveFallback bool
-	Explanation        string
+	Baseline              []string
+	Ordered               []string
+	Hints                 []SearchHint
+	SynthesizedCandidates []string
+	ExhaustiveFallback    bool
+	Explanation           string
 }
 
 func CompileHintPlan(prior detector.DiscoverySearchPrior, current []string, hints []SearchHint) GuidedSearchPlan {
@@ -56,11 +57,6 @@ func CompileHintPlan(prior detector.DiscoverySearchPrior, current []string, hint
 		return valid[i].Weight > valid[j].Weight
 	})
 	p.Hints = append([]SearchHint(nil), valid...)
-	// FB-05 (b4x-1z5, #278): apply the detector search prior for
-	// ordering/ranking only. The current baseline keeps its dominant
-	// position (ABD-11: "keep current active target evidence dominant over
-	// stored/passive priors") and the prior can never add or remove
-	// candidates: it only reorders the non-baseline extension.
 	if prior.Valid() {
 		ordered, preferred, deferred := applyPriorOrder(p.Ordered, len(current), prior)
 		p.Ordered = ordered
@@ -69,13 +65,38 @@ func CompileHintPlan(prior detector.DiscoverySearchPrior, current []string, hint
 	return p
 }
 
-// applyPriorOrder reorders the non-baseline part of the plan by the
-// detector search prior (FB-05): prior.TargetOrder candidates present in
-// the extension are ranked first (in prior order), prior.ExcludedTargets
-// are deferred to the end but stay visible ("excluded targets remain
-// visible", ABD-11 exit gate), the rest keeps its hint-derived order. The
-// baseline prefix is never touched and no candidate is added or removed.
-// Returns the reordered plan and the preferred/deferred counts.
+// CompileHintPlanWithSynthesized preserves the existing planner and appends
+// immutable synthesized candidate references to the same Ordered pipeline.
+// Baselines remain the untouched prefix and exhaustive fallback remains on.
+func CompileHintPlanWithSynthesized(prior detector.DiscoverySearchPrior, current []string, hints []SearchHint, synthesized []string) GuidedSearchPlan {
+	p := CompileHintPlan(prior, current, hints)
+	return MergeSynthesizedCandidates(p, synthesized)
+}
+
+func MergeSynthesizedCandidates(plan GuidedSearchPlan, synthesized []string) GuidedSearchPlan {
+	seen := make(map[string]struct{}, len(plan.Ordered)+len(synthesized))
+	for _, id := range plan.Ordered {
+		if id != "" {
+			seen[id] = struct{}{}
+		}
+	}
+	for _, id := range synthesized {
+		if id == "" {
+			continue
+		}
+		if _, exists := seen[id]; exists {
+			continue
+		}
+		seen[id] = struct{}{}
+		plan.SynthesizedCandidates = append(plan.SynthesizedCandidates, id)
+		plan.Ordered = append(plan.Ordered, id)
+	}
+	if len(plan.SynthesizedCandidates) > 0 {
+		plan.Explanation += "; synthesized candidates share the existing Discovery evaluation/scoring pipeline"
+	}
+	return plan
+}
+
 func applyPriorOrder(ordered []string, baselineLen int, prior detector.DiscoverySearchPrior) ([]string, int, int) {
 	preferred, deferred := 0, 0
 	if baselineLen >= len(ordered) {
@@ -100,7 +121,6 @@ func applyPriorOrder(ordered []string, baselineLen int, prior detector.Discovery
 	for _, c := range ext {
 		switch {
 		case picked[c]:
-			// already ranked by the prior
 		case excluded[c]:
 			tail = append(tail, c)
 			deferred++
@@ -118,18 +138,6 @@ func (p GuidedSearchPlan) Valid() bool {
 	return len(p.Baseline) > 0 && len(p.Ordered) >= len(p.Baseline) && p.ExhaustiveFallback
 }
 
-// CausalEligibleCandidates applies the FB-31 causal eligibility matrix to a
-// candidate family list for a failure family (FB-31, b4x-cka):
-//
-//   - forbidden candidate families are dropped and reported;
-//   - mandatory narrower families are retained unconditionally (a hint or
-//     prior may reorder, never remove them — v1.2 §20.2);
-//   - scoped transport (WARP/SOCKS/TUN) survives only when the evidence
-//     authority authorizes it (authoritative-abd or above, FB-30);
-//   - an unknown failure family fails closed: nothing is eligible.
-//
-// This is the single eligibility gate guided search and transport fallback
-// planners call before composing candidate sets (v1.2 §21 mapping).
 func CausalEligibleCandidates(family, authority string, candidates []string) (eligible, forbidden []string) {
 	entry, ok := validation.CausalEligibilityByFamily(family)
 	if !ok {
@@ -143,7 +151,6 @@ func CausalEligibleCandidates(family, authority string, candidates []string) (el
 			forbidden = append(forbidden, c)
 		}
 	}
-	// Mandatory narrower families are never dropped by eligibility filtering.
 	for _, m := range entry.MandatoryNarrowerFamilies {
 		if !containsCandidate(eligible, m) {
 			eligible = append(eligible, m)
@@ -152,11 +159,6 @@ func CausalEligibleCandidates(family, authority string, candidates []string) (el
 	return eligible, forbidden
 }
 
-// causalCandidateAllowed is the single FB-31 eligibility predicate for one
-// candidate family under an evidence authority. It is shared by candidate
-// filtering and hint filtering so both paths see the full matrix forbidden
-// set (a hint on a matrix-forbidden family is dropped even when that family
-// is not part of the current candidate set).
 func causalCandidateAllowed(entry validation.CausalEligibility, authority, candidate string) bool {
 	if containsCandidate(entry.ForbiddenCandidateFamilies, candidate) {
 		return false
@@ -167,12 +169,6 @@ func causalCandidateAllowed(entry validation.CausalEligibility, authority, candi
 	return true
 }
 
-// CompileEligiblePlan is the FB-31 guided-search planner entry point: it
-// applies the causal eligibility matrix to the current candidate set, drops
-// hints targeting forbidden families, retains mandatory narrower families
-// unconditionally, and only then delegates to CompileHintPlan. Unknown
-// failure family fails closed: nothing is eligible, the plan is invalid
-// (empty Baseline) and the explanation records the denial.
 func CompileEligiblePlan(family, authority string, prior detector.DiscoverySearchPrior, current []string, hints []SearchHint) GuidedSearchPlan {
 	eligible, forbidden := CausalEligibleCandidates(family, authority, current)
 	if len(eligible) == 0 {
@@ -182,7 +178,7 @@ func CompileEligiblePlan(family, authority string, prior detector.DiscoverySearc
 		}
 	}
 	entry, ok := validation.CausalEligibilityByFamily(family)
-	if !ok { // unreachable: len(eligible)>0 implies a known family; keep fail-closed
+	if !ok {
 		return GuidedSearchPlan{ExhaustiveFallback: true, Explanation: "unknown failure family " + family}
 	}
 	filtered := hints[:0]
@@ -197,6 +193,10 @@ func CompileEligiblePlan(family, authority string, prior detector.DiscoverySearc
 		p.Explanation = "FB-31 eligibility dropped " + strconv.Itoa(len(forbidden)) + " candidate(s) for " + family + "; " + p.Explanation
 	}
 	return p
+}
+
+func CompileEligiblePlanWithSynthesized(family, authority string, prior detector.DiscoverySearchPrior, current []string, hints []SearchHint, synthesized []string) GuidedSearchPlan {
+	return MergeSynthesizedCandidates(CompileEligiblePlan(family, authority, prior, current, hints), synthesized)
 }
 
 func containsCandidate(list []string, want string) bool {
