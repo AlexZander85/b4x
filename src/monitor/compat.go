@@ -60,6 +60,7 @@ func (p *MonitorAPIProjection) Update(s MonitorStatus) {
 	}
 	if p.correlator != nil {
 		p.correlator.EnsureScope(s.Scope)
+		p.correlator.ObserveHealth(s.Scope, "", s.Health, s.UpdatedAt)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
