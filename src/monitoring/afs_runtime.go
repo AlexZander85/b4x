@@ -25,14 +25,15 @@ func (rt *Runtime) PersistentRegressionQualified(scope monitor.MonitorScopeKey) 
 	return rt.projector.Correlator().PersistentRegressionQualified(scope)
 }
 
-// OpenAdaptiveSynthesis starts only the Monitoring-owned lifecycle. Detector,
-// Discovery, ActionPlanner and runtimecontrol continue to own their existing
-// stages and must feed ID/counter updates back through UpdateAdaptiveSynthesis.
-func (rt *Runtime) OpenAdaptiveSynthesis(assessment monitor.MonitorAssessment, runID string, enabled, persistentRegressionQualified bool, deadline, now time.Time) error {
+// OpenAdaptiveSynthesis starts only the Monitoring-owned lifecycle. The
+// persistent-regression verdict is derived here from the existing correlator;
+// callers cannot force synthesis after a single transient failure.
+func (rt *Runtime) OpenAdaptiveSynthesis(assessment monitor.MonitorAssessment, runID string, enabled bool, deadline, now time.Time) error {
 	if rt == nil || rt.projector == nil {
 		return errors.New("monitoring runtime is unavailable")
 	}
-	return rt.projector.OpenAdaptiveSynthesis(assessment, runID, enabled, persistentRegressionQualified, deadline, now)
+	persistent := rt.PersistentRegressionQualified(assessment.Scope)
+	return rt.projector.OpenAdaptiveSynthesis(assessment, runID, enabled, persistent, deadline, now)
 }
 
 func (rt *Runtime) UpdateAdaptiveSynthesis(scope monitor.MonitorScopeKey, update monitor.AdaptiveSynthesisUpdate, now time.Time) error {
