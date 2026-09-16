@@ -49,6 +49,24 @@ func TestClassifyFourWayBehaviorOperatorSignals(t *testing.T) {
 			want:       "control-unhealthy",
 			conclusive: false,
 		},
+		{
+			name:       "explicit inconclusive cannot support bypass",
+			r1:         BehaviorOutcomeOK,
+			r2:         BehaviorOutcomeInconclusive,
+			r3:         BehaviorOutcomeOK,
+			r4:         BehaviorOutcomeOK,
+			want:       "inconclusive",
+			conclusive: false,
+		},
+		{
+			name:       "unknown outcome fails closed",
+			r1:         BehaviorOutcomeOK,
+			r2:         BehaviorOutcome("unknown"),
+			r3:         BehaviorOutcomeOK,
+			r4:         BehaviorOutcomeOK,
+			want:       "inconclusive",
+			conclusive: false,
+		},
 	}
 
 	for _, tc := range tests {
@@ -58,6 +76,22 @@ func TestClassifyFourWayBehaviorOperatorSignals(t *testing.T) {
 				t.Fatalf("classification=(%q,%t), want=(%q,%t)", got, conclusive, tc.want, tc.conclusive)
 			}
 		})
+	}
+}
+
+func TestBehaviorAttemptSummaryRejectsUnknownOutcome(t *testing.T) {
+	attempt := BehaviorAttemptSummary{
+		ProbeID:           "probe-1",
+		Attempt:           1,
+		OperatorFamily:    OperatorTCPSplit,
+		ReferenceBaseline: BehaviorOutcomeOK,
+		TargetBaseline:    BehaviorOutcome("unknown"),
+		ReferenceMutated:  BehaviorOutcomeOK,
+		TargetMutated:     BehaviorOutcomeOK,
+		ObservedAt:        time.Unix(1, 0),
+	}
+	if attempt.Valid() {
+		t.Fatal("attempt with unknown normalized outcome was accepted")
 	}
 }
 
