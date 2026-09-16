@@ -77,9 +77,20 @@ func TestSynthesizedEmissionZeroToleranceCounters(t *testing.T) {
 
 	t.Run("unsafe-operator", func(t *testing.T) {
 		observability.Default().Metrics.Reset()
-		candidate := valid
-		candidate.Operations = []CandidateOperation{{Family: detector.OperatorPrePadding, Params: map[string]string{"padding_bytes": "4"}}}
-		if err := CheckSynthesizedEmission(candidate); err == nil {
+		grammar := AutomaticStrategyGrammarV1()
+		family := valid.Operations[0].Family
+		found := false
+		for i := range grammar.Operators {
+			if grammar.Operators[i].Family == family {
+				grammar.Operators[i].AutomaticSafe = false
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("seed operator %q missing from grammar", family)
+		}
+		if err := checkSynthesizedEmission(valid, grammar); err == nil {
 			t.Fatal("unsafe automatic operator escaped emission guard")
 		}
 		requireSynthesisCounter(t, observability.MetricSynthesisUnsafeOperatorEmitted)
