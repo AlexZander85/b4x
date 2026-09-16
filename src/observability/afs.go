@@ -1,6 +1,7 @@
 package observability
 
 const (
+	MetricDiscoveryAdaptiveRun                    = "discovery_adaptive_run_total"
 	MetricSynthesisWithoutUserOptIn              = "synthesis_without_user_opt_in_total"
 	MetricSynthesisWithoutPersistentRegression   = "synthesis_without_persistent_regression_total"
 	MetricSynthesisWithoutFreshProfile           = "synthesis_without_fresh_profile_total"
