@@ -32,6 +32,7 @@ type CorrelationSnapshot struct {
 	Forwarded           bool
 	RouterOrigin        bool
 	Control             bool
+	AdaptiveSynthesis   AdaptiveSynthesisStatus
 }
 type FlowCorrelator struct {
 	mu    sync.Mutex
@@ -95,12 +96,17 @@ func (c *FlowCorrelator) Observe(o MonitorObservation, endpoint string, success 
 	s.Endpoints = append(s.Endpoints, e)
 }
 func (c *FlowCorrelator) Snapshot(s MonitorScopeKey) (CorrelationSnapshot, bool) {
+	if c == nil {
+		return CorrelationSnapshot{}, false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	v, ok := c.flows[correlationKey(s)]
 	if !ok {
 		return CorrelationSnapshot{}, false
 	}
-	v.Endpoints = append([]EndpointHealth(nil), v.Endpoints...)
-	return *v, true
+	out := *v
+	out.Endpoints = append([]EndpointHealth(nil), v.Endpoints...)
+	out.AdaptiveSynthesis.Reasons = append([]string(nil), v.AdaptiveSynthesis.Reasons...)
+	return out, true
 }
