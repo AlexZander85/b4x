@@ -37,10 +37,17 @@ type traceDialFunc func(ctx context.Context, network, addr string) (net.Conn, er
 // LITERAL IPv4 and the transport is TLS: netstack v1 needs a literal target
 // (b4x-4cl) and 1.1.1.1:80 only redirects (301).
 const (
-	tracePath     = "/cdn-cgi/trace"
-	traceHost     = "1.1.1.1"
-	tracePort     = "443"
-	traceAttempts = 2 // double measurement (warp=on|plus design)
+	tracePath = "/cdn-cgi/trace"
+	traceHost = "1.1.1.1"
+	tracePort = "443"
+	// traceAttempts is the number of SUCCESSFUL exchanges required (the
+	// double-measurement design). Failures are retried within the caller's
+	// budget up to traceMaxAttempts with a short per-attempt deadline: in
+	// the field the WARP flow intermittently goes silent for seconds, and a
+	// single 30 s stall used to abort the probe before a second try.
+	traceAttempts       = 2
+	traceMaxAttempts    = 6
+	traceAttemptTimeout = 5 * time.Second
 )
 
 // traceTLSConfig builds the trace client's TLS config. Production verifies the
@@ -62,16 +69,28 @@ func NetstackE2EProbe(dial traceDialFunc, localV4 [4]byte) E2EProbe {
 func NetstackE2EProbeWithTrace(dial traceDialFunc, localV4 [4]byte, onTrace func(string)) E2EProbe {
 	return func(ctx context.Context) error {
 		_ = localV4 // kept in the signature for symmetric seam evolution
-		for i := 0; i < traceAttempts; i++ {
-			body, err := oneTraceExchange(ctx, dial)
+		oks := 0
+		var lastErr error
+		for i := 0; oks < traceAttempts && i < traceMaxAttempts; i++ {
+			actx, cancel := context.WithTimeout(ctx, traceAttemptTimeout)
+			body, err := oneTraceExchange(actx, dial)
+			cancel()
 			if err != nil {
-				return fmt.Errorf("trace[%d]: %w", i, err)
+				lastErr = fmt.Errorf("trace[%d]: %w", i, err)
+				continue
 			}
+			oks++
 			if onTrace != nil {
 				onTrace(body)
 			}
 		}
-		return nil
+		if oks >= traceAttempts {
+			return nil
+		}
+		if lastErr == nil {
+			lastErr = fmt.Errorf("trace: no successful exchange")
+		}
+		return lastErr
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -487,6 +488,15 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 		r.fail(StateBackoff, "cover profile: "+err.Error())
 		return
 	}
+	// FIELD diagnostic (b4x-nxx): the AWG E2E trace stalls in this network
+	// after a short exchange. The proven reference (wireproxy-awg) issues no
+	// pre-trace DNS probes; b4's trust gate sends 2x UDP/53 through the same
+	// tunnel first. B4_AWG_NO_GATE=1 skips the gate round-trips (the detached
+	// TraceOnly probe still runs) so the field can attribute the stall.
+	gateRoundTrips := 2
+	if os.Getenv("B4_AWG_NO_GATE") == "1" {
+		gateRoundTrips = 0
+	}
 	s, err := twg.NewSession(twg.SessionConfig{
 		Ident:        ident,
 		Profile:      profile,
@@ -504,7 +514,7 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 		Health: twg.HealthConfig{
 			KeepaliveSec: 25,
 			Gate: twg.TrustGate{
-				RoundTrips: 2,
+				RoundTrips: gateRoundTrips,
 				DNSServer:  [4]byte{1, 1, 1, 1},
 				// FIELD2 phase E: report loc=/colo= from /cdn-cgi/trace WITHOUT
 				// gating — the DNS gate still proves the path, and the trace
