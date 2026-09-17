@@ -78,13 +78,34 @@ func mustPrefix(s string) netip.Prefix { return netip.MustParsePrefix(s) }
 
 // Catalog ranges (all measured, see package doc for provenance).
 var (
-	ztZeroTrustV4   = []netip.Prefix{mustPrefix("162.159.193.0/24")}
-	ztZeroTrustV6   = []netip.Prefix{mustPrefix("2606:4700:100::/48")}
-	regional188V4   = []netip.Prefix{mustPrefix("188.114.96.0/24"), mustPrefix("188.114.97.0/24"), mustPrefix("188.114.98.0/24"), mustPrefix("188.114.99.0/24")}
-	regionalV6      = []netip.Prefix{mustPrefix("2606:4700:d0::/64"), mustPrefix("2606:4700:d1::/64")}
-	regionalNovaV4  = novaHostRoutes()
-	anycast192V4    = []netip.Prefix{mustPrefix("162.159.192.0/24")}
-	anycast195V4    = []netip.Prefix{mustPrefix("162.159.195.0/24")}
+	ztZeroTrustV4  = []netip.Prefix{mustPrefix("162.159.193.0/24")}
+	ztZeroTrustV6  = []netip.Prefix{mustPrefix("2606:4700:100::/48")}
+	regional188V4  = []netip.Prefix{mustPrefix("188.114.96.0/24"), mustPrefix("188.114.97.0/24"), mustPrefix("188.114.98.0/24"), mustPrefix("188.114.99.0/24")}
+	regionalV6     = []netip.Prefix{mustPrefix("2606:4700:d0::/64"), mustPrefix("2606:4700:d1::/64")}
+	regionalNovaV4 = novaHostRoutes()
+	anycast192V4   = []netip.Prefix{mustPrefix("162.159.192.0/24")}
+	anycast195V4   = []netip.Prefix{mustPrefix("162.159.195.0/24")}
+	// fieldVerifiedEndpoints are endpoints PROVEN on the live router to
+	// complete the WireGuard handshake with the CF WARP WG edge (bd b4x-wh6,
+	// 2026-09-17): pcap 148B init -> 92B handshake RESPONSE -> transport data,
+	// with the STOCK engine and NO obfuscation at all (vanilla-off included).
+	// They are Nova's battle-measured last-good hosts on EXTENDED ports
+	// (D:\b4x\wireguard\Nova\temp\awg-runtime: awg-profile-state preferred
+	// WARPv1_14). The ZeroTrust seeds below answer 0 IN from the same network,
+	// so these lead the DEFAULT AWG endpoint and the failover rotation — but
+	// they deliberately stay OUT of builtinSeedPool: the candidate-sourcing
+	// budgets and the "unverified regional pools never enter the default
+	// ladder" invariant (TestRegionalPoolsUnverifiedByDefault) govern the seek
+	// ladder, not a field-proven pinned default.
+	fieldVerifiedEndpoints = []netip.AddrPort{
+		netip.MustParseAddrPort("8.39.204.9:7103"), // Nova preferred_profile WARPv1_14 (last-good)
+		netip.MustParseAddrPort("8.47.69.8:854"),   // Nova WARPv1_11
+		netip.MustParseAddrPort("8.39.214.9:500"),  // Nova WARPv1_16
+	}
+
+	// builtinSeedPool is the versioned candidate pool (warp-socks
+	// src/endpoint/source.rs:12-21 verbatim): eight ZeroTrust addresses covering
+	// primary and fallback ports so candidates do not share a single :2408 path.
 	builtinSeedPool = []netip.AddrPort{
 		netip.MustParseAddrPort("162.159.193.5:2408"),
 		netip.MustParseAddrPort("162.159.193.9:500"),
@@ -96,6 +117,15 @@ var (
 		netip.MustParseAddrPort("162.159.193.11:4500"),
 	}
 )
+
+// FieldVerifiedEndpoints returns the endpoints proven in the field (bd
+// b4x-wh6) to establish against the CF WARP WG edge from a network where the
+// historical ZeroTrust seeds do not answer. Order = preference (first = Nova's
+// last-good). The default AWG endpoint and the failover rotation use this
+// list; it stays out of builtinSeedPool by design (see the note there).
+func FieldVerifiedEndpoints() []netip.AddrPort {
+	return append([]netip.AddrPort{}, fieldVerifiedEndpoints...)
+}
 
 // novaHostRoutes renders the Nova battle-measured hosts as /32s. Only
 // individually observed hosts are listed; no range is inferred.

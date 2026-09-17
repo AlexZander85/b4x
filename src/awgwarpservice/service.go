@@ -112,7 +112,11 @@ type Runtime struct {
 	store    *twg.IdentityStore
 	enroll   *twg.EnrollClient
 	endpoint netip.AddrPort
-	profile  twg.Profile
+	// endpoints is the candidate pool the service walks on session loss when
+	// the config did NOT pin an endpoint (bd b4x-wh6). nil => pinned by config.
+	endpoints []netip.AddrPort
+	epIdx     int
+	profile   twg.Profile
 	// coverSNI is the benign name the AWG bootstrap cover (the cf-quic-cover
 	// profile) embeds in its fake QUIC Initial — the same masquerade knob the
 	// MASQUE carrier uses (system.warp.masquerade.sni).
@@ -157,6 +161,14 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	// bd b4x-wh6: with no explicit endpoint the config resolves to the seed
+	// pool HEAD; keep the whole pool so a dead endpoint is not terminal — the
+	// supervisor rotates on every loss. An explicit endpoint is a PIN (no
+	// rotation: the operator asked for exactly that address).
+	var endpoints []netip.AddrPort
+	if awg.Endpoint == "" {
+		endpoints = twg.FieldVerifiedEndpoints()
+	}
 	profile, err := awg.EffectiveProfile()
 	if err != nil {
 		return nil, err
@@ -174,6 +186,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		store:     &twg.IdentityStore{Path: awg.EffectiveIdentityPath()},
 		enroll:    &twg.EnrollClient{HTTP: opts.HTTP, BaseURL: opts.EnrollBaseURL},
 		endpoint:  endpoint,
+		endpoints: endpoints,
 		profile:   profile,
 		coverSNI:  cfg.System.Warp.Masquerade.EffectiveSNI(),
 		runtimeI1: runtimeI1,
@@ -375,6 +388,7 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	sess := r.sess
 	alive := sess != nil && sess.State() != twg.StateClosed
 	ident := r.identity
+	endpoint := r.endpoint
 	r.mu.Unlock()
 	if alive || ident == nil {
 		return
@@ -427,7 +441,7 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	s, err := twg.NewSession(twg.SessionConfig{
 		Ident:        ident,
 		Profile:      profile,
-		Endpoint:     r.endpoint.String(),
+		Endpoint:     endpoint.String(),
 		ListenFwMark: listenFwMark,
 		Tunnel:       tunCfg,
 		// Kernel-TUN PBR hooks (nil in netstack mode — the plain userspace
@@ -458,7 +472,11 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 				r.lastFailure = string(f.Class)
 				r.state = StateBackoff
 				r.mu.Unlock()
-				r.appendEvent(Event{Name: "awgwarp_session_lost", Detail: string(f.Class)})
+				detail := string(f.Class)
+				if r.rotateEndpoint() {
+					detail += " -> next endpoint " + r.currentEndpoint().String()
+				}
+				r.appendEvent(Event{Name: "awgwarp_session_lost", Detail: detail})
 			},
 		},
 	})
@@ -476,7 +494,27 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	r.restarts++
 	r.state = StateStarting
 	r.mu.Unlock()
-	r.appendEvent(Event{Name: "awgwarp_session_started", Detail: r.endpoint.String()})
+	r.appendEvent(Event{Name: "awgwarp_session_started", Detail: endpoint.String()})
+}
+
+// rotateEndpoint advances to the next candidate when the endpoint is NOT
+// pinned by config (bd b4x-wh6). Returns true when it moved.
+func (r *Runtime) rotateEndpoint() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.endpoints) == 0 {
+		return false
+	}
+	r.epIdx = (r.epIdx + 1) % len(r.endpoints)
+	r.endpoint = r.endpoints[r.epIdx]
+	return true
+}
+
+// currentEndpoint snapshots the endpoint the next session will dial.
+func (r *Runtime) currentEndpoint() netip.AddrPort {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.endpoint
 }
 
 // ---- internals ------------------------------------------------------------

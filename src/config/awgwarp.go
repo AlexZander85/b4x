@@ -184,6 +184,12 @@ func (c *WarpAWGConfig) EffectiveIdentityPath() string {
 // (162.159.193.5:2408), explicit -> catalog-gated.
 func (c *WarpAWGConfig) EffectiveEndpoint() (netip.AddrPort, error) {
 	if c.Endpoint == "" {
+		// bd b4x-wh6: prefer the FIELD-VERIFIED endpoints — the historical
+		// ZeroTrust seeds answer 0 IN from the field network while these
+		// complete the WG handshake with the stock engine.
+		if fv := twg.FieldVerifiedEndpoints(); len(fv) > 0 {
+			return fv[0], nil
+		}
 		seeds := twg.SeedEndpoints()
 		if len(seeds) == 0 {
 			return netip.AddrPort{}, fmt.Errorf("system.warp.awg.endpoint: builtin seed pool empty")

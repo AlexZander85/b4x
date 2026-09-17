@@ -27,7 +27,9 @@ func TestWarpAWGValidationDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("default endpoint: %v", err)
 	}
-	if ep.String() != "162.159.193.5:2408" {
+	// bd b4x-wh6: the default endpoint is the head of the FIELD-VERIFIED list —
+	// the historical ZeroTrust seeds answer 0 IN from the field network.
+	if ep.String() != "8.39.204.9:7103" {
 		t.Fatalf("default endpoint = %s", ep)
 	}
 	if _, err := c.System.Warp.AWG.EffectiveProfile(); err != nil {
