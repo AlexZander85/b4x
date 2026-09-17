@@ -201,13 +201,14 @@ func TestEgressResolverCacheAndAntiSSRF(t *testing.T) {
 		t.Fatal("LAN-only resolution must be refused (anti-SSRF)")
 	}
 
-	// literal loopback target refused
-	if _, err := d.Dial(context.Background(), ClassBridgePT, "127.0.0.1", 80); err == nil {
-		t.Fatal("loopback literal must be refused")
+	// TT7 semantics: LITERALS bypass the anti-SSRF filter (only undialable
+	// families are refused at the literal gate; the loopback hazard belongs
+	// to the self-loop guard, tested in TestEgressSelfLoopRefused).
+	if ip, err := d.resolveTarget(context.Background(), "192.168.0.1"); err != nil || ip != netip.MustParseAddr("192.168.0.1") {
+		t.Fatalf("literal must pass without resolution: ip=%v err=%v", ip, err)
 	}
-	// literal private target refused
-	if _, err := d.Dial(context.Background(), ClassBridgePT, "192.168.0.1", 80); err == nil {
-		t.Fatal("private literal must be refused")
+	if ip, err := d.resolveTarget(context.Background(), "127.0.0.1"); err != nil || !ip.IsLoopback() {
+		t.Fatalf("loopback literal passes the literal gate: ip=%v err=%v", ip, err)
 	}
 
 	// positive cache: second resolve of the same host does not re-call

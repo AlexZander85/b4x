@@ -82,6 +82,7 @@ LIVE: **b4.exp-p35b `cfc4afe9…`** (-tags "l5ppe echflow ggcdisc qbp vnb ja4 st
 | Конфиг с `offload_policy: "exclude"` | `b4.json.gui-exclude` и аналоги | b4 перестаёт маскировать 443; PPE ютуб не маскирует |
 | reject-конфиги youtube-video | `b4.json.v3ppe`, `b4.json.reject-backup` (md5 ≠ `76d93536`) | `udp.mode=reject` убивает QUIC-путь |
 | `sni_mutation` / substitute | T8, rc13 | TLS 1.3 transcript mismatch, `SEC_E_DECRYPT_FAILURE` у ванили |
+| Левые/автономные утилиты тестирования | `warpscan`, `warpfieldprobe`, `nc` и др. для полевых вердиктов | СТРОЖАЙШЕ ЗАПРЕЩЕНО. Шлют голые пакеты/упрощённый код без полного боевого стека маскировки b4 (uTLS, QUIC I1, AWG, NFQ). Все полевые тесты туннелей — ИСКЛЮЧИТЕЛЬНО через боевой бинарник b4 (`b4.exp-*`) с тестовым конфигом! |
 
 Подозрение «FD-утечка сидит в HEAD» — **не доказано**. Доказана только утечка у GUI-бинарей выше.
 

@@ -592,7 +592,15 @@ func (s *Supervisor) run(ctx context.Context) {
 					ident = res.Identity
 					// Do not revalidate before the throttle ends (kept identity
 					// is already valid; the reconciler refused to reprovision).
+					// If the throttle window already expired by the time Ensure
+					// returned (tiny window / Retry-After in the past), floor it
+					// at now: otherwise every loop iteration sees the revalidation
+					// as due and the supervisor spins in the identity phase,
+					// never reaching the connect phase (M3-05 livelock).
 					ensuredAt = res.ThrottleUntil
+					if !ensuredAt.After(s.cfg.now()) {
+						ensuredAt = s.cfg.now()
+					}
 					s.setLastIdent(ident)
 					s.emit(SupervisorEvent{Name: EvIdentityBlocked, FailureClass: res.FailureClass, Detail: string(res.Action)})
 					continue // straight into the connect phase with keep-old identity

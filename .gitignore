@@ -97,3 +97,6 @@ src/http/ui/dist/
 
 # UI build output (built by CI, placeholder never ships)
 src/http/ui/dist/
+# OpenCode repo-local state
+.ag/logs/
+.beads/

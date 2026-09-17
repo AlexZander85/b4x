@@ -261,7 +261,7 @@ func TestUTLSChromeGoldenHello(t *testing.T) {
 	for attempt := 0; attempt < 32 && !(seenPadded && seenNoPad); attempt++ {
 		p := captureOnce()
 		assertChromeShape(p)
-		got := ja3(0x0303, p.cipherSuites, p.extensions)
+		got := ja3(0x0303, p.cipherSuites, append([]uint16(nil), p.extensions...))
 		padded := false
 		for _, e := range p.extensions {
 			if e == 0x0015 {
@@ -273,7 +273,16 @@ func TestUTLSChromeGoldenHello(t *testing.T) {
 			want = goldenJA3Chrome120Padded
 		}
 		if got != want {
-			t.Fatalf("JA3-style golden drifted: got %s (padded=%v), want %s (re-pin after an intentional uTLS bump)", got, padded, want)
+			ciph := make([]string, 0, len(p.cipherSuites))
+			for _, c := range p.cipherSuites {
+				ciph = append(ciph, fmt.Sprintf("%04x", c))
+			}
+			ext := make([]string, 0, len(p.extensions))
+			for _, e := range p.extensions {
+				ext = append(ext, fmt.Sprintf("%04x", e))
+			}
+			t.Fatalf("JA3-style golden drifted: got %s (padded=%v), want %s (re-pin after an intentional uTLS bump); wire ciphers=[%s] wire exts=[%s]",
+				got, padded, want, strings.Join(ciph, " "), strings.Join(ext, " "))
 		}
 		if padded {
 			seenPadded = true
