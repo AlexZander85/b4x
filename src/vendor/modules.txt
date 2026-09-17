@@ -421,8 +421,8 @@ google.golang.org/protobuf/reflect/protoreflect
 google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
-# gvisor.dev/gvisor v0.0.0-20231202080848-1f7806d17489
-## explicit; go 1.21.1
+# gvisor.dev/gvisor v0.0.0-20250718015824-35000683b6d7
+## explicit; go 1.23.1
 gvisor.dev/gvisor/pkg/atomicbitops
 gvisor.dev/gvisor/pkg/bits
 gvisor.dev/gvisor/pkg/buffer

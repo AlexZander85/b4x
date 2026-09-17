@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
+	"time"
 )
 
 // traceDialFunc is the raw-TCP dial seam (satisfied by the netstack's
@@ -81,6 +83,9 @@ func oneTraceExchange(ctx context.Context, dial traceDialFunc) (string, error) {
 		return "", fmt.Errorf("dial: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
+	if p := os.Getenv("B4_TRACE_IO"); p != "" {
+		conn = newIOTraceConn(conn, p, "probe")
+	}
 
 	cfg := traceTLSConfig()
 	if cfg == nil {
@@ -122,4 +127,44 @@ func oneTraceExchange(ctx context.Context, dial traceDialFunc) (string, error) {
 		return "", fmt.Errorf("trace answer lacks warp=on (spoofed edge?)")
 	}
 	return body, nil
+}
+
+// ioTraceConn is the b4 field diagnostic seam (bd b4x-q03): an env-gated
+// Read/Write logger of the trace probe's TCP socket. B4_TRACE_IO names the
+// output file; unset (production) is a no-op. It answers the standing question
+// "does the TLS client ever see the server's flight?" independently of the
+// netstack trace.
+type ioTraceConn struct {
+	net.Conn
+	file string
+	tag  string
+}
+
+func newIOTraceConn(c net.Conn, file, tag string) net.Conn {
+	return &ioTraceConn{Conn: c, file: file, tag: tag}
+}
+
+func (c *ioTraceConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	ioTraceLog(c.file, c.tag+" read", p[:n], err)
+	return n, err
+}
+
+func (c *ioTraceConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	ioTraceLog(c.file, c.tag+" write", p[:n], err)
+	return n, err
+}
+
+func ioTraceLog(file, op string, b []byte, err error) {
+	f, ferr := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if ferr != nil {
+		return
+	}
+	defer f.Close()
+	dump := b
+	if len(dump) > 2048 {
+		dump = dump[:2048]
+	}
+	fmt.Fprintf(f, "[io] %s %s n=%d err=%v hex=%x\n", time.Now().Format("15:04:05.000"), op, len(b), err, dump)
 }

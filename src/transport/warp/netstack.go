@@ -127,7 +127,7 @@ func (c *NetstackCarrier) pumpInbound(ctx context.Context, packets <-chan []byte
 func (c *NetstackCarrier) drainEgress(ctx context.Context) {
 	for {
 		pkt := c.ep.ReadContext(ctx)
-		if pkt.IsNil() {
+		if pkt == nil {
 			return
 		}
 		data := append([]byte(nil), pkt.ToView().AsSlice()...)

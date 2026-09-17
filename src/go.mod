@@ -72,7 +72,7 @@ require (
 	golang.org/x/net v0.56.0
 	golang.org/x/sys v0.47.0
 	google.golang.org/protobuf v1.36.8
-	gvisor.dev/gvisor v0.0.0-20231202080848-1f7806d17489
+	gvisor.dev/gvisor v0.0.0-20250718015824-35000683b6d7
 )
 
 // b4x fork: uTLS ClientHello seam for QUIC clients (Config.UTLSClientHelloID).
