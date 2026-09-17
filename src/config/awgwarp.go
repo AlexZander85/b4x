@@ -446,7 +446,11 @@ func (c *WarpChainConfig) ResolveEndpoints() (outer, inner netip.AddrPort, err e
 func (c *WarpChainConfig) resolveChainEndpoints() (outer, inner netip.AddrPort, err error) {
 	awgEp := func(field, raw string, avoid netip.Addr) (netip.AddrPort, error) {
 		if raw == "" {
-			seeds := twg.SeedEndpoints()
+			// bd b4x-wh6: prefer the FIELD-VERIFIED endpoints — the historical
+			// ZeroTrust seeds answer 0 IN from the field network (the default
+			// single-AWG transport uses the same list). A field-verified entry
+			// is preferred for EVERY layer selector.
+			seeds := append(twg.FieldVerifiedEndpoints(), twg.SeedEndpoints()...)
 			if len(seeds) == 0 {
 				return netip.AddrPort{}, fmt.Errorf("%s: builtin WG seed pool empty", field)
 			}
