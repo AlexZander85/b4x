@@ -678,6 +678,9 @@ func (s *Server) handleConn(raw net.Conn) {
 	up, down := s.relay(result.Conn, dcConn, splitter, &info.lastActive, fmt.Sprintf("%s [%s] %s<->DC%d via %s", tag, user, clientAddr, result.DC, transport))
 	st.up.Add(up)
 	st.down.Add(down)
+	// dead-worker health tracking: drain-the-uplink-EOF-zero-run domain
+	// cooldowns itself out of the CF pool after this session's outcome.
+	recordCFProgress(extractCFDomain(transport), up, down)
 }
 
 func (s *Server) relay(client, dc io.ReadWriteCloser, splitter *msgSplitter, lastActive *atomic.Int64, label string) (up, down int64) {

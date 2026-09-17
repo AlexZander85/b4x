@@ -293,6 +293,67 @@ func (b *cfBalancer) refreshFromURL(url string) error {
 	return nil
 }
 
+// cfProxyHealth is the zero-progress tracker for CF ws-worker domains.
+// Dead-deployed workers accept the WS handshake and drain the uplink, then EOF
+// with zero bytes returned (field 17.09: 52/84 sessions down=0 up>0). Such a
+// domain is skipped (cooldown) for the next CFHealthWindow while proven-raw
+// domains (any down>0) keep their place. Mirrors the tg-ws-proxy balancer's
+// 429/503 cooldown, extended with the observed dead-worker signature.
+var (
+	cfHealthMu   sync.Mutex
+	cfHealthFail = map[string]int{} // consecutive zero-progress sessions
+	cfHealthLast = map[string]time.Time{}
+)
+
+const (
+	cfHealthFailThreshold = 2 // consecutive dead sessions → cooldown
+	cfHealthCooldown      = 4 * time.Minute
+	cfHealthWindow        = 10 * time.Minute
+)
+
+// recordCFProgress feeds one relay outcome for a cf domain.
+// down>0 proves the worker's upstream leg is alive and clears the failure
+// streak. up>0 with down==0 is the dead-worker signature observed in the
+// field (EOF right after the uplink drained); N consecutive ones put the
+// domain into the shared cfBalancer cooldown. Dial errors are NOT counted —
+// they already have wsDialTimeoutCooldown / 429-503 penalize.
+func recordCFProgress(domain string, up, down int64) {
+	if domain == "" || (up <= 0 && down <= 0) {
+		return
+	}
+	cfHealthMu.Lock()
+	defer cfHealthMu.Unlock()
+	now := time.Now()
+	if last, ok := cfHealthLast[domain]; ok && now.Sub(last) > cfHealthWindow {
+		cfHealthFail[domain] = 0
+	}
+	if down > 0 {
+		cfHealthFail[domain] = 0
+		cfHealthLast[domain] = now
+		return
+	}
+	cfHealthFail[domain]++
+	cfHealthLast[domain] = now
+	if n := cfHealthFail[domain]; n >= cfHealthFailThreshold {
+		cfBalancerInst.penalize(domain, cfHealthCooldown)
+		log.Warnf("CF domain %s skipped (%d consecutive zero-progress relays, cooldown %s)", domain, n, cfHealthCooldown)
+	}
+}
+
+// extractCFDomain parses `ws://kws2.host.tld` style transport labels so relay
+// outcomes can be attributed to the CF worker domain.
+func extractCFDomain(transport string) string {
+	if !strings.HasPrefix(transport, "ws://") {
+		return ""
+	}
+	d := strings.TrimPrefix(transport, "ws://")
+	// ws://<host> — host may carry a port; strip it.
+	if i := strings.IndexByte(d, ':'); i >= 0 {
+		d = d[:i]
+	}
+	return d
+}
+
 // cfBalancerInst is the package-level singleton. Initialized with the bundled
 // defaults so b4 has a working CF pool from process start even before the
 // first GitHub refresh succeeds.

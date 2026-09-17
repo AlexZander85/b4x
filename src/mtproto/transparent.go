@@ -289,7 +289,10 @@ func (b *TransparentBridge) finishHandshake(client net.Conn, init []byte, head i
 	if _, isWS := dcConn.Conn.(*wsConn); isWS {
 		splitter = newMsgSplitter(res.ProtoTag)
 	}
-	relayConns(res.Conn, dcConn, splitter, label, &b.bufPool, mtprotoIdleTimeout(cfg), nil)
+	upRelay, downRelay := relayConns(res.Conn, dcConn, splitter, label, &b.bufPool, mtprotoIdleTimeout(cfg), nil)
+	// dead-worker health tracking (transparent bridge path): attribute the
+	// session outcome to the chosen ws://cf domain.
+	recordCFProgress(extractCFDomain(transport), upRelay, downRelay)
 	return true, nil
 }
 
