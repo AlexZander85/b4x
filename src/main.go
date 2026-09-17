@@ -777,7 +777,14 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// never sees a dead dialer (honest absence, not a fail-closed facade).
 	var awgWarpEngine *awgwarpservice.Runtime
 	if cfgPtr.Load().System.Warp.AWG.Enabled {
-		rt, err := awgwarpservice.Build(cfgPtr.Load(), awgwarpservice.Options{})
+		// Event sink (field observability, bd b4x-wh6/pt.2 + FIELD2 Фаза D/E):
+		// without it the service's lifecycle events (session_started/lost,
+		// seek_adopted, trace) never reach the router log.
+		rt, err := awgwarpservice.Build(cfgPtr.Load(), awgwarpservice.Options{
+			OnEvent: func(ev awgwarpservice.Event) {
+				log.Infof("[awgwarp] %s %s", ev.Name, ev.Detail)
+			},
+		})
 		if err != nil {
 			log.Errorf("[awgwarp] engine disabled this run: %v", err)
 		} else if err := rt.Start(appCtx); err != nil {

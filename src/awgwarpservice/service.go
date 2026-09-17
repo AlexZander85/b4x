@@ -631,7 +631,7 @@ func (r *Runtime) seekOnce(ctx context.Context) (*twg.Winner, bool) {
 			},
 			SockOpts: twg.SocketOptions{},
 		},
-		Candidates: twg.FieldVerifiedEndpoints(),
+		Candidates: append(twg.FieldVerifiedEndpoints(), twg.SeedEndpoints()...),
 		Target:     twg.TargetCfWarp,
 		Store:      twg.FileLastGood{Path: r.cfg.EffectiveIdentityPath() + ".lastgood"},
 		Strikes:    strikes,
