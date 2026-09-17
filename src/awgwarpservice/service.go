@@ -38,6 +38,25 @@ import (
 // superviseTick is the supervisor cadence (the proton canon: 30 s).
 const superviseTick = 30 * time.Second
 
+// Seek fallback budgets (bd b4x-wh6 pt.2): the fast path (config/field-verified
+// endpoint + rotation) is tried FIRST; only after seekAfterTicks consecutive
+// supervisor ticks without an established session does one bounded discovery
+// pass run. seekCooldown paces repeats after a winner has been adopted.
+const (
+	seekAfterTicks = 3
+	seekBudget     = 120 * time.Second
+	seekCooldown   = 10 * time.Minute
+)
+
+// seekerRunner is the seam over *twg.Seeker (tests inject a fake so no live
+// session is ever driven from unit tests).
+type seekerRunner interface {
+	Seek(ctx context.Context) (twg.SeekResult, error)
+}
+
+// newSeeker is the construction seam (tests replace it).
+var newSeeker = func(cfg twg.SeekerConfig) (seekerRunner, error) { return twg.NewSeeker(cfg) }
+
 // Event ring capacity.
 const eventRingCap = 32
 
@@ -116,7 +135,16 @@ type Runtime struct {
 	// the config did NOT pin an endpoint (bd b4x-wh6). nil => pinned by config.
 	endpoints []netip.AddrPort
 	epIdx     int
-	profile   twg.Profile
+	// Seek fallback (bd b4x-wh6 pt.2): after the fast path keeps failing, one
+	// bounded discovery pass walks the field-verified endpoints × the cf-warp
+	// profile ladder; the winner overrides the endpoint AND the profile.
+	winnerMu      sync.Mutex
+	winnerEP      netip.AddrPort
+	winnerProfile string
+	failTicks     int
+	soughtAt      time.Time
+	strikes       *twg.StrikeState
+	profile       twg.Profile
 	// coverSNI is the benign name the AWG bootstrap cover (the cf-quic-cover
 	// profile) embeds in its fake QUIC Initial — the same masquerade knob the
 	// MASQUE carrier uses (system.warp.masquerade.sni).
@@ -190,6 +218,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		profile:   profile,
 		coverSNI:  cfg.System.Warp.Masquerade.EffectiveSNI(),
 		runtimeI1: runtimeI1,
+		strikes:   twg.NewStrikeState(),
 		guard:     restartGuard{now: opts.Now, max: awg.EffectiveMaxRestarts()},
 		state:     StateIdle,
 	}
@@ -329,6 +358,7 @@ func (r *Runtime) tick(ctx context.Context) {
 		return // identity gates everything else
 	}
 	r.ensureSession(ctx)
+	r.maybeSeek(ctx)
 }
 
 // ensureIdentity loads the stored identity or registers exactly once per
@@ -390,6 +420,15 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	ident := r.identity
 	endpoint := r.endpoint
 	r.mu.Unlock()
+
+	// bd b4x-wh6 pt.2: a seek winner overrides the endpoint for the next
+	// generation (the profile is resolved below).
+	r.winnerMu.Lock()
+	winnerEP, winnerProfile := r.winnerEP, r.winnerProfile
+	r.winnerMu.Unlock()
+	if winnerEP.IsValid() {
+		endpoint = winnerEP
+	}
 	if alive || ident == nil {
 		return
 	}
@@ -432,8 +471,18 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	}
 	// Bootstrap cover: a runtime-I1 profile (cf-quic-cover) ships a real QUIC
 	// Initial in front of the WireGuard initiation (Nova fakex6-quic parity).
-	// Non-runtime-I1 profiles pass through unchanged.
-	profile := twg.FillBootstrapCover(r.profile, r.runtimeI1, r.coverSNI)
+	// The seek-discovered profile (bd b4x-wh6 pt.2) wins over the configured
+	// one; the cover fill is applied either way.
+	profile := r.profile
+	runtimeI1 := r.runtimeI1
+	if winnerProfile != "" {
+		if tpl, lerr := twg.LookupProfile(winnerProfile); lerr == nil && tpl.Target == twg.TargetCfWarp {
+			if p, berr := tpl.Build(); berr == nil {
+				profile, runtimeI1 = p, tpl.RuntimeI1
+			}
+		}
+	}
+	profile = twg.FillBootstrapCover(profile, runtimeI1, r.coverSNI)
 	if err := profile.Validate(); err != nil {
 		r.fail(StateBackoff, "cover profile: "+err.Error())
 		return
@@ -515,6 +564,88 @@ func (r *Runtime) currentEndpoint() netip.AddrPort {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.endpoint
+}
+
+// maybeSeek runs ONE bounded endpoint+profile discovery pass after the fast
+// path has failed for seekAfterTicks consecutive supervisor ticks (bd b4x-wh6
+// pt.2). Fail-safe: every error path leaves the current endpoint/profile in
+// place, so this can never be worse than the previous behavior.
+func (r *Runtime) maybeSeek(ctx context.Context) {
+	r.mu.Lock()
+	live := r.sess != nil && r.sess.State() == twg.StateEstablished
+	if live {
+		r.failTicks = 0
+	} else {
+		r.failTicks++
+	}
+	ticks := r.failTicks
+	soughtAt := r.soughtAt
+	r.mu.Unlock()
+
+	if live || ticks < seekAfterTicks {
+		return
+	}
+	if !soughtAt.IsZero() && r.opts.Now().Sub(soughtAt) < seekCooldown {
+		return
+	}
+	r.mu.Lock()
+	r.soughtAt = r.opts.Now()
+	r.mu.Unlock()
+
+	winner, ok := r.seekOnce(ctx)
+	if !ok {
+		return
+	}
+	r.winnerMu.Lock()
+	r.winnerEP, r.winnerProfile = winner.Endpoint, winner.Profile
+	r.winnerMu.Unlock()
+	r.mu.Lock()
+	r.failTicks = 0
+	r.mu.Unlock()
+	r.appendEvent(Event{Name: "awgwarp_seek_adopted",
+		Detail: winner.Endpoint.String() + " " + winner.Profile})
+}
+
+// seekOnce runs ONE bounded discovery pass over the field-verified endpoints ×
+// the cf-warp profile ladder with the current identity.
+func (r *Runtime) seekOnce(ctx context.Context) (*twg.Winner, bool) {
+	r.mu.Lock()
+	ident := r.identity
+	strikes := r.strikes
+	r.mu.Unlock()
+	if ident == nil {
+		return nil, false
+	}
+	v4, err := netip.ParseAddr(ident.AssignedV4)
+	if err != nil {
+		return nil, false
+	}
+	s, err := newSeeker(twg.SeekerConfig{
+		Base: twg.SessionConfig{
+			Ident: ident,
+			Tunnel: twg.TunnelConfig{
+				Mode:      twg.ModeNetstack,
+				Addresses: []netip.Addr{v4},
+				DNS:       []netip.Addr{netip.MustParseAddr("1.1.1.1")},
+				MTU:       r.cfg.EffectiveMTU(),
+			},
+			SockOpts: twg.SocketOptions{},
+		},
+		Candidates: twg.FieldVerifiedEndpoints(),
+		Target:     twg.TargetCfWarp,
+		Store:      twg.FileLastGood{Path: r.cfg.EffectiveIdentityPath() + ".lastgood"},
+		Strikes:    strikes,
+	})
+	if err != nil {
+		return nil, false
+	}
+	cctx, cancel := context.WithTimeout(ctx, seekBudget)
+	defer cancel()
+	res, err := s.Seek(cctx)
+	if err != nil || res.Winner == nil {
+		return nil, false
+	}
+	return res.Winner, true
 }
 
 // ---- internals ------------------------------------------------------------
