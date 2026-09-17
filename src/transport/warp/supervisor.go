@@ -89,6 +89,12 @@ type SupervisorConfig struct {
 	// Template carries static per-instance parameters: Endpoint, SNI,
 	// ConnectURI, Policy, MTU. Key material comes from the identity.
 	Template SessionConfig
+	// EndpointFor, when non-nil, is consulted before EVERY generation build; a
+	// valid return overrides Template.Endpoint (bd b4x-wh6 pt.1: the endpoint
+	// discovery winner leads while the configured/default endpoint stays the
+	// fallback). Nil keeps the static template endpoint — existing behavior is
+	// unchanged.
+	EndpointFor func() (netip.AddrPort, bool)
 	// Reconciler owns identity state and the registration API.
 	Reconciler *Reconciler
 	// Dialer selects the carrier for every generation (E-H3 ladder,
@@ -647,7 +653,16 @@ func (s *Supervisor) run(ctx context.Context) {
 		}
 
 		// --- connect phase ---
-		scfg, err := buildSessionConfig(s.cfg.Template, ident)
+		// bd b4x-wh6 pt.1: a non-nil EndpointFor may override the static
+		// template endpoint per generation (the discovery winner leads while
+		// the configured/default endpoint stays the fallback).
+		tpl := s.cfg.Template
+		if s.cfg.EndpointFor != nil {
+			if ep, ok := s.cfg.EndpointFor(); ok && ep.IsValid() {
+				tpl.Endpoint = ep
+			}
+		}
+		scfg, err := buildSessionConfig(tpl, ident)
 		if err != nil {
 			// Unusable stored identity: force a reconcile round.
 			ident = nil
@@ -941,6 +956,14 @@ func buildSessionConfig(t SessionConfig, ident *Identity) (SessionConfig, error)
 		out.SNI = v
 	}
 	return out, nil
+}
+
+// SessionConfigForIdentity fills the per-identity key material (ClientKey,
+// Pin, LocalV4) into a session template — the exported form of the
+// supervisor's per-generation builder. Endpoint discovery drives REAL sessions
+// with the same identity through it (bd b4x-wh6 pt.1).
+func SessionConfigForIdentity(t SessionConfig, ident *Identity) (SessionConfig, error) {
+	return buildSessionConfig(t, ident)
 }
 
 func msDur(d time.Duration) uint64 {

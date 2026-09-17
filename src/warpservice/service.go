@@ -17,6 +17,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/netip"
 	"sync"
 	"time"
 
@@ -60,7 +61,34 @@ type Runtime struct {
 	mu      sync.Mutex
 	started bool
 	stopped bool
+
+	// template is the static session template the supervisor (and the endpoint
+	// discovery) build from.
+	template warp.SessionConfig
+	// winner is the discovery-adopted endpoint (bd b4x-wh6 pt.1): the zero
+	// value means "keep the configured/default endpoint".
+	winnerMu sync.Mutex
+	winner   netip.AddrPort
 }
+
+// discoveryRunner is the seam over *warp.Discoverer (tests inject a fake so no
+// catalog candidate is ever probed from unit tests).
+type discoveryRunner interface {
+	Discover(ctx context.Context) (warp.DiscoveryResult, error)
+}
+
+// newDiscoverer is the construction seam (tests replace it).
+var newDiscoverer = func(cfg warp.DiscovererConfig) (discoveryRunner, error) {
+	return warp.NewDiscoverer(cfg)
+}
+
+// Endpoint discovery budgets (bd b4x-wh6 pt.1). The proven static default is
+// tried first, so a healthy network never pays for a scan.
+const (
+	discoveryAfter  = 45 * time.Second
+	discoveryRetry  = 10 * time.Minute
+	discoveryBudget = 90 * time.Second
+)
 
 // Build validates the system.warp section and constructs the runtime
 // WITHOUT starting anything. It succeeds even when Enabled=false so CLI
@@ -92,26 +120,33 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 	if err != nil {
 		return nil, err
 	}
+	tpl := warp.SessionConfig{
+		Endpoint: endpoint,
+		// Cover SNI: the canonical MASQUE name is DPI-flagged in RU and
+		// the edge blackholes the data phase once it is seen (bd b4x-5oy).
+		// Identity binds by public-key pinning, so the SNI is a free cover.
+		SNI: wc.Masquerade.EffectiveSNI(),
+		// Client key + pin are injected per-generation by the
+		// supervisor from the stored identity (buildSessionConfig).
+		Fingerprint: wc.Masquerade.Fingerprint,
+	}
+	rt := &Runtime{cfg: wc, rec: rec, template: tpl}
 	sup, err := warp.NewSupervisor(warp.SupervisorConfig{
-		Template: warp.SessionConfig{
-			Endpoint: endpoint,
-			// Cover SNI: the canonical MASQUE name is DPI-flagged in RU and
-			// the edge blackholes the data phase once it is seen (bd b4x-5oy).
-			// Identity binds by public-key pinning, so the SNI is a free cover.
-			SNI: wc.Masquerade.EffectiveSNI(),
-			// Client key + pin are injected per-generation by the
-			// supervisor from the stored identity (buildSessionConfig).
-			Fingerprint: wc.Masquerade.Fingerprint,
-		},
+		Template:          tpl,
 		Reconciler:        rec,
 		Dialer:            dialer,
 		Sink:              sink,
 		DeferRevalidation: wc.DeferRevalidation,
+		// bd b4x-wh6 pt.1: a discovery-verified endpoint overrides the static
+		// one for the next generation while the static endpoint stays the
+		// fallback (no winner => behavior unchanged).
+		EndpointFor: rt.currentEndpoint,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{cfg: wc, rec: rec, sup: sup}, nil
+	rt.sup = sup
+	return rt, nil
 }
 
 // Start launches the supervisor loop. Daemon mode only; callers check
@@ -127,7 +162,13 @@ func (r *Runtime) Start(ctx context.Context) error {
 		return nil
 	}
 	r.started = true
-	return r.sup.Start(ctx)
+	if err := r.sup.Start(ctx); err != nil {
+		return err
+	}
+	// bd b4x-wh6 pt.1: adopt a discovery-verified endpoint after the static one
+	// has failed to connect (fail-safe — see discoverLoop).
+	go r.discoverLoop(ctx)
+	return nil
 }
 
 // Stop tears the supervisor down (no-op before Start).
@@ -139,6 +180,82 @@ func (r *Runtime) Stop() {
 	}
 	r.stopped = true
 	r.sup.Stop()
+}
+
+// currentEndpoint is the warp.SupervisorConfig.EndpointFor seam: the adopted
+// discovery winner, or "not set" so the static template endpoint is kept.
+func (r *Runtime) currentEndpoint() (netip.AddrPort, bool) {
+	r.winnerMu.Lock()
+	defer r.winnerMu.Unlock()
+	if r.winner.IsValid() {
+		return r.winner, true
+	}
+	return netip.AddrPort{}, false
+}
+
+// discoverLoop runs MASQUE endpoint discovery only while the static endpoint
+// fails to connect (bd b4x-wh6 pt.1). Every failure path is a silent no-op:
+// the configured/default endpoint stays in place, so this can never be worse
+// than the previous behavior.
+func (r *Runtime) discoverLoop(ctx context.Context) {
+	t := time.NewTimer(discoveryAfter)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return
+	case <-t.C:
+	}
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		if r.sup.Snapshot().State != warp.StateConnected {
+			if ep, ok := r.discoverOnce(ctx); ok {
+				r.winnerMu.Lock()
+				changed := r.winner != ep
+				r.winner = ep
+				r.winnerMu.Unlock()
+				if changed {
+					r.sup.Restart(true)
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(discoveryRetry):
+		}
+	}
+}
+
+// discoverOnce runs ONE bounded discovery pass over the versioned catalog with
+// the current identity. Any error (absent identity, no verified candidate,
+// budget) returns ok=false and leaves the static endpoint untouched.
+func (r *Runtime) discoverOnce(ctx context.Context) (netip.AddrPort, bool) {
+	ident, err := r.rec.Store.Load()
+	if err != nil {
+		return netip.AddrPort{}, false
+	}
+	tpl, err := warp.SessionConfigForIdentity(r.template, ident)
+	if err != nil {
+		return netip.AddrPort{}, false
+	}
+	d, err := newDiscoverer(warp.DiscovererConfig{
+		Template:     tpl,
+		Strategy:     warp.StrategyBalanced,
+		LastGoodPath: r.cfg.IdentityPath + ".lastgood",
+		H3:           &warp.H3VerifyConfig{},
+	})
+	if err != nil {
+		return netip.AddrPort{}, false
+	}
+	cctx, cancel := context.WithTimeout(ctx, discoveryBudget)
+	defer cancel()
+	res, err := d.Discover(cctx)
+	if err != nil || !res.Winner.Endpoint.IsValid() {
+		return netip.AddrPort{}, false
+	}
+	return res.Winner.Endpoint, true
 }
 
 // Status returns the current engine snapshot with recent events (safe to
