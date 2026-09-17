@@ -95,6 +95,10 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 	sup, err := warp.NewSupervisor(warp.SupervisorConfig{
 		Template: warp.SessionConfig{
 			Endpoint: endpoint,
+			// Cover SNI: the canonical MASQUE name is DPI-flagged in RU and
+			// the edge blackholes the data phase once it is seen (bd b4x-5oy).
+			// Identity binds by public-key pinning, so the SNI is a free cover.
+			SNI: wc.Masquerade.EffectiveSNI(),
 			// Client key + pin are injected per-generation by the
 			// supervisor from the stored identity (buildSessionConfig).
 			Fingerprint: wc.Masquerade.Fingerprint,

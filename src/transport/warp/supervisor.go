@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"os"
 	"sync"
 	"time"
 )
@@ -932,6 +933,13 @@ func buildSessionConfig(t SessionConfig, ident *Identity) (SessionConfig, error)
 	out.ClientKey = priv
 	out.Pin = pin
 	out.LocalV4 = v4.As4()
+	// Cover-SNI diagnostics (bd b4x-5oy): the real MASQUE SNI is DPI-visible
+	// in the QUIC Initial / TLS ClientHello; identity binds by public-key
+	// pinning, so a benign cover SNI is safe to try (same knob usque exposes
+	// as -s/--sni-address). Empty keeps the canonical DefaultSNI.
+	if v := os.Getenv("B4_WARP_SNI"); v != "" {
+		out.SNI = v
+	}
 	return out, nil
 }
 

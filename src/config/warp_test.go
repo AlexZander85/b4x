@@ -72,6 +72,31 @@ func TestEffectiveEndpointExplicitValues(t *testing.T) {
 	}
 }
 
+func TestWarpMasqueradeCoverSNI(t *testing.T) {
+	var m WarpMasqueradeConfig
+	if got := m.EffectiveSNI(); got != warp.DefaultCoverSNI {
+		t.Fatalf("default cover SNI = %q, want %q", got, warp.DefaultCoverSNI)
+	}
+	if warp.DefaultCoverSNI == warp.DefaultSNI {
+		t.Fatal("cover SNI must differ from the canonical DPI-flagged MASQUE name")
+	}
+	m = WarpMasqueradeConfig{SNI: "example.com"}
+	if err := m.Validate(); err != nil {
+		t.Fatalf("valid cover SNI rejected: %v", err)
+	}
+	if got := m.EffectiveSNI(); got != "example.com" {
+		t.Fatalf("explicit cover SNI = %q", got)
+	}
+	for _, bad := range []string{"not a host", "nodot", "a b.com", ""} {
+		if bad == "" {
+			continue // empty means "use default", not invalid
+		}
+		if err := (WarpMasqueradeConfig{SNI: bad}).Validate(); err == nil {
+			t.Fatalf("cover SNI %q accepted, want validation error", bad)
+		}
+	}
+}
+
 func TestValidateWarpSection(t *testing.T) {
 	t.Run("enabled requires absolute identity path", func(t *testing.T) {
 		cfg := NewConfig()

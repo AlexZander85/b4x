@@ -33,6 +33,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/netip"
 	"os"
@@ -43,8 +44,19 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/qlog"
 	utls "github.com/refraction-networking/utls"
 )
+
+// h3DebugEnabled gates the H3 field-diagnostics trace added for bd b4x-5oy
+// (the edge accepts CONNECT but the inbound datagram path stays silent).
+// Set B4_H3_DBG=1 to emit per-datagram reader lines plus the server-SETTINGS
+// and request-stream watchers to stdout. Off by default: zero production cost.
+func h3DebugEnabled() bool { return os.Getenv("B4_H3_DBG") != "" }
+
+func h3dbgLog(format string, args ...any) {
+	fmt.Printf("[h3-dbg] "+format+"\n", args...)
+}
 
 // QUIC transport constants (E-H3 design §1; prompt EH2).
 const (
@@ -229,6 +241,41 @@ func DialH3Session(parent context.Context, cfg H3SessionConfig) (*H3Session, H3C
 
 func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*H3Session, H3ConnectResult, error) {
 	cfg.fillDefaults()
+	// bd b4x-5oy field matrix (diagnostics only; all unset in production):
+	//   B4_H3_ENDPOINT   = "ip:port"  override the catalog endpoint
+	//   B4_H3_AUTH_DOMAIN= "1"        send the template domain as :authority
+	//   B4_H3_NO_PMTUD   = "1"        disable quic-go path-MTU discovery
+	if v := os.Getenv("B4_H3_ENDPOINT"); v != "" {
+		if ap, perr := netip.ParseAddrPort(v); perr == nil {
+			cfg.Endpoint = ap
+		} else {
+			h3dbgLog("B4_H3_ENDPOINT %q invalid: %v", v, perr)
+		}
+	}
+	// B4_H3_WINDOW extends the trust-gate window (diagnostics: watch for the
+	// edge's own max_idle_timeout close, which proves the peer is alive but
+	// received nothing from us). B4_H3_NO_PROBE suppresses the DNS datagrams
+	// so the qlog shows whether the transport itself (PING keepalive) survives.
+	if v := os.Getenv("B4_H3_WINDOW"); v != "" {
+		if d, derr := time.ParseDuration(v); derr == nil {
+			cfg.ValidateWindow = d
+		} else {
+			h3dbgLog("B4_H3_WINDOW %q invalid: %v", v, derr)
+		}
+	}
+	keepAlive := h3KeepAlivePeriod
+	if v := os.Getenv("B4_H3_KEEPALIVE"); v != "" {
+		if d, derr := time.ParseDuration(v); derr == nil {
+			keepAlive = d
+		}
+	}
+	// Cover-SNI diagnostics (the pinned client accepts any SNI: identity is
+	// bound by public-key pinning, not hostname). The real MASQUE SNI is
+	// visible to DPI in the QUIC Initial; a benign cover may avoid the
+	// post-establishment blackhole.
+	if v := os.Getenv("B4_H3_SNI"); v != "" {
+		cfg.SNI = v
+	}
 	res := H3ConnectResult{PinDigest: PinDigest(cfg.Pin)}
 
 	ctx, cancel := context.WithCancel(parent)
@@ -279,13 +326,20 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	remote := net.UDPAddrFromAddrPort(cfg.Endpoint)
 	conf := &quic.Config{
 		EnableDatagrams:            true,
-		KeepAlivePeriod:            h3KeepAlivePeriod,
+		KeepAlivePeriod:            keepAlive,
 		MaxIdleTimeout:             h3MaxIdleTimeout,
 		MaxConnectionReceiveWindow: h3ConnWindow,
 		MaxStreamReceiveWindow:     h3StreamWindow,
 		MaxIncomingStreams:         h3MaxStreams,
 		HandshakeIdleTimeout:       cfg.HandshakeBudget,
-		DisablePathMTUDiscovery:    false, // PMTUD auto per design §1
+		DisablePathMTUDiscovery:    os.Getenv("B4_H3_NO_PMTUD") == "1", // diag toggle; default keeps PMTUD (design §1)
+	}
+	// bd b4x-5oy diagnostics: QLOGDIR makes quic-go emit a full packet-level
+	// qlog (transport parameters, every sent/received packet, ACKs, close
+	// reason) next to the session. Only armed when the operator sets QLOGDIR,
+	// so production runs are unaffected.
+	if os.Getenv("QLOGDIR") != "" {
+		conf.Tracer = qlog.DefaultConnectionTracer
 	}
 	// Masquerade FX-M1 (b4x quic-go fork): a configured fingerprint swaps
 	// the ClientHello for the uTLS browser profile; the fork preserves the
@@ -336,6 +390,12 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	// Extended CONNECT request — the verified header set plus the RFC-mandated
 	// :path (see h3ConnectFieldSection for why its absence was fatal).
 	authority := AuthorityForEndpoint(cfg.Endpoint.Addr().String(), cfg.Endpoint.Port())
+	if os.Getenv("B4_H3_AUTH_DOMAIN") == "1" {
+		// Diag matrix: the pinned usque client sends the URI-template host as
+		// :authority (connect-ip-go Dial uses Host: u.Host). Default stays the
+		// owner-mandated IP:port (ADR-EH3).
+		authority = "cloudflareaccess.com"
+	}
 	if _, err := stream.Write(appendH3Headers(nil, h3ConnectFieldSection(authority))); err != nil {
 		return abandon(classifyH3RequestError(err), err)
 	}
@@ -401,6 +461,11 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	}
 
 	res.DurationMS = msSince(start)
+	if h3DebugEnabled() {
+		h3dbgLog("connect ok: status=%d colo=%q streamID=%d authority=%q",
+			status, res.Colo, stream.StreamID(), authority)
+		go watchH3Debug(sess, conn)
+	}
 	go sess.readerLoop()
 	return sess, res, nil
 }
@@ -503,8 +568,19 @@ func (s *H3Session) ValidateDataPlane(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("probe build: %w", err)
 	}
-	if err := s.WritePacket(probe.Packet); err != nil {
-		return fmt.Errorf("%s: %w", FailureUDPEgressBlocked, err)
+	// Diag matrix (bd b4x-5oy): with probes suppressed the trust gate can only
+	// time out, but the qlog then isolates the transport itself — if the edge
+	// stops answering even QUIC PINGs, the failure is below our H3 dialect.
+	noProbe := os.Getenv("B4_H3_NO_PROBE") == "1"
+	if !noProbe {
+		if err := s.WritePacket(probe.Packet); err != nil {
+			return fmt.Errorf("%s: %w", FailureUDPEgressBlocked, err)
+		}
+	}
+	dbg := h3DebugEnabled()
+	probes := 1
+	if dbg {
+		h3dbgLog("validate start: probeLen=%d window=%v interval=%v noProbe=%v", len(probe.Packet), s.cfg.ValidateWindow, s.cfg.ProbeInterval, noProbe)
 	}
 	timer := time.NewTimer(s.cfg.ValidateWindow)
 	defer timer.Stop()
@@ -521,13 +597,27 @@ func (s *H3Session) ValidateDataPlane(ctx context.Context) error {
 				return fmt.Errorf("data plane lost during validation: %w", m.err)
 			}
 			successes++
+			if dbg {
+				h3dbgLog("validate success %d/%d pktLen=%d", successes, requiredProbeSuccesses, len(m.data))
+			}
 		case <-s.done:
 			return fmt.Errorf("%s: %w", FailureValidation, ErrSessionClosed)
 		case <-ticker.C:
+			if noProbe {
+				continue
+			}
 			if err := s.WritePacket(probe.Packet); err != nil {
 				return fmt.Errorf("data plane lost during validation: %w", err)
 			}
+			probes++
+			if dbg {
+				h3dbgLog("validate probe#%d sent txPkts=%d rxPkts=%d", probes, s.txPkts.Load(), s.rxPkts.Load())
+			}
 		case <-timer.C:
+			if dbg {
+				h3dbgLog("validate TIMEOUT probes=%d txPkts=%d rxPkts=%d rxBytes=%d",
+					probes, s.txPkts.Load(), s.rxPkts.Load(), s.rxBytes.Load())
+			}
 			s.Close()
 			return fmt.Errorf("%s: %w", FailureValidation, ErrValidationTimeout)
 		case <-ctx.Done():
@@ -552,21 +642,112 @@ func (s *H3Session) Done() <-chan struct{} { return s.done }
 func (s *H3Session) readerLoop() {
 	defer close(s.packets)
 	myQuarter := uint64(s.stream.StreamID()) / 4
+	dbg := h3DebugEnabled()
+	var recv, dropUnwrap, dropCID, dropQSID, emitted, errs uint64
+	if dbg {
+		h3dbgLog("reader start: streamID=%d myQuarter=%d", s.stream.StreamID(), myQuarter)
+	}
 	for {
 		dg, err := s.conn.ReceiveDatagram(context.Background())
 		if err != nil {
+			errs++
+			if dbg {
+				h3dbgLog("ReceiveDatagram terminal after recv=%d emitted=%d unWrap=%d cid=%d qsid=%d: %v",
+					recv, emitted, dropUnwrap, dropCID, dropQSID, err)
+			}
 			s.Close() // unblock emit even on full queue
 			s.emit(packetMsg{err: normalizeReadErr(err)})
 			return
 		}
+		recv++
 		qsid, cid, pkt, uerr := UnwrapH3DatagramTolerant(dg)
-		if uerr != nil || cid != 0 || qsid != myQuarter {
+		if uerr != nil {
+			dropUnwrap++
+			if dbg && dropUnwrap <= 8 {
+				n := len(dg)
+				if n > 16 {
+					n = 16
+				}
+				h3dbgLog("dg#%d len=%d unwrap err: %v head=% x", recv, len(dg), uerr, dg[:n])
+			}
 			continue // foreign/malformed datagram: skip, never kill the reader
+		}
+		if cid != 0 {
+			dropCID++
+			if dbg && dropCID <= 8 {
+				h3dbgLog("dg#%d len=%d qsid=%d cid=%d DROP(cid)", recv, len(dg), qsid, cid)
+			}
+			continue
+		}
+		if qsid != myQuarter {
+			dropQSID++
+			if dbg && dropQSID <= 8 {
+				h3dbgLog("dg#%d len=%d qsid=%d != myQuarter=%d DROP(qsid)", recv, len(dg), qsid, myQuarter)
+			}
+			continue
 		}
 		s.rxPkts.Add(1)
 		s.rxBytes.Add(uint64(len(pkt)))
+		emitted++
+		if dbg && emitted <= 8 {
+			h3dbgLog("dg#%d len=%d qsid=%d pktlen=%d EMIT", recv, len(dg), qsid, len(pkt))
+		}
 		s.emit(packetMsg{data: pkt})
 	}
+}
+
+// watchH3Debug mounts the bd b4x-5oy field diagnostics for one live session:
+// the server's unidirectional streams (SETTINGS reveal whether the edge
+// advertises H3 datagrams), the request stream after CONNECT (does the edge
+// push capsules in DATA frames instead of QUIC datagrams?), and the terminal
+// connection error. Diagnostic only — never mutates session state.
+func watchH3Debug(s *H3Session, conn *quic.Conn) {
+	go func() {
+		<-conn.Context().Done()
+		h3dbgLog("conn context done err=%v", conn.Context().Err())
+	}()
+	go func() {
+		for {
+			us, err := conn.AcceptUniStream(context.Background())
+			if err != nil {
+				h3dbgLog("AcceptUniStream end: %v", err)
+				return
+			}
+			go func(us *quic.ReceiveStream) {
+				t, terr := readStreamType(us)
+				if terr != nil {
+					h3dbgLog("server uni stream type err: %v", terr)
+					return
+				}
+				h3dbgLog("server uni stream type=%#x", t)
+				if t == h3StreamControl {
+					typ, payload, ferr := newH3Framer(us).ReadFrame()
+					if ferr != nil {
+						h3dbgLog("server SETTINGS read err: %v", ferr)
+						return
+					}
+					st, perr := ParseSettings(payload)
+					h3dbgLog("server control frame type=%#x settings=%v parseErr=%v", typ, st, perr)
+				}
+				_, _ = io.Copy(io.Discard, us)
+			}(us)
+		}
+	}()
+	go func() {
+		fr := newH3Framer(s.stream)
+		for {
+			typ, payload, err := fr.ReadFrame()
+			if err != nil {
+				h3dbgLog("request-stream read end: %v", err)
+				return
+			}
+			n := len(payload)
+			if n > 16 {
+				n = 16
+			}
+			h3dbgLog("request-stream frame type=%#x len=%d head=% x", typ, len(payload), payload[:n])
+		}
+	}()
 }
 
 func (s *H3Session) emit(m packetMsg) {

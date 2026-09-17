@@ -39,6 +39,16 @@ import (
 const (
 	// DefaultSNI is the canonical MASQUE SNI (usque internal/consts.go).
 	DefaultSNI = "consumer-masque.cloudflareclient.com"
+	// DefaultCoverSNI is the shipped cover TLS server-name for the MASQUE
+	// carrier. The canonical DefaultSNI is a DPI fingerprint in RU networks:
+	// it is plaintext in the TCP ClientHello (H2) and decryptable in the QUIC
+	// Initial (H3), and the environment blackholes the flow shortly after
+	// establishment once it is seen (field bd b4x-5oy: H3 died ~0.5-2.3s in,
+	// H2 stalled on the first large inbound record). Identity binds by
+	// public-key pinning (InsecureSkipVerify + VerifyPeerCertificate), so the
+	// SNI is free and any benign cover works; ozon.ru is the value the
+	// zapret-gui/usque deployment ships and is field-verified here.
+	DefaultCoverSNI = "ozon.ru"
 	// DefaultConnectURI is the CONNECT URI template (usque ConnectURI).
 	DefaultConnectURI = "https://cloudflareaccess.com"
 	// DefaultMTU is the tunnel inner MTU (addendum §16; usque TUN default).

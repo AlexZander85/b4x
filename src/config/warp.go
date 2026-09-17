@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"strings"
 
 	warp "github.com/daniellavrushin/b4/transport/warp"
 )
@@ -57,6 +58,15 @@ type WarpConfig struct {
 // legal profile), "firefox" (experimental), "" (default — vanilla).
 type WarpMasqueradeConfig struct {
 	Fingerprint string `json:"fingerprint"`
+	// SNI is the cover TLS server-name sent on the MASQUE carrier(s) (both
+	// H2/TCP and H3/QUIC — the name is DPI-visible in the TCP ClientHello and
+	// in the QUIC Initial). The canonical consumer-masque.cloudflareclient.com
+	// name is DPI-flagged in RU: the environment blackholes the flow shortly
+	// after establishment once it is seen (field bd b4x-5oy: H3 transport
+	// switch at ~0.5-2.3 s, H2 stall on the first large inbound record).
+	// Identity binds by public-key pinning, so the SNI is free — any benign
+	// hostname works. Empty = DefaultCoverSNI (shipped device default).
+	SNI string `json:"sni"`
 }
 
 // Validate checks the masquerade section shape (dial-time errors would
@@ -64,10 +74,42 @@ type WarpMasqueradeConfig struct {
 func (m WarpMasqueradeConfig) Validate() error {
 	switch m.Fingerprint {
 	case "", "chrome120", "firefox":
-		return nil
 	default:
 		return fmt.Errorf("system.warp.masquerade.fingerprint %q invalid (empty, chrome120 or firefox)", m.Fingerprint)
 	}
+	if m.SNI != "" && !validCoverSNI(m.SNI) {
+		return fmt.Errorf("system.warp.masquerade.sni %q invalid (use a DNS hostname)", m.SNI)
+	}
+	return nil
+}
+
+// EffectiveSNI resolves the cover SNI: an explicit value wins, otherwise the
+// shipped DefaultCoverSNI (never the canonical MASQUE name — it is a DPI
+// fingerprint, see the field note above).
+func (m WarpMasqueradeConfig) EffectiveSNI() string {
+	if m.SNI != "" {
+		return m.SNI
+	}
+	return warp.DefaultCoverSNI
+}
+
+// validCoverSNI accepts a plain DNS hostname (labels of letters/digits/hyphen,
+// no leading/trailing dot). Deliberately permissive on underscores.
+func validCoverSNI(s string) bool {
+	if len(s) == 0 || len(s) > 253 || strings.HasPrefix(s, ".") || strings.HasSuffix(s, ".") {
+		return false
+	}
+	if !strings.Contains(s, ".") {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '.', r == '_':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // EffectiveEndpoint resolves the configured endpoint against the versioned
