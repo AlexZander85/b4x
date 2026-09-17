@@ -80,6 +80,18 @@ type TrustGate struct {
 	// rejected here: the trace answer must actually say warp=on (two
 	// measurements).
 	E2EProbeEnabled bool
+	// TraceOnly runs the same built-in netstack trace probe WITHOUT gating:
+	// the session establishes on the DNS gate alone and the raw trace body is
+	// reported through OnTrace (FIELD2 phase E: the pool -> country mapping).
+	// Ignored when E2EProbeEnabled is set.
+	TraceOnly bool
+	// OnTrace receives the raw /cdn-cgi/trace body of every successful
+	// exchange (nil-safe). Never consulted for the gate verdict.
+	OnTrace func(body string)
+	// OnTraceErr reports the failure of the detached TraceOnly probe
+	// (nil-safe): in TraceOnly mode the error is swallowed by design, so this
+	// is the only way a field run can learn WHY the trace produced no body.
+	OnTraceErr func(err error)
 	// SigMinTX is the gate-scope version-mismatch signature threshold: on a
 	// failed gate, tx delta >= SigMinTX with zero rx upgrades the failure to
 	// awg-version-mismatch. 0 -> DefaultGateSigMinTX.
@@ -136,13 +148,28 @@ func (g *TrustGate) Verify(ctx context.Context, rt DNSRoundTripper) error {
 		}
 	}
 	if g.E2EProbe != nil {
-		pctx, cancel := context.WithTimeout(ctx, g.Window*2)
-		defer cancel()
-		if err := g.E2EProbe(pctx); err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+		if g.TraceOnly {
+			// FIELD2 phase E: the trace is INFORMATIONAL — it must never gate
+			// or DELAY the establishment. Run it detached (own budget) and let
+			// OnTrace report the body; the session proceeds on the DNS gate.
+			probe := g.E2EProbe
+			onErr := g.OnTraceErr
+			go func() {
+				pctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+				if err := probe(pctx); err != nil && onErr != nil {
+					onErr(err)
+				}
+			}()
+		} else {
+			pctx, cancel := context.WithTimeout(ctx, g.Window*2)
+			defer cancel()
+			if err := g.E2EProbe(pctx); err != nil {
+				if ctx.Err() != nil {
+					return ctx.Err()
+				}
+				return newFailure(ClassStallRX, "gate-e2e-probe", err)
 			}
-			return newFailure(ClassStallRX, "gate-e2e-probe", err)
 		}
 	}
 	return nil

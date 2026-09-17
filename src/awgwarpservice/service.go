@@ -503,7 +503,20 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 		MaxGenerations: 1,
 		Health: twg.HealthConfig{
 			KeepaliveSec: 25,
-			Gate:         twg.TrustGate{RoundTrips: 2, DNSServer: [4]byte{1, 1, 1, 1}},
+			Gate: twg.TrustGate{
+				RoundTrips: 2,
+				DNSServer:  [4]byte{1, 1, 1, 1},
+				// FIELD2 phase E: report loc=/colo= from /cdn-cgi/trace WITHOUT
+				// gating — the DNS gate still proves the path, and the trace
+				// gives the pool -> country mapping.
+				TraceOnly: true,
+				OnTrace: func(body string) {
+					r.appendEvent(Event{Name: "awgwarp_trace", Detail: traceDetail(body)})
+				},
+				OnTraceErr: func(err error) {
+					r.appendEvent(Event{Name: "awgwarp_trace_failed", Detail: err.Error()})
+				},
+			},
 		},
 		Callbacks: twg.SessionCallbacks{
 			OnEvent: func(ev twg.SessionEvent) {
@@ -646,6 +659,28 @@ func (r *Runtime) seekOnce(ctx context.Context) (*twg.Winner, bool) {
 		return nil, false
 	}
 	return res.Winner, true
+}
+
+// traceDetail extracts the fields FIELD2 phase E needs from a raw
+// /cdn-cgi/trace body: loc = exit country, colo = edge, warp = on|off. The
+// public exit IP is deliberately NOT logged (redaction discipline).
+func traceDetail(body string) string {
+	var loc, colo, warp string
+	for _, line := range strings.Split(body, "\n") {
+		kv := strings.SplitN(strings.TrimSpace(line), "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		switch kv[0] {
+		case "loc":
+			loc = kv[1]
+		case "colo":
+			colo = kv[1]
+		case "warp":
+			warp = kv[1]
+		}
+	}
+	return fmt.Sprintf("loc=%s colo=%s warp=%s", loc, colo, warp)
 }
 
 // ---- internals ------------------------------------------------------------

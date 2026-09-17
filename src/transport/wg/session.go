@@ -497,8 +497,8 @@ func (s *Session) establishGeneration(ctx context.Context) *Failure {
 	// replies with the correct TXID still fails the /cdn-cgi/trace check.
 	// CI fixtures and the seek ladder leave the flag off (no HTTP surface /
 	// budget); the kernel-TUN probe stays a field-layer concern.
-	if gate.E2EProbeEnabled && gate.E2EProbe == nil && tunRes.Netstack != nil {
-		gate.E2EProbe = NetstackE2EProbe(nsTCPDial(tunRes.Netstack), localV4Of(s.cfg.Ident))
+	if (gate.E2EProbeEnabled || gate.TraceOnly) && gate.E2EProbe == nil && tunRes.Netstack != nil {
+		gate.E2EProbe = NetstackE2EProbeWithTrace(nsTCPDial(tunRes.Netstack), localV4Of(s.cfg.Ident), gate.OnTrace)
 	}
 	if err := s.bootstrapThrough(tunRes, gateBootstrapPacket(gate)); err != nil {
 		return newFailure(ClassStallRX, "bootstrap-inject", err)
