@@ -87,14 +87,19 @@ const FailureLocalSocket = "local-socket-error"
 
 // settingsH3DatagramDraft00 is SETTINGS_H3_DATAGRAM_00 = 0x276 (usque
 // masque.go:195; deprecated id the official client still emits).
-const settingsH3DatagramDraft00 uint64 = 0x276
+const (
+	settingsH3DatagramDraft00 uint64 = 0x276 // legacy CF draft id (usque emits it)
+	settingsH3Datagram        uint64 = 0x33  // RFC 9297 SETTINGS_H3_DATAGRAM
+)
 
 // WriteControlPreamble is the client control-stream opening: stream type
 // varint + SETTINGS carrying the legacy datagram setting. QPACK table
 // capacity stays unadvertised (=0): dynamic table unused by contract.
 func WriteControlPreamble() []byte {
 	out := AppendVarint(nil, h3StreamControl)
-	settings := AppendVarint(nil, settingsH3DatagramDraft00)
+	settings := AppendVarint(nil, settingsH3Datagram)
+	settings = AppendVarint(settings, 1)
+	settings = AppendVarint(settings, settingsH3DatagramDraft00)
 	settings = AppendVarint(settings, 1)
 	return appendH3Frame(out, h3FrameSettings, settings)
 }
@@ -328,19 +333,10 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	}
 	sess.stream = stream
 
-	// Extended CONNECT request — exact verified header set (see package doc).
+	// Extended CONNECT request — the verified header set plus the RFC-mandated
+	// :path (see h3ConnectFieldSection for why its absence was fatal).
 	authority := AuthorityForEndpoint(cfg.Endpoint.Addr().String(), cfg.Endpoint.Port())
-	wr := &qpackWriter{}
-	wr.b = appendQPACKInt(wr.b, 0x00, 8, 0)        // RIC=0
-	wr.b = appendQPACKInt(wr.b, 0x00, 7, 0)        // Base delta 0
-	wr.b = append(wr.b, 0xC0|qpackIdxMethodConnct) // :method CONNECT -> 0xCF
-	wr.encodeLiteralNameLine(":protocol", "cf-connect-ip")
-	wr.encodeLiteralNameLine(":scheme", "https")
-	wr.b = appendQPACKInt(wr.b, 0x50, 4, qpackIdxAuthority) // :authority name-ref static #0
-	wr.b = appendQPACKStringImpl(wr.b, 0x00, 8, authority)
-	wr.encodeLiteralNameLine("capsule-protocol", "?1")
-	wr.encodeLiteralNameLine("user-agent", "")
-	if _, err := stream.Write(appendH3Headers(nil, wr.b)); err != nil {
+	if _, err := stream.Write(appendH3Headers(nil, h3ConnectFieldSection(authority))); err != nil {
 		return abandon(classifyH3RequestError(err), err)
 	}
 
@@ -368,7 +364,13 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	var rsp rspOut
 	select {
 	case rsp = <-rspCh:
+		if rsp.err != nil {
+			fmt.Printf("[h3-debug] ReadKnownFrame err: %v\n", rsp.err)
+		} else {
+			fmt.Printf("[h3-debug] ReadKnownFrame success typ=%d len=%d\n", rsp.typ, len(rsp.payload))
+		}
 	case <-rspCtx.Done():
+		fmt.Printf("[h3-debug] rspCtx timeout after %v: %v\n", cfg.ResponseBudget, rspCtx.Err())
 		stream.CancelRead(quic.StreamErrorCode(0))
 		return abandon(FailureConnectTimeo, fmt.Errorf("response window: %w", rspCtx.Err()))
 	case <-parent.Done():
@@ -421,7 +423,9 @@ func (s *H3Session) WritePacket(pkt []byte) error {
 	// returning, so the frame can be returned to the pool immediately.
 	frame := getFrame(s.framePool)
 	*frame = AppendVarint(*frame, uint64(s.stream.StreamID())/4)
-	*frame = AppendVarint(*frame, 0)
+	if !h3DatagramOmitsCtxID() {
+		*frame = AppendVarint(*frame, 0)
+	}
 	*frame = append(*frame, pkt...)
 
 	s.writeMu.Lock()
@@ -555,7 +559,7 @@ func (s *H3Session) readerLoop() {
 			s.emit(packetMsg{err: normalizeReadErr(err)})
 			return
 		}
-		qsid, cid, pkt, uerr := UnwrapH3Datagram(dg)
+		qsid, cid, pkt, uerr := UnwrapH3DatagramTolerant(dg)
 		if uerr != nil || cid != 0 || qsid != myQuarter {
 			continue // foreign/malformed datagram: skip, never kill the reader
 		}

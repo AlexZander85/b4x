@@ -139,3 +139,43 @@ func TestQPACKHuffmanInboundValue(t *testing.T) {
 		t.Errorf("huffman value line = %v", got[1])
 	}
 }
+
+// RFC 9484 §3 / RFC 9220 §3.2: a MASQUE CONNECT-IP extended CONNECT MUST
+// carry :scheme and :path ("/"), and every pseudo-header must precede the
+// regular fields. The live Cloudflare edge cancels the request stream with
+// H3_MESSAGE_ERROR (270) when :path is absent — the field failure that made
+// the H3 ladder fall back to H2 (17.09). This pins the fix.
+func TestH3ConnectFieldSectionCarriesPath(t *testing.T) {
+	fields, err := DecodeFieldSection(h3ConnectFieldSection("162.159.198.2:443"))
+	if err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	pseudo := map[string]string{}
+	regularStarted := false
+	for _, f := range fields {
+		if strings.HasPrefix(f[0], ":") {
+			if regularStarted {
+				t.Fatalf("pseudo-header %q appears after a regular field", f[0])
+			}
+			pseudo[f[0]] = f[1]
+			continue
+		}
+		regularStarted = true
+	}
+	want := map[string]string{
+		":method":    "CONNECT",
+		":protocol":  "cf-connect-ip",
+		":scheme":    "https",
+		":path":      "/",
+		":authority": "162.159.198.2:443",
+	}
+	for name, val := range want {
+		got, ok := pseudo[name]
+		if !ok {
+			t.Fatalf("pseudo-header %s missing (got %v)", name, pseudo)
+		}
+		if got != val {
+			t.Fatalf("%s = %q, want %q", name, got, val)
+		}
+	}
+}

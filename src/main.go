@@ -212,11 +212,126 @@ func logWarpEvent(ev warpservice.Event) {
 	log.Infof("%s", line)
 }
 
+var warpRunCmd = &cobra.Command{
+	Use:   "run",
+	Short: "Run the WARP supervisor until connected and optionally test trace",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		path, err := warpConfigPath(cmd)
+		if err != nil {
+			return err
+		}
+		wait, _ := cmd.Flags().GetDuration("wait")
+		trace, _ := cmd.Flags().GetBool("trace")
+		urlFlag, _ := cmd.Flags().GetString("url")
+		repeat, _ := cmd.Flags().GetInt("repeat")
+
+		c := config.NewConfig()
+		if _, err := c.LoadWithMigration(path); err != nil {
+			return err
+		}
+
+		type eventRecord struct {
+			Event  string `json:"event"`
+			Class  string `json:"class,omitempty"`
+			Status int    `json:"status,omitempty"`
+			Colo   string `json:"colo,omitempty"`
+			Detail string `json:"detail,omitempty"`
+		}
+		var mu sync.Mutex
+		var events []eventRecord
+		sink := func(ev warpservice.Event) {
+			mu.Lock()
+			rec := eventRecord{
+				Event:  ev.Name,
+				Class:  ev.FailureClass,
+				Status: ev.Status,
+				Colo:   ev.Colo,
+				Detail: ev.Detail,
+			}
+			events = append(events, rec)
+			mu.Unlock()
+			fmt.Printf("{\"event\":%q,\"class\":%q,\"status\":%d,\"colo\":%q,\"detail\":%q}\n",
+				ev.Name, ev.FailureClass, ev.Status, ev.Colo, ev.Detail)
+		}
+
+		rt, err := warpservice.Build(&c, sink)
+		if err != nil {
+			return err
+		}
+		ctx, cancel := context.WithCancel(cmd.Context())
+		defer cancel()
+		defer rt.Stop()
+		if err := rt.Start(ctx); err != nil {
+			return err
+		}
+
+		reached := false
+		deadline := time.Now().Add(wait)
+		for time.Now().Before(deadline) {
+			st := rt.Status().Status
+			if st.State == "connected" || st.State == "stopped" {
+				reached = st.State == "connected"
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+
+		traceBody := ""
+		if reached && trace {
+			if carrier, closer, aerr := rt.AttachNetstack(); aerr != nil {
+				traceBody = "attach failed: " + aerr.Error()
+			} else {
+				defer closer()
+				for i := 1; i <= repeat; i++ {
+					tctx, tcancel := context.WithTimeout(ctx, 20*time.Second)
+					req, _ := http.NewRequestWithContext(tctx, http.MethodGet, urlFlag, nil)
+					resp, rerr := carrier.HTTPClient(15 * time.Second).Do(req)
+					if rerr != nil {
+						traceBody = fmt.Sprintf("fetch %d/%d failed: %v", i, repeat, rerr.Error())
+						tcancel()
+						break
+					}
+					body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+					resp.Body.Close()
+					tcancel()
+					traceBody = string(body)
+					fmt.Printf("--- fetch %d/%d %s -> status %d ---\n", i, repeat, urlFlag, resp.StatusCode)
+				}
+			}
+			fmt.Println("--- cdn-cgi/trace through tunnel ---")
+			fmt.Println(traceBody)
+			fmt.Println("------------------------------------")
+		}
+
+		snap := rt.Status()
+		mu.Lock()
+		evSnap := append([]eventRecord(nil), events...)
+		mu.Unlock()
+		out, _ := json.MarshalIndent(map[string]any{
+			"reached_connected": reached,
+			"state":             string(snap.Status.State),
+			"colo":              snap.Status.LastColo,
+			"attempt":           snap.Status.Attempt,
+			"last_failure":      snap.Status.LastFailureClass,
+			"events":            evSnap,
+		}, "", "  ")
+		fmt.Println(string(out))
+		return nil
+	},
+}
+
 func init() {
 	for _, sub := range []*cobra.Command{warpEnrollCmd, warpStatusCmd} {
 		sub.Flags().String("config", "", "Path to b4.json (required)")
 		warpCmd.AddCommand(sub)
 	}
+	warpRunCmd.Flags().String("config", "", "Path to b4.json (required)")
+	warpRunCmd.Flags().Duration("wait", 45*time.Second, "Max wait for connected state")
+	warpRunCmd.Flags().Bool("trace", false, "After connect: mount netstack carrier and GET cdn-cgi/trace through tunnel")
+	warpRunCmd.Flags().String("url", "https://1.1.1.1/cdn-cgi/trace", "Trace URL")
+	warpRunCmd.Flags().Int("repeat", 1, "Sequential fetch count")
+	warpCmd.AddCommand(warpRunCmd)
+
 	rootCmd.AddCommand(warpCmd)
 }
 

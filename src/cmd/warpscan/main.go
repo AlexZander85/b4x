@@ -20,8 +20,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,10 +39,15 @@ func main() {
 	privB64 := fs.String("private-key", "", "base64 WireGuard private key (overrides config)")
 	peerB64 := fs.String("peer-key", "", "base64 peer static public key (overrides config)")
 	reservedB64 := fs.String("reserved", "", "base64 cf-warp client_id bytes (<=3, optional)")
+	prefixFlag := fs.String("prefix", "", "comma-separated CIDR prefixes to scan (default: catalog ZT v4)")
+	portsFlag := fs.String("ports", "", "comma-separated ports to scan (default: core + extended)")
 	limit := fs.Int("limit", twg.DefaultWarpScanLimit, "stop after this many verified hits")
 	workers := fs.Int("workers", twg.DefaultWarpScanWorkers, "concurrent probes")
 	maxRTT := fs.Duration("max-rtt", twg.DefaultWarpScanMaxRTT, "discard hits slower than this")
 	timeout := fs.Duration("timeout", 120*time.Second, "overall scan budget")
+	allowOutOfCatalog := fs.Bool("allow-out-of-catalog", false, "escape catalog gate for field probes")
+	connectEndpoint := fs.String("connect", "", "run a live session against endpoint (ip:port)")
+	profileFlag := fs.String("profile", "quic-a", "obfuscation profile for connect: quic-a, quic-b, sip-invite, crlf-light, crlf-aggressive, vanilla-off")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		os.Exit(2)
 	}
@@ -47,6 +56,44 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "warpscan:", err)
 		os.Exit(2)
+	}
+
+	if *connectEndpoint != "" {
+		runConnectSession(*connectEndpoint, *profileFlag, *cfgPath, priv, peer, reserved, *timeout)
+		return
+	}
+
+	var prefixes []netip.Prefix
+	if *prefixFlag != "" {
+		for _, s := range strings.Split(*prefixFlag, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			p, err := netip.ParsePrefix(s)
+			if err != nil {
+				ip, iperr := netip.ParseAddr(s)
+				if iperr != nil {
+					fmt.Fprintf(os.Stderr, "bad prefix %q: %v\n", s, err)
+					os.Exit(2)
+				}
+				p = netip.PrefixFrom(ip, 32)
+			}
+			prefixes = append(prefixes, p)
+		}
+	}
+	var ports []uint16
+	if *portsFlag != "" {
+		for _, s := range strings.Split(*portsFlag, ",") {
+			s = strings.TrimSpace(s)
+			if s == "" {
+				continue
+			}
+			var p uint16
+			if _, err := fmt.Sscanf(s, "%d", &p); err == nil && p > 0 {
+				ports = append(ports, p)
+			}
+		}
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -58,9 +105,12 @@ func main() {
 		PrivateKey:    priv,
 		PeerPublicKey: peer,
 		Reserved:      reserved,
+		Prefixes:      prefixes,
+		Ports:         ports,
 		Limit:         *limit,
-		Workers:       *workers,
-		MaxRTT:        *maxRTT,
+		Workers:           *workers,
+		MaxRTT:            *maxRTT,
+		AllowOutOfCatalog: *allowOutOfCatalog,
 		Logf: func(format string, args ...any) {
 			fmt.Fprintf(os.Stderr, format+"\n", args...)
 		},
@@ -154,4 +204,154 @@ func keysFromConfig(cfgPath string) (priv, peer, reserved string, err error) {
 		return "", "", "", fmt.Errorf("identity slot has no WG keys (MASQUE-only slot?)")
 	}
 	return id.PrivateKey, id.PeerPublicKey, id.ClientID, nil
+}
+
+func runConnectSession(endpoint, profileName, cfgPath string, priv, peer [32]byte, reserved [3]byte, timeout time.Duration) {
+	var ident *twg.Identity
+	if cfgPath != "" {
+		type cfgShape struct {
+			System struct {
+				Warp struct {
+					IdentityPath string `json:"identity_path"`
+				} `json:"warp"`
+			} `json:"system"`
+		}
+		raw, _ := os.ReadFile(cfgPath)
+		var c cfgShape
+		_ = json.Unmarshal(raw, &c)
+		if c.System.Warp.IdentityPath != "" {
+			store := twg.IdentityStore{Path: c.System.Warp.IdentityPath}
+			if id, err := store.Load(); err == nil {
+				ident = id
+			}
+		}
+	}
+	if ident == nil {
+		clientB64 := ""
+		if reserved != ([3]byte{}) {
+			clientB64 = base64.StdEncoding.EncodeToString(reserved[:])
+		}
+		var err error
+		ident, err = twg.NewIdentity(base64.StdEncoding.EncodeToString(priv[:]), base64.StdEncoding.EncodeToString(peer[:]), clientB64, "172.16.0.2", "", true)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warpscan: build identity: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	tunCfg := twg.TunnelConfig{
+		Mode:          twg.ModeNetstack,
+		InterfaceName: "b4wg0",
+	}
+	if ident.AssignedV4 != "" {
+		if addr, err := netip.ParseAddr(ident.AssignedV4); err == nil {
+			tunCfg.Addresses = append(tunCfg.Addresses, addr)
+		}
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	runCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	establishedCh := make(chan struct{}, 1)
+	lostCh := make(chan twg.Failure, 1)
+
+	prof := twg.Profile{}
+	if profileName != "" && profileName != "vanilla-off" {
+		tpl, err := twg.LookupProfile(profileName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warpscan: %v\n", err)
+			os.Exit(1)
+		}
+		p, err := tpl.Build()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warpscan: build profile: %v\n", err)
+			os.Exit(1)
+		}
+		prof = p
+		fmt.Printf("warpscan: using AWG obfuscation profile %q (jc=%d jmin=%d jmax=%d)\n", profileName, prof.JunkCount, prof.JunkMin, prof.JunkMax)
+	} else {
+		fmt.Printf("warpscan: using profile %q (vanilla)\n", profileName)
+	}
+
+	sessCfg := twg.SessionConfig{
+		Ident:              ident,
+		Profile:            prof,
+		Endpoint:           endpoint,
+		Tunnel:             tunCfg,
+		VerboseDiagnostics: true,
+		Health: twg.HealthConfig{
+			HandshakeTimeout: 10 * time.Second,
+			Gate: twg.TrustGate{
+				RoundTrips: 2,
+				Gap:        50 * time.Millisecond,
+				Window:     3 * time.Second,
+			},
+			KeepaliveSec: 25,
+		},
+		Callbacks: twg.SessionCallbacks{
+			OnEvent: func(ev twg.SessionEvent) {
+				fmt.Printf("event=%s class=%s reason=%s\n", ev.Name, ev.Class, ev.Reason)
+			},
+			OnEstablished: func() {
+				select {
+				case establishedCh <- struct{}{}:
+				default:
+				}
+			},
+			OnLost: func(f twg.Failure) {
+				select {
+				case lostCh <- f:
+				default:
+				}
+			},
+		},
+	}
+
+	sess, err := twg.NewSession(sessCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warpscan: new session: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("warpscan: starting session to %s (netstack)...\n", endpoint)
+	if err := sess.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "warpscan: start: %v\n", err)
+		os.Exit(1)
+	}
+	defer sess.Stop()
+
+	select {
+	case <-runCtx.Done():
+		fmt.Fprintln(os.Stderr, "warpscan: timeout waiting for establishment")
+		os.Exit(1)
+	case f := <-lostCh:
+		fmt.Fprintf(os.Stderr, "warpscan: session lost: class=%s reason=%s err=%v\n", f.Class, f.Reason, f.Err)
+		os.Exit(1)
+	case <-establishedCh:
+		fmt.Println("warpscan: ESTABLISHED! Trust gate passed.")
+	}
+
+	tun := sess.Tunnel()
+	if tun != nil && tun.Netstack != nil {
+		fmt.Println("warpscan: fetching https://1.1.1.1/cdn-cgi/trace through netstack...")
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: tun.Netstack.DialContext,
+			},
+			Timeout: 10 * time.Second,
+		}
+		req, _ := http.NewRequestWithContext(runCtx, http.MethodGet, "https://1.1.1.1/cdn-cgi/trace", nil)
+		resp, err := client.Do(req)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "warpscan: trace failed: %v\n", err)
+		} else {
+			defer resp.Body.Close()
+			body, _ := io.ReadAll(resp.Body)
+			fmt.Println("--- cdn-cgi/trace ---")
+			fmt.Println(string(body))
+			fmt.Println("---------------------")
+		}
+	}
 }

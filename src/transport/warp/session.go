@@ -208,6 +208,17 @@ func DialSession(parent context.Context, cfg SessionConfig) (*Session, ConnectRe
 
 	ctx, cancel := context.WithCancel(parent)
 	tr := &http2.Transport{
+		// H2 keepalive (field 17.09): a silently-killed TCP carrier
+		// (white-drop middlebox) never surfaces an error — the framer
+		// just starves, Done() stays open, and the supervisor's 60s×3
+		// health probe is the only detector (up to 3 blind minutes).
+		// PING after 30s idle + 15s PONG deadline converts the silent
+		// death into a real connection error that readerLoop surfaces
+		// immediately. Management frames ride the same control TCP the
+		// CONNECT lives on; a middlebox that kills PINGs kills the
+		// data plane anyway, so teardown is the correct reaction.
+		ReadIdleTimeout: 30 * time.Second,
+		PingTimeout:     15 * time.Second,
 		DialTLSContext: func(_ context.Context, _, _ string, _ *tls.Config) (net.Conn, error) {
 			// Raw-TCP carrier: the Backend-B proxy dial func when wired
 			// (the control stream then flows THROUGH the base tunnel),

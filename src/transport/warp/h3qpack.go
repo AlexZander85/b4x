@@ -120,6 +120,7 @@ var qpackStaticTable = [74]qpackEntry{
 // (01 N=0 T=1 idx4=0000).
 const (
 	qpackIdxAuthority    = 0
+	qpackIdxPath         = 1 // RFC 9204 App. A #1 = ":path: /" (exact match)
 	qpackIdxMethodConnct = 15
 	qpackIdxStatus200    = 25
 )
@@ -178,6 +179,27 @@ func EncodeConnectFieldSection(authority string, extra [][2]string) []byte {
 		w.encodeLiteralNameLine(kv[0], kv[1])
 	}
 	return w.b
+}
+
+// h3ConnectFieldSection is the MASQUE CONNECT-IP extended-CONNECT field
+// section (RFC 9484 §3): :method CONNECT with the IP:port authority, then the
+// :protocol/:scheme/:path pseudo-headers and the CF capsule headers.
+//
+// :path is MANDATORY and its absence is a hard failure: RFC 9220 §3.2
+// requires :scheme AND :path on an extended CONNECT, and RFC 9484 §3 fixes
+// the value to "/". Without it the request is malformed (RFC 9114 §4.3.1)
+// and the Cloudflare edge cancels the request stream with H3_MESSAGE_ERROR
+// (0x010E = 270) — exactly the field failure observed on the live router
+// (bd b4x-h8w, 17.09): the QUIC handshake and CONNECT stream came up, the
+// edge rejected the request, and the ladder fell back to H2.
+func h3ConnectFieldSection(authority string) []byte {
+	return EncodeConnectFieldSection(authority, [][2]string{
+		{":protocol", "cf-connect-ip"},
+		{":scheme", "https"},
+		{":path", "/"},
+		{"capsule-protocol", "?1"},
+		{"user-agent", ""},
+	})
 }
 
 // encodeLiteralNameLine emits one §4.5.6 line: 001 N H NameLen(3+) ...

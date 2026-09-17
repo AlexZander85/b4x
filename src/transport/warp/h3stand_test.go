@@ -84,12 +84,18 @@ func TestH3ControlPreambleAndSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse settings: %v", err)
 	}
+	// RFC 9297 §3: SETTINGS_H3_DATAGRAM = 0x33 advertises HTTP/3 datagram
+	// support. The legacy CF draft id 0x276 is sent alongside it (usque
+	// masque.go:190-200) for endpoint parity.
+	if got[0x33] != 1 {
+		t.Fatalf("settings = %v, want 0x33 -> 1 (RFC 9297 H3_DATAGRAM)", got)
+	}
 	// SETTINGS_H3_DATAGRAM_00 legacy draft: the official client still sends
 	// it (usque masque.go:190-200) — our client must too (design §1).
 	if got[0x276] != 1 {
 		t.Fatalf("settings = %v, want 0x276 -> 1", got)
 	}
-	if _, dynamic := got[0x01]; len(got) != 1 || dynamic {
+	if len(got) != 2 {
 		t.Fatalf("unexpected extra settings advertised: %v (QPACK capacity must stay 0)", got)
 	}
 

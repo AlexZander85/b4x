@@ -88,6 +88,10 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 		API:   &warp.EnrollClient{HTTP: enrollmentHTTP},
 		Store: &warp.IdentityStore{Path: wc.IdentityPath},
 	}
+	dialer, err := warp.NewH3FirstDialer(warp.LadderConfig{})
+	if err != nil {
+		return nil, err
+	}
 	sup, err := warp.NewSupervisor(warp.SupervisorConfig{
 		Template: warp.SessionConfig{
 			Endpoint: endpoint,
@@ -96,6 +100,7 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 			Fingerprint: wc.Masquerade.Fingerprint,
 		},
 		Reconciler:        rec,
+		Dialer:            dialer,
 		Sink:              sink,
 		DeferRevalidation: wc.DeferRevalidation,
 	})

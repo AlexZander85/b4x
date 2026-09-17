@@ -12,9 +12,21 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 )
 
 var errMalformedH3Datagram = errors.New("transportwarp: malformed h3 datagram header")
+
+// h3DatagramOmitsCtxID reports whether the Cloudflare H3 datagram dialect
+// omits the RFC 9297 context-ID. The H2 capsule path documents this as a
+// non-RFC Cloudflare trait ("context-ID на проводе ОТСУТСТВУЕТ", see
+// docs/reports/warp/WARP_V2_REVIEW_BRIEF.md) and works because of it; the H3
+// dialect was never exercised live until the :path fix, so the field selects
+// it via B4_H3_NO_CTX until a live run pins it.
+func h3DatagramOmitsCtxID() bool {
+	v := os.Getenv("B4_H3_NO_CTX")
+	return v == "1" || v == "true"
+}
 
 // WrapH3Datagram frames one outbound packet for the given bidirectional
 // CONNECT stream with capsule context id ctx (0 for CONNECT-IP).
@@ -37,6 +49,38 @@ func UnwrapH3Datagram(b []byte) (quarterStreamID, ctx uint64, pkt []byte, err er
 		return 0, 0, nil, fmt.Errorf("%w: context", errMalformedH3Datagram)
 	}
 	pkt = b[n+n2:]
+	if len(pkt) == 0 {
+		return 0, 0, nil, errMalformedH3Datagram
+	}
+	return qsid, ctxID, pkt, nil
+}
+
+// UnwrapH3DatagramTolerant is UnwrapH3Datagram plus the Cloudflare dialect in
+// which the context-ID is OMITTED (parity with the H2 capsule path). Without
+// the tolerance the parser reads the first octet of the IPv4 header (0x45) as
+// the context-ID, the caller discards the datagram as foreign, and the whole
+// inbound path goes silent — the live "data-plane-validation-timeout" observed
+// after H3 negotiation started succeeding (17.09).
+func UnwrapH3DatagramTolerant(b []byte) (quarterStreamID, ctx uint64, pkt []byte, err error) {
+	qsid, n, err := ParseVarint(b)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("%w: qsid", errMalformedH3Datagram)
+	}
+	rest := b[n:]
+	if len(rest) == 0 {
+		return 0, 0, nil, errMalformedH3Datagram
+	}
+	// An IP header directly after the quarter stream id means the context-ID
+	// was omitted (a real context-ID is a varint: 0x00 for context 0, never
+	// 0x4X/0x6X).
+	if v := rest[0] >> 4; v == 4 || v == 6 {
+		return qsid, 0, rest, nil
+	}
+	ctxID, n2, err := ParseVarint(rest)
+	if err != nil {
+		return 0, 0, nil, fmt.Errorf("%w: context", errMalformedH3Datagram)
+	}
+	pkt = rest[n2:]
 	if len(pkt) == 0 {
 		return 0, 0, nil, errMalformedH3Datagram
 	}
