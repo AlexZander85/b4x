@@ -47,6 +47,55 @@ func TestProfileEngineGenerationGatesLadder(t *testing.T) {
 	}
 }
 
+// TestCfQUICCoverTemplateIsOptInRuntimeI1 pins the b4x-b7n AWG bootstrap
+// cover rung: a cf-warp profile whose I1..I5 are filled at runtime with a real
+// QUIC Initial, vanilla-safe, and DELIBERATELY absent from the default cf-warp
+// ladder (opt-in via system.warp.awg.profile — zero blast radius).
+func TestCfQUICCoverTemplateIsOptInRuntimeI1(t *testing.T) {
+	tpl, err := LookupProfile("cf-quic-cover")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.Target != TargetCfWarp {
+		t.Fatalf("target = %q, want cf-warp", tpl.Target)
+	}
+	if !tpl.RuntimeI1 {
+		t.Fatal("cf-quic-cover must be RuntimeI1 (the QUIC Initial is generated at runtime)")
+	}
+	p, err := tpl.Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.JunkCount != 0 {
+		t.Fatalf("JunkCount = %d, want 0 (the I1 IS the first datagram)", p.JunkCount)
+	}
+	if !p.VanillaSafe() {
+		t.Fatal("cf-quic-cover must stay vanilla-safe (CF WARP is a stock WG peer)")
+	}
+
+	need, err := RuntimeI1Required(TargetCfWarp, "cf-quic-cover")
+	if err != nil || !need {
+		t.Fatalf("RuntimeI1Required(cf-quic-cover) = %v, %v; want true", need, err)
+	}
+	head, err := RuntimeI1Required(TargetCfWarp, "")
+	if err != nil {
+		t.Fatalf("RuntimeI1Required(ladder head): %v", err)
+	}
+	if head {
+		t.Fatal("the default cf-warp ladder head must NOT be runtime-I1")
+	}
+
+	ladder, err := LadderFor(TargetCfWarp, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range ladder {
+		if entry.ID == "cf-quic-cover" {
+			t.Fatal("cf-quic-cover must NOT ride the default cf-warp ladder (opt-in only)")
+		}
+	}
+}
+
 func idsOf(tpls []ProfileTemplate) []string {
 	out := make([]string, 0, len(tpls))
 	for _, t := range tpls {

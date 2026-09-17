@@ -163,6 +163,19 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 	if err != nil {
 		return nil, err
 	}
+	// Bootstrap cover (bd b4x-b7n): a runtime-I1 AWG profile (cf-quic-cover)
+	// ships a real QUIC Initial in front of the WireGuard initiation on the
+	// layer that egresses directly (awg+masque outer). Filling here keeps the
+	// profile contract identical to the single AWG transport — an unfilled
+	// runtime-I1 slot would ship as vanilla WG with no obfuscation at all.
+	runtimeI1, err := twg.RuntimeI1Required(twg.TargetCfWarp, chain.AWGProfile)
+	if err != nil {
+		return nil, err
+	}
+	awgProfile = twg.FillBootstrapCover(awgProfile, runtimeI1, cfg.System.Warp.Masquerade.EffectiveSNI())
+	if err := awgProfile.Validate(); err != nil {
+		return nil, fmt.Errorf("warpchain: awg profile: %w", err)
+	}
 	// W+W defense in depth (the config gates own the primary rules): the
 	// outer layer must carry an active junk family (the engine's
 	// ErrOuterObfRequired) and the composition has no masque layer — a

@@ -210,6 +210,21 @@ func defaultCatalog() []ProfileTemplate {
                         },
                 },
                 {
+                        ID:        "cf-quic-cover",
+                        Target:    TargetCfWarp,
+                        Ports:     []uint16{443, 500, 1701, 4500},
+                        RuntimeI1: true,
+                        Comment: "AWG bootstrap cover (Nova fakex6-quic parity): the I1..I5 " +
+                                "slots carry a REAL QUIC v1 Initial (RFC 9000 sec 14, ~1250 B) " +
+                                "with a benign cover SNI, so a first-flow DPI read sees QUIC " +
+                                "before the WireGuard initiation signature. The blob is " +
+                                "generated at runtime (quici1.Build) and repeated across every " +
+                                "slot - the Nova fake-bin repeats pattern. Jc=0 keeps the " +
+                                "Initial the FIRST datagram. OPT-IN: not in the default " +
+                                "cf-warp ladder; pin it via system.warp.awg.profile.",
+                        build: func() Profile { return Profile{} },
+                },
+                {
                         ID:     "awg-sh-a",
                         Target: TargetAwgServer,
                         Comment: "AWG server template (plan Б): S-padding + custom header " +

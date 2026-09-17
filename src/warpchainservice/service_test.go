@@ -66,6 +66,30 @@ func TestBuildBothCompositions(t *testing.T) {
 	}
 }
 
+// TestBuildFillsRuntimeI1Cover pins the b4x-b7n chain-side contract: an
+// opt-in runtime-I1 AWG profile (cf-quic-cover) must reach the engine with its
+// I-slots already filled — an unfilled chain would ship as vanilla WG.
+func TestBuildFillsRuntimeI1Cover(t *testing.T) {
+	dir := t.TempDir()
+	ch := chainCfg(dir, config.ChainKindAwgMasque) // outer AWG egresses directly
+	ch.AWGProfile = "cf-quic-cover"
+	rt, err := Build(testConfig(ch), ch, Options{Now: time.Now})
+	if err != nil {
+		t.Fatalf("build w+m: %v", err)
+	}
+	if rt.awgProfile.InitPacket[0] == "" {
+		t.Fatal("runtime-I1 cover NOT filled — the AWG layer would ship with no obfuscation")
+	}
+	for i := 0; i < twg.BootstrapCoverSlots; i++ {
+		if rt.awgProfile.InitPacket[i] == "" {
+			t.Fatalf("I%d slot empty", i+1)
+		}
+	}
+	if err := rt.awgProfile.Validate(); err != nil {
+		t.Fatalf("filled cover profile invalid: %v", err)
+	}
+}
+
 func TestBuildRejectsBadKind(t *testing.T) {
 	dir := t.TempDir()
 	// "nonru" is a geo-gated policy, not a pair — the honest build refusal.

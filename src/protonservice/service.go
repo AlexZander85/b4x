@@ -172,6 +172,13 @@ type Options struct {
         // fxvpn.ProbeExitTLS canon): production leaves nil and gets the default
         // config pinned to the trace host; tests pin the fake edge certificate.
         ExitProbeTLS any
+        // ClockFresh overrides the pre-registration clock sanity probe (the TLS
+        // certificate notBefore/notAfter check against the control host). Production
+        // leaves it nil and gets proton.TimeFresh — a REAL TLS dial to the control
+        // host, which an offline/sandboxed runner cannot serve (the whole
+        // registration path then stalls for ntpWaitBudget). Tests inject a
+        // pass-through so the registration/enrollment path runs offline.
+        ClockFresh func(ctx context.Context) bool
 }
 
 // Event is one service-level taxonomy trace (name + class + detail).
@@ -601,6 +608,9 @@ func (r *Runtime) waitClockFresh(ctx context.Context) error {
 // clockLooksFresh TLS-dials the primary control host and checks that the
 // system time sits inside the served certificate's validity window.
 func (r *Runtime) clockLooksFresh(ctx context.Context) bool {
+        if r.opts.ClockFresh != nil {
+                return r.opts.ClockFresh(ctx)
+        }
         return proton.TimeFresh(ctx, r.client)
 }
 

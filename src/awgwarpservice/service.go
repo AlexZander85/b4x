@@ -113,7 +113,15 @@ type Runtime struct {
 	enroll   *twg.EnrollClient
 	endpoint netip.AddrPort
 	profile  twg.Profile
-	guard    restartGuard
+	// coverSNI is the benign name the AWG bootstrap cover (the cf-quic-cover
+	// profile) embeds in its fake QUIC Initial — the same masquerade knob the
+	// MASQUE carrier uses (system.warp.masquerade.sni).
+	coverSNI string
+	// runtimeI1 marks a profile whose I1 chain is filled at session build
+	// (ProfileTemplate.RuntimeI1): the vendored device ships only slots that
+	// already carry a chain, so an unfilled slot would go out with no cover.
+	runtimeI1 bool
+	guard     restartGuard
 
 	// kernelMode arms the kernel-TUN PBR data plane (design §7); pbr owns
 	// the wiring the session hooks call.
@@ -153,18 +161,24 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	runtimeI1, err := twg.RuntimeI1Required(twg.TargetCfWarp, awg.Profile)
+	if err != nil {
+		return nil, err
+	}
 	if opts.Now == nil {
 		opts.Now = time.Now
 	}
 	r := &Runtime{
-		cfg:      awg,
-		opts:     opts,
-		store:    &twg.IdentityStore{Path: awg.EffectiveIdentityPath()},
-		enroll:   &twg.EnrollClient{HTTP: opts.HTTP, BaseURL: opts.EnrollBaseURL},
-		endpoint: endpoint,
-		profile:  profile,
-		guard:    restartGuard{now: opts.Now, max: awg.EffectiveMaxRestarts()},
-		state:    StateIdle,
+		cfg:       awg,
+		opts:      opts,
+		store:     &twg.IdentityStore{Path: awg.EffectiveIdentityPath()},
+		enroll:    &twg.EnrollClient{HTTP: opts.HTTP, BaseURL: opts.EnrollBaseURL},
+		endpoint:  endpoint,
+		profile:   profile,
+		coverSNI:  cfg.System.Warp.Masquerade.EffectiveSNI(),
+		runtimeI1: runtimeI1,
+		guard:     restartGuard{now: opts.Now, max: awg.EffectiveMaxRestarts()},
+		state:     StateIdle,
 	}
 	// Kernel-TUN PBR mode: the no-half-state rule holds at Build too (the
 	// CLI path bypasses config validation) — the selectors are REQUIRED.
@@ -402,9 +416,17 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 		kernelUp, kernelDown = r.pbr.Up, r.pbr.Down
 		r.appendEvent(Event{Name: "awgwarp_kernel_mode", Detail: r.cfg.Kernel.EffectiveInterface()})
 	}
+	// Bootstrap cover: a runtime-I1 profile (cf-quic-cover) ships a real QUIC
+	// Initial in front of the WireGuard initiation (Nova fakex6-quic parity).
+	// Non-runtime-I1 profiles pass through unchanged.
+	profile := twg.FillBootstrapCover(r.profile, r.runtimeI1, r.coverSNI)
+	if err := profile.Validate(); err != nil {
+		r.fail(StateBackoff, "cover profile: "+err.Error())
+		return
+	}
 	s, err := twg.NewSession(twg.SessionConfig{
 		Ident:        ident,
-		Profile:      r.profile,
+		Profile:      profile,
 		Endpoint:     r.endpoint.String(),
 		ListenFwMark: listenFwMark,
 		Tunnel:       tunCfg,

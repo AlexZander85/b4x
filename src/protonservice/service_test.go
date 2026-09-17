@@ -119,7 +119,14 @@ func buildRuntime(t *testing.T, identityPath string, respond func(rc recordedCal
 		Enabled:      true,
 		IdentityPath: identityPath,
 	}
-	rt, err := Build(cfg, Options{Now: time.Now})
+	rt, err := Build(cfg, Options{
+		Now: time.Now,
+		// Offline runner: the production clock probe TLS-dials the real
+		// control host, which the sandbox cannot serve — the registration
+		// path would stall for ntpWaitBudget instead of exercising the
+		// enrollment flows under test.
+		ClockFresh: func(context.Context) bool { return true },
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
