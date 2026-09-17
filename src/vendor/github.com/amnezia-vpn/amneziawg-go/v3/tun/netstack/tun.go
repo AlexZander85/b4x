@@ -131,7 +131,7 @@ func (tun *netTun) Read(buf [][]byte, sizes []int, offset int) (int, error) {
 		return 0, err
 	}
 	sizes[0] = n
-	netstackTrace("outbound", n)
+	netstackTracePkt("outbound", buf[0][offset:offset+n])
 	return 1, nil
 }
 
