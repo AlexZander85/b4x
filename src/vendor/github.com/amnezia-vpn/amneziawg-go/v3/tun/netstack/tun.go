@@ -131,7 +131,78 @@ func (tun *netTun) Read(buf [][]byte, sizes []int, offset int) (int, error) {
 		return 0, err
 	}
 	sizes[0] = n
+	netstackTrace("outbound", n)
 	return 1, nil
+}
+
+// netstackTrace is the b4 field diagnostic seam (bd b4x-q03): an env-gated
+// per-packet size trace of the gVisor TUN path. B4_NETSTACK_TRACE names the
+// output file; empty (production) is a no-op.
+func netstackTrace(dir string, n int) {
+	p := os.Getenv("B4_NETSTACK_TRACE")
+	if p == "" {
+		return
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(f, "[netstack] %s len=%d\n", dir, n)
+	_ = f.Close()
+}
+
+// netstackTracePkt additionally dumps the first 40 header bytes (bd b4x-q03:
+// the inbound segment reaches the stack but never the socket).
+func netstackTracePkt(dir string, pkt []byte) {
+	p := os.Getenv("B4_NETSTACK_TRACE")
+	if p == "" {
+		return
+	}
+	head := pkt
+	if len(head) > 40 {
+		head = head[:40]
+	}
+	f, err := os.OpenFile(p, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(f, "[netstack] %s len=%d hdr=% x%s\n", dir, len(pkt), head, tcpCk(pkt))
+	_ = f.Close()
+}
+
+// tcpCk reports the TCP checksum verdict of an IPv4/TCP packet (bd b4x-q03:
+// the edge may TSO-split after WG encapsulation, leaving per-segment checksums
+// invalid and the segment silently dropped by the stack).
+func tcpCk(pkt []byte) string {
+	if len(pkt) < 40 || pkt[0]>>4 != 4 || pkt[9] != 6 {
+		return ""
+	}
+	ihl := int(pkt[0]&0x0f) * 4
+	if ihl < 20 || len(pkt) < ihl+20 {
+		return ""
+	}
+	sum := func(b []byte, s uint32) uint32 {
+		for i := 0; i+1 < len(b); i += 2 {
+			s += uint32(b[i])<<8 | uint32(b[i+1])
+		}
+		if len(b)%2 == 1 {
+			s += uint32(b[len(b)-1]) << 8
+		}
+		return s
+	}
+	tcp := pkt[ihl:]
+	var s uint32
+	s = sum(pkt[12:20], s)
+	s += 6
+	s += uint32(len(tcp))
+	s = sum(tcp, s)
+	for s>>16 != 0 {
+		s = (s & 0xffff) + (s >> 16)
+	}
+	if (^s)&0xffff == 0 {
+		return " tcpck=ok"
+	}
+	return " tcpck=BAD"
 }
 
 func (tun *netTun) Write(buf [][]byte, offset int) (int, error) {
@@ -140,6 +211,7 @@ func (tun *netTun) Write(buf [][]byte, offset int) (int, error) {
 		if len(packet) == 0 {
 			continue
 		}
+		netstackTracePkt("inbound", packet)
 
 		pkb := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(packet)})
 		switch packet[0] >> 4 {
