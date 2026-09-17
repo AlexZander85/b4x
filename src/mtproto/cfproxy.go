@@ -340,18 +340,21 @@ func recordCFProgress(domain string, up, down int64) {
 	}
 }
 
-// extractCFDomain parses `ws://kws2.host.tld` style transport labels so relay
-// outcomes can be attributed to the CF worker domain.
+// extractCFDomain parses `ws://kws2.host.tld` and `wsworker://own.worker` style
+// transport labels so relay outcomes can be attributed to the CF worker domain
+// (both the shared pool plan and the private-worker plan land here).
 func extractCFDomain(transport string) string {
-	if !strings.HasPrefix(transport, "ws://") {
-		return ""
+	for _, pref := range []string{"wsworker://", "ws://"} {
+		if strings.HasPrefix(transport, pref) {
+			d := strings.TrimPrefix(transport, pref)
+			// host may carry a port; strip it.
+			if i := strings.IndexByte(d, ':'); i >= 0 {
+				d = d[:i]
+			}
+			return d
+		}
 	}
-	d := strings.TrimPrefix(transport, "ws://")
-	// ws://<host> — host may carry a port; strip it.
-	if i := strings.IndexByte(d, ':'); i >= 0 {
-		d = d[:i]
-	}
-	return d
+	return ""
 }
 
 // cfBalancerInst is the package-level singleton. Initialized with the bundled

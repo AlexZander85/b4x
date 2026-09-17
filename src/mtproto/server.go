@@ -680,7 +680,13 @@ func (s *Server) handleConn(raw net.Conn) {
 	st.down.Add(down)
 	// dead-worker health tracking: drain-the-uplink-EOF-zero-run domain
 	// cooldowns itself out of the CF pool after this session's outcome.
-	recordCFProgress(extractCFDomain(transport), up, down)
+	domain := extractCFDomain(transport)
+	recordCFProgress(domain, up, down)
+	if strings.HasPrefix(transport, "wsworker://") && domain != "" && down == 0 && up > 0 {
+		// a private-worker plan that carried the uplink and then went silent —
+		// the exact upstream "worker stall" signature; demote it for a while.
+		workerRecordStall(domain)
+	}
 }
 
 func (s *Server) relay(client, dc io.ReadWriteCloser, splitter *msgSplitter, lastActive *atomic.Int64, label string) (up, down int64) {

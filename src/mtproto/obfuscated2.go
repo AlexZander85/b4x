@@ -68,6 +68,18 @@ func workerDomains(cfg *config.MTProtoConfig) []string {
 	return out
 }
 
+// shuffledWorkerDomains mirrors upstream: workers rotate per dial so one tired
+// private Worker does not win every handshake while the siblings idle.
+func shuffledWorkerDomains(cfg *config.MTProtoConfig) []string {
+	out := workerDomains(cfg)
+	n := len(out)
+	if n < 2 {
+		return out
+	}
+	cfproxyShuffle(out)
+	return out
+}
+
 func workerDstIP(absDC int) string {
 	addr, ok := dcAddressesV4[absDC]
 	if !ok {
@@ -242,29 +254,37 @@ func planTransports(cfg *config.MTProtoConfig, queueCfg config.QueueConfig, dc i
 	if wsBlacklisted {
 		log.Debugf("%s DC %d WS plans skipped (blacklisted)", tg(""), dc)
 	}
-	if wsMode && !wsBlacklisted {
+	if wsMode {
+		// The blacklist records Telegram's own WS edge answering every kws* dial
+		// with a 302. That says nothing about a relay the user runs, so it must
+		// only suppress the native plans - gating the worker and CF-proxy plans
+		// on it too meant one 302 from kws2 silently switched off a working
+		// Worker (upstream fix, b4 1.82+).
+		wsBlacklisted = false
+	}
+	if wsMode {
 		if wsEdgeServesDC(absDC) && !cfg.BridgeSkipNativeEdge {
-			dh := wsNativeDialHost(cfg.WSEndpointHost)
-			primary := transportPlan{kind: transportWS, dc: dc, sni: fmt.Sprintf("kws%d.web.telegram.org", absDC), dialHost: dh}
-			media := transportPlan{kind: transportWS, dc: dc, sni: fmt.Sprintf("kws%d-1.web.telegram.org", absDC), dialHost: dh}
-			if dc < 0 {
-				plans = append(plans, media, primary)
+			if wsBlacklisted {
+				log.Debugf("%s DC %d native WS edge skipped (blacklisted)", tg(""), dc)
 			} else {
-				plans = append(plans, primary, media)
+				dh := wsNativeDialHost(cfg.WSEndpointHost)
+				primary := transportPlan{kind: transportWS, dc: dc, sni: fmt.Sprintf("kws%d.web.telegram.org", absDC), dialHost: dh}
+				media := transportPlan{kind: transportWS, dc: dc, sni: fmt.Sprintf("kws%d-1.web.telegram.org", absDC), dialHost: dh}
+				if dc < 0 {
+					plans = append(plans, media, primary)
+				} else {
+					plans = append(plans, primary, media)
+				}
 			}
 		}
-		if dst := workerDstIP(absDC); dst != "" {
-			for _, wd := range workerDomains(cfg) {
-				plans = append(plans, transportPlan{
-					kind:     transportWS,
-					dc:       dc,
-					sni:      wd,
-					dialHost: wd,
-					wsPath:   fmt.Sprintf("/apiws?dst=%s&dc=%d", dst, absDC),
-					isWorker: true,
-				})
-			}
-		}
+		// b4x order: the PRIVATE worker plans (system.mtproto.cfworker_domain)
+		// come BEFORE the shared CF pool — that is the fork invariant the
+		// test (TestPlanTransports_WorkerForDC2BeforeCFPool) pin — because the
+		// owner's privateWorkers are claimed to be stable near-free; the shared
+		// pool stays the fallback. Workers that stalled or went EOF-zero
+		// (recordCFProgress/workerRecordStall) are demoted to deferred — still
+		// listed, never removed, because for a DC with no native edge a stale
+		// Worker can be the only route left.
 		if d := strings.TrimSpace(cfg.WSCustomDomain); d != "" {
 			plans = append(plans, transportPlan{
 				kind:   transportWS,
@@ -272,6 +292,24 @@ func planTransports(cfg *config.MTProtoConfig, queueCfg config.QueueConfig, dc i
 				sni:    fmt.Sprintf("kws%d.%s", absDC, d),
 				cfBase: d,
 			})
+		}
+		var deferred []transportPlan
+		if dst := workerDstIP(absDC); dst != "" {
+			for _, wd := range shuffledWorkerDomains(cfg) {
+				p := transportPlan{
+					kind:     transportWS,
+					dc:       dc,
+					sni:      wd,
+					dialHost: wd,
+					wsPath:   fmt.Sprintf("/apiws?dst=%s&dc=%d", dst, absDC),
+					isWorker: true,
+				}
+				if workerInCooldown(wd) {
+					deferred = append(deferred, p)
+					continue
+				}
+				plans = append(plans, p)
+			}
 		}
 		if cfg.CFProxyEnabled {
 			for _, base := range cfBalancerInst.domainsForDC(dc) {
@@ -283,6 +321,11 @@ func planTransports(cfg *config.MTProtoConfig, queueCfg config.QueueConfig, dc i
 				})
 			}
 		}
+		// A Worker that stopped relaying mid-session is still a route, just the
+		// worst one, so it goes behind everything else rather than out of the
+		// list - for a DC with no native edge it can be the only route there is
+		// (upstream comment verbatim: the list only guards dial failures).
+		plans = append(plans, deferred...)
 	}
 
 	if mode == "auto" && !relayFirst {
