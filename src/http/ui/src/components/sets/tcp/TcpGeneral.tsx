@@ -101,6 +101,19 @@ export const TcpGeneral = ({ config, queue, onChange }: TcpGeneralProps) => {
             aiTopic="tcp.drop_sack"
           />
         </Grid>
+
+        <Grid size={{ xs: 12, md: 6 }}>
+          <B4Switch
+            label={t("sets.tcp.general.methodEol")}
+            description={t("sets.tcp.general.methodEolDesc")}
+            checked={config.tcp.http_methodeol || false}
+            onChange={(checked) => onChange("tcp.http_methodeol", checked)}
+            aiTopic="tcp.http_methodeol"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <B4Hint>{t("sets.tcp.general.methodEolHint")}</B4Hint>
+        </Grid>
       </Grid>
 
       {/* Packet Duplication */}

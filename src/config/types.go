@@ -255,14 +255,20 @@ type Device struct {
 }
 
 type TCPConfig struct {
-	ConnBytesLimit int    `json:"conn_bytes_limit"`
-	Seg2Delay      int    `json:"seg2delay"`
-	Seg2DelayMax   int    `json:"seg2delay_max"`
-	SynFake        bool   `json:"syn_fake"`
-	SynFakeLen     int    `json:"syn_fake_len"`
-	SynTTL         uint8  `json:"syn_ttl"`
-	DropSACK       bool   `json:"drop_sack"`
-	DPortFilter    string `json:"dport_filter"` // comma separated list of ports and port ranges, e.g. "80,443,5222"
+	ConnBytesLimit int   `json:"conn_bytes_limit"`
+	Seg2Delay      int   `json:"seg2delay"`
+	Seg2DelayMax   int   `json:"seg2delay_max"`
+	SynFake        bool  `json:"syn_fake"`
+	SynFakeLen     int   `json:"syn_fake_len"`
+	SynTTL         uint8 `json:"syn_ttl"`
+	DropSACK       bool  `json:"drop_sack"`
+	// HTTPMethodEOL prepends an empty line to the request-line of plain-HTTP
+	// requests (upstream b4 1.82 port) and trims two bytes of the User-Agent
+	// value so the packet keeps its exact length. Needs port 80 in scope and a
+	// User-Agent header; the only strategy for a site filtered by its Host
+	// header over plain HTTP.
+	HTTPMethodEOL bool   `json:"http_methodeol"`
+	DPortFilter   string `json:"dport_filter"` // comma separated list of ports and port ranges, e.g. "80,443,5222"
 
 	Incoming      IncomingConfig      `json:"incoming"`
 	Desync        DesyncConfig        `json:"desync"`

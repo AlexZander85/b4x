@@ -121,7 +121,7 @@ export interface CategoryPreviewConfig {
   preview: string[];
 }
 
-export type UdpMode = "drop" | "reject" | "fake";
+export type UdpMode = "drop" | "reject" | "fake" | "coalesce";
 export type UdpFilterQuicMode = "disabled" | "all" | "parse";
 export type UdpFakingStrategy = "none" | "ttl" | "checksum";
 
@@ -222,6 +222,13 @@ export interface TcpConfig {
   syn_fake_len: number;
   syn_ttl: number;
   drop_sack: boolean;
+  /**
+   * http_methodeol (upstream b4 1.82 port): prepend an empty line to the
+   * request-line of plain-HTTP requests and trim two bytes of User-Agent so
+   * the packet keeps its length. The only strategy for sites filtered by
+   * their Host header over plain HTTP (port 80, needs a User-Agent).
+   */
+  http_methodeol?: boolean;
   dport_filter: string;
 
   desync: DesyncConfig;

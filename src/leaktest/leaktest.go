@@ -14,6 +14,10 @@ func Options(extra ...goleak.Option) []goleak.Option {
                 goleak.IgnoreTopFunction("github.com/daniellavrushin/b4/quic.cleanupStaleEntries"),
                 goleak.IgnoreTopFunction("github.com/daniellavrushin/b4/log.startFlusherLocked.func1"),
                 goleak.IgnoreTopFunction("github.com/daniellavrushin/b4/metrics.(*MetricsCollector).updateLoop"),
+                // capture.GetManager is a sync.Once singleton; the first full-pipeline
+                // packet test starts its process-lifetime cleanup ticker. Not a leak —
+                // same category as the quic reaper above.
+                goleak.IgnoreTopFunction("github.com/daniellavrushin/b4/capture.(*Manager).cleanupExpiredProbes"),
                 // E-TOR: the snowflake client library's turbo-tunnel links kcp-go,
                 // whose package init starts process-lifetime scheduler goroutines
                 // in every importing binary (torsnowflake → torservice → handler →

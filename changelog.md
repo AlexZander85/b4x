@@ -1,5 +1,33 @@
 # B4 - Bye Bye Big Bro
 
+## [unreleased] — upstream b4 1.82 strategy port: udp.mode=coalesce + tcp.http_methodeol
+
+- ADDED: **udp.mode=coalesce** (port of upstream b4 1.82) — a padding-only
+  dummy QUIC Initial is placed ahead of the client's Initial inside the same
+  datagram, sealed under a flipped-DCID so neither the server nor a DPI can
+  decrypt it under the header DCID it carries; the server discards the dummy
+  and processes the second packet, a DPI that reads only the first packet of
+  a datagram stops on the dummy, and the handshake itself is unchanged —
+  no fragmentation (IPv6-safe), no fake packets, nothing to desync. Wired
+  into the UDP action switch (IPv4+IPv6), the Discovery FamilyUDP axis
+  (`udp-quic{parse,all}-coalesce` presets) and the Sets UI; non-Initial
+  datagrams fail open to accept. Both rewrites count as destructive actions
+  for legacy domain scope.
+- ADDED: **tcp.http_methodeol** (port of upstream b4 1.82) — a plain-HTTP
+  request can carry an empty line before its request-line, paid for by
+  trimming two bytes of the User-Agent value so the packet keeps its exact
+  length and TCP sequence numbers stay correct; inspection that expects the
+  method at byte zero stops finding the Host header. Covers port 80 (the
+  option pulls it into the TCP capture plane) and needs a User-Agent header;
+  before it, a site filtered by its Host header over plain HTTP had no
+  strategy at all. Unlike upstream, our TCP pipeline gates injection on TLS
+  handshake records — plain-HTTP requests got their own injection lane in
+  `handleTCPPacket`, so the option is live rather than dead code.
+- Both features are guarded by end-to-end liveness tests through the real
+  dispatch → handler pipeline (verdict drop + rewritten packet on the wire
+  asserted via the strategyInjector test seam), plus the upstream crypto
+  tests (dummy decrypts under its own keys, never under the client's DCID).
+
 ## [unreleased] — E-TOR: Tor reserve tunnel (tor-reserve-design.md, stages TT1–TT10)
 
 - ADDED (E-TOR): the Tor reserve tunnel — external C-tor (Entware

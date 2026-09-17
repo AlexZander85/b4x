@@ -118,6 +118,7 @@ func needsTCPInjection(set *config.SetConfig) bool {
 	}
 
 	return set.TCP.DropSACK ||
+		set.TCP.HTTPMethodEOL ||
 		set.Faking.SNI ||
 		set.Faking.SNIMutation.Mode != config.ConfigOff ||
 		set.TCP.Desync.Mode != config.ConfigOff ||
@@ -891,6 +892,38 @@ func (w *Worker) handleTCPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			}
 		}
 
+		// http_methodeol (upstream b4 1.82 port): a plain-HTTP request
+		// carries no TLS record and never reaches the handshake lane
+		// below, so without its own lane the option would be dead code.
+		// The rewrite keeps the packet's exact length (TCP sequence
+		// numbers stay correct) and updatePacketLengths rebuilds the
+		// checksums. Requests without a User-Agent to trim fall back to
+		// the unchanged packet, so nothing is lost either way.
+		if set.TCP.HTTPMethodEOL && len(payload) > 0 && looksLikeHTTPRequest(payload) {
+			sink := w.strategySink()
+			if sink == nil {
+				return vc.accept()
+			}
+			if !vc.drop() {
+				return 0
+			}
+			packetCopy := append([]byte(nil), pkt.raw...)
+			dstCopy := append(net.IP(nil), pkt.dst...)
+			setCopy := set
+			ver := pkt.ver
+			w.wg.Add(1)
+			go func() {
+				defer w.wg.Done()
+				out := w.applyHTTPMethodEOL(setCopy, packetCopy)
+				if ver == 4 {
+					_ = sink.SendIPv4(out, dstCopy)
+				} else {
+					_ = sink.SendIPv6(out, dstCopy)
+				}
+			}()
+			return 0
+		}
+
 		// Handshake records (0x16) are always injected — including ClientHello
 		// retranmissions. exp-once2 accepted later 0x16 as "remainder" and the
 		// clear CH went to TSPU (23:43 74.125.173.134: 517 B 1603010200 retries).
@@ -1201,6 +1234,42 @@ func (w *Worker) handleUDPPacket(vc *verdictCtx, pkt *pktInfo, cfg *config.Confi
 			if icmp := sock.BuildICMPv6Reject(pkt.raw, pkt.src.To16(), pkt.dst.To16()); icmp != nil {
 				_ = w.clientSender().SendIPv6(icmp, pkt.src)
 			}
+		}
+		return 0
+
+	case "coalesce":
+		// Upstream b4 1.82 port: put a padding-only dummy Initial ahead
+		// of the client's Initial in the same datagram, sealed under a
+		// different connection ID. The server cannot decrypt the dummy
+		// and discards it, a DPI that reads only the first packet of a
+		// datagram stops on it, and the handshake itself is unchanged —
+		// no fragmentation, nothing to desync. Non-Initial datagrams
+		// (CoalesceInitial returns !ok) fail open to accept.
+		sink := w.strategySink()
+		if sink == nil {
+			return vc.accept()
+		}
+		coalesced, ok := quic.CoalesceInitial(payload, 0)
+		if !ok {
+			return vc.accept()
+		}
+		var out []byte
+		if pkt.ver == IPv4 {
+			out = sock.BuildUDPPacketV4(pkt.src, pkt.dst, sport, dport, coalesced)
+		} else {
+			out = sock.BuildUDPPacketV6(pkt.src, pkt.dst, sport, dport, coalesced)
+		}
+		if out == nil {
+			return vc.accept()
+		}
+		if !vc.drop() {
+			return 0
+		}
+		log.Tracef("Coalescing QUIC Initial to %s behind a %d byte padding packet", pkt.dstStr, len(coalesced)-len(payload))
+		if pkt.ver == IPv4 {
+			_ = sink.SendIPv4(out, pkt.dst)
+		} else {
+			_ = sink.SendIPv6(out, pkt.dst)
 		}
 		return 0
 

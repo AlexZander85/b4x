@@ -346,7 +346,15 @@ func (cfg *Config) CollectTCPPorts() []string {
 	portSet["443"] = true
 
 	for _, set := range cfg.Sets {
-		if !set.Enabled || set.TCP.DPortFilter == "" {
+		if !set.Enabled {
+			continue
+		}
+		// http_methodeol works on plain-HTTP requests: pulling port 80 into
+		// the capture plane is what makes the option live (upstream 1.82 port).
+		if set.TCP.HTTPMethodEOL {
+			portSet["80"] = true
+		}
+		if set.TCP.DPortFilter == "" {
 			continue
 		}
 		for _, p := range strings.Split(set.TCP.DPortFilter, ",") {

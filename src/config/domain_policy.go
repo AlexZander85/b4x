@@ -74,6 +74,7 @@ func setHasDestructiveAction(set *SetConfig) bool {
 		return false
 	}
 	if set.Routing.Enabled || set.TCP.Duplicate.Enabled || set.TCP.DropSACK || set.TCP.SynFake ||
+		set.TCP.HTTPMethodEOL ||
 		set.TCP.IPBlockDetect.Enabled || set.TCP.Desync.PostDesync || set.Faking.SNI || set.Faking.TCPMD5 {
 		return true
 	}
@@ -85,7 +86,7 @@ func setHasDestructiveAction(set *SetConfig) bool {
 		return true
 	}
 	switch strings.TrimSpace(set.UDP.Mode) {
-	case "drop", "reject", "fake":
+	case "drop", "reject", "fake", "coalesce":
 		return true
 	}
 	return false

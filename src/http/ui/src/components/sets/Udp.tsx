@@ -54,6 +54,11 @@ export const UdpSettings = ({ config, queue, onChange }: UdpSettingsProps) => {
       label: t("sets.udp.modeFake"),
       description: t("sets.udp.modeFakeDesc"),
     },
+    {
+      value: "coalesce",
+      label: t("sets.udp.modeCoalesce"),
+      description: t("sets.udp.modeCoalesceDesc"),
+    },
   ];
 
   const UDP_QUIC_FILTERS = [
@@ -224,6 +229,7 @@ export const UdpSettings = ({ config, queue, onChange }: UdpSettingsProps) => {
                     fake: "sets.udp.fakeModeInfo",
                     reject: "sets.udp.rejectModeInfo",
                     drop: "sets.udp.dropModeInfo",
+                    coalesce: "sets.udp.coalesceModeInfo",
                   };
                   return (
                     <Trans

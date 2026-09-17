@@ -85,6 +85,7 @@ type Worker struct {
 	actionSender       packetInjector // raw injector for the centralized action executor (nil until Start)
 	actionMark         uint32         // processed provenance mark used for action plans
 	clientInjector     packetInjector // optional override for forged client-bound packets (tests only; nil in production)
+	strategyInjector   packetInjector // optional override for strategy-rewritten packets — coalesce datagrams, http_methodeol requests (tests only; nil in production)
 	passiveRST         *PassiveRSTStore
 	fastFail           *fastFailStore
 	normalizerQueue    uint16

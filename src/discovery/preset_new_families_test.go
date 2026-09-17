@@ -10,6 +10,7 @@ func TestGetPhase2PresetsNewFamilies(t *testing.T) {
 	if len(udp) == 0 {
 		t.Fatal("FamilyUDP produced no presets")
 	}
+	coalesceVariants := 0
 	for _, p := range udp {
 		if p.Family != FamilyUDP {
 			t.Errorf("preset %s has family %s, want %s", p.Name, p.Family, FamilyUDP)
@@ -17,9 +18,24 @@ func TestGetPhase2PresetsNewFamilies(t *testing.T) {
 		if p.Config.UDP.FilterQUIC != "parse" && p.Config.UDP.FilterQUIC != "all" {
 			t.Errorf("preset %s FilterQUIC=%q, want parse|all", p.Name, p.Config.UDP.FilterQUIC)
 		}
+		if p.Config.UDP.Mode == "coalesce" {
+			// b4 1.82 port: coalesce carries no fake knobs — the padding dummy is
+			// derived from the client's Initial itself.
+			coalesceVariants++
+			if p.Config.UDP.FakeSeqLength != 0 {
+				t.Errorf("preset %s coalesce must not carry fake packets (seq=%d)", p.Name, p.Config.UDP.FakeSeqLength)
+			}
+			continue
+		}
+		if p.Config.UDP.Mode != "fake" {
+			t.Errorf("preset %s UDP.Mode=%q, want fake|coalesce", p.Name, p.Config.UDP.Mode)
+		}
 		if p.Config.UDP.FakeSeqLength <= 0 || p.Config.UDP.FakeLen <= 0 {
 			t.Errorf("preset %s has no fake QUIC payload (seq=%d len=%d)", p.Name, p.Config.UDP.FakeSeqLength, p.Config.UDP.FakeLen)
 		}
+	}
+	if coalesceVariants == 0 {
+		t.Fatal("FamilyUDP axis has no coalesce presets — the b4 1.82 port would be dead code in discovery")
 	}
 
 	win := GetPhase2Presets(FamilyWindow)

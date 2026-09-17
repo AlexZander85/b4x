@@ -1300,6 +1300,31 @@ func GetPhase2Presets(family StrategyFamily) []ConfigPreset {
 			}
 		}
 
+		// Upstream b4 1.82 port: coalesce mode — a padding-only dummy Initial is
+		// put ahead of the client's Initial in the same datagram. No fake
+		// packets, no fragmentation, no checksum games; the handshake itself is
+		// untouched, so the mode is safe to try wherever fake failed (notably
+		// IPv6 and networks that drop IP fragments). Fake knobs stay zeroed:
+		// the handler ignores them in coalesce mode.
+		for _, qm := range quicModes {
+			presets = append(presets, ConfigPreset{
+				Name:     formatName("udp-quic%s-coalesce", qm),
+				Family:   FamilyUDP,
+				Phase:    PhaseOptimize,
+				Priority: 1,
+				Config: withUDP(withFragmentation(base, comboFrag()), config.UDPConfig{
+					Mode:           "coalesce",
+					FakeSeqLength:  0,
+					FakeLen:        64,
+					FakingStrategy: "none",
+					FilterQUIC:     qm,
+					FilterSTUN:     true,
+					ConnBytesLimit: 8,
+					Seg2Delay:      20,
+				}),
+			})
+		}
+
 	case FamilyWindow:
 		// TCP window manipulation axis (oscillate/zero/random/escalate).
 		modes := []string{"oscillate", "zero", "random", "escalate"}
