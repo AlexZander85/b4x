@@ -100,3 +100,16 @@ src/http/ui/dist/
 # OpenCode repo-local state
 .ag/logs/
 .beads/
+
+# External reference dumps dropped in the repo root for study (never project code;
+# wireguard/ alone is ~471MB). Keep them local-only.
+/firefox/
+/opera/
+/wireguard/
+/nfqws/
+/workers/
+/.playwright-mcp/
+/issues_backup.jsonl
+/флешка.txt
+/0
+/src/vet_out.txt
