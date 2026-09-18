@@ -63,9 +63,11 @@ func TestCatalogInvariants(t *testing.T) {
         if err != nil {
                 t.Fatal(err)
         }
-        // Junk-first default policy (owner decision 2026-08-24): families lead,
-        // vanilla-off anchors LAST as the compatibility fallback.
-        wantOrder := []string{"quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive", "vanilla-off"}
+	// FIELD 2026-09-18 superseded the 2026-08-24 junk-first policy: the CF
+	// WARP outer flow has a small per-flow budget and the AWG junk packets
+	// break the data path on this network, so vanilla-off LEADS and the junk
+	// families follow as fallbacks (bd b4x-nxx; artifact section 28).
+	wantOrder := []string{"vanilla-off", "quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive"}
         if len(ladder) != len(wantOrder) {
                 t.Fatalf("cf-warp ladder len=%d want %d (%v)", len(ladder), len(wantOrder), ladder)
         }

@@ -324,6 +324,29 @@ func defaultCatalog() []ProfileTemplate {
         }
 }
 
+// DefaultJunkActiveCfWarp returns the first cf-warp ladder profile with an
+// ACTIVE junk family (JunkCount > 0), plus its id. The awg+awg outer layer
+// requires junk (ErrOuterObfRequired) even though the plain cf-warp ladder
+// now leads with vanilla-off (FIELD 2026-09-18: junk breaks the WARP data
+// path on this network, so the single carrier leads vanilla; the nested W+W
+// composition keeps its junk-active default).
+func DefaultJunkActiveCfWarp() (Profile, string, error) {
+	ladder, err := LadderFor(TargetCfWarp, "")
+	if err != nil {
+		return Profile{}, "", err
+	}
+	for _, tpl := range ladder {
+		p, berr := tpl.Build()
+		if berr != nil {
+			continue
+		}
+		if p.JunkCount > 0 {
+			return p, tpl.ID, nil
+		}
+	}
+	return Profile{}, "", fmt.Errorf("transportwg: no junk-active profile in the cf-warp ladder")
+}
+
 // Lookup returns the catalog entry by ID.
 func LookupProfile(id string) (ProfileTemplate, error) {
         for _, t := range defaultCatalog() {
@@ -403,10 +426,17 @@ func CatalogIDs() []string {
         return ids
 }
 
-// cfWarpLadderOrder is the default cf-warp ladder policy (junk-first,
-// owner decision 2026-08-24 — see the package comment for rationale).
+// cfWarpLadderOrder is the default cf-warp ladder policy. FIELD 2026-09-18
+// superseded the 2026-08-24 junk-first order: on this network the CF WARP
+// outer UDP flow gets only a small per-flow budget (~3-4 KB), and the AWG
+// junk/I1 packets sent before the handshake consume it. With junk the TLS
+// flight is truncated (3684/4011) or the response never arrives; vanilla-off
+// carries the full /cdn-cgi/trace end to end (loc=RU colo=DME/ARN, verified
+// on 8.39.204.9:7103, 8.47.69.8:854, 8.39.214.9:500, 188.114.96.1:1701).
+// Junk avoids passive WireGuard fingerprinting but breaks the data path here,
+// so it is demoted behind vanilla-off; a seek ladder may still try it.
 var cfWarpLadderOrder = []string{
-        "quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive", "vanilla-off",
+	"vanilla-off", "quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive",
 }
 
 // protonLadderOrder is the E-PROTON ladder (design 3.5): the QUIC-Initial

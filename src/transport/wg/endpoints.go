@@ -217,6 +217,13 @@ var RegionalPools = []RegionPool{
 		Tag:      "unassigned-aether-188",
 		Source:   "aether-prefixes", // wireguard.rs:686-689
 		Prefixes: append([]netip.Prefix{}, regional188V4...),
+		// FIELD2 phase E flip (2026-09-18, bd b4x-uww): 188.114.96.1:1701
+		// completed the full AWG data path from the live router
+		// (awgwarp_trace loc=RU colo=ARN warp=on, vanilla-off + classical TLS
+		// curves). Distinct egress colo from the nova-hosts pool (DME).
+		Verified:   true,
+		VerifyMeta: "2026-09-18 FIELD2-E awg-trace loc=RU colo=ARN (188.114.96.1:1701)",
+		VerifiedAt: time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC),
 	},
 	{
 		Tag:      "unassigned-nova-hosts",

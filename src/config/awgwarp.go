@@ -267,6 +267,26 @@ func resolveCfWarpProfile(field, id string) (twg.Profile, error) {
 	return tpl.Build()
 }
 
+// EffectiveAWGProfile resolves the AWG layer profile of a chain and its
+// resolved id. An explicit id resolves by catalog; "" uses the ladder
+// default — the first JUNK-ACTIVE cf-warp profile for awg+awg (the W+W outer
+// layer requires junk, ErrOuterObfRequired), otherwise the ladder head.
+// FIELD 2026-09-18: the plain cf-warp ladder leads with vanilla-off (junk
+// breaks the WARP data path here), so the nested case needs its own default.
+func (c *WarpChainConfig) EffectiveAWGProfile() (twg.Profile, string, error) {
+	field := "system.warp.chains[" + c.Kind + "].awg_profile"
+	if c.AWGProfile != "" {
+		p, err := resolveCfWarpProfile(field, c.AWGProfile)
+		return p, c.AWGProfile, err
+	}
+	if c.Kind == ChainKindAwgAwg {
+		p, id, err := twg.DefaultJunkActiveCfWarp()
+		return p, id, err
+	}
+	p, err := resolveCfWarpProfile(field, "")
+	return p, "", err
+}
+
 // DefaultWarpNonRUIdentityPath is the nested НЕ РФ inner warp slot. A
 // SEPARATE file from the base warp identity on purpose (ADR-WARP-6 + nested
 // red line #3: the nested session is a SECOND CF device — the base warp
@@ -557,12 +577,12 @@ func (c *WarpChainConfig) validateChainAWGProfile() error {
 	}
 	if c.AWGProfile == "" {
 		if c.Kind == ChainKindAwgAwg {
-			p, err := resolveCfWarpProfile("system.warp.chains[awg+awg].awg_profile", "")
+			p, _, err := twg.DefaultJunkActiveCfWarp()
 			if err != nil {
-				return err
+				return fmt.Errorf("system.warp.chains[awg+awg].awg_profile: %w", err)
 			}
 			if p.JunkCount < 1 {
-				return fmt.Errorf("system.warp.chains[awg+awg].awg_profile: the ladder head carries no junk family (jc=0) — pick a junk-active profile for the outer layer")
+				return fmt.Errorf("system.warp.chains[awg+awg].awg_profile: no junk-active cf-warp profile is available for the outer layer")
 			}
 		}
 		return nil

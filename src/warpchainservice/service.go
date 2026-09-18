@@ -159,7 +159,7 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 	if err != nil {
 		return nil, err
 	}
-	awgProfile, err := resolveAWGProfile(chain)
+	awgProfile, awgProfileID, err := chain.EffectiveAWGProfile()
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 	// layer that egresses directly (awg+masque outer). Filling here keeps the
 	// profile contract identical to the single AWG transport — an unfilled
 	// runtime-I1 slot would ship as vanilla WG with no obfuscation at all.
-	runtimeI1, err := twg.RuntimeI1Required(twg.TargetCfWarp, chain.AWGProfile)
+	runtimeI1, err := twg.RuntimeI1Required(twg.TargetCfWarp, awgProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -261,24 +261,6 @@ func chainMasqueSlot(c *config.WarpChainConfig) string {
 		return c.EffectiveInnerIdentityPath()
 	}
 	return c.EffectiveOuterIdentityPath()
-}
-
-func resolveAWGProfile(c config.WarpChainConfig) (twg.Profile, error) {
-	if c.AWGProfile == "" {
-		ladder, err := twg.LadderFor(twg.TargetCfWarp, "")
-		if err != nil || len(ladder) == 0 {
-			return twg.Profile{}, fmt.Errorf("warpchain: cf-warp ladder: %v", err)
-		}
-		return ladder[0].Build()
-	}
-	tpl, err := twg.LookupProfile(c.AWGProfile)
-	if err != nil {
-		return twg.Profile{}, fmt.Errorf("warpchain: %w", err)
-	}
-	if tpl.Target != twg.TargetCfWarp {
-		return twg.Profile{}, fmt.Errorf("warpchain: awg profile %q target %q is not cf-warp", c.AWGProfile, tpl.Target)
-	}
-	return tpl.Build()
 }
 
 func validateFingerprint(fp string) error {
