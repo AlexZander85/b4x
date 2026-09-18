@@ -53,7 +53,15 @@ const (
 // traceTLSConfig builds the trace client's TLS config. Production verifies the
 // certificate (1.1.1.1 carries an IP SAN); tests override it to trust an
 // httptest certificate.
-var traceTLSConfig = func() *tls.Config { return &tls.Config{} }
+//
+// CurvePreferences pins CLASSICAL curves only. Go 1.24+ offers
+// X25519MLKEM768 by default, which inflates BOTH the ClientHello and the
+// server flight by ~1.2 KB. The WARP flow in this environment is blackholed
+// after ~4 KB, so the post-quantum key share is what pushed the handshake
+// over budget (field 2026-09-18, bd b4x-nxx).
+var traceTLSConfig = func() *tls.Config {
+	return &tls.Config{CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256}}
+}
 
 // NetstackE2EProbe builds the gate's E2E probe over a TCP dial seam: two
 // /cdn-cgi/trace GET exchanges; every response must carry warp=on (a plus
