@@ -222,6 +222,18 @@ var RegionalPools = []RegionPool{
 		Tag:      "unassigned-nova-hosts",
 		Source:   "nova-measured", // battle profiles; /32s because only individual hosts are measured
 		Prefixes: append([]netip.Prefix{}, regionalNovaV4...),
+		// FIELD2 phase E flip (2026-09-18, bd b4x-uww/b4x-nxx): the 8.x
+		// hosts are where AWG was proven on the live router to establish AND
+		// carry the server's TLS flight (pcap 148B init -> 92B RESPONSE ->
+		// transport; 8.39.204.9:7103, 8.47.69.8:854, 8.39.214.9:500). The
+		// WARP egress country was measured loc=RU colo=DME; the exchange was
+		// captured via the MASQUE carrier because the AWG data path is
+		// blackholed by the environment after ~4 KB (artifact section 27).
+		// The WARP egress country is account-level, so it applies to this
+		// pool's hosts too.
+		Verified:   true,
+		VerifyMeta: "2026-09-18 FIELD2-E awg-establish+transport loc=RU colo=DME (8.39.204.9:7103, 8.47.69.8:854, 8.39.214.9:500)",
+		VerifiedAt: time.Date(2026, 9, 18, 0, 0, 0, 0, time.UTC),
 	},
 	{
 		// Anycast alternates (owner decision 24.08): in the gate since WG5,
@@ -312,7 +324,9 @@ const (
 	// set (warp-socks diversification posture).
 	StrategyBalanced ScanStrategy = "balanced"
 	// StrategyThorough: builtin pool × every measured port plus a fixed
-	// interior sample of the ZeroTrust /24 on core ports. Bounded ≤512.
+	// interior sample of the ZeroTrust /24 on core ports, plus any
+	// FRESH-VERIFIED regional pools (PATCH-22/A7). Bounded ≤
+	// CapCandidatesThorough.
 	StrategyThorough ScanStrategy = "thorough"
 )
 
@@ -320,7 +334,11 @@ const (
 const (
 	CapCandidatesTurbo    = 16
 	CapCandidatesBalanced = 64
-	CapCandidatesThorough = 512
+	// CapCandidatesThorough leaves headroom over the historic 512: the
+	// FIELD2-verified nova-hosts pool (22 measured /32 hosts × core ports =
+	// 88) joins default sourcing after the 2026-09-18 flip, taking the
+	// thorough set to 552.
+	CapCandidatesThorough = 640
 )
 
 // CatalogCandidates builds the bounded, deterministic candidate list for a

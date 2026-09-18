@@ -158,17 +158,23 @@ func TestInWGCatalogGate(t *testing.T) {
 }
 
 // TestRegionalPoolsUnverifiedByDefault: plan-Б pools ship unverified, carry
-// no region claims yet, and never mix into default sourcing.
+// no region claims until a FIELD2 loc= flip, and unverified pools never mix
+// into default sourcing. A verified pool (post-flip) must carry BOTH evidence
+// metadata and a capture stamp, and may then join default sourcing.
 func TestRegionalPoolsUnverifiedByDefault(t *testing.T) {
 	if len(RegionalPools) == 0 {
 		t.Fatal("regional registry is empty")
 	}
 	for _, pool := range RegionalPools {
+		// PATCH-22/A7 lifecycle: a verified pool MAY exist by design once a
+		// FIELD2 loc= flip happened - but ONLY with both evidence metadata
+		// AND a capture stamp. Everything else must stay unverified.
 		if pool.Verified {
-			t.Fatalf("pool %s verified without field evidence", pool.Tag)
-		}
-		if pool.VerifyMeta != "" {
-			t.Fatalf("pool %s carries verification metadata pre-field", pool.Tag)
+			if pool.VerifyMeta == "" || pool.VerifiedAt.IsZero() {
+				t.Fatalf("pool %s verified without evidence metadata/stamp", pool.Tag)
+			}
+		} else if pool.VerifyMeta != "" {
+			t.Fatalf("pool %s carries verification metadata while unverified", pool.Tag)
 		}
 		if pool.Tag == "" {
 			t.Fatal("pool without tag")
@@ -192,6 +198,9 @@ func TestRegionalPoolsUnverifiedByDefault(t *testing.T) {
 		for _, ap := range cands {
 			if !endpointInCatalog(ap) {
 				t.Fatalf("pool candidate %v outside gate", ap)
+			}
+			if pool.Verified {
+				continue // a verified pool may join default sourcing (PATCH-22)
 			}
 			for _, d := range def {
 				if ap == d {
