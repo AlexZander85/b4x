@@ -17,6 +17,7 @@ package transportwarp
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -190,7 +191,13 @@ func (c *NetstackCarrier) HTTPClient(timeout time.Duration) *http.Client {
 		return c.DialStream(ctx, ap)
 	}
 	tr := &http.Transport{
-		DialContext:           dial,
+		DialContext: dial,
+		// Classical curves only: Go 1.24+ offers the X25519MLKEM768 key
+		// share by default, which inflates the TLS ClientHello and the server
+		// flight by ~1.2 KB. Through a WARP tunnel the outer flow gets only a
+		// small per-flow budget (~3-4 KB in this environment), so the
+		// post-quantum handshake can stall (FIELD 2026-09-18, bd b4x-nxx).
+		TLSClientConfig:       &tls.Config{CurvePreferences: []tls.CurveID{tls.X25519, tls.CurveP256}},
 		ForceAttemptHTTP2:     true,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
