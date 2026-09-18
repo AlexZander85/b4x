@@ -674,6 +674,20 @@ func addProxyInputAccept(be routeBackend, mark uint32) {
 		}
 		runLogged("routing: add input accept (proxy) "+fam,
 			fam, "-w", "-I", "INPUT", "1", "-m", "mark", "--mark", markHex, "-j", "ACCEPT")
+		// Keenetic-class routers run an NDM HTTPS/TLS-SNI filter in the
+		// mangle INPUT chain for dport 443 (e.g. _NDM_HTTP_INPUT_TLS_ whose
+		// terminal rule is a DROP for non-allowlisted SNI). Mangle INPUT is
+		// traversed before filter INPUT, so a TPROXY'd marked 443 ClientHello
+		// is dropped there before the rule above can accept it. Accept the
+		// marked packets at the top of mangle INPUT too, so diverted flows
+		// survive the router-level TLS filtering.
+		for i := 0; i < 100; i++ {
+			if _, err := run(fam, "-w", "-t", "mangle", "-D", "INPUT", "-m", "mark", "--mark", markHex, "-j", "ACCEPT"); err != nil {
+				break
+			}
+		}
+		runLogged("routing: add input accept (proxy, mangle) "+fam,
+			fam, "-w", "-t", "mangle", "-I", "INPUT", "1", "-m", "mark", "--mark", markHex, "-j", "ACCEPT")
 	}
 }
 
@@ -722,14 +736,18 @@ func sweepProxyInputAcceptsNft() {
 }
 
 func sweepProxyInputAcceptsIpt(cmd string) {
-	iptDeleteListedLines(cmd, "filter", "INPUT", func(line string) bool {
+	acceptsProxyMark := func(line string) bool {
 		fields := strings.Fields(line)
 		if len(fields) < 2 || fields[1] != "ACCEPT" || !strings.Contains(line, "mark match") {
 			return false
 		}
 		m, ok := iptMarkFromRule(line)
 		return ok && tproxy.InMarkRange(m)
-	})
+	}
+	iptDeleteListedLines(cmd, "filter", "INPUT", acceptsProxyMark)
+	// Mangle INPUT carries the same accept (Keenetic TLS-filter bypass); sweep
+	// stale copies there too so removals do not leak into filter INPUT's peer.
+	iptDeleteListedLines(cmd, "mangle", "INPUT", acceptsProxyMark)
 }
 
 func iptMarkFromRule(line string) (uint32, bool) {
@@ -760,6 +778,11 @@ func removeProxyInputAccept(be routeBackend, mark uint32) {
 		}
 		for i := 0; i < 100; i++ {
 			if _, err := run(fam, "-w", "-D", "INPUT", "-m", "mark", "--mark", markHex, "-j", "ACCEPT"); err != nil {
+				break
+			}
+		}
+		for i := 0; i < 100; i++ {
+			if _, err := run(fam, "-w", "-t", "mangle", "-D", "INPUT", "-m", "mark", "--mark", markHex, "-j", "ACCEPT"); err != nil {
 				break
 			}
 		}
