@@ -265,10 +265,16 @@ func (l *Listener) handle(client net.Conn) {
 	var err error
 	if l.Tunnel != nil {
 		upstream, err = l.dialTunnelTCP(dialCtx, origIP, origPort, domain)
+		cancel()
+		if err != nil {
+			log.Tracef("tproxy: tunnel dial FAILED set=%q %s:%d: %v", l.SetName, targetHost, origPort, err)
+		} else {
+			log.Tracef("tproxy: tunnel dial OK set=%q %s:%d", l.SetName, targetHost, origPort)
+		}
 	} else {
 		upstream, err = socks5.DialUpstream(dialCtx, l.Upstream, targetHost, origPort)
+		cancel()
 	}
-	cancel()
 	if err != nil {
 		log.Tracef("tproxy: upstream dial failed for %s:%d on set %q: %v", targetHost, origPort, l.SetName, err)
 		if !l.FailOpen {
@@ -312,14 +318,16 @@ func pipe(a, b net.Conn) {
 	wg.Add(2)
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(a, b)
+		n, _ := io.Copy(a, b)
+		log.Tracef("tproxy: pipe upstream->client copied %d bytes", n)
 		if c, ok := a.(interface{ CloseWrite() error }); ok {
 			_ = c.CloseWrite()
 		}
 	}()
 	go func() {
 		defer wg.Done()
-		_, _ = io.Copy(b, a)
+		n, _ := io.Copy(b, a)
+		log.Tracef("tproxy: pipe client->upstream copied %d bytes", n)
 		if c, ok := b.(interface{ CloseWrite() error }); ok {
 			_ = c.CloseWrite()
 		}
