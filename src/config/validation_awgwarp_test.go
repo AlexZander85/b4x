@@ -266,6 +266,25 @@ func TestWarpAWGKernelRequiresSelectors(t *testing.T) {
 	}
 }
 
+func TestWarpAWGKernelDefaults(t *testing.T) {
+	k := WarpAWGKernelConfig{}
+	if got := k.EffectiveTable(); got != DefaultWarpAWGPBRTable {
+		t.Fatalf("default table = %d, want %d", got, DefaultWarpAWGPBRTable)
+	}
+	// The field routers run BusyBox `ip`, whose table ids are 8-bit.
+	if DefaultWarpAWGPBRTable > 255 {
+		t.Fatalf("default table %d exceeds the BusyBox 8-bit limit", DefaultWarpAWGPBRTable)
+	}
+	if !k.EffectiveSNAT() {
+		t.Fatal("EffectiveSNAT must default to true (router-correct: masquerade LAN sources)")
+	}
+	off := false
+	k.SNAT = &off
+	if k.EffectiveSNAT() {
+		t.Fatal("EffectiveSNAT must honor an explicit false")
+	}
+}
+
 func TestWarpAWGKernelFieldShapes(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -279,6 +298,8 @@ func TestWarpAWGKernelFieldShapes(t *testing.T) {
 		{"priority too big", func(k *WarpAWGKernelConfig) { k.RulePriority = 32766 }, "kernel.rule_priority"},
 		{"cidr garbage", func(k *WarpAWGKernelConfig) { k.FromCIDRs = []string{"192.168.1/24"} }, "from_cidrs[0]"},
 		{"cidr v6", func(k *WarpAWGKernelConfig) { k.FromCIDRs = []string{"fd00::/8"} }, "from_cidrs[0]"},
+		{"bypass garbage", func(k *WarpAWGKernelConfig) { k.BypassCIDRs = []string{"10.0.0/8"} }, "bypass_cidrs[0]"},
+		{"priority no room for bypass", func(k *WarpAWGKernelConfig) { k.RulePriority = 2 }, "rule_priority"},
 	}
 	for _, tc := range cases {
 		c := NewConfig() // disabled: the shape rules hold ALWAYS

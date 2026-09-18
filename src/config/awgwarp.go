@@ -61,8 +61,13 @@ const (
 	// name keeps the PBR plane stable across reboots; the kernel may still
 	// diverge and the session passes the ACTUAL name to the KernelUp hook.
 	DefaultWarpAWGKernelInterface = "awgwarp0"
-	// DefaultWarpAWGPBRTable mirrors wg-quick's 51820.
-	DefaultWarpAWGPBRTable = 51820
+	// DefaultWarpAWGPBRTable is the dedicated routing table. It is
+	// deliberately small: the field routers run BusyBox `ip`, whose table
+	// identifiers are 8-bit (a numeric table >255 is rejected with
+	// "invalid argument ... to 'table'"). wg-quick's 51820 cannot be
+	// expressed there, so the kernel-TUN default uses 200 (unused on the
+	// field router; collides with no Keenetic table).
+	DefaultWarpAWGPBRTable = 200
 	// DefaultWarpAWGRulePriority sits below the main table (32766) so the
 	// policy selectors are consulted first without shadowing the kernel's
 	// own default rules.
@@ -124,6 +129,19 @@ type WarpAWGKernelConfig struct {
 	// (LAN subnets of the field deployment). REQUIRED in kernel mode — a
 	// kernel TUN without selectors is a half-state and never ships.
 	FromCIDRs []string `json:"from_cidrs"`
+	// BypassCIDRs are DESTINATION prefixes that must keep consulting the
+	// main table before the tunnel selector (local/LAN reachability: a
+	// selector for a device would otherwise also swallow its traffic to the
+	// router itself into the TUN — including the SSH control channel). One
+	// higher-priority "to <prefix> lookup main" rule per entry.
+	BypassCIDRs []string `json:"bypass_cidrs"`
+	// SNAT masquerades the selector traffic leaving the tunnel device. A
+	// router MUST rewrite LAN sources to the tunnel address: the CF WARP WG
+	// edge accepts only the peer's assigned /32 as inner source (the same
+	// role as amnezia-wg-proxy's "iptables -t nat -A POSTROUTING -o
+	// amnezia -j MASQUERADE"). nil -> true (the router-correct default);
+	// set false only for diagnostics.
+	SNAT *bool `json:"snat"`
 }
 
 // EffectiveMode normalizes the data-plane mode ("" -> netstack).
@@ -147,12 +165,23 @@ func (k *WarpAWGKernelConfig) EffectiveInterface() string {
 	return k.Interface
 }
 
-// EffectiveTable fills the routing-table default (wg-quick canon: 51820).
+// EffectiveTable fills the routing-table default (200 — the BusyBox-safe
+// dedicated table; see DefaultWarpAWGPBRTable).
 func (k *WarpAWGKernelConfig) EffectiveTable() int {
 	if k.Table <= 0 {
 		return DefaultWarpAWGPBRTable
 	}
 	return k.Table
+}
+
+// EffectiveSNAT reports whether selector traffic leaving the tunnel is
+// masqueraded. Unset -> true: the router-correct behavior (the WARP edge
+// binds the inner source to the assigned /32).
+func (k *WarpAWGKernelConfig) EffectiveSNAT() bool {
+	if k.SNAT == nil {
+		return true
+	}
+	return *k.SNAT
 }
 
 // EffectiveRulePriority fills the policy-rule priority default (30000 —

@@ -460,15 +460,25 @@ func (c *Config) validateWarpAWGKernel(v *validator) {
 		}
 	}
 	if k.Table < 0 || k.Table > 0xFFFFFE {
-		v.addf("system.warp.awg.kernel.table", "out_of_range", map[string]any{"min": 0, "max": 0xFFFFFE}, "kernel table %d out of range (0 = default 51820)", k.Table)
+		v.addf("system.warp.awg.kernel.table", "out_of_range", map[string]any{"min": 0, "max": 0xFFFFFE}, "kernel table %d out of range (0 = default %d)", k.Table, DefaultWarpAWGPBRTable)
 	}
 	if k.RulePriority < 0 || k.RulePriority > 32765 {
 		v.addf("system.warp.awg.kernel.rule_priority", "out_of_range", map[string]any{"min": 0, "max": 32765}, "kernel rule_priority %d out of range (0 = default 30000; must stay below the main table's 32766)", k.RulePriority)
+	} else if k.RulePriority > 0 && k.RulePriority < 3 {
+		// The anti-loop and bypass rules occupy Priority-1 / Priority-2;
+		// below 3 those collide with the kernel's reserved local rules.
+		v.addf("system.warp.awg.kernel.rule_priority", "out_of_range", map[string]any{"min": 3, "max": 32765}, "kernel rule_priority %d leaves no room for the anti-loop/bypass rules (Priority-1/Priority-2); use >= 3", k.RulePriority)
 	}
 	for i, cidr := range k.FromCIDRs {
 		pfx, err := netip.ParsePrefix(strings.TrimSpace(cidr))
 		if err != nil || !pfx.Addr().Is4() {
 			v.addf(fmt.Sprintf("system.warp.awg.kernel.from_cidrs[%d]", i), "invalid_value", map[string]any{"cidr": cidr}, "from_cidrs[%d] %q must be an IPv4 prefix", i, cidr)
+		}
+	}
+	for i, cidr := range k.BypassCIDRs {
+		pfx, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+		if err != nil || !pfx.Addr().Is4() {
+			v.addf(fmt.Sprintf("system.warp.awg.kernel.bypass_cidrs[%d]", i), "invalid_value", map[string]any{"cidr": cidr}, "bypass_cidrs[%d] %q must be an IPv4 prefix", i, cidr)
 		}
 	}
 }

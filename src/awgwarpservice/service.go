@@ -117,6 +117,9 @@ type Options struct {
 	// wiring plans without privileges; production leaves it nil for
 	// iproute2).
 	PBRRun func(name string, args ...string) error
+	// IptRun overrides the KernelPBR iptables runner (tests; production
+	// leaves it nil for the iptables binary).
+	IptRun func(name string, args ...string) error
 	// Now is the clock seam (tests).
 	Now func() time.Time
 	// OnEvent is the non-blocking event sink (the daemon log renderer).
@@ -237,11 +240,14 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		}
 		r.kernelMode = true
 		r.pbr = &KernelPBR{
-			Table:     awg.Kernel.EffectiveTable(),
-			Priority:  awg.Kernel.EffectiveRulePriority(),
-			FwMark:    awg.Kernel.EffectiveFwMark(),
-			FromCIDRs: append([]string(nil), awg.Kernel.FromCIDRs...),
-			Run:       opts.PBRRun,
+			Table:       awg.Kernel.EffectiveTable(),
+			Priority:    awg.Kernel.EffectiveRulePriority(),
+			FwMark:      awg.Kernel.EffectiveFwMark(),
+			FromCIDRs:   append([]string(nil), awg.Kernel.FromCIDRs...),
+			BypassCIDRs: append([]string(nil), awg.Kernel.BypassCIDRs...),
+			SNAT:        awg.Kernel.EffectiveSNAT(),
+			Run:         opts.PBRRun,
+			IptRun:      opts.IptRun,
 		}
 	}
 	return r, nil
@@ -493,10 +499,7 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 	// pre-trace DNS probes; b4's trust gate sends 2x UDP/53 through the same
 	// tunnel first. B4_AWG_NO_GATE=1 skips the gate round-trips (the detached
 	// TraceOnly probe still runs) so the field can attribute the stall.
-	gateRoundTrips := 2
-	if os.Getenv("B4_AWG_NO_GATE") == "1" {
-		gateRoundTrips = 0
-	}
+	gateRoundTrips := seedGateRoundTrips(r.kernelMode)
 	s, err := twg.NewSession(twg.SessionConfig{
 		Ident:        ident,
 		Profile:      profile,
@@ -518,8 +521,11 @@ func (r *Runtime) ensureSession(ctx context.Context) {
 				DNSServer:  [4]byte{1, 1, 1, 1},
 				// FIELD2 phase E: report loc=/colo= from /cdn-cgi/trace WITHOUT
 				// gating — the DNS gate still proves the path, and the trace
-				// gives the pool -> country mapping.
-				TraceOnly: true,
+				// gives the pool -> country mapping. B4_AWG_NO_TRACE=1 is the
+				// field diagnostic that skips the detached probe (the WARP
+				// outer flow has a small per-flow budget here; the probe may
+				// consume it before a real client flow arrives).
+				TraceOnly: os.Getenv("B4_AWG_NO_TRACE") != "1",
 				OnTrace: func(body string) {
 					r.appendEvent(Event{Name: "awgwarp_trace", Detail: traceDetail(body)})
 				},
@@ -669,6 +675,23 @@ func (r *Runtime) seekOnce(ctx context.Context) (*twg.Winner, bool) {
 		return nil, false
 	}
 	return res.Winner, true
+}
+
+// seedGateRoundTrips selects the trust-gate budget for a session build.
+// Kernel-TUN sessions skip the raw DNS gate: the probe would race the
+// device's own /dev/net/tun reads and inject in the wrong direction, so
+// liveness is proven by the handshake + the counters watchdog (the proton
+// GateSkip contract, transport/wg/trustgate.go). B4_AWG_NO_GATE=1 is the
+// field diagnostic override (0 -> fillDefaults would re-arm the default,
+// so the override uses 0 only for netstack attribution).
+func seedGateRoundTrips(kernelMode bool) int {
+	if os.Getenv("B4_AWG_NO_GATE") == "1" {
+		return 0
+	}
+	if kernelMode {
+		return twg.GateSkip
+	}
+	return 2
 }
 
 // traceDetail extracts the fields FIELD2 phase E needs from a raw

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	twg "github.com/daniellavrushin/b4/transport/wg"
 )
 
 // runRecorder captures every executed command.
@@ -47,12 +48,15 @@ func kernelTestConfig(cidrs ...string) *config.Config {
 func TestKernelPBRUpPlan(t *testing.T) {
 	rec := &runRecorder{}
 	p := &KernelPBR{
-		AssignedV4: "172.16.0.2",
-		Table:      51820,
-		Priority:   30000,
-		FwMark:     51820,
-		FromCIDRs:  []string{"192.168.1.0/24", "10.10.0.0/16"},
-		Run:        rec.run,
+		AssignedV4:  "172.16.0.2",
+		Table:       200,
+		Priority:    30000,
+		FwMark:      51820,
+		FromCIDRs:   []string{"192.168.1.0/24", "10.10.0.0/16"},
+		BypassCIDRs: []string{"192.168.1.0/24"},
+		SNAT:        true,
+		Run:         rec.run,
+		IptRun:      rec.run,
 	}
 	if err := p.Up("awgwarp0"); err != nil {
 		t.Fatalf("up: %v", err)
@@ -60,15 +64,49 @@ func TestKernelPBRUpPlan(t *testing.T) {
 	want := []string{
 		"ip addr replace 172.16.0.2/32 dev awgwarp0",
 		"ip link set dev awgwarp0 up",
-		"ip route replace default dev awgwarp0 table 51820",
-		// del (best effort) + add per selector, in order
-		"ip rule del pref 30000 not fwmark 51820 from 192.168.1.0/24 table 51820",
-		"ip rule add pref 30000 not fwmark 51820 from 192.168.1.0/24 table 51820",
-		"ip rule del pref 30000 not fwmark 51820 from 10.10.0.0/16 table 51820",
-		"ip rule add pref 30000 not fwmark 51820 from 10.10.0.0/16 table 51820",
+		"ip route replace default dev awgwarp0 table 200",
+		// anti-loop first (positive fwmark — BusyBox has no `not`),
+		// then the destination bypass, then the selectors.
+		"ip rule del pref 29999 fwmark 51820 table main",
+		"ip rule add pref 29999 fwmark 51820 table main",
+		"ip rule del pref 29998 to 192.168.1.0/24 table main",
+		"ip rule add pref 29998 to 192.168.1.0/24 table main",
+		"ip rule del pref 30000 not fwmark 51820 from 192.168.1.0/24 table 200",
+		"ip rule del pref 30000 from 192.168.1.0/24 table 200",
+		"ip rule add pref 30000 from 192.168.1.0/24 table 200",
+		"ip rule del pref 30000 not fwmark 51820 from 10.10.0.0/16 table 200",
+		"ip rule del pref 30000 from 10.10.0.0/16 table 200",
+		"ip rule add pref 30000 from 10.10.0.0/16 table 200",
+		// SNAT: masquerade per selector + a forwarding accept.
+		"iptables -w -t nat -D POSTROUTING -s 192.168.1.0/24 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -t nat -A POSTROUTING -s 192.168.1.0/24 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -t nat -D POSTROUTING -s 10.10.0.0/16 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -t nat -A POSTROUTING -s 10.10.0.0/16 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -D FORWARD -o awgwarp0 -j ACCEPT",
+		"iptables -w -I FORWARD 1 -o awgwarp0 -j ACCEPT",
 	}
 	if rec.joined() != strings.Join(want, "\n") {
 		t.Fatalf("up plan mismatch:\n got:\n%s\nwant:\n%s", rec.joined(), strings.Join(want, "\n"))
+	}
+}
+
+func TestKernelPBRUpSNATDisabled(t *testing.T) {
+	rec := &runRecorder{}
+	p := &KernelPBR{
+		AssignedV4: "172.16.0.2",
+		Table:      200,
+		Priority:   30000,
+		FwMark:     51820,
+		FromCIDRs:  []string{"192.168.1.0/24"},
+		SNAT:       false,
+		Run:        rec.run,
+		IptRun:     rec.run,
+	}
+	if err := p.Up("awgwarp0"); err != nil {
+		t.Fatalf("up: %v", err)
+	}
+	if strings.Contains(rec.joined(), "iptables") {
+		t.Fatalf("SNAT disabled must not touch iptables:\n%s", rec.joined())
 	}
 }
 
@@ -152,19 +190,29 @@ func TestKernelPBRUpRejectsEmptyState(t *testing.T) {
 func TestKernelPBRDownPlan(t *testing.T) {
 	rec := &runRecorder{}
 	p := &KernelPBR{
-		AssignedV4: "172.16.0.2",
-		Table:      51820,
-		Priority:   30000,
-		FwMark:     51820,
-		FromCIDRs:  []string{"192.168.1.0/24", "10.10.0.0/16"},
-		Run:        rec.run,
+		AssignedV4:  "172.16.0.2",
+		Table:       200,
+		Priority:    30000,
+		FwMark:      51820,
+		FromCIDRs:   []string{"192.168.1.0/24", "10.10.0.0/16"},
+		BypassCIDRs: []string{"192.168.1.0/24"},
+		SNAT:        true,
+		Run:         rec.run,
+		IptRun:      rec.run,
 	}
 	// Down is best-effort: even a failing flush is swallowed.
 	p.Down("awgwarp0")
 	want := []string{
-		"ip rule del pref 30000 not fwmark 51820 from 192.168.1.0/24 table 51820",
-		"ip rule del pref 30000 not fwmark 51820 from 10.10.0.0/16 table 51820",
-		"ip route flush table 51820 dev awgwarp0",
+		"ip rule del pref 30000 from 192.168.1.0/24 table 200",
+		"ip rule del pref 30000 not fwmark 51820 from 192.168.1.0/24 table 200",
+		"ip rule del pref 30000 from 10.10.0.0/16 table 200",
+		"ip rule del pref 30000 not fwmark 51820 from 10.10.0.0/16 table 200",
+		"ip rule del pref 29998 to 192.168.1.0/24 table main",
+		"ip rule del pref 29999 fwmark 51820 table main",
+		"iptables -w -t nat -D POSTROUTING -s 192.168.1.0/24 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -t nat -D POSTROUTING -s 10.10.0.0/16 -o awgwarp0 -j MASQUERADE",
+		"iptables -w -D FORWARD -o awgwarp0 -j ACCEPT",
+		"ip route flush table 200 dev awgwarp0",
 	}
 	if rec.joined() != strings.Join(want, "\n") {
 		t.Fatalf("down plan mismatch:\n got:\n%s\nwant:\n%s", rec.joined(), strings.Join(want, "\n"))
@@ -172,8 +220,56 @@ func TestKernelPBRDownPlan(t *testing.T) {
 	// Idempotent: a second Down replays the same best-effort plan.
 	rec.calls = nil
 	p.Down("awgwarp0")
-	if len(rec.calls) != 3 {
-		t.Fatalf("second down must replay 3 commands, got %d", len(rec.calls))
+	if len(rec.calls) != len(want) {
+		t.Fatalf("second down must replay %d commands, got %d", len(want), len(rec.calls))
+	}
+}
+
+func TestKernelPBRUpRollsBackOnFailure(t *testing.T) {
+	// A failing route command must roll the already-added rules back (the
+	// session contract only calls KernelDown after a SUCCESSFUL Up).
+	rec := &runRecorder{fail: func(name string, args []string) error {
+		if name == "iptables" {
+			return errors.New("iptables: operation not permitted")
+		}
+		return nil
+	}}
+	p := &KernelPBR{
+		AssignedV4: "172.16.0.2",
+		Table:      200,
+		Priority:   30000,
+		FwMark:     51820,
+		FromCIDRs:  []string{"192.168.1.0/24"},
+		SNAT:       true,
+		Run:        rec.run,
+		IptRun:     rec.run,
+	}
+	if err := p.Up("awgwarp0"); err == nil {
+		t.Fatal("SNAT failure must abort Up")
+	}
+	// The rollback must have removed the selector and anti-loop rules.
+	j := rec.joined()
+	for _, want := range []string{
+		"ip rule del pref 30000 from 192.168.1.0/24 table 200",
+		"ip rule del pref 29999 fwmark 51820 table main",
+	} {
+		if !strings.Contains(j, want) {
+			t.Fatalf("rollback missing %q:\n%s", want, j)
+		}
+	}
+}
+
+func TestSeedGateRoundTrips(t *testing.T) {
+	t.Setenv("B4_AWG_NO_GATE", "")
+	if got := seedGateRoundTrips(false); got != 2 {
+		t.Fatalf("netstack gate round trips = %d, want 2", got)
+	}
+	if got := seedGateRoundTrips(true); got != twg.GateSkip {
+		t.Fatalf("kernel gate round trips = %d, want GateSkip (%d)", got, twg.GateSkip)
+	}
+	t.Setenv("B4_AWG_NO_GATE", "1")
+	if got := seedGateRoundTrips(false); got != 0 {
+		t.Fatalf("B4_AWG_NO_GATE override = %d, want 0", got)
 	}
 }
 
