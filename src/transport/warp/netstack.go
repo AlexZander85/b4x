@@ -46,6 +46,14 @@ type PacketSink interface {
 
 const netstackQueueLen = 256
 
+const (
+	// defaultDoHEndpoint is the in-tunnel resolver used when a hostname must
+	// be resolved and no override was set: Cloudflare, the WARP edge's own
+	// resolver. MUST stay a literal IPv4 URL - it is dialed through this same
+	// carrier, so a hostname here would recurse.
+	defaultDoHEndpoint = "https://1.1.1.1/dns-query"
+)
+
 var ErrNetstackClosed = errors.New("transportwarp: netstack carrier closed")
 
 // NetstackCarrier is one userspace IP host attached to a tunnel packet path.
@@ -58,6 +66,12 @@ type NetstackCarrier struct {
 	mu     sync.Mutex
 	closed bool
 	cancel context.CancelFunc
+
+	// In-tunnel DNS (b4x-4cl): hostnames handed to DialStreamHost/HTTPClient
+	// are resolved with RFC 8484 DoH carried through this same tunnel.
+	dohMu       sync.Mutex
+	doh         *DoHResolver
+	dohEndpoint string
 }
 
 // AttachNetstack builds the userspace host with address localV4 (the WARP
@@ -171,24 +185,81 @@ func (c *NetstackCarrier) DialStream(ctx context.Context, addr netip.AddrPort) (
 	return conn, nil
 }
 
+// WithDoHResolver overrides the in-tunnel DoH endpoint used to resolve the
+// hostnames handed to DialStreamHost/HTTPClient (b4x-4cl). The endpoint MUST
+// be a literal IPv4 URL: it is dialed through this same carrier, so a hostname
+// would recurse. Empty keeps the WARP default (Cloudflare 1.1.1.1).
+func (c *NetstackCarrier) WithDoHResolver(endpointURL string) *NetstackCarrier {
+	c.dohMu.Lock()
+	c.dohEndpoint = strings.TrimSpace(endpointURL)
+	c.doh = nil
+	c.dohMu.Unlock()
+	return c
+}
+
+// resolver lazily builds the DoH resolver bound to this carrier.
+func (c *NetstackCarrier) resolver() *DoHResolver {
+	c.dohMu.Lock()
+	defer c.dohMu.Unlock()
+	if c.doh == nil {
+		ep := c.dohEndpoint
+		if ep == "" {
+			ep = defaultDoHEndpoint
+		}
+		c.doh = NewDoHResolver().WithExchange(DoHExchangeViaNetstack(c, ep))
+	}
+	return c.doh
+}
+
+// resolveV4 returns the literal IPv4 of host, resolving a hostname through
+// the tunnel (in-tunnel DoH) when needed. Non-IPv4 literals are refused.
+func (c *NetstackCarrier) resolveV4(ctx context.Context, host string) (netip.Addr, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		if v4 := ip.To4(); v4 != nil {
+			return netip.AddrFrom4([4]byte(v4)), nil
+		}
+		return netip.Addr{}, fmt.Errorf("transportwarp: netstack v1 carries IPv4 only, got %q", host)
+	}
+	addrs, _, err := c.resolver().ResolveA(ctx, host)
+	if err != nil {
+		return netip.Addr{}, fmt.Errorf("transportwarp: netstack v1 in-tunnel resolve %q: %w", host, err)
+	}
+	for _, a := range addrs {
+		if a.Is4() {
+			return a, nil
+		}
+	}
+	return netip.Addr{}, fmt.Errorf("transportwarp: netstack v1 in-tunnel resolve %q: no IPv4 answer", host)
+}
+
+// DialStreamHost dials host:port through the tunnel, resolving the hostname
+// with in-tunnel DoH first. It implements the tproxy hostDialer seam so a
+// routing.mode=tunnel set that targets a DOMAIN (not a literal IP) is carried
+// by the netstack carrier (b4x-4cl).
+func (c *NetstackCarrier) DialStreamHost(ctx context.Context, host string, port uint16) (net.Conn, error) {
+	addr, err := c.resolveV4(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	return c.DialStream(ctx, netip.AddrPortFrom(addr, port))
+}
+
 // HTTPClient returns an HTTP client whose connections ride the tunnel.
-// Hostnames are resolved by the CALLER (TunnelResolver/DoH); only literal-IP
-// URLs and pre-resolved dial addresses are carried by v1.
+// Hostnames are resolved in-tunnel (RFC 8484 DoH over this carrier, b4x-4cl);
+// literal-IPv4 URLs dial directly. The DoH endpoint itself is always a
+// literal IPv4, so the resolver never recurses.
 func (c *NetstackCarrier) HTTPClient(timeout time.Duration) *http.Client {
 	dial := func(ctx context.Context, network, addr string) (net.Conn, error) {
 		host, portS, err := net.SplitHostPort(addr)
 		if err != nil {
 			return nil, fmt.Errorf("transportwarp: bad dial addr %q: %w", addr, err)
 		}
-		ip := net.ParseIP(host)
-		if ip == nil || ip.To4() == nil {
-			return nil, fmt.Errorf("transportwarp: netstack v1 needs literal IPv4 dial targets, got %q", host)
-		}
-		var p4 [4]byte
-		copy(p4[:], ip.To4())
 		port, _ := parseUint16(portS)
-		ap := netip.AddrPortFrom(netip.AddrFrom4(p4), port)
-		return c.DialStream(ctx, ap)
+		ip, rerr := c.resolveV4(ctx, host)
+		if rerr != nil {
+			return nil, rerr
+		}
+		return c.DialStream(ctx, netip.AddrPortFrom(ip, port))
 	}
 	tr := &http.Transport{
 		DialContext: dial,

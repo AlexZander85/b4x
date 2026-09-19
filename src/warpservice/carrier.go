@@ -61,6 +61,28 @@ func (c *MasqueCarrier) DialStream(ctx context.Context, addr netip.AddrPort) (ne
 	return nc.DialStream(ctx, addr)
 }
 
+// DialStreamHost implements the tproxy hostDialer seam (b4x-4cl): the domain
+// is resolved in-tunnel (RFC 8484 DoH through the MASQUE carrier) and then
+// dialed, so a routing.mode=tunnel set that targets a DOMAIN - not only a
+// literal IP - is carried by netstack v1. Same dead-generation retry as
+// DialStream.
+func (c *MasqueCarrier) DialStreamHost(ctx context.Context, host string, port uint16) (net.Conn, error) {
+	nc, err := c.attached()
+	if err != nil {
+		return nil, err
+	}
+	conn, derr := nc.DialStreamHost(ctx, host, port)
+	if derr == nil {
+		return conn, nil
+	}
+	c.rebuild()
+	nc, err = c.attached()
+	if err != nil {
+		return nil, err
+	}
+	return nc.DialStreamHost(ctx, host, port)
+}
+
 // attached returns the cached netstack, attaching one on first use.
 func (c *MasqueCarrier) attached() (*warp.NetstackCarrier, error) {
 	c.mu.Lock()
