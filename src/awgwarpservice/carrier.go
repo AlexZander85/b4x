@@ -13,6 +13,8 @@ package awgwarpservice
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net"
 	"net/netip"
 
@@ -75,6 +77,65 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 	return conn, nil
 }
 
+// hostDialer is the tproxy hostname-dial seam (the structural mirror of
+// tproxy.hostDialer, b4x-4cl): when a routing.mode=tunnel set targets a
+// DOMAIN, the listener hands the name here and the AWG session's netstack
+// resolves it in-tunnel — its DNS (1.1.1.1) rides inside the WARP tunnel.
+type hostDialer interface {
+	DialStreamHost(ctx context.Context, host string, port uint16) (net.Conn, error)
+}
+
+// DialStreamHost dials ONE TCP stream to host:port THROUGH the established
+// session's netstack, resolving the hostname with the netstack's own
+// in-tunnel DNS (b4x-1ev). A literal IPv4 host short-circuits the DNS round
+// trip inside LookupContextHost. Refusals mirror DialStream: no session is
+// ErrNotListening, kernel-TUN mode is ErrKernelMode.
+func (r *Runtime) DialStreamHost(ctx context.Context, host string, port uint16) (net.Conn, error) {
+	sess, err := r.carrierSession()
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	tun := sess.Tunnel()
+	if tun == nil || tun.Netstack == nil {
+		r.recordDial(false)
+		return nil, ErrNotListening
+	}
+	addrs, err := tun.Netstack.LookupContextHost(ctx, host)
+	if err != nil {
+		r.recordDial(false)
+		return nil, fmt.Errorf("awgwarp: netstack resolve %q: %w", host, err)
+	}
+	addr, err := firstIPv4(addrs)
+	if err != nil {
+		r.recordDial(false)
+		return nil, fmt.Errorf("awgwarp: netstack resolve %q: %w", host, err)
+	}
+	conn, err := tun.Netstack.DialContextTCPAddrPort(ctx, netip.AddrPortFrom(addr, port))
+	if err != nil {
+		r.recordDial(false)
+		return nil, err
+	}
+	r.recordDial(true)
+	return conn, nil
+}
+
+// firstIPv4 picks the first IPv4 answer from a netstack lookup result
+// (4-in-6 forms unmapped). The AWG transport is IPv4-only, exactly like the
+// netstack carrier's resolveV4 (b4x-4cl).
+func firstIPv4(addrs []string) (netip.Addr, error) {
+	for _, s := range addrs {
+		a, err := netip.ParseAddr(s)
+		if err != nil {
+			continue
+		}
+		if a = a.Unmap(); a.Is4() {
+			return a, nil
+		}
+	}
+	return netip.Addr{}, errors.New("no IPv4 answer")
+}
+
 // DialUDP implements reserve.Carrier: ONE UDP exchange to addr THROUGH
 // the established session's netstack — the UDP full-scope leg.
 func (r *Runtime) DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, error) {
@@ -108,5 +169,9 @@ func (r *Runtime) recordDial(ok bool) {
 	}
 }
 
-// Compile-time proof the Runtime satisfies the reserve contract.
-var _ reserve.Carrier = (*Runtime)(nil)
+// Compile-time proof the Runtime satisfies the reserve contract and the
+// tproxy hostname-dial seam.
+var (
+	_ reserve.Carrier = (*Runtime)(nil)
+	_ hostDialer      = (*Runtime)(nil)
+)
