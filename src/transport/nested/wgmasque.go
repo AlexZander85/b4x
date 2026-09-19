@@ -129,6 +129,7 @@ type WgMasqueRuntime struct {
 	innerCancel    context.CancelFunc
 	cancelCtx      context.Context
 	outerSession   *twg.Session
+	probeStop      context.CancelFunc // b4x-sce: outer liveness probe
 
 	startErr error
 
@@ -426,6 +427,9 @@ func (r *WgMasqueRuntime) onParentUp() {
 	r.outerWitness = edgeWitness{ip: r.cfg.Pair.Outer.Endpoint.Addr().String()}
 	r.mu.Unlock()
 
+	// b4x-sce: feed the outer rx anchor while this establishment lives.
+	r.startOuterProbe()
+
 	sup, err := twarp.NewSupervisor(twarp.SupervisorConfig{
 		Template: r.innerTemplate(carrier),
 		Reconciler: &twarp.Reconciler{
@@ -573,8 +577,10 @@ func (r *WgMasqueRuntime) stopInner() {
 	r.mu.Lock()
 	inner := r.inner
 	icancel := r.innerCancel
+	probe := r.probeStop
 	r.inner = nil
 	r.innerCancel = nil
+	r.probeStop = nil
 	r.mu.Unlock()
 	if icancel != nil {
 		icancel()
@@ -582,6 +588,35 @@ func (r *WgMasqueRuntime) stopInner() {
 	if inner != nil {
 		inner.Stop()
 	}
+	if probe != nil {
+		probe()
+	}
+}
+
+// startOuterProbe (b4x-sce): feed the OUTER AWG session's rx anchor with a real
+// TLS probe reply so a quiet-but-live outer (cf-field-i1 carries data) is not
+// mistaken for a dead WAN. Runs while the outer is up; cancelled by stopInner
+// on parent loss / teardown.
+func (r *WgMasqueRuntime) startOuterProbe() {
+	r.mu.Lock()
+	outer := r.outerSession
+	ctx := r.cancelCtx
+	if r.probeStop != nil {
+		r.probeStop()
+		r.probeStop = nil
+	}
+	r.mu.Unlock()
+	if outer == nil || ctx == nil {
+		return
+	}
+	tun := outer.Tunnel()
+	if tun == nil || tun.Netstack == nil {
+		return
+	}
+	stop := twg.StartLivenessProbe(ctx, tun.Netstack, twg.NestedProbeInterval)
+	r.mu.Lock()
+	r.probeStop = stop
+	r.mu.Unlock()
 }
 
 func (r *WgMasqueRuntime) bumpGen() uint64 {
