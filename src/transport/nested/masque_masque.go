@@ -350,7 +350,11 @@ func (r *MasqueMasqueRuntime) startChild(gen uint64) error {
 			API:   r.cfg.InnerEnroll,
 			Store: &twarp.IdentityStore{Path: r.cfg.InnerSlotPath},
 		},
-		Sink: r.innerSinkBridge(),
+		// FIELD3 (b4x-7m8): the inner secondary identity is enrolled ONCE;
+		// revalidation against the DPI-blocked API from inside the nested
+		// path emits warp_identity_blocked and tears the composition down.
+		DeferRevalidation: true,
+		Sink:              r.innerSinkBridge(),
 	})
 	if serr != nil {
 		release()

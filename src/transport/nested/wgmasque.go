@@ -432,6 +432,12 @@ func (r *WgMasqueRuntime) onParentUp() {
 			API:   r.cfg.InnerEnroll,
 			Store: &twarp.IdentityStore{Path: r.cfg.InnerSlotPath},
 		},
+		// FIELD3 (b4x-7m8): the inner secondary identity is enrolled ONCE
+		// (the chain slot). Revalidating it would run against the
+		// DPI-blocked enrollment API from inside the nested path and emit
+		// warp_identity_blocked -> composition teardown -> oscillation.
+		// Trust the stored identity (the base-warp defer_revalidation canon).
+		DeferRevalidation: true,
 		// MAJOR-5: the bridge closes the inner gate on this
 		// generation's first warp_masque_connected and forwards every
 		// event to the operator sink verbatim.

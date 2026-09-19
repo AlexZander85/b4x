@@ -565,7 +565,7 @@ func (r *Runtime) assembleMasqueAwg(ctx context.Context, inner *twg.Identity) er
 			r.appendEvent(Event{Name: "warpchain_composition_event", Detail: ev.Class + ": " + ev.Reason})
 		},
 		OuterSink: func(ev twarp.SupervisorEvent) {
-			r.appendEvent(Event{Name: "warpchain_outer_event", Detail: ev.Name})
+			r.appendEvent(Event{Name: "warpchain_outer_event", Detail: fmt.Sprintf("%s class=%s status=%d %s", ev.Name, ev.FailureClass, ev.Status, ev.Detail)})
 		},
 	})
 	if err != nil {
@@ -637,7 +637,7 @@ func (r *Runtime) assembleMasqueMasque(ctx context.Context) error {
 			r.appendEvent(Event{Name: "warpchain_composition_event", Detail: ev.Class + ": " + ev.Reason})
 		},
 		InnerSink: func(ev twarp.SupervisorEvent) {
-			r.appendEvent(Event{Name: "warpchain_inner_event", Detail: ev.Name})
+			r.appendEvent(Event{Name: "warpchain_inner_event", Detail: fmt.Sprintf("%s class=%s status=%d %s", ev.Name, ev.FailureClass, ev.Status, ev.Detail)})
 		},
 	})
 	if aerr != nil {
@@ -689,7 +689,7 @@ func (r *Runtime) assembleWgMasque(outer *twg.Identity) error {
 			r.appendEvent(Event{Name: "warpchain_composition_event", Detail: ev.Class + ": " + ev.Reason})
 		},
 		InnerSink: func(ev twarp.SupervisorEvent) {
-			r.appendEvent(Event{Name: "warpchain_inner_event", Detail: ev.Name})
+			r.appendEvent(Event{Name: "warpchain_inner_event", Detail: fmt.Sprintf("%s class=%s status=%d %s", ev.Name, ev.FailureClass, ev.Status, ev.Detail)})
 		},
 	})
 	if err != nil {
