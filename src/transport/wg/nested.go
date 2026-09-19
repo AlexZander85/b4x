@@ -9,7 +9,9 @@
 // Hard rules enforced by NestedWgConfig.Validate:
 //
 //   - two INDEPENDENT identities (distinct private keys);
-//   - distinct assigned tunnel addresses;
+//   - assigned tunnel addresses may be EQUAL: each layer runs in its OWN
+//     netstack, so CF's shared 172.16.0.2 is not a collision (warpscout/nest.go
+//     nests WARP-in-WARP with the same address);
 //   - DIFFERENT edge IPs per layer (gool hard rule; the seeker's
 //     distinct_by_ip discipline upstream);
 //   - MTU gradient inner < outer (defaults 1200 < 1280);
@@ -36,7 +38,6 @@ const (
 // Structural validation errors (§62.10-style reason identity).
 var (
 	ErrNestedIdenticalIdentity = errors.New("transportwg: nested layers must use two independent identities")
-	ErrNestedAddressConflict   = errors.New("transportwg: nested layers assign the same tunnel address")
 	ErrNestedSameEdge          = errors.New("transportwg: nested layers must terminate on different edge IPs (gool hard rule)")
 	ErrNestedMTUGradient       = errors.New("transportwg: inner MTU must be strictly below outer MTU")
 	ErrInnerNotLoopback        = errors.New("transportwg: backend-b inner endpoint must be loopback (carrier proof)")
@@ -132,17 +133,10 @@ func (c *NestedWgConfig) Validate() error {
 		return ErrNestedIdenticalIdentity
 	}
 
-	oV4, err := netip.ParseAddr(c.Outer.Ident.AssignedV4)
-	if err != nil {
-		return fmt.Errorf("%w: outer assigned_v4 %q", ErrNestedAddressConflict, c.Outer.Ident.AssignedV4)
-	}
-	iV4, err2 := netip.ParseAddr(c.Inner.Ident.AssignedV4)
-	if err2 != nil {
-		return fmt.Errorf("%w: inner assigned_v4 %q", ErrNestedAddressConflict, c.Inner.Ident.AssignedV4)
-	}
-	if oV4 == iV4 {
-		return ErrNestedAddressConflict
-	}
+	// b4x-w96: the two layers may share the CF-assigned tunnel address
+	// (172.16.0.2); each runs in its OWN netstack, so there is no collision
+	// (warpscout/nest.go nests WARP-in-WARP with the same address). Identity
+	// validity (assigned_v4 parse) is already enforced by Ident.Validate above.
 
 	if !c.OuterEdge.IsValid() || !c.InnerEdge.IsValid() {
 		return fmt.Errorf("transportwg: nested edges invalid: outer=%v inner=%v", c.OuterEdge, c.InnerEdge)

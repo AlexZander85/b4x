@@ -71,7 +71,10 @@ func TestNestedWgValidate(t *testing.T) {
 		}
 	})
 
-	t.Run("address-conflict", func(t *testing.T) {
+	t.Run("same-assigned-address-allowed", func(t *testing.T) {
+		// b4x-w96: CF assigns 172.16.0.2 to every device; the layers live in
+		// separate netstacks, so the same address is legal (warpscout nests
+		// WARP-in-WARP with it). Only the private keys must differ.
 		c := validNestedWg()
 		c.Outer.Ident = outerID
 		same, err := NewIdentity(mustKeyNow().B64(), mustPub(t, mustKeyNow()).B64(), "uS7/", outerID.AssignedV4, "", false)
@@ -79,8 +82,8 @@ func TestNestedWgValidate(t *testing.T) {
 			t.Fatal(err)
 		}
 		c.Inner.Ident = same
-		if !errors.Is(c.Validate(), ErrNestedAddressConflict) {
-			t.Fatal("same assigned address accepted")
+		if err := c.Validate(); err != nil {
+			t.Fatalf("same assigned address must be allowed (separate netstacks): %v", err)
 		}
 	})
 
