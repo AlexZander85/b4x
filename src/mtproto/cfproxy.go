@@ -81,6 +81,28 @@ func defaultCFProxyDomains() []string {
 	return out
 }
 
+// cfProxyFailOpenHosts returns the shared CF-proxy worker hosts for the given
+// Telegram DC, formatted as the per-DC kws<N>.<base> names the CF proxy edge
+// expects (the same shape planTransports builds for the primary MTProto route).
+// The prefix is clamped to kws1..kws5; a non-DC destination (dc<=0) falls back
+// to kws2. The pool routes by the /apiws dst parameter, so the prefix only
+// shapes the SNI/cert. Empty only when the pool itself is empty.
+func cfProxyFailOpenHosts(dc int) []string {
+	absDC := dc
+	if absDC < 0 {
+		absDC = -absDC
+	}
+	if absDC < 1 || absDC > 5 {
+		absDC = 2
+	}
+	bases := cfBalancerInst.domainsForDC(dc)
+	out := make([]string, 0, len(bases))
+	for _, base := range bases {
+		out = append(out, fmt.Sprintf("kws%d.%s", absDC, base))
+	}
+	return out
+}
+
 // isValidCFDomain mirrors tg-ws-proxy/proxy/config.py:_is_valid_domain.
 func isValidCFDomain(domain string) bool {
 	if domain == "" || len(domain) > 253 {

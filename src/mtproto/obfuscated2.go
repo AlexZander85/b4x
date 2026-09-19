@@ -80,6 +80,20 @@ func shuffledWorkerDomains(cfg *config.MTProtoConfig) []string {
 	return out
 }
 
+// failOpenWorkerHosts selects the transparent-bridge fail-open worker hosts:
+// the owner's private workers (system.mtproto.cfworker_domain) when configured,
+// otherwise the shared CF-proxy pool. The primary MTProto route already falls
+// back to that pool (planTransports / cfBalancerInst); the generic HTTPS/WSS
+// fail-open must do the same instead of giving up and trying a direct dial to a
+// blocked Telegram IP - e.g. web.telegram.org, whose Telegram DC IP is captured
+// by a telegram routing set (b4x-0z7).
+func failOpenWorkerHosts(cfg *config.MTProtoConfig, dc int) []string {
+	if hosts := workerDomains(cfg); len(hosts) > 0 {
+		return hosts
+	}
+	return cfProxyFailOpenHosts(dc)
+}
+
 func workerDstIP(absDC int) string {
 	addr, ok := dcAddressesV4[absDC]
 	if !ok {

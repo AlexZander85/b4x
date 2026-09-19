@@ -298,13 +298,6 @@ func (b *TransparentBridge) finishHandshake(client net.Conn, init []byte, head i
 
 func (b *TransparentBridge) FailOpenViaWorker(client net.Conn, origIP net.IP, origPort int) bool {
 	cfg := b.cfg.Load()
-	mt := cfg.System.MTProto
-	domains := workerDomains(&mt)
-	if len(domains) == 0 {
-		return false
-	}
-	id := nextConnID()
-	tag := tg(id)
 	dst := origIP.String()
 	dc := 0
 	if m, ok := dcForIP(origIP); ok {
@@ -312,6 +305,16 @@ func (b *TransparentBridge) FailOpenViaWorker(client net.Conn, origIP net.IP, or
 	} else if m, ok := dcForIPRange(origIP); ok {
 		dc = m
 	}
+	// Private workers when configured, otherwise the shared CF-proxy pool
+	// (b4x-0z7): a generic HTTPS/WSS fail-open (e.g. web.telegram.org on a
+	// Telegram DC IP) must be tunneled through a worker instead of falling
+	// through to a direct dial to a blocked Telegram IP.
+	domains := failOpenWorkerHosts(&cfg.System.MTProto, dc)
+	if len(domains) == 0 {
+		return false
+	}
+	id := nextConnID()
+	tag := tg(id)
 	for _, wd := range domains {
 		path := fmt.Sprintf("/apiws?dst=%s&dc=%d&port=%d", dst, dc, origPort)
 		wc, derr := dialWS(wd, wd, path, wsDialTimeout, cfg.Queue.Mark)
