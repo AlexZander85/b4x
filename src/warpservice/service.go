@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -133,13 +134,19 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 		Fingerprint: wc.Masquerade.Fingerprint,
 	}
 	var dialer warp.TransportDialer
-	if socksAddr := os.Getenv("B4_WARP_SOCKS5"); socksAddr != "" {
+	// SOCKS5 egress: config wins, the B4_WARP_SOCKS5 env stays as the field
+	// test seam (b4x-rnn/b4x-w4c).
+	socksAddr := strings.TrimSpace(wc.Socks5)
+	if env := strings.TrimSpace(os.Getenv("B4_WARP_SOCKS5")); env != "" {
+		socksAddr = env
+	}
+	if socksAddr != "" {
 		// b4x-rnn: force the MASQUE H2 control TCP through a SOCKS5 egress so
 		// Cloudflare assigns a non-RU WARP country. SOCKS5 is TCP-only, so the
 		// H3 (UDP) ladder is intentionally bypassed for this seam.
 		df, derr := socks5DialFunc(socksAddr)
 		if derr != nil {
-			return nil, fmt.Errorf("system.warp socks5: %w", derr)
+			return nil, fmt.Errorf("system.warp.socks5: %w", derr)
 		}
 		tpl.DialFunc = df
 	} else {

@@ -397,6 +397,11 @@ func (c *Config) validateWarp(v *validator) {
 			v.add("system.warp.endpoint", "invalid_value", err.Error(), nil)
 		}
 	}
+	if w.Socks5 != "" {
+		if err := w.ValidateSocks5(); err != nil {
+			v.add("system.warp.socks5", "invalid_value", err.Error(), nil)
+		}
+	}
 	if !w.Enabled {
 		return
 	}

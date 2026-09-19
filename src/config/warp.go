@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/netip"
+	"strconv"
 	"strings"
 
 	warp "github.com/daniellavrushin/b4/transport/warp"
@@ -50,6 +52,55 @@ type WarpConfig struct {
 	// a nested WARP session over THIS base warp, geo-gated by the
 	// transport/warp NonRUGate. Requires the base (system.warp.enabled).
 	NonRU WarpNonRUConfig `json:"nonru"`
+	// Socks5 routes the MASQUE H2 control TCP through a SOCKS5 egress. The
+	// WARP egress COUNTRY is a property of the connection's input vantage,
+	// not of the endpoint or the registration (field b4x-rnn: enrolling
+	// through a non-RU proxy still connected as loc=RU, but routing the
+	// MASQUE H2 through the same non-RU SOCKS5 produced loc=GB colo=LHR).
+	// Empty = direct. Accepts "host:port" or "socks5://[user:pass@]host:port".
+	// SOCKS5 carries TCP only, so the H3 (UDP) ladder is bypassed when set
+	// (the H2 carrier is used). route a scoped set via tunnel:"masque" to
+	// send selected traffic through it.
+	Socks5 string `json:"socks5"`
+}
+
+// EffectiveSocks5 returns the configured SOCKS5 egress address ("" = direct).
+func (w *WarpConfig) EffectiveSocks5() string { return strings.TrimSpace(w.Socks5) }
+
+// ValidateSocks5 checks the optional SOCKS5 egress address shape (validated
+// even when warp is disabled, so a typo cannot hide until enable day).
+func (w *WarpConfig) ValidateSocks5() error {
+	return validateSocks5Addr(w.Socks5)
+}
+
+// validateSocks5Addr accepts "host:port" or "socks5[h]://[user:pass@]host:port".
+func validateSocks5Addr(s string) error {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	if i := strings.Index(s, "://"); i >= 0 {
+		switch scheme := s[:i]; scheme {
+		case "socks5", "socks5h":
+		default:
+			return fmt.Errorf("scheme %q unsupported (use socks5://)", scheme)
+		}
+		s = s[i+3:]
+	}
+	if at := strings.LastIndex(s, "@"); at >= 0 {
+		s = s[at+1:] // strip user:pass
+	}
+	if _, err := netip.ParseAddrPort(s); err == nil {
+		return nil
+	}
+	host, port, perr := net.SplitHostPort(s)
+	if perr != nil || host == "" || port == "" {
+		return fmt.Errorf("expected host:port, got %q", s)
+	}
+	if _, perr := strconv.ParseUint(port, 10, 16); perr != nil {
+		return fmt.Errorf("bad port in %q", s)
+	}
+	return nil
 }
 
 // WarpMasqueradeConfig configures the uTLS ClientHello of the MASQUE H3
