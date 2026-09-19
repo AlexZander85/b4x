@@ -181,6 +181,15 @@ func TestWGEnrollBridgeClientID(t *testing.T) {
         if len(raw) != 1 || raw[0] != 0xa1 {
                 t.Fatalf("short bridge bytes = %x", raw)
         }
+        // API drift: the current /v0a4471 form is 4-char base64 ("NCwq" -> 0x342c2a).
+        b64, err = bridgeClientID("NCwq")
+        if err != nil {
+                t.Fatalf("bridge base64: %v", err)
+        }
+        raw, _ = base64.StdEncoding.DecodeString(b64)
+        if len(raw) != 3 || raw[0] != 0x34 || raw[1] != 0x2c || raw[2] != 0x2a {
+                t.Fatalf("base64 bridge bytes = %x, want 342c2a", raw)
+        }
         // Non-hex input is a structural rejection (fail closed).
         if _, err := bridgeClientID("not-hex!!"); err == nil {
                 t.Fatal("expected non-hex rejection")

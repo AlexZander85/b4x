@@ -281,18 +281,31 @@ func (c *EnrollClient) Enroll(ctx context.Context) (*Identity, EnrollOutcome, er
 	return ident, EnrollOK, nil
 }
 
-// bridgeClientID converts the API's hex client_id into the base64 form the
+// bridgeClientID converts the API client_id into the base64 form the
 // wg.Identity store expects: first <=3 bytes, zero-filled (ReservedFromClientID
 // contract; the wire reserved bytes equal the API's first three client_id bytes).
+//
+// The API has two known encodings: the historical LONG HEX string (e.g. 64
+// chars -> 32 bytes) and the current 4-char BASE64 form on /v0a4471 (e.g.
+// "NCwq" -> 3 bytes). Disambiguate by length: a 4-char value is the compact
+// base64 form, anything else is hex.
 func bridgeClientID(apiClientID string) (string, error) {
-	raw, err := hex.DecodeString(strings.TrimSpace(apiClientID))
-	if err != nil || len(raw) == 0 {
-		return "", fmt.Errorf("%w: wg enroll: client_id %q is not decodable hex", ErrIdentityInvalid, apiClientID)
+	s := strings.TrimSpace(apiClientID)
+	if len(s) == 4 {
+		if raw, err := base64.StdEncoding.DecodeString(s); err == nil && len(raw) > 0 {
+			if len(raw) > 3 {
+				raw = raw[:3]
+			}
+			return base64.StdEncoding.EncodeToString(raw), nil
+		}
 	}
-	if len(raw) > 3 {
-		raw = raw[:3]
+	if raw, err := hex.DecodeString(s); err == nil && len(raw) > 0 {
+		if len(raw) > 3 {
+			raw = raw[:3]
+		}
+		return base64.StdEncoding.EncodeToString(raw), nil
 	}
-	return base64.StdEncoding.EncodeToString(raw), nil
+	return "", fmt.Errorf("%w: wg enroll: client_id %q is not decodable hex or base64", ErrIdentityInvalid, apiClientID)
 }
 
 // enrollDoOut is the internal step result.
