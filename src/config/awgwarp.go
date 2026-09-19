@@ -309,6 +309,13 @@ func (c *WarpChainConfig) EffectiveAWGProfile() (twg.Profile, string, error) {
 		return p, c.AWGProfile, err
 	}
 	if c.Kind == ChainKindAwgAwg {
+		// b4x-mrl: the field-proven cover (cf-field-i1 blob) plus a minimal
+		// Jc=4 junk family carries data where the plain junk profiles do not
+		// (see the FIELD note above: junk breaks the WARP data path here).
+		// Prefer it; fall back to any junk-active profile.
+		if p, err := resolveCfWarpProfile(field, "cf-field-i1-j4"); err == nil && p.JunkCount > 0 {
+			return p, "cf-field-i1-j4", nil
+		}
 		p, id, err := twg.DefaultJunkActiveCfWarp()
 		return p, id, err
 	}

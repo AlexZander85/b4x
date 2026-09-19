@@ -125,7 +125,8 @@ type NestedWgRuntime struct {
 	outer          *Session
 	fwd            *LoopbackForwarder
 	inner          *Session
-	outerGateStart time.Time // PATCH-09: armed at Start / on parent loss
+	probeStop      context.CancelFunc // bd b4x-ari/mrl: instrumented inner probe
+	outerGateStart time.Time          // PATCH-09: armed at Start / on parent loss
 	// parentUp tracks the OUTER layer's aliveness for the child-retry
 	// chain (PATCH-08): retries are allowed ONLY while the parent lives.
 	parentUp bool
@@ -390,6 +391,7 @@ func (r *NestedWgRuntime) establishChild() []SessionEvent {
 		r.opt.ObserveGate("inner", time.Since(innerStart))
 	}
 	r.fwd, r.inner = fwd, sess
+	r.probeStop = r.startInnerProbe(r.ctx, sess, gen)
 	r.link = NestedUp
 	return []SessionEvent{{
 		Name:   "wg_nested_child_revalidated",
@@ -400,13 +402,16 @@ func (r *NestedWgRuntime) establishChild() []SessionEvent {
 // stopChildLocked requires r.mu held. Order is the E5 red line: the inner
 // dialer dies BEFORE its carrier.
 func (r *NestedWgRuntime) stopChildLocked() {
-	inner, fwd := r.inner, r.fwd
-	r.inner, r.fwd = nil, nil
+	inner, fwd, probe := r.inner, r.fwd, r.probeStop
+	r.inner, r.fwd, r.probeStop = nil, nil, nil
 	if inner != nil {
 		inner.Stop()
 	}
 	if fwd != nil {
 		_ = fwd.Close()
+	}
+	if probe != nil {
+		probe()
 	}
 }
 
