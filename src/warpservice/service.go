@@ -116,7 +116,15 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 		API:   &warp.EnrollClient{HTTP: enrollmentHTTP},
 		Store: &warp.IdentityStore{Path: wc.IdentityPath},
 	}
-	dialer, err := warp.NewH3FirstDialer(warp.LadderConfig{})
+	// b4x-h6o: bind the fake-QUIC establishment cover to the H3 ladder. The
+	// ladder arms it before every H3 dial and releases it after
+	// ValidateDataPlane; a nil cover would silently ship the uncovered
+	// (DPI-flagged) H3 handshake.
+	cover, err := newFakeQUICCover()
+	if err != nil {
+		return nil, err
+	}
+	dialer, err := warp.NewH3FirstDialer(warp.LadderConfig{Cover: cover})
 	if err != nil {
 		return nil, err
 	}
