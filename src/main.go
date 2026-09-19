@@ -820,7 +820,12 @@ func runB4(cmd *cobra.Command, args []string) error {
 		if !chain.Enabled {
 			continue
 		}
-		rt, err := warpchainservice.Build(cfgPtr.Load(), chain, warpchainservice.Options{})
+		kind := chain.Kind
+		rt, err := warpchainservice.Build(cfgPtr.Load(), chain, warpchainservice.Options{
+			OnEvent: func(ev warpchainservice.Event) {
+				log.Infof("[chain %s] %s %s", kind, ev.Name, ev.Detail)
+			},
+		})
 		if err != nil {
 			log.Errorf("[chain %s] engine disabled this run: %v", chain.Kind, err)
 			continue
