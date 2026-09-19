@@ -319,6 +319,12 @@ func (c *WarpChainConfig) EffectiveAWGProfile() (twg.Profile, string, error) {
 		p, id, err := twg.DefaultJunkActiveCfWarp()
 		return p, id, err
 	}
+	// b4x-e74: the plain ladder head (vanilla-off) does not carry data on this
+	// network (b4x-nxx: the working profile is the QUIC-I1 cover). The chain
+	// AWG layer defaults to the field-proven I1 cover when available.
+	if p, err := resolveCfWarpProfile(field, "cf-field-i1"); err == nil {
+		return p, "cf-field-i1", nil
+	}
 	p, err := resolveCfWarpProfile(field, "")
 	return p, "", err
 }
