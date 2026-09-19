@@ -227,16 +227,45 @@ func Build(cfg *config.Config, chain config.WarpChainConfig, opts Options) (*Run
 	if chain.Kind == config.ChainKindMasqueAwg || chain.Kind == config.ChainKindMasqueMasque {
 		// M+W / M+M: the outer supervisor owns the outer MASQUE identity (its
 		// reconciler provisions/renews it); we only hand it the template + slot.
-		sup, serr := twarp.NewSupervisor(twarp.SupervisorConfig{
+		// Cover SNI (bd b4x-5oy): the canonical MASQUE name is DPI-flagged and
+		// the edge blackholes the DATA phase once it is seen — the exact cause
+		// of the outer H3 `data-plane-validation-timeout` and of the silent
+		// inner through a canonical-SNI outer. The single-transport carrier
+		// uses the same `system.warp.masquerade` cover; the chain must too.
+		coverSNI := cfg.System.Warp.Masquerade.EffectiveSNI()
+		fp := chain.Fingerprint
+		if fp == "" {
+			fp = cfg.System.Warp.Masquerade.Fingerprint
+		}
+		outerCfg := twarp.SupervisorConfig{
 			Template: twarp.SessionConfig{
 				Endpoint:    outer,
-				Fingerprint: chain.Fingerprint,
+				SNI:         coverSNI,
+				Fingerprint: fp,
 			},
 			Reconciler: &twarp.Reconciler{
 				API:   &twarp.EnrollClient{HTTP: opts.HTTP, BaseURL: opts.MasqueEnrollBaseURL},
 				Store: &twarp.IdentityStore{Path: chain.EffectiveOuterIdentityPath()},
 			},
-		})
+		}
+		if chain.Kind == config.ChainKindMasqueMasque {
+			// b4x-ive: the M+M outer prefers the H3 carrier. Field evidence:
+			// the standalone MASQUE H3 to the same endpoint establishes in
+			// ~300 ms (200 DME) while the legacy H2 outer blackholes most of
+			// the inner's UDP; H3-first removes that bottleneck (H2 stays the
+			// fallback, so the composition is H3-in-H3 or H3-in-H2 — both
+			// allowed, never H2-in-H2). The outer also defers revalidation:
+			// its slot is already provisioned, and an API round-trip through
+			// the SNI-blocked registration host flaps the parent every 90 s.
+			if dl, derr := twarp.NewH3FirstDialer(twarp.LadderConfig{}); derr == nil {
+				outerCfg.Dialer = dl
+			}
+			outerCfg.DeferRevalidation = true
+			outerCfg.Sink = func(ev twarp.SupervisorEvent) {
+				r.appendEvent(Event{Name: "warpchain_outer_event", Detail: fmt.Sprintf("%s class=%s status=%d %s", ev.Name, ev.FailureClass, ev.Status, ev.Detail)})
+			}
+		}
+		sup, serr := twarp.NewSupervisor(outerCfg)
 		if serr != nil {
 			return nil, fmt.Errorf("warpchain: outer supervisor: %w", serr)
 		}

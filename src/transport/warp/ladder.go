@@ -107,6 +107,12 @@ type LadderConfig struct {
 	// Cover optionally wraps every H3 establishment in the fake-QUIC
 	// bootstrap profile (nil = no cover).
 	Cover BootstrapCover
+
+	// H3Only forbids the H2 fallback: every failure returns the H3 verdict
+	// directly. Required by the nested M+M inner layer (bd b4x-ive): the
+	// reference `zapret-gui/warp_in_warp.py` forbids H2-in-H2 (TCP-over-TCP),
+	// so the inner carrier must be H3 or nothing.
+	H3Only bool
 }
 
 func (c *LadderConfig) fillDefaults() {
@@ -198,6 +204,33 @@ func (d *H3FirstDialer) countSwitch() {
 // Dial implements TransportDialer.
 func (d *H3FirstDialer) Dial(ctx context.Context, scfg SessionConfig) (packetTransport, TransportAttempt, error) {
 	now := d.cfg.now()
+	if d.cfg.H3Only {
+		// M+M inner contract: H3-in-H3 only — a fallback to the H2 carrier
+		// would recreate the forbidden TCP-over-TCP. The anti-oscillation
+		// gate is meaningless here (no alternative carrier), so it is skipped.
+		sess, res, err := d.tryH3(ctx, scfg)
+		if err != nil {
+			d.countH3(res.FailureClass)
+			if errors.Is(err, ErrCoverUnavailable) {
+				d.releaseCover("arm-failed")
+			} else {
+				d.releaseCover("h3-dial-failed")
+			}
+			return nil, TransportAttempt{Transport: TransportH3, Result: res.connectResult()}, err
+		}
+		d.countH3("ok")
+		return sess, TransportAttempt{
+			Transport: TransportH3,
+			Result:    res.connectResult(),
+			Events: []SupervisorEvent{{
+				Name:       EvH3Negotiated,
+				Status:     res.Status,
+				DurationMS: res.DurationMS,
+				Colo:       res.Colo,
+				Detail:     "transport=h3",
+			}},
+		}, nil
+	}
 	if !d.h3Allowed(now) {
 		// Anti-oscillation core: straight to H2, no H3 contact, no events.
 		return d.dialH2Generation(ctx, scfg)
@@ -353,18 +386,21 @@ func switchedEvent(from, to, reason string) SupervisorEvent {
 // endpoint profile (SNI/pins/policy/local address/MTU/budgets travel 1:1).
 func h3ConfigFromSession(s SessionConfig) H3SessionConfig {
 	return H3SessionConfig{
-		Endpoint:        s.Endpoint,
-		SNI:             s.SNI,
-		ClientKey:       s.ClientKey,
-		Pin:             s.Pin,
-		ExtraPins:       s.ExtraPins,
-		Policy:          s.Policy,
-		LocalV4:         s.LocalV4,
-		MTU:             s.MTU,
-		ValidateWindow:  s.ValidateWindow,
-		ProbeInterval:   s.ProbeInterval,
-		HandshakeBudget: s.HandshakeBudget,
-		Fingerprint:     s.Fingerprint,
+		Endpoint:          s.Endpoint,
+		SNI:               s.SNI,
+		ClientKey:         s.ClientKey,
+		Pin:               s.Pin,
+		ExtraPins:         s.ExtraPins,
+		Policy:            s.Policy,
+		LocalV4:           s.LocalV4,
+		MTU:               s.MTU,
+		ValidateWindow:    s.ValidateWindow,
+		ProbeInterval:     s.ProbeInterval,
+		HandshakeBudget:   s.HandshakeBudget,
+		Fingerprint:       s.Fingerprint,
+		H3PacketConn:      s.H3PacketConn,
+		DisableH3PMTUD:    s.DisableH3PMTUD,
+		InitialPacketSize: s.H3InitialPacketSize,
 	}
 }
 

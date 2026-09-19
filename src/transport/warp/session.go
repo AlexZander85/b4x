@@ -119,6 +119,21 @@ type SessionConfig struct {
 	// When nil the constrained DialPolicy dialer is used. The pinned TLS
 	// handshake and capsule framing are unchanged.
 	DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
+	// H3PacketConn, when non-nil, supplies the QUIC/H3 carrier socket instead
+	// of Policy.ListenUDP. Nested M+M (bd b4x-ive) uses it to send the inner
+	// MASQUE H3 through the OUTER netstack — the forbidden TCP-over-TCP is
+	// replaced by H3-in-H3. The factory is invoked once per H3 dial; the
+	// returned conn is owned and closed by the H3 session.
+	H3PacketConn func(ctx context.Context, network, laddr string) (net.PacketConn, error)
+	// DisableH3PMTUD turns off QUIC path-MTU discovery for the H3 carrier.
+	// Set when the H3 socket rides a nested userspace stack with a fixed MTU:
+	// PMTU probes would exceed it and be dropped, stalling the handshake.
+	DisableH3PMTUD bool
+	// H3InitialPacketSize overrides quic-go's initial packet size (default
+	// 1280). Nested H3 under an outer MTU of 1280 MUST use <=1200 so the
+	// inner Initial (UDP+IP overhead 28) does not fragment at the outer
+	// netstack (bd b4x-ive). 0 keeps the quic-go default.
+	H3InitialPacketSize uint16
 	// Fingerprint (b4x fork extension, masquerade FX-M1): when non-empty,
 	// the MASQUE H3 client emits a uTLS browser ClientHello instead of the
 	// crypto/tls one. Supported values: "chrome120" (closest to the WARP

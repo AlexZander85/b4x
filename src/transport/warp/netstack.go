@@ -8,6 +8,9 @@
 //     TunnelGeoTransport.WithHTTPSExchange (cf-warp trace warp=on|plus — the
 //     ROUTER_PATH_VERIFIED evidence).
 //   - DoH upgrade: DoHExchangeViaNetstack feeds NewDoHResolver().WithExchange.
+//   - Inner-H3 UDP leg (bd b4x-ive): ListenPacketConn opens the unconnected
+//     UDP socket the nested M+M inner QUIC/H3 session rides, so the inner
+//     MASQUE establishment is H3-in-H3 rather than the forbidden TCP-over-TCP.
 //
 // Inbound delivery uses the session tap fan-out (SubscribePackets), which is
 // drop-instead-of-block by design; gVisor TCP retransmission absorbs the loss
@@ -23,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,6 +40,7 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/network/ipv4"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
 
 // PacketSink is what the carrier writes encapsulated IP datagrams to.
@@ -87,7 +92,7 @@ func AttachNetstack(sink PacketSink, localV4 [4]byte, mtu int, packetSource <-ch
 	}
 	st := stack.New(stack.Options{
 		NetworkProtocols:   []stack.NetworkProtocolFactory{ipv4.NewProtocol},
-		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol},
+		TransportProtocols: []stack.TransportProtocolFactory{tcp.NewProtocol, udp.NewProtocol},
 	})
 	ep := channel.New(netstackQueueLen, uint32(mtu), "")
 	const nicID tcpip.NICID = 1
@@ -117,6 +122,17 @@ func AttachNetstack(sink PacketSink, localV4 [4]byte, mtu int, packetSource <-ch
 	return c, nil
 }
 
+// netstackUDPDebug gates the bd b4x-ive nested-UDP diagnostics (set
+// B4_NETSTACK_UDP_DBG=1; stdout/stderr must be redirected to a file). Cached
+// at startup so the hot path pays no os.Getenv per packet.
+var netstackUDPDebugOn = os.Getenv("B4_NETSTACK_UDP_DBG") != ""
+
+func netstackUDPDebug() bool { return netstackUDPDebugOn }
+
+func netstackUDPDebugLog(format string, args ...any) {
+	fmt.Printf("[nsdbg] "+format+"\n", args...)
+}
+
 // pumpInbound delivers tunnel-received datagrams into the stack.
 func (c *NetstackCarrier) pumpInbound(ctx context.Context, packets <-chan []byte) {
 	for {
@@ -129,6 +145,10 @@ func (c *NetstackCarrier) pumpInbound(ctx context.Context, packets <-chan []byte
 			}
 			if len(pkt) < header.IPv4MinimumSize || pkt[0]>>4 != 4 { // IPv4 version nibble
 				continue // non-IPv4 or truncated: out of scope for v1 carrier
+			}
+			if netstackUDPDebug() && pkt[9] == 17 {
+				netstackUDPDebugLog("inbound udp len=%d src=%v dst=%v",
+					len(pkt), ipv4Src(pkt), ipv4Dst(pkt))
 			}
 			in := stack.NewPacketBuffer(stack.PacketBufferOptions{
 				Payload: buffer.MakeWithData(pkt),
@@ -147,10 +167,31 @@ func (c *NetstackCarrier) drainEgress(ctx context.Context) {
 		}
 		data := append([]byte(nil), pkt.ToView().AsSlice()...)
 		pkt.DecRef()
+		if netstackUDPDebug() && len(data) >= header.IPv4MinimumSize && data[9] == 17 {
+			netstackUDPDebugLog("egress udp len=%d src=%v dst=%v",
+				len(data), ipv4Src(data), ipv4Dst(data))
+		}
 		if err := c.sink.WritePacket(data); err != nil {
+			if netstackUDPDebug() {
+				netstackUDPDebugLog("sink write err: %v", err)
+			}
 			return // session gone; carrier is dead by definition
 		}
 	}
+}
+
+func ipv4Src(pkt []byte) string {
+	if len(pkt) < 16 {
+		return "?"
+	}
+	return netip.AddrFrom4([4]byte{pkt[12], pkt[13], pkt[14], pkt[15]}).String()
+}
+
+func ipv4Dst(pkt []byte) string {
+	if len(pkt) < 20 {
+		return "?"
+	}
+	return netip.AddrFrom4([4]byte{pkt[16], pkt[17], pkt[18], pkt[19]}).String()
 }
 
 // LocalV4 returns the assigned tunnel address.
@@ -183,6 +224,52 @@ func (c *NetstackCarrier) DialStream(ctx context.Context, addr netip.AddrPort) (
 		return nil, fmt.Errorf("transportwarp: netstack dial %v: %v", addr, err)
 	}
 	return conn, nil
+}
+
+// ListenPacketConn opens an UNCONNECTED UDP socket on the tunnel netstack
+// (bd b4x-ive). It is the UDP leg of the nested M+M carrier: the inner
+// MASQUE H3 (QUIC) session hands its packets to this socket, so they ride the
+// outer CONNECT-IP plane as ordinary IPv4/UDP datagrams. The caller owns the
+// returned conn; closing it releases only the socket, never the carrier.
+func (c *NetstackCarrier) ListenPacketConn() (net.PacketConn, error) {
+	if err := c.closedErr(); err != nil {
+		return nil, err
+	}
+	// Bind to the tunnel's assigned address (unconnected socket): an explicit
+	// local bind makes the source address and route unambiguous for gVisor.
+	laddr := tcpip.FullAddress{
+		NIC:  1,
+		Addr: tcpip.AddrFromSlice(netip.AddrFrom4(c.localV4).AsSlice()),
+	}
+	conn, err := gonet.DialUDP(c.stack, &laddr, nil, ipv4.ProtocolNumber)
+	if err != nil {
+		return nil, fmt.Errorf("transportwarp: netstack udp socket: %v", err)
+	}
+	if netstackUDPDebug() {
+		netstackUDPDebugLog("bound udp local=%v", conn.LocalAddr())
+		return &dbgPacketConn{PacketConn: conn}, nil
+	}
+	return conn, nil
+}
+
+// dbgPacketConn wraps the gonet UDP PacketConn for the b4x-ive diagnostics,
+// logging every write/read so the QUIC-over-netstack path is observable.
+type dbgPacketConn struct {
+	net.PacketConn
+}
+
+func (d *dbgPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
+	n, err := d.PacketConn.WriteTo(b, addr)
+	netstackUDPDebugLog("pc write len=%d to=%v n=%d err=%v", len(b), addr, n, err)
+	return n, err
+}
+
+func (d *dbgPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, addr, err := d.PacketConn.ReadFrom(b)
+	if err == nil {
+		netstackUDPDebugLog("pc read len=%d from=%v", n, addr)
+	}
+	return n, addr, err
 }
 
 // WithDoHResolver overrides the in-tunnel DoH endpoint used to resolve the

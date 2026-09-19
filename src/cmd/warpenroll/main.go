@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -54,11 +55,34 @@ func printJSON(v any) {
 }
 
 func cmdEnroll(args []string) error {
-	c, err := loadConfig(*configFlag(args))
+	fs := flag.NewFlagSet("enroll", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	path := fs.String("config", "", "path to config json (required)")
+	proxyURL := fs.String("proxy", "", "optional enrollment proxy (http:// or socks5://host:port) — b4x-rnn non-RU enrollment")
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if *path == "" {
+		fmt.Fprintln(os.Stderr, "--config is required")
+		os.Exit(2)
+	}
+	c, err := loadConfig(*path)
 	if err != nil {
 		return err
 	}
-	rt, err := warpservice.Build(c, nil)
+	var httpClient *http.Client
+	if *proxyURL != "" {
+		u, perr := url.Parse(*proxyURL)
+		if perr != nil {
+			return fmt.Errorf("bad --proxy %q: %w", *proxyURL, perr)
+		}
+		httpClient = &http.Client{Transport: &http.Transport{
+			Proxy:             http.ProxyURL(u),
+			ForceAttemptHTTP2: true,
+		}}
+		fmt.Fprintf(os.Stderr, "warpenroll: enrollment via proxy %s (%s)\n", u.Host, u.Scheme)
+	}
+	rt, err := warpservice.BuildWithHTTP(c, nil, httpClient)
 	if err != nil {
 		return err
 	}

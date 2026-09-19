@@ -139,6 +139,17 @@ type H3SessionConfig struct {
 	// Fingerprint (b4x fork extension, masquerade FX-M1): uTLS ClientHello
 	// for the QUIC handshake ("chrome120", "firefox"); empty = vanilla.
 	Fingerprint string
+	// H3PacketConn, when non-nil, supplies the QUIC carrier socket instead of
+	// Policy.ListenUDP — the nested M+M inner-H3 UDP leg (bd b4x-ive). The
+	// factory is invoked once per dial; the returned conn is closed with the
+	// session.
+	H3PacketConn func(ctx context.Context, network, laddr string) (net.PacketConn, error)
+	// DisableH3PMTUD disables QUIC path-MTU discovery (fixed-MTU nested stack).
+	DisableH3PMTUD bool
+	// InitialPacketSize overrides quic-go's initial packet size (default 1280;
+	// minimum 1200). Nested H3 uses 1200 so the inner Initial does not
+	// fragment against the outer MTU (bd b4x-ive). 0 = quic-go default.
+	InitialPacketSize uint16
 	// E2EProbe optionally validates the inner path end-to-end right after the
 	// data-plane probes pass (ironclad-lite pattern, design §5; PATCH-19,
 	// B-H3: disabled by default, present as an interface). nil = disabled.
@@ -187,7 +198,7 @@ type H3Session struct {
 	cfg     H3SessionConfig
 	conn    *quic.Conn
 	tr      *quic.Transport
-	uc      *net.UDPConn
+	uc      net.PacketConn
 	stream  *quic.Stream
 	packets chan packetMsg
 
@@ -315,8 +326,18 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 		network = "udp6"
 		laddr = "[::]:0"
 	}
-	uc, err := cfg.Policy.ListenUDP(ctx, network, laddr)
+	uc, err := func() (net.PacketConn, error) {
+		if cfg.H3PacketConn != nil {
+			return cfg.H3PacketConn(ctx, network, laddr)
+		}
+		return cfg.Policy.ListenUDP(ctx, network, laddr)
+	}()
 	if err != nil {
+		// A caller-supplied socket failure is a LOCAL verdict (never a network
+		// one); the policy-bind path keeps its structural classifier.
+		if cfg.H3PacketConn != nil {
+			return abandon(FailureLocalSocket, err)
+		}
 		return abandon(classifyUDPListenError(err), err)
 	}
 	sess.uc = uc
@@ -332,7 +353,10 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 		MaxStreamReceiveWindow:     h3StreamWindow,
 		MaxIncomingStreams:         h3MaxStreams,
 		HandshakeIdleTimeout:       cfg.HandshakeBudget,
-		DisablePathMTUDiscovery:    os.Getenv("B4_H3_NO_PMTUD") == "1", // diag toggle; default keeps PMTUD (design §1)
+		DisablePathMTUDiscovery:    cfg.DisableH3PMTUD || os.Getenv("B4_H3_NO_PMTUD") == "1", // diag toggle; default keeps PMTUD (design §1)
+	}
+	if cfg.InitialPacketSize > 0 {
+		conf.InitialPacketSize = cfg.InitialPacketSize
 	}
 	// bd b4x-5oy diagnostics: QLOGDIR makes quic-go emit a full packet-level
 	// qlog (transport parameters, every sent/received packet, ACKs, close
@@ -349,8 +373,14 @@ func dialH3Once(parent context.Context, start time.Time, cfg H3SessionConfig) (*
 	}
 	hsCtx, hsCancel := context.WithTimeout(ctx, cfg.HandshakeBudget)
 	defer hsCancel()
+	if h3DebugEnabled() {
+		h3dbgLog("dialing %v via %s local=%v pmtud_off=%v", remote, network, uc.LocalAddr(), cfg.DisableH3PMTUD)
+	}
 	conn, err := tr.Dial(hsCtx, remote, tlsCfg, conf)
 	if err != nil {
+		if h3DebugEnabled() {
+			h3dbgLog("QUIC dial failed: %v", err)
+		}
 		return abandon(classifyH3HandshakeError(err), err)
 	}
 	sess.conn = conn

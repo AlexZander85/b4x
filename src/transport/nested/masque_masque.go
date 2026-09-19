@@ -1,11 +1,13 @@
 // M+M composition (design 3.3, tunnels panel stage 4): a MASQUE-H2 outer
-// carrying a MASQUE-H2 inner. The OUTER supervisor is the capsule plane (the
-// caller owns it, exactly like the M+W runtime); the INNER supervisor's
-// control TCP dials THROUGH the outer's userspace netstack (twarp.
-// AttachNetstack over the plane's packet surface — the same adapter the
-// warpservice carrier path uses). Both layers own DISTINCT identity slots:
-// the outer's reconciler provisions the outer slot, the inner's reconciler
-// provisions the SECONDARY slot (red line #3 — one CF device per layer).
+// carrying a MASQUE-H3 inner (bd b4x-ive). The OUTER supervisor is the capsule
+// plane (the caller owns it, exactly like the M+W runtime); the INNER
+// supervisor's QUIC/H3 socket is minted from the outer's userspace netstack
+// (twarp.NetstackCarrier.ListenPacketConn), so the inner establishment is
+// H3-in-H2 — the reference `zapret-gui/warp_in_warp.py` forbids the
+// TCP-over-TCP H2-in-H2 we used to run. Both layers own DISTINCT identity
+// slots: the outer's reconciler provisions the outer slot, the inner's
+// reconciler provisions the SECONDARY slot (red line #3 — one CF device per
+// layer).
 //
 // Parent-link contract (the M+W canon): a run-loop poller watches the plane's
 // RouteHeld; every rising edge rebuilds the child pair FRESH — a new netstack
@@ -14,10 +16,9 @@
 // the child IMMEDIATELY (zero dialing through a dead parent). A failed child
 // start retries on a bounded exponential ladder while the parent stays up.
 //
-// Data-plane posture (honest): the composition serves IPv4/TCP only — the
-// inner supervisor's attached netstack v1 carries no UDP leg. The inner
-// supervisor's own reconnection is ITS business; this runtime rebuilds the
-// child only on parent transitions.
+// Data-plane posture (honest): the composition serves IPv4 only — the
+// inner supervisor's QUIC socket carries UDP through the outer netstack, but
+// the carrier's TCP leg remains scoped to control-plane traffic.
 package nested
 
 import (
@@ -32,6 +33,12 @@ import (
 
 	twarp "github.com/daniellavrushin/b4/transport/warp"
 )
+
+// nestedH3InitialPacketSize pins the inner QUIC Initial so its on-wire IP
+// packet (payload + 28 B UDP/IP) fits the outer MTU (twarp.DefaultMTU=1280)
+// without gVisor fragmentation. quic-go's default is 1280, which yields a
+// 1308-byte IP packet — fragmented, and field-observed to stall M+M.
+const nestedH3InitialPacketSize = 1200
 
 // MasqueMasqueConfig wires the composed M+M pair.
 type MasqueMasqueConfig struct {
@@ -346,6 +353,9 @@ func (r *MasqueMasqueRuntime) startChild(gen uint64) error {
 
 	sup, serr := twarp.NewSupervisor(twarp.SupervisorConfig{
 		Template: r.innerTemplate(ns),
+		// H3-only inner ladder (bd b4x-ive): the carrier selector is a
+		// supervisor-level seam, never a template field.
+		Dialer: r.innerDialer(),
 		Reconciler: &twarp.Reconciler{
 			API:   r.cfg.InnerEnroll,
 			Store: &twarp.IdentityStore{Path: r.cfg.InnerSlotPath},
@@ -383,12 +393,32 @@ func (r *MasqueMasqueRuntime) startChild(gen uint64) error {
 	r.checkEdgeCollisionLocked(gen)
 	r.mu.Unlock()
 	r.emit(Event{Class: "warp_nested_child_revalidated",
-		Reason: fmt.Sprintf("gen=%d outer_netstack=attached ctrl=tcp-through-outer", gen)})
+		Reason: fmt.Sprintf("gen=%d outer_netstack=attached ctrl=h3-udp-through-outer", gen)})
 	return nil
 }
 
-// innerTemplate renders the INNER supervisor's session template: the control
-// TCP dials through the outer netstack (the Backend-B adapter canon).
+// innerDialer builds the INNER layer's transport ladder: H3-ONLY (bd b4x-ive).
+// The reference `zapret-gui/warp_in_warp.py` forbids H2-in-H2 (TCP-over-TCP)
+// and forces the inner to performance/H3 when the outer is restricted/H2 — the
+// composition here is exactly that allowed H3-in-H2 shape, never H2-in-H2.
+func (r *MasqueMasqueRuntime) innerDialer() twarp.TransportDialer {
+	d, err := twarp.NewH3FirstDialer(twarp.LadderConfig{H3Only: true})
+	if err != nil {
+		// NewH3FirstDialer only rejects a malformed config; the static shape
+		// above cannot fail. Fall back to nil (legacy H2) rather than panic.
+		return nil
+	}
+	return d
+}
+
+// innerTemplate renders the INNER supervisor's session template. The inner
+// MASQUE establishment rides the OUTER netstack on BOTH seams:
+//
+//   - H3 (primary, H3Only): the QUIC socket comes from ns.ListenPacketConn(),
+//     so the inner QUIC datagrams are carried as IPv4/UDP inside the outer
+//     CONNECT-IP plane (H3-in-H2 — the reference's forced combination);
+//   - H2 (fallback seam, unreachable while H3Only): the control TCP dials
+//     through ns.DialStream.
 func (r *MasqueMasqueRuntime) innerTemplate(ns *twarp.NetstackCarrier) twarp.SessionConfig {
 	mtu := r.cfg.Pair.Inner.MTU
 	if mtu <= 0 {
@@ -399,11 +429,19 @@ func (r *MasqueMasqueRuntime) innerTemplate(ns *twarp.NetstackCarrier) twarp.Ses
 		MTU:         mtu,
 		Fingerprint: r.cfg.Fingerprint,
 		DialFunc:    nsDialThrough(ns),
+		// H3-only inner carrier: the UDP socket is minted per dial from the
+		// outer netstack; PMTUD is off (fixed MTU) and the QUIC Initial is
+		// pinned to 1200 so its IP packet (1228) fits the outer MTU of 1280
+		// without gVisor fragmentation (bd b4x-ive).
+		H3PacketConn:        func(_ context.Context, _, _ string) (net.PacketConn, error) { return ns.ListenPacketConn() },
+		DisableH3PMTUD:      true,
+		H3InitialPacketSize: nestedH3InitialPacketSize,
 	}
 }
 
 // nsDialThrough adapts the outer netstack carrier to the inner session's
-// DialFunc seam (raw TCP; v4 only — the netstack v1 posture).
+// DialFunc seam (raw TCP; v4 only — the netstack v1 posture). It backs the
+// inner H2 fallback seam, which H3Only keeps unreachable on the M+M path.
 func nsDialThrough(ns *twarp.NetstackCarrier) func(ctx context.Context, network, addr string) (net.Conn, error) {
 	return func(ctx context.Context, network, addr string) (net.Conn, error) {
 		if network != "tcp" {

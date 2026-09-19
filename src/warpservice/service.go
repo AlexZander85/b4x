@@ -16,8 +16,10 @@ package warpservice
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/netip"
+	"os"
 	"sync"
 	"time"
 
@@ -120,14 +122,6 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 	// ladder arms it before every H3 dial and releases it after
 	// ValidateDataPlane; a nil cover would silently ship the uncovered
 	// (DPI-flagged) H3 handshake.
-	cover, err := newFakeQUICCover()
-	if err != nil {
-		return nil, err
-	}
-	dialer, err := warp.NewH3FirstDialer(warp.LadderConfig{Cover: cover})
-	if err != nil {
-		return nil, err
-	}
 	tpl := warp.SessionConfig{
 		Endpoint: endpoint,
 		// Cover SNI: the canonical MASQUE name is DPI-flagged in RU and
@@ -137,6 +131,26 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 		// Client key + pin are injected per-generation by the
 		// supervisor from the stored identity (buildSessionConfig).
 		Fingerprint: wc.Masquerade.Fingerprint,
+	}
+	var dialer warp.TransportDialer
+	if socksAddr := os.Getenv("B4_WARP_SOCKS5"); socksAddr != "" {
+		// b4x-rnn: force the MASQUE H2 control TCP through a SOCKS5 egress so
+		// Cloudflare assigns a non-RU WARP country. SOCKS5 is TCP-only, so the
+		// H3 (UDP) ladder is intentionally bypassed for this seam.
+		df, derr := socks5DialFunc(socksAddr)
+		if derr != nil {
+			return nil, fmt.Errorf("system.warp socks5: %w", derr)
+		}
+		tpl.DialFunc = df
+	} else {
+		cover, cerr := newFakeQUICCover()
+		if cerr != nil {
+			return nil, cerr
+		}
+		dialer, err = warp.NewH3FirstDialer(warp.LadderConfig{Cover: cover})
+		if err != nil {
+			return nil, err
+		}
 	}
 	rt := &Runtime{cfg: wc, rec: rec, template: tpl}
 	sup, err := warp.NewSupervisor(warp.SupervisorConfig{
