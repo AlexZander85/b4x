@@ -21,7 +21,8 @@ const (
         // fail closed instead and leave recovery to bootstrap-through-carrier.
         ClassAPIPinMismatch FailureClass = "opera-api-pin-mismatch"
         // ClassAPIAlgorithm: server offered a Digest algorithm outside our
-        // minimal RFC 7616 profile (MD5 only — design §7 red line 0).
+        // RFC 7616 profile (MD5, SHA-256 — extended 2026-09-20 when the live
+        // api2 moved to SHA-256; other algorithms / -sess remain refused).
         ClassAPIAlgorithm FailureClass = "opera-api-algorithm"
         // ClassAPIAuthRefused: 401 persisted after presenting a fresh Digest
         // response with stale=false — credentials rejected (design §7.0:

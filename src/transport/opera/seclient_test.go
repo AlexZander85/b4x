@@ -282,12 +282,19 @@ func TestRegisterDiscoverHappyFlow(t *testing.T) {
 		t.Fatalf("geo_list serial = %q", got)
 	}
 
-	// Discover: region normalization + CVS artifact + entry semantics.
+	// Discover: region normalization + CVS artifact + entry semantics. The
+	// reference init parity runs subscriber_login + device_generate_password
+	// lazily on the first Discover, so the discover request is the LAST one.
 	ips, err := c.Discover(ctx, " eu ")
 	if err != nil {
 		t.Fatalf("Discover(eu): %v", err)
 	}
-	if got := stand.snapshot()[4].Form.Get("requested_geo"); got != `"EU",,` {
+	discReqs := stand.snapshot()
+	lastDisc := discReqs[len(discReqs)-1]
+	if lastDisc.Path != "/v4/discover" {
+		t.Fatalf("last request = %q, want /v4/discover", lastDisc.Path)
+	}
+	if got := lastDisc.Form.Get("requested_geo"); got != `"EU",,` {
 		t.Fatalf("requested_geo = %q, want %q", got, `"EU",,`)
 	}
 	if len(ips) != 2 {

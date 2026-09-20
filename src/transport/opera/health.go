@@ -445,6 +445,42 @@ func (h *HealthSupervisor) Run(ctx context.Context) {
 	}
 }
 
+// Bootstrap performs the one-shot control-plane establishment: session
+// (adopt a persisted identity, or a single fresh anonymous registration) plus
+// discover, WITHOUT probing. It is the cmd/operatester path that must leave
+// the design §4 "process alive, port closed" snapshot — Running=true,
+// Listening=false — because no deep probe has run yet. The caller's ctx
+// bounds every control-channel op (the tick pipeline's controlBudget is not
+// applied here); I/O never runs under h.mu (C2 discipline). A discover
+// failure after a successful session is NOT an error: the control plane is
+// established, the node list simply is not there yet (status carries the
+// reason, the cache-fallback machinery already ran).
+func (h *HealthSupervisor) Bootstrap(ctx context.Context) error {
+	if !h.busy.CompareAndSwap(false, true) {
+		return errors.New("health supervisor: busy")
+	}
+	defer h.busy.Store(false)
+
+	h.mu.Lock()
+	h.started = true
+	already := h.sessionOK
+	degraded := h.degraded
+	h.mu.Unlock()
+	if already {
+		return nil
+	}
+	if degraded != "" {
+		return fmt.Errorf("health supervisor degraded: %s", degraded)
+	}
+
+	res := h.bootstrapOnce(ctx)
+	done := tickDone{bootstrapped: true}
+	h.apply(tickPlan{action: actBootstrap}, res, h.cfg.Now(), &done)
+	h.flushPendingCache()
+	h.drainEvents()
+	return res.err
+}
+
 // Tick advances one supervision step at wall-clock `now`. Deterministic:
 // all decisions derive from now + recorded timestamps. Synchronous and
 // bounded: every network op runs WITHOUT the state mutex and under a hard
@@ -619,6 +655,14 @@ func (h *HealthSupervisor) execute(plan tickPlan) stepResult {
 func (h *HealthSupervisor) execBootstrap() stepResult {
 	ctx, cancel := h.boundedCtx(controlBudget)
 	defer cancel()
+	return h.bootstrapOnce(ctx)
+}
+
+// bootstrapOnce runs the control-plane establishment (session + discover)
+// under the caller's context. It is shared by the tick pipeline and the
+// one-shot Bootstrap path below; no network I/O ever happens under h.mu (C2
+// discipline).
+func (h *HealthSupervisor) bootstrapOnce(ctx context.Context) stepResult {
 	if err := h.c.EnsureSession(ctx); err != nil {
 		return stepResult{err: err}
 	}

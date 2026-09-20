@@ -333,7 +333,14 @@ type Client struct {
 	deviceHash  string // capitalHexSHA1(device_id) — proxy login
 	jwt         string // device_password JWT — proxy password
 	hasIdentity bool
-	created     time.Time
+	// authorized marks that subscriber_login + device_generate_password ran on
+	// THIS process's http client. Discover is accepted only against the
+	// current subscriber session + a freshly generated device password
+	// (reference init parity: AnonRegister -> RegisterDevice -> Login ->
+	// DeviceGeneratePassword -> Discover); an adopted identity re-authorizes
+	// lazily on the first Discover (field 2026-09-20: adopt -> discover 401).
+	authorized bool
+	created    time.Time
 }
 
 // New constructs a client with resolved defaults.
@@ -424,52 +431,104 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			raw, err := dialCtx(ctx, network, addr)
+			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
-				return nil, err
-			}
-			host, _, err := net.SplitHostPort(addr)
-			if err != nil {
-				_ = raw.Close()
 				return nil, err
 			}
 			mq := mqBox.Get()
 			sni := mq.EffectiveAPISNI(host)
-			// Fingerprint layer (review OP-M1, §7.4.5): the control channel
-			// uses the same Chrome ClientHello; the TOFU pin is host-keyed
-			// and SNI-independent, so the trust model does not move.
-			if mq.FingerprintActive() {
-				verify := func(cs utls.ConnectionState) error {
-					return pins.verify(host, cs.PeerCertificates)
+			// The API is HTTP/1.1 (nginx) and this transport runs with
+			// ForceAttemptHTTP2=false, so it cannot speak h2: offering h2 in
+			// ALPN makes the server negotiate it and the HTTP/1.1 client
+			// deadlocks until ctx expiry (field 2026-09-20: register_subscriber
+			// hung). Strip it — same discipline as the data plane (filterALPN).
+			mq.ALPN = filterALPN(mq.ALPN, "h2")
+
+			// Resolve the API host into concrete endpoints and pin each one
+			// separately (design §3 + field 2026-09-20: the fleet's backends
+			// carry distinct self-signed keys behind one name). The loop falls
+			// through to the next backend on a dial error OR a pin mismatch.
+			ips := resolveAPIEndpoints(ctx, host)
+			if len(ips) == 0 {
+				ips = []string{host} // let the base dialer resolve
+			}
+			var lastErr error
+			for _, ip := range ips {
+				target := net.JoinHostPort(ip, port)
+				raw, derr := dialCtx(ctx, network, target)
+				if derr != nil {
+					lastErr = derr
+					continue
 				}
-				uconn, uerr := dialUTLSClient(ctx, raw, sni, mq, uSessionCache, verify)
-				if uerr != nil {
+				conn, verr := handshakeAPITLS(ctx, raw, host, ip, sni, mq, pins, sessionCache, uSessionCache)
+				if verr != nil {
 					_ = raw.Close()
-					return nil, uerr
+					lastErr = verr
+					continue
 				}
-				return uconn, nil
+				return conn, nil
 			}
-			cfg := &tls.Config{
-				// Self-signed upstream cert (design §3): standard verification
-				// is impossible; channel integrity comes exclusively from the
-				// TOFU SPKI pin checked below, fail-closed on mismatch. The
-				// pin is keyed by HOST — SNI masquerading cannot weaken it.
-				InsecureSkipVerify: true,
-				MinVersion:         tls.VersionTLS12,
-				ServerName:         sni,
-				VerifyConnection: func(cs tls.ConnectionState) error {
-					return pins.verify(host, cs.PeerCertificates)
-				},
+			if lastErr == nil {
+				lastErr = errors.New("opera: no API endpoint reachable")
 			}
-			mq.applyMasquerade(cfg, sessionCache)
-			conn := tls.Client(raw, cfg)
-			if err := conn.HandshakeContext(ctx); err != nil {
-				_ = raw.Close()
-				return nil, err
-			}
-			return conn, nil
+			return nil, lastErr
 		},
 	}
+}
+
+// resolveAPIEndpoints turns the API host into the concrete IPs to try. An IP
+// literal passes through; a lookup failure returns nil so the caller falls
+// back to the base dialer's own resolution (and a host-only pin key).
+func resolveAPIEndpoints(ctx context.Context, host string) []string {
+	if net.ParseIP(host) != nil {
+		return []string{host}
+	}
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(addrs))
+	seen := make(map[string]struct{}, len(addrs))
+	for _, a := range addrs {
+		ip := a.IP.String()
+		if _, ok := seen[ip]; ok {
+			continue
+		}
+		seen[ip] = struct{}{}
+		out = append(out, ip)
+	}
+	return out
+}
+
+// handshakeAPITLS performs the control-channel TLS handshake over an already
+// dialed raw connection, pinning the presented leaf SPKI under the
+// endpoint-scoped key (host@ip). Verification is SNI-independent and the
+// trust anchor stays the TOFU pin (design §3, §7.4.0).
+func handshakeAPITLS(ctx context.Context, raw net.Conn, host, ip, sni string, mq MasqueradeSettings, pins *pinStore, sessionCache tls.ClientSessionCache, uSessionCache utls.ClientSessionCache) (net.Conn, error) {
+	key := endpointKey(host, ip)
+	if mq.FingerprintActive() {
+		verify := func(cs utls.ConnectionState) error {
+			return pins.verify(key, host, cs.PeerCertificates)
+		}
+		return dialUTLSClient(ctx, raw, sni, mq, uSessionCache, verify)
+	}
+	cfg := &tls.Config{
+		// Self-signed upstream certs (design §3): standard verification is
+		// impossible; channel integrity comes exclusively from the TOFU SPKI
+		// pin checked below, fail-closed on mismatch.
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS12,
+		ServerName:         sni,
+		VerifyConnection: func(cs tls.ConnectionState) error {
+			return pins.verify(key, host, cs.PeerCertificates)
+		},
+	}
+	mq.applyMasquerade(cfg, sessionCache)
+	conn := tls.Client(raw, cfg)
+	if err := conn.HandshakeContext(ctx); err != nil {
+		return nil, err
+	}
+	return conn, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -478,7 +537,9 @@ func buildAPITransport(opts Options, pins *pinStore, sessionCache tls.ClientSess
 
 // EnsureSession adopts a persisted identity when present (at most one device
 // registration per boot — design red line #3) or performs the full anonymous
-// registration flow: register_subscriber -> register_device.
+// registration flow: register_subscriber -> register_device, then (both
+// paths) subscriber_login -> device_generate_password so the session is
+// authorized for discover exactly like the reference init.
 func (c *Client) EnsureSession(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -517,6 +578,12 @@ func (c *Client) RefreshCredentials(ctx context.Context) error {
 	if !c.hasIdentity {
 		return fmt.Errorf("%w: no session (call EnsureSession first)", ErrIdentityInvalid)
 	}
+	return c.refreshLocked(ctx)
+}
+
+// refreshLocked runs subscriber_login -> device_generate_password and rotates
+// the data-plane JWT. Caller holds c.mu.
+func (c *Client) refreshLocked(ctx context.Context) error {
 	if err := c.jar.Reset(); err != nil {
 		return err
 	}
@@ -535,7 +602,17 @@ func (c *Client) RefreshCredentials(ctx context.Context) error {
 		return err
 	}
 	c.jwt = genRes.Data.DevicePassword
+	c.authorized = true
 	return c.persistLocked(c.now())
+}
+
+// ensureAuthorizedLocked runs the reference Login -> DeviceGeneratePassword
+// step lazily before a Discover. Caller holds c.mu.
+func (c *Client) ensureAuthorizedLocked(ctx context.Context) error {
+	if c.authorized {
+		return nil
+	}
+	return c.refreshLocked(ctx)
 }
 
 // GeoList returns available geo entries for the registered device.
@@ -566,6 +643,11 @@ func (c *Client) Discover(ctx context.Context, region string) ([]SEIPEntry, erro
 	defer c.mu.Unlock()
 	if !c.hasIdentity {
 		return nil, fmt.Errorf("%w: no session", ErrIdentityInvalid)
+	}
+	// Reference init parity: discover rides the subscriber session + a fresh
+	// device password. On an adopted identity this runs on the first Discover.
+	if err := c.ensureAuthorizedLocked(ctx); err != nil {
+		return nil, err
 	}
 	res := &SEDiscoverResponse{}
 	rpcErr := c.rpc(ctx, c.opts.Endpoints.Discover, url.Values{
@@ -620,6 +702,7 @@ func (c *Client) adoptLocked(id *Identity) {
 	c.jwt = id.DevicePassword
 	c.created = id.CreatedAt
 	c.hasIdentity = true
+	c.authorized = false
 	c.pins.load(id.Pins)
 }
 
@@ -665,6 +748,7 @@ func (c *Client) registerNewLocked(ctx context.Context) error {
 	c.deviceHash = capitalHexSHA1(devRes.Data.DeviceID)
 	c.created = c.now()
 	c.hasIdentity = true
+	c.authorized = false // Discover authorizes lazily via refreshLocked
 	return c.persistLocked(c.created)
 }
 

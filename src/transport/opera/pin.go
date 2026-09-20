@@ -23,61 +23,86 @@ func spkiFingerprint(cert *x509.Certificate) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// endpointKey renders the TOFU pin key for one dialed API endpoint. The
+// SurfEasy API fleet serves PER-BACKEND self-signed certificates: measured
+// 2026-09-20, api2.sec-tunnel.com resolves to 77.111.247.139 (CN=
+// h07-24-04.best.am4.osa, SPKI b4d61662…) and 77.111.247.143 (CN=
+// h05-22-01.best.am4.osa, SPKI f409a453…) — two stable but DIFFERENT keys
+// behind one name. A single host-scoped pin can therefore never hold (the
+// health layer would flap between the two backends); keying the pin by host
+// AND endpoint keeps strict fail-closed semantics while making the fleet
+// usable. When ip is empty or equals host (an IP-literal authority, or an
+// unresolved fallback) the historical host-only key is kept.
+func endpointKey(host, ip string) string {
+	if ip == "" || ip == host {
+		return host
+	}
+	return host + "@" + ip
+}
+
 type pinStore struct {
 	mu      sync.Mutex
-	pins    map[string]string // host -> committed fingerprint (trusted)
-	pending map[string]string // host -> fingerprint observed on the bootstrap contact
+	pins    map[string]string // endpoint key -> committed fingerprint (trusted)
+	pending map[string]string // endpoint key -> fingerprint observed on the bootstrap contact
+	lastKey map[string]string // host -> endpoint key most recently presented
 }
 
 func newPinStore(committed map[string]string) *pinStore {
 	pins := make(map[string]string, len(committed))
-	for host, fp := range committed {
-		if host != "" && fp != "" {
-			pins[host] = fp
+	for k, fp := range committed {
+		if k != "" && fp != "" {
+			pins[k] = fp
 		}
 	}
-	return &pinStore{pins: pins, pending: make(map[string]string)}
+	return &pinStore{pins: pins, pending: make(map[string]string), lastKey: make(map[string]string)}
 }
 
-// verify runs inside the TLS handshake (VerifyConnection). A host without a
-// committed pin records its observed leaf fingerprint as a pending candidate
-// — trust arrives only after commit() proves the channel speaks the real
-// SurfEasy API. A host with a pin must match exactly.
-func (p *pinStore) verify(host string, certs []*x509.Certificate) error {
+// verify runs inside the TLS handshake (VerifyConnection). The key is the
+// endpoint-scoped pin (host@ip); a key without a committed pin records its
+// observed leaf fingerprint as a pending candidate — trust arrives only after
+// commit() proves the channel speaks the real SurfEasy API. A known key must
+// match exactly (server key change => fail closed).
+func (p *pinStore) verify(key, host string, certs []*x509.Certificate) error {
 	if len(certs) == 0 {
-		return fmt.Errorf("tls: no peer certificates from %q", host)
+		return fmt.Errorf("tls: no peer certificates from %q", key)
 	}
 	fp := spkiFingerprint(certs[0])
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	known, ok := p.pins[host]
+	p.lastKey[host] = key
+	known, ok := p.pins[key]
 	switch {
 	case !ok:
-		p.pending[host] = fp
+		p.pending[key] = fp
 	case known != fp:
 		return newFailure(ClassAPIPinMismatch,
-			fmt.Sprintf("api channel key changed for %s (had %.16s…, got %.16s…)", host, known, fp), nil)
+			fmt.Sprintf("api channel key changed for %s (had %.16s…, got %.16s…)", key, known, fp), nil)
 	default:
-		delete(p.pending, host)
+		delete(p.pending, key)
 	}
 	return nil
 }
 
-// commit promotes the pending candidate for host after a successful API
-// exchange decoded through this channel. Reports whether a new pin was
-// recorded so the caller can persist the identity slot.
+// commit promotes the pending candidate for the endpoint most recently
+// presented for host, after a successful API exchange decoded through this
+// channel. Reports whether a new pin was recorded so the caller can persist
+// the identity slot.
 func (p *pinStore) commit(host string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	fp, ok := p.pending[host]
+	key, ok := p.lastKey[host]
 	if !ok {
 		return false
 	}
-	delete(p.pending, host)
-	if p.pins[host] == fp {
+	fp, ok := p.pending[key]
+	if !ok {
 		return false
 	}
-	p.pins[host] = fp
+	delete(p.pending, key)
+	if p.pins[key] == fp {
+		return false
+	}
+	p.pins[key] = fp
 	return true
 }
 

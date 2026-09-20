@@ -129,17 +129,62 @@ func TestParseDigestChallenge(t *testing.T) {
 }
 
 func TestNormalizeAlgorithmProfile(t *testing.T) {
-	for _, ok := range []string{"", "MD5", "md5"} {
-		alg, err := normalizeAlgorithm(ok)
-		if err != nil || alg != "MD5" {
-			t.Fatalf("normalize(%q) = %q, %v", ok, alg, err)
+	for _, tc := range []struct{ in, want string }{
+		{"", "MD5"}, {"MD5", "MD5"}, {"md5", "MD5"},
+		{"SHA-256", "SHA-256"}, {"sha-256", "SHA-256"},
+	} {
+		alg, err := normalizeAlgorithm(tc.in)
+		if err != nil || alg != tc.want {
+			t.Fatalf("normalize(%q) = %q, %v; want %q", tc.in, alg, err, tc.want)
 		}
 	}
-	for _, bad := range []string{"SHA-256", "MD5-sess", "unknown"} {
+	for _, bad := range []string{"MD5-sess", "SHA-512-256", "unknown"} {
 		_, err := normalizeAlgorithm(bad)
 		if !IsClass(err, ClassAPIAlgorithm) {
 			t.Fatalf("normalize(%q) err = %v, want ClassAPIAlgorithm", bad, err)
 		}
+	}
+}
+
+// TestDigestSHA256GoldenVector locks the RFC 7616 SHA-256 KD chain against
+// goldens computed OUTSIDE Go (python hashlib). The inputs mirror the live
+// api2.sec-tunnel.com challenge measured on 2026-09-20:
+//
+//	Digest realm="ApiDigest", nonce="1ivMgehLsKBlEc8e", algorithm="SHA-256",
+//	qop="auth"  — the server moved off MD5, so registration depends on this.
+func TestDigestSHA256GoldenVector(t *testing.T) {
+	const (
+		shaRealm = "ApiDigest"
+		shaNonce = "1ivMgehLsKBlEc8e"
+		shaHA1   = "89f6bc4a64cff35f8e36ea38f70cf280150949cd9fa14da76662f83ae7a0dc03"
+		shaHA2   = "576022d3d61ef3081140300c3d867832f6d61db2077f859e58cab7b4e780ad45"
+		shaResp1 = "2a9d42f2adb9d9054bd7c91c48cb7f090a59c29e9ce728086595bca213470f56"
+	)
+	if got := hashHex(digestAlgorithmSHA256, "abc"); got != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" {
+		t.Fatalf("sha256(abc) = %s", got)
+	}
+	if got := digestHA1Alg(digestAlgorithmSHA256, goldUser, shaRealm, goldPass); got != shaHA1 {
+		t.Fatalf("SHA-256 HA1 = %s, want %s", got, shaHA1)
+	}
+	if got := digestHA2Alg(digestAlgorithmSHA256, goldMethod, goldURI); got != shaHA2 {
+		t.Fatalf("SHA-256 HA2 = %s, want %s", got, shaHA2)
+	}
+	if got := digestResponseAlg(digestAlgorithmSHA256, shaHA1, shaNonce, "00000001", goldCnonce, "auth", shaHA2); got != shaResp1 {
+		t.Fatalf("SHA-256 response = %s, want %s", got, shaResp1)
+	}
+
+	// The full header must echo algorithm=SHA-256 and the SHA-256 response.
+	s := newDigestSession(goldUser, goldPass)
+	s.cnonceGen = fixedCnonce(goldCnonce)
+	if err := s.reset(&digestChallenge{realm: shaRealm, nonce: shaNonce, opaque: "op", qop: "auth", algorithm: "SHA-256"}); err != nil {
+		t.Fatalf("reset: %v", err)
+	}
+	hdr, err := s.authorize(goldMethod, goldURI)
+	if err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	if !strings.Contains(hdr, "algorithm=SHA-256") || !strings.Contains(hdr, `response="`+shaResp1+`"`) {
+		t.Fatalf("SHA-256 header = %s", hdr)
 	}
 }
 
@@ -348,7 +393,7 @@ func TestDigestTransportRefusalPassesThrough(t *testing.T) {
 func TestDigestTransportUnknownAlgorithmFailsStructured(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("WWW-Authenticate",
-			fmt.Sprintf(`Digest realm=%q, nonce=%q, qop="auth", algorithm=SHA-256`, goldRealm, goldNonce))
+			fmt.Sprintf(`Digest realm=%q, nonce=%q, qop="auth", algorithm=SHA-512-256`, goldRealm, goldNonce))
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer srv.Close()

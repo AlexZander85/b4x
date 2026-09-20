@@ -21,14 +21,14 @@ import (
 // TLS stand for the TOFU pin: one listener, certificate swapped mid-flight
 // via GetCertificate (no port rebinding flakiness).
 type tlsStand struct {
-	t        *testing.T
-	srv      *http.Server
-	ln       net.Listener
-	base     string
-	certA    tls.Certificate
-	certB    tls.Certificate
-	current  atomic.Pointer[tls.Certificate]
-	se       *seStand
+	t       *testing.T
+	srv     *http.Server
+	ln      net.Listener
+	base    string
+	certA   tls.Certificate
+	certB   tls.Certificate
+	current atomic.Pointer[tls.Certificate]
+	se      *seStand
 }
 
 func newTLSStand(t *testing.T) *tlsStand {
@@ -85,6 +85,62 @@ func mustSelfSigned(t *testing.T, cn string) tls.Certificate {
 		t.Fatalf("cert: %v", err)
 	}
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
+}
+
+func leaf(t *testing.T, c tls.Certificate) *x509.Certificate {
+	t.Helper()
+	parsed, err := x509.ParseCertificate(c.Certificate[0])
+	if err != nil {
+		t.Fatalf("parse leaf: %v", err)
+	}
+	return parsed
+}
+
+// TestPinStorePerEndpointKeys locks the field fix of 2026-09-20: the SurfEasy
+// API fleet serves distinct self-signed keys per backend behind one hostname,
+// so the TOFU pin is keyed by host@ip. A stable backend still fails closed on
+// key rotation, while a sibling backend is a legitimate first contact.
+func TestPinStorePerEndpointKeys(t *testing.T) {
+	if endpointKey("api2.sec-tunnel.com", "1.2.3.4") == endpointKey("api2.sec-tunnel.com", "5.6.7.8") {
+		t.Fatal("distinct endpoints must get distinct pin keys")
+	}
+	if got := endpointKey("127.0.0.1", "127.0.0.1"); got != "127.0.0.1" {
+		t.Fatalf("IP-literal key = %q, want host-only", got)
+	}
+
+	a := leaf(t, mustSelfSigned(t, "api2.sec-tunnel.com"))
+	b := leaf(t, mustSelfSigned(t, "api2.sec-tunnel.com"))
+	const host = "api2.sec-tunnel.com"
+	k1 := endpointKey(host, "77.111.247.139")
+	k2 := endpointKey(host, "77.111.247.143")
+	p := newPinStore(nil)
+
+	// First contact to backend 1: pending until a successful exchange commits.
+	if err := p.verify(k1, host, []*x509.Certificate{a}); err != nil {
+		t.Fatalf("bootstrap verify: %v", err)
+	}
+	if !p.commit(host) {
+		t.Fatal("bootstrap pin not committed")
+	}
+
+	// Committed backend 1 matches; a key rotation on the SAME endpoint fails closed.
+	if err := p.verify(k1, host, []*x509.Certificate{a}); err != nil {
+		t.Fatalf("stable backend: %v", err)
+	}
+	if err := p.verify(k1, host, []*x509.Certificate{b}); !IsClass(err, ClassAPIPinMismatch) {
+		t.Fatalf("rotated key err = %v, want ClassAPIPinMismatch", err)
+	}
+
+	// A sibling backend under the same name is a new endpoint: TOFU, no mismatch.
+	if err := p.verify(k2, host, []*x509.Certificate{b}); err != nil {
+		t.Fatalf("sibling backend verify: %v", err)
+	}
+	if !p.commit(host) {
+		t.Fatal("sibling pin not committed")
+	}
+	if snap := p.snapshot(); len(snap) != 2 {
+		t.Fatalf("pin snapshot = %v, want 2 endpoint pins", snap)
+	}
 }
 
 // TestTofuPinLifecycle walks the full TOFU story over a real TLS channel:

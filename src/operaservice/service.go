@@ -179,19 +179,36 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if mq.Profile != opera.MasqueradeOff {
 		rt.ladder = newMasqueradeLadder(client.MasqueradeBox(), ring,
 			&LadderStore{Path: opera.DefaultLadderStorePath(oc.IdentityPath)},
-			ladderHeadForProfile(mq.Profile), mq.SNIPool, mq.TTLFake, nil)
+			ladderHeadForProfile(mq.Profile, mq.SNIMode), mq.SNIPool, mq.TTLFake, nil)
 	}
 	return rt, nil
 }
 
-// ladderHeadForProfile maps the configured profile onto the ladder ceiling:
-// browser starts at the top; minimal skips the uTLS rungs (§7.5 rung
-// 'plain-Go'); off never builds a ladder.
-func ladderHeadForProfile(p opera.MasqueradeProfile) int {
+// ladderHeadForProfile maps the configured profile AND SNI discipline onto
+// the ladder ceiling. The ladder must start on the rung that MATCHES the
+// operator's config, otherwise the constructor's initial apply silently
+// overrides it — the field bug of 2026-09-20: a config asking for pool SNI
+// was reset to rung 0 (browser+node-sni, i.e. the real sec-tunnel name), and
+// the TSPU blackholes exactly that name, so the control channel never came up.
+//   - browser: node -> 0, pool -> 1, none -> 2
+//   - minimal (plain Go, no uTLS rungs): node -> 3, none -> 4. There is no
+//     dedicated plain+pool rung, so a pool request keeps the plain+node
+//     ceiling (use the browser profile when a pool SNI is wanted).
+func ladderHeadForProfile(p opera.MasqueradeProfile, sni opera.SNIMode) int {
 	if p == opera.MasqueradeMinimal {
+		if sni == opera.SNIModeNone {
+			return 4
+		}
 		return 3
 	}
-	return 0
+	switch sni {
+	case opera.SNIModePool:
+		return 1
+	case opera.SNIModeNone:
+		return 2
+	default:
+		return 0
+	}
 }
 
 // failoverDialer composes direct-first / carrier-second egress with a
@@ -345,6 +362,21 @@ func (r *Runtime) SetRegion(region string) error { return r.sup.SetDesiredRegion
 func (r *Runtime) Kick(ctx context.Context) {
 	go r.sup.Tick(r.sup.Now())
 }
+
+// Bootstrap establishes the control plane (identity + discover) WITHOUT
+// probing — the one-shot CLI (cmd/operatester) path that reports the design
+// §4 "process alive, port closed" snapshot (Running=true, Listening=false)
+// before any probe has run. Network I/O is bounded by ctx.
+func (r *Runtime) Bootstrap(ctx context.Context) error { return r.sup.Bootstrap(ctx) }
+
+// Client exposes the assembled engine for CLI-level data-plane operations
+// (probe/relay diagnostics in cmd/operatester). Nil before Build; never nil
+// after a successful Build.
+func (r *Runtime) Client() *opera.Client { return r.client }
+
+// ActiveEntry returns a copy of the currently selected node entry (empty when
+// bootstrap has not produced a node list yet).
+func (r *Runtime) ActiveEntry() opera.SEIPEntry { return r.sup.ActiveEntry() }
 
 // SupportsUDP is a protocol constant: SurfEasy nodes speak CONNECT over
 // TLS/TCP only. UDP-scope traffic must never be routed here (design §5,

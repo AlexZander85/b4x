@@ -6,9 +6,13 @@
 // header field order are reproduced byte-for-byte and locked by golden-vector
 // tests (digest_test.go).
 //
-// Supported profile (design §7.0):
-//   - algorithm: MD5 only ("", "MD5" accepted; anything else => Failure
-//     ClassAPIAlgorithm);
+// Supported profile (design §7.0, extended by field reality 2026-09-20):
+//   - algorithm: MD5 and SHA-256 ("", "MD5", "SHA-256"; anything else =>
+//     Failure ClassAPIAlgorithm). The live api2.sec-tunnel.com moved its
+//     Digest challenge to algorithm=SHA-256 (measured via the raw 401 on
+//     2026-09-20: realm="ApiDigest", qop="auth", algorithm="SHA-256"), so
+//     the historical MD5-only red line would have made registration
+//     impossible through no client fault;
 //   - qop: token "auth" must be offered; auth-int is NOT supported;
 //   - nc counter is monotonic per nonce (%08x), reset on each new nonce;
 //   - cnonce comes from crypto/rand;
@@ -21,6 +25,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -132,15 +137,23 @@ func parseDigestChallenge(header string) (*digestChallenge, error) {
 	return ch, nil
 }
 
-// normalizeAlgorithm gates the supported profile: MD5 only (empty means
-// MD5 per RFC 7616 §3.3 default). Anything else is a structured failure.
+// Digest algorithms in profile (RFC 7616). Empty means MD5 per §3.3 default.
+const (
+	digestAlgorithmMD5    = "MD5"
+	digestAlgorithmSHA256 = "SHA-256"
+)
+
+// normalizeAlgorithm gates the supported profile: MD5 and SHA-256. Anything
+// else (incl. the -sess variants) is a structured failure.
 func normalizeAlgorithm(raw string) (string, error) {
 	switch strings.ToUpper(raw) {
-	case "", "MD5":
-		return "MD5", nil
+	case "", digestAlgorithmMD5:
+		return digestAlgorithmMD5, nil
+	case digestAlgorithmSHA256:
+		return digestAlgorithmSHA256, nil
 	default:
 		return "", newFailure(ClassAPIAlgorithm,
-			fmt.Sprintf("unsupported digest algorithm %q (profile: MD5 only)", raw), nil)
+			fmt.Sprintf("unsupported digest algorithm %q (profile: MD5, SHA-256)", raw), nil)
 	}
 }
 
@@ -165,16 +178,40 @@ func md5hex(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// hashHex is the algorithm-keyed H() of RFC 7616 (MD5 default, SHA-256).
+func hashHex(algorithm, s string) string {
+	if algorithm == digestAlgorithmSHA256 {
+		sum := sha256.Sum256([]byte(s))
+		return hex.EncodeToString(sum[:])
+	}
+	return md5hex(s)
+}
+
+// digestHA1/digestHA2/digestResponse are the historical MD5 entry points kept
+// for the OP1 golden-vector tests; the session uses the algorithm-aware
+// variants below.
 func digestHA1(username, realm, password string) string {
-	return md5hex(username + ":" + realm + ":" + password)
+	return hashHex(digestAlgorithmMD5, username+":"+realm+":"+password)
+}
+
+func digestHA1Alg(algorithm, username, realm, password string) string {
+	return hashHex(algorithm, username+":"+realm+":"+password)
 }
 
 func digestHA2(method, uri string) string {
-	return md5hex(method + ":" + uri)
+	return hashHex(digestAlgorithmMD5, method+":"+uri)
+}
+
+func digestHA2Alg(algorithm, method, uri string) string {
+	return hashHex(algorithm, method+":"+uri)
 }
 
 func digestResponse(ha1, nonce, nc, cnonce, qop, ha2 string) string {
-	return md5hex(ha1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + ha2)
+	return hashHex(digestAlgorithmMD5, strings.Join([]string{ha1, nonce, nc, cnonce, qop, ha2}, ":"))
+}
+
+func digestResponseAlg(algorithm, ha1, nonce, nc, cnonce, qop, ha2 string) string {
+	return hashHex(algorithm, strings.Join([]string{ha1, nonce, nc, cnonce, qop, ha2}, ":"))
 }
 
 // renderAuthorization emits the header in the reference field order
@@ -285,9 +322,9 @@ func (s *digestSession) authorize(method, uri string) (string, error) {
 		"qop":       s.qop,
 		"nc":        fmt.Sprintf("%08x", s.nc),
 	}
-	ha1 := digestHA1(s.username, s.realm, s.password)
-	ha2 := digestHA2(method, uri)
-	params["response"] = digestResponse(ha1, s.nonce, params["nc"], cnonce, s.qop, ha2)
+	ha1 := digestHA1Alg(s.algorithm, s.username, s.realm, s.password)
+	ha2 := digestHA2Alg(s.algorithm, method, uri)
+	params["response"] = digestResponseAlg(s.algorithm, ha1, s.nonce, params["nc"], cnonce, s.qop, ha2)
 	return renderAuthorization(params), nil
 }
 
