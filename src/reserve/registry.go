@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/netip"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -105,6 +106,45 @@ type Carrier interface {
 	// DialUDP dials ONE UDP exchange to addr THROUGH the tunnel (a
 	// datagram-capable net.Conn bound to addr).
 	DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, error)
+}
+
+// BypassDomainChecker is the OPTIONAL anti-loop contract (opera design §5):
+// a carrier whose own infrastructure must NEVER be routed through it exports
+// the domains that stay DIRECT. The scoped router honours it two ways: the
+// tproxy tunnel dial path delivers such flows directly, and the firewall
+// pre-resolver keeps those domains out of the tunnel set's target ipset.
+// Carriers without this interface have no bypass list.
+type BypassDomainChecker interface {
+	BypassDomain(host string) bool
+}
+
+// bypassSuffixes is the REGISTRATION-INDEPENDENT anti-loop table: a carrier
+// kind's own infrastructure suffixes. The firewall pre-resolver runs before
+// the carrier registers (engine starts a tick later), so it cannot rely on
+// the optional BypassDomainChecker — it consults this table instead, which is
+// why the list lives here and both sides share one source of truth.
+var bypassSuffixes = map[Kind][]string{
+	// Opera/SurfEasy control API and proxy nodes — a reserve must never carry
+	// its own tunnel endpoints (zapret-gui chain lesson).
+	KindOpera: {"sec-tunnel.com"},
+}
+
+// BypassSuffixes returns the anti-loop suffixes declared for a carrier kind.
+func BypassSuffixes(kind Kind) []string { return bypassSuffixes[kind] }
+
+// IsBypassDomain reports whether host is (a subdomain of) a bypass domain for
+// the given carrier kind. Empty kinds / hosts answer false.
+func IsBypassDomain(kind Kind, host string) bool {
+	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
+	if h == "" {
+		return false
+	}
+	for _, s := range bypassSuffixes[kind] {
+		if h == s || strings.HasSuffix(h, "."+s) {
+			return true
+		}
+	}
+	return false
 }
 
 // ErrCarrierNoUDP is the honest refusal a TCP-only carrier returns from

@@ -36,29 +36,22 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/reserve"
 	opera "github.com/daniellavrushin/b4/transport/opera"
 )
 
 // DialFunc is the base TCP dial shape shared with the warp engine.
 type DialFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
-// SecTunnelBypassSuffixes lists domains that must NEVER traverse any tunnel
-// route (anti-loop, design §5). The field layer consumes this for its DIRECT
-// rules; in-code the same invariant is enforced by refuseNodeSelfLoop.
-var SecTunnelBypassSuffixes = []string{"sec-tunnel.com"}
+// SecTunnelBypassSuffixes aliases the shared anti-loop table in reserve so the
+// field layer and the scoped router consume ONE source of truth (the same
+// table the firewall pre-resolver reads before the carrier registers).
+var SecTunnelBypassSuffixes = reserve.BypassSuffixes(reserve.KindOpera)
 
-// IsBypassDomain reports whether host is (a subdomain of) a bypass domain.
+// IsBypassDomain reports whether host is (a subdomain of) a bypass domain for
+// the opera reserve (anti-loop, design §5).
 func IsBypassDomain(host string) bool {
-	h := strings.ToLower(strings.TrimSuffix(strings.TrimSpace(host), "."))
-	if h == "" {
-		return false
-	}
-	for _, s := range SecTunnelBypassSuffixes {
-		if h == s || strings.HasSuffix(h, "."+s) {
-			return true
-		}
-	}
-	return false
+	return reserve.IsBypassDomain(reserve.KindOpera, host)
 }
 
 // ErrOperaSelfLoop is returned when a consumer asks the opera tunnel to

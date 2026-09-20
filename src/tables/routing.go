@@ -12,6 +12,7 @@ import (
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
+	"github.com/daniellavrushin/b4/reserve"
 )
 
 const hostRouteCTMark = uint32(0x40000000)
@@ -731,6 +732,16 @@ func routePreResolveDomains(cfg *config.Config, sets []*config.SetConfig) {
 		for _, domain := range set.Targets.SNIDomains {
 			domain = strings.TrimSpace(domain)
 			if domain == "" {
+				continue
+			}
+			// Anti-loop (opera design §5): a tunnel carrier's OWN
+			// infrastructure must never enter the tunnel target ipset, even
+			// if an operator listed it (or a geo category expanded to it).
+			// The shared reserve table is consulted (NOT the carrier), so the
+			// guard holds even before the tunnel engine has registered.
+			if set.Routing.Mode == config.RoutingModeTunnel &&
+				reserve.IsBypassDomain(reserve.Kind(set.Routing.Tunnel), domain) {
+				log.Tracef("Routing: anti-loop — %s excluded from tunnel set %q target ipset", domain, set.Name)
 				continue
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

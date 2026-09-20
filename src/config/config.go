@@ -285,6 +285,13 @@ var DefaultConfig = Config{
 			Enabled:      false,
 			IdentityPath: DefaultOperaIdentityPath,
 			Region:       "EU",
+			// Shipping masquerade (field 2026-09-20): neutral pool SNI, since
+			// the real *.sec-tunnel.com name is SNI-filtered in RU.
+			Masquerade: OperaMasqueradeConfig{
+				Profile: OperaMasqueradeProfileDefault,
+				SNIMode: OperaSNIModeDefault,
+				SNIPool: OperaSNIPoolDefault,
+			},
 		},
 
 		FxVPN: FxVPNConfig{

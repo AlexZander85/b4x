@@ -123,18 +123,6 @@ func loadConfig(path string) (*config.Config, error) {
 	if strings.TrimSpace(c.System.Opera.Region) == "" {
 		c.System.Opera.Region = opera.RegionEU
 	}
-	// Field default (RU): the TSPU filters on the real SurfEasy name —
-	// measured 2026-09-20, a ClientHello with SNI=api2.sec-tunnel.com gets a
-	// SYN blackhole, while a neutral name completes TLS (200/407). Unless the
-	// operator names a different discipline in the config, default to a
-	// neutral pool SNI so the control channel is reachable at all. The
-	// shipping engine/daemon default stays the engine's own decision (b4x-6da).
-	if strings.TrimSpace(c.System.Opera.Masquerade.SNIMode) == "" {
-		c.System.Opera.Masquerade.SNIMode = "pool"
-	}
-	if len(c.System.Opera.Masquerade.SNIPool) == 0 {
-		c.System.Opera.Masquerade.SNIPool = []string{"www.microsoft.com", "www.opera.com"}
-	}
 	return &c, nil
 }
 

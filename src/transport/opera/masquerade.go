@@ -77,9 +77,18 @@ type MasqueradeSettings struct {
 	Fingerprint string
 }
 
+// DefaultSNIPool is the neutral cover-name set used when the operator leaves
+// sni_pool empty. The real SurfEasy names are SNI-filtered in RU (field
+// 2026-09-20: SNI=*.sec-tunnel.com → SYN blackhole; a browser-class neutral
+// name completes TLS 200/407), so pool mode without an explicit pool still
+// needs printable names.
+var DefaultSNIPool = []string{"www.microsoft.com", "www.opera.com"}
+
 // DefaultMasquerade returns the shipping defaults (review §7.3): browser
 // profile, node SNI, browser ALPN, resumption on. The NFQ bait defaults
-// off (needs the OUTPUT hook wired — OP-M3).
+// off (needs the OUTPUT hook wired — OP-M3). NOTE: this is the raw engine
+// base; config-driven assembly goes through ResolveMasquerade, whose unset
+// (-"") SNI default is POOL — see below.
 func DefaultMasquerade() MasqueradeSettings {
 	return MasqueradeSettings{
 		Profile:           MasqueradeBrowser,
@@ -112,19 +121,24 @@ func ResolveMasquerade(profile, sniMode string, sniPool []string, alpn []string,
 		// validated upstream; unknown falls back to browser
 	}
 	switch SNIMode(strings.ToLower(strings.TrimSpace(sniMode))) {
-	case SNIModePool:
-		m.SNIMode = SNIModePool
+	case SNIModeNode:
+		m.SNIMode = SNIModeNode
 	case SNIModeNone:
 		m.SNIMode = SNIModeNone
-	case "", SNIModeNode:
-		m.SNIMode = SNIModeNode
+	case SNIModePool:
+		m.SNIMode = SNIModePool
+	default:
+		// Shipping default 2026-09-20: unset means POOL. Node-SNI (the real
+		// *.sec-tunnel.com name) is SNI-filtered in RU — an explicit
+		// operator choice, never a safe default; the neutral pool is what
+		// actually reaches the API and the nodes.
+		m.SNIMode = SNIModePool
 	}
 	if len(sniPool) > 0 {
 		m.SNIPool = normalizeSNIPool(sniPool)
-		if m.SNIMode != SNIModePool && len(m.SNIPool) > 0 {
-			// A configured pool with explicit pool mode absent keeps node
-			// mode (the pool is an override for pool mode only).
-		}
+	}
+	if m.SNIMode == SNIModePool && len(m.SNIPool) == 0 {
+		m.SNIPool = append([]string(nil), DefaultSNIPool...)
 	}
 	if len(alpn) > 0 {
 		m.ALPN = alpn

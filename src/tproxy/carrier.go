@@ -49,6 +49,13 @@ func (l *Listener) dialTunnelTCP(ctx context.Context, origIP net.IP, origPort in
 	if l.Tunnel == nil {
 		return nil, fmt.Errorf("tproxy: set %q has no tunnel carrier", l.SetName)
 	}
+	// Anti-loop (opera design §5): a carrier's OWN infrastructure must never
+	// be routed back through it (reserve self-loop). When the carrier
+	// declares the flow's domain as bypassed, deliver it DIRECT.
+	if bd, ok := l.Tunnel.(reserve.BypassDomainChecker); ok && domain != "" && bd.BypassDomain(domain) {
+		log.Tracef("tproxy: tunnel %s bypasses %q on set %q (direct, anti-loop)", l.TunnelKind, domain, l.SetName)
+		return l.dialBypassDirect(ctx, origIP, origPort)
+	}
 	if hd, ok := l.Tunnel.(hostDialer); ok && domain != "" {
 		if conn, err := hd.DialStreamHost(ctx, domain, uint16(origPort)); err == nil {
 			return conn, nil
@@ -61,6 +68,14 @@ func (l *Listener) dialTunnelTCP(ctx context.Context, origIP net.IP, origPort in
 		return nil, err
 	}
 	return l.Tunnel.DialStream(ctx, addr)
+}
+
+// dialBypassDirect delivers a bypassed flow straight to its destination. The
+// bypass mark keeps it out of the set's own marked paths so the flow cannot
+// re-enter the tunnel (or any tuple-split path) it is being excluded from.
+func (l *Listener) dialBypassDirect(ctx context.Context, origIP net.IP, origPort int) (net.Conn, error) {
+	d := markedDialer(10*time.Second, l.Upstream.BypassMark)
+	return d.DialContext(ctx, "tcp", net.JoinHostPort(origIP.String(), fmt.Sprintf("%d", origPort)))
 }
 
 // connUDP adapts a datagram-capable net.Conn (reserve.Carrier.DialUDP

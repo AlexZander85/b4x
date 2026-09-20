@@ -20,4 +20,12 @@ func (r *Runtime) DialUDP(ctx context.Context, addr netip.AddrPort) (net.Conn, e
 	return nil, reserve.ErrCarrierNoUDP
 }
 
+// BypassDomain implements reserve.BypassDomainChecker (anti-loop, design §5):
+// the transport's OWN infrastructure (`*.sec-tunnel.com`, the API and the
+// proxy nodes) must always be delivered DIRECT — routing it back through the
+// tunnel is the classic reserve self-loop (the zapret-gui chain lesson). The
+// domain list is SecTunnelBypassSuffixes.
+func (r *Runtime) BypassDomain(host string) bool { return IsBypassDomain(host) }
+
 var _ reserve.Carrier = (*Runtime)(nil)
+var _ reserve.BypassDomainChecker = (*Runtime)(nil)

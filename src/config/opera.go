@@ -8,16 +8,20 @@ const (
 	// OperaMasqueradeProfileDefault: the full browser masquerade is the
 	// shipping default — the transport must not look like a Go robot.
 	OperaMasqueradeProfileDefault = "browser"
-	// OperaSNIModeDefault inverts the historical suppression (§7.4.1): the
-	// REAL node name is a legitimate CDN-class name Opera's own browser
-	// sends; no-SNI is a first-class DPI suspicion and stays available as
-	// the explicit ladder bottom.
-	OperaSNIModeDefault = "node"
+	// OperaSNIModeDefault is POOL (field 2026-09-20): the REAL node name is
+	// SNI-filtered in RU (SYN blackhole on SNI=*.sec-tunnel.com), so the
+	// neutral cover-name pool is the safe shipping default; node-SNI stays
+	// an explicit operator choice and no-SNI the ladder bottom.
+	OperaSNIModeDefault = "pool"
 	// OperaALPNDefault: the H2-CONNECT engine (OP-M2) ships, so the
 	// browser-like h2-first offer is the default; nodes that decline h2
 	// fall back to the HTTP/1.1 CONNECT engine transparently.
 	OperaALPNDefault = "h2,http/1.1"
 )
+
+// OperaSNIPoolDefault is the neutral cover-name pool used when the operator
+// leaves sni_pool empty (mirrors opera.DefaultSNIPool).
+var OperaSNIPoolDefault = []string{"www.microsoft.com", "www.opera.com"}
 
 // OperaMasqueradeConfig configures the anti-DPI masquerade of the Opera
 // reserve transport (review §7.3). Zero values resolve to the defaults.
@@ -26,8 +30,9 @@ type OperaMasqueradeConfig struct {
 	// fingerprint+ALPN+resumption), "minimal" (SNI discipline only —
 	// plain Go TLS), "off" (historical plain-Go + no-SNI behavior).
 	Profile string `json:"profile"`
-	// SNIMode: "node" (real node name — default), "pool" (name from
-	// SNIPool), "none" (suppress — the historical default, last rung).
+	// SNIMode: "pool" (name from SNIPool — DEFAULT; the real node name is
+	// SNI-filtered in RU), "node" (real node name), "none" (suppress — the
+	// historical default, last rung).
 	SNIMode string `json:"sni_mode"`
 	// SNIPool overrides the built-in white-SNI pool whole (owner-owned
 	// names; RFC 1123 validated, sec-tunnel domains forbidden — the pool
