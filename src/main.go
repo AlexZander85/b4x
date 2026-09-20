@@ -914,7 +914,14 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// egress is the standalone path until then (review C1: proton canon).
 	var operaEngine *operaservice.Runtime
 	if cfgPtr.Load().System.Opera.Enabled {
-		rt, err := operaservice.Build(cfgPtr.Load(), operaservice.Options{})
+		// Bootstrap-through-carrier (design §2/§5): API and data-plane dials
+		// reach the SurfEasy infrastructure through the active base transport
+		// (MASQUE/WG) when a direct egress is blocked. The base carrier is
+		// resolved at dial time, so engines that register after this point are
+		// picked up without a restart.
+		rt, err := operaservice.Build(cfgPtr.Load(), operaservice.Options{
+			Carrier: operaservice.BaseCarrierDial(),
+		})
 		if err != nil {
 			log.Errorf("[opera] engine disabled this run: %v", err)
 		} else if err := rt.Start(appCtx); err != nil {
