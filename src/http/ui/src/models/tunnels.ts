@@ -18,6 +18,33 @@ export interface TunnelCard {
   location_value?: string;
   restartable: boolean;
   note?: string;
+  // Last health measurement (design TUNNELS_PANEL_DESIGN.md §8). Present
+  // only after POST /api/tunnels/measure ran for this kind. Recommendation
+  // only — it never changes which tunnel routes traffic.
+  health?: TunnelHealth;
+}
+
+// TunnelHealth mirrors src/transport/health.Metrics.
+export interface TunnelHealth {
+  kind: string;
+  available: boolean;
+  rtt_ms?: number;
+  ttfb_ms?: number;
+  throughput_mbps?: number;
+  loss_pct?: number;
+  bytes?: number;
+  probes: number;
+  failures: number;
+  score: number;
+  // healthy | degraded | poor | unavailable (kept loose: the backend may
+  // add verdicts; the UI maps unknown values to a default chip).
+  verdict: string;
+  error?: string;
+  measured_at: string;
+}
+
+export interface TunnelsMeasureResult {
+  results: Record<string, TunnelHealth>;
 }
 
 export interface ChainPreset {

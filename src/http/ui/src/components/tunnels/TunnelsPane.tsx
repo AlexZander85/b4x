@@ -4,6 +4,7 @@ import { RestartIcon, TunnelsIcon } from "@b4.icons";
 import { colors } from "@design";
 import { useTranslation } from "react-i18next";
 import { TunnelCard } from "./TunnelCard";
+import { TunnelHealthDashboard } from "./TunnelHealthDashboard";
 import { TunnelSettingsDialog } from "./TunnelSettingsDialog";
 import { Assignments } from "./Assignments";
 import { useTunnels } from "@hooks/useTunnels";
@@ -12,8 +13,16 @@ import { useState } from "react";
 
 export function TunnelsPane() {
   const { t } = useTranslation();
-  const { overview, loading, error, restarting, reload, restartTunnel } =
-    useTunnels();
+  const {
+    overview,
+    loading,
+    error,
+    restarting,
+    measuring,
+    reload,
+    restartTunnel,
+    measureTunnels,
+  } = useTunnels();
   const [configureKind, setConfigureKind] = useState<TunnelKind | null>(null);
 
   if (loading && !overview) {
@@ -99,6 +108,19 @@ export function TunnelsPane() {
             ))
           )}
         </Box>
+      </B4Section>
+
+      <B4Section
+        title={t("tunnels.health.title")}
+        description={t("tunnels.health.sectionDescription")}
+      >
+        <TunnelHealthDashboard
+          cards={overview?.tunnels ?? []}
+          measuring={measuring}
+          onMeasure={(kind) => {
+            measureTunnels(kind).catch(() => {});
+          }}
+        />
       </B4Section>
 
       <B4Section

@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPut } from "./apiClient";
 import { TunnelKind } from "@models/config";
 import {
+  TunnelsMeasureResult,
   TunnelsOverview,
   TunnelsRestartResult,
 } from "@models/tunnels";
@@ -13,6 +14,14 @@ export const tunnelsApi = {
   restart: (kind: TunnelKind) =>
     apiPost<TunnelsRestartResult>(
       `/api/tunnels/restart?kind=${encodeURIComponent(kind)}`,
+    ),
+  // On-demand health measurement (design §8). Omit kind to measure every
+  // registered carrier. Recommendation/score only.
+  measure: (kind?: TunnelKind) =>
+    apiPost<TunnelsMeasureResult>(
+      kind
+        ? `/api/tunnels/measure?kind=${encodeURIComponent(kind)}`
+        : "/api/tunnels/measure",
     ),
 };
 

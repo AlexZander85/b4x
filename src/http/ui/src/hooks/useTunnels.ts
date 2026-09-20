@@ -8,6 +8,8 @@ export function useTunnels(pollMs = 5000) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [restarting, setRestarting] = useState<string | null>(null);
+  // measuring: the kind being measured, or "__all__" for a measure-all run.
+  const [measuring, setMeasuring] = useState<string | null>(null);
   const initRef = useRef(false);
 
   const loadOverview = useCallback(async () => {
@@ -51,12 +53,32 @@ export function useTunnels(pollMs = 5000) {
     [loadOverview],
   );
 
+  // measureTunnels runs an on-demand health probe (all carriers, or one
+  // kind) and refreshes the overview so the new scores surface (design §8).
+  const measureTunnels = useCallback(
+    async (kind?: TunnelKind) => {
+      try {
+        setMeasuring(kind ?? "__all__");
+        await tunnelsApi.measure(kind);
+        await loadOverview();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Measure failed");
+        throw err;
+      } finally {
+        setMeasuring(null);
+      }
+    },
+    [loadOverview],
+  );
+
   return {
     overview,
     loading,
     error,
     restarting,
+    measuring,
     reload: loadOverview,
     restartTunnel,
+    measureTunnels,
   };
 }
