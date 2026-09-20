@@ -101,6 +101,22 @@ func IsRoutingTunnelKind(kind string) bool {
 	return false
 }
 
+// QUIC policy for routing.mode=tunnel sets (routing.quic). It is only
+// meaningful when the selected carrier is TCP-ONLY (fxvpn/opera/tor/...):
+// the carrier cannot carry UDP, so without a policy the target's QUIC flow
+// is not tunneled. "auto" (default) installs no UDP rule (current
+// behavior); "block" installs a drop rule for the set's targets' UDP so
+// QUIC cannot leak direct and the client falls back to TCP, which then goes
+// through the tunnel. Ignored for UDP-capable carriers (warp/proton), where
+// upstream.udp=true actually tunnels UDP.
+const (
+	QuicAuto  = "auto"
+	QuicBlock = "block"
+)
+
+// BlocksQuic reports whether the set asks for the hard QUIC-drop policy.
+func (r RoutingConfig) BlocksQuic() bool { return r.Quic == QuicBlock }
+
 func RoutingUsesTProxy(mode string) bool {
 	return mode == RoutingModeProxy || mode == RoutingModeMTProtoWS || mode == RoutingModeTunnel
 }
@@ -674,7 +690,11 @@ type RoutingConfig struct {
 	Upstream        UpstreamProxyConfig `json:"upstream"`
 	// Tunnel selects the reserve carrier for RoutingModeTunnel ("proton",
 	// "tor", "opera", "fxvpn", ...). Empty is invalid in that mode.
-	Tunnel           string   `json:"tunnel,omitempty"`
+	Tunnel string `json:"tunnel,omitempty"`
+	// Quic is the UDP/QUIC policy for a TCP-only tunnel set: "" / "auto"
+	// (default, no rule) or "block" (drop the set's targets' UDP so QUIC
+	// cannot leak direct; the client falls back to TCP -> tunnel).
+	Quic             string   `json:"quic,omitempty"`
 	FWMark           uint32   `json:"fwmark"`
 	Table            int      `json:"table"`
 	SourceInterfaces []string `json:"source_interfaces"`

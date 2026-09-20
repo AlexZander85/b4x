@@ -185,6 +185,15 @@ func (c *Config) Validate() error {
 				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "kernel_mode_no_carrier", map[string]any{"set": set.Name, "kind": set.Routing.Tunnel, "mode": WarpAWGModeKernel}, "set %q: routing.tunnel=warp has no userspace carrier while system.warp.awg.mode=kernel (PBR field layer only; switch awg.mode to netstack or re-route the set)", set.Name)
 				return v.result()
 			}
+			// routing.quic: QUIC policy for TCP-only tunnel carriers
+			// ("" / "auto" = no rule; "block" = drop the targets' UDP).
+			set.Routing.Quic = strings.ToLower(strings.TrimSpace(set.Routing.Quic))
+			switch set.Routing.Quic {
+			case "", QuicAuto, QuicBlock:
+			default:
+				v.addf(fmt.Sprintf("sets[%d].routing.quic", setIdx), "invalid_quic_policy", map[string]any{"set": set.Name, "policy": set.Routing.Quic}, "set %q: invalid routing.quic %q (want \"\", %q or %q)", set.Name, set.Routing.Quic, QuicAuto, QuicBlock)
+				return v.result()
+			}
 		case RoutingModeBlock:
 			set.Routing.BlockAction = NormalizeBlockAction(set.Routing.BlockAction)
 		default:

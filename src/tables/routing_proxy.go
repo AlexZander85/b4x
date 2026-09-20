@@ -344,6 +344,10 @@ func routeEnsureProxyRule(be routeBackend, cfg *config.Config, set *config.SetCo
 			udp = set.Routing.Upstream.UDP && e.Carrier.SupportsUDP()
 		}
 	}
+	// Hard QUIC policy (routing.quic=block): a TCP-only carrier cannot carry
+	// UDP, so instead of leaving the target's QUIC to leak direct, drop it —
+	// the client falls back to TCP, which the tproxy rule above carries.
+	quicBlock := set.Routing.Mode == config.RoutingModeTunnel && set.Routing.BlocksQuic() && !udp
 
 	switch be.name() {
 	case backendNFTables:
@@ -353,12 +357,18 @@ func routeEnsureProxyRule(be routeBackend, cfg *config.Config, set *config.SetCo
 			if udp {
 				addProxyTProxyRuleNft(st.chainPre, false, st.setV4, st.mark, port, sources, "udp")
 			}
+			if quicBlock {
+				addProxyDropUDPRuleNft(st.chainPre, false, st.setV4, sources)
+			}
 		}
 		if cfg.Queue.IPv6Enabled {
 			addProxyDivertRuleNft(st.chainPre, true, st.setV6, st.mark)
 			addProxyTProxyRuleNft(st.chainPre, true, st.setV6, st.mark, port, sources, "tcp")
 			if udp {
 				addProxyTProxyRuleNft(st.chainPre, true, st.setV6, st.mark, port, sources, "udp")
+			}
+			if quicBlock {
+				addProxyDropUDPRuleNft(st.chainPre, true, st.setV6, sources)
 			}
 		}
 		ensureProxyOutputBaseRulesNft(cfg, st, queueMark)
@@ -375,6 +385,9 @@ func routeEnsureProxyRule(be routeBackend, cfg *config.Config, set *config.SetCo
 			if udp {
 				addProxyTProxyRuleIpt(false, st.chainPre, st.setV4, st.mark, port, sources, legacy, "udp")
 			}
+			if quicBlock {
+				addProxyDropUDPRuleIpt(false, st.chainPre, st.setV4, sources, legacy)
+			}
 			addProxyOutputMarkRuleIpt(false, st.chainOut, st.setV4, st.mark, legacy)
 		}
 		if cfg.Queue.IPv6Enabled {
@@ -382,6 +395,9 @@ func routeEnsureProxyRule(be routeBackend, cfg *config.Config, set *config.SetCo
 			addProxyTProxyRuleIpt(true, st.chainPre, st.setV6, st.mark, port, sources, legacy, "tcp")
 			if udp {
 				addProxyTProxyRuleIpt(true, st.chainPre, st.setV6, st.mark, port, sources, legacy, "udp")
+			}
+			if quicBlock {
+				addProxyDropUDPRuleIpt(true, st.chainPre, st.setV6, sources, legacy)
 			}
 			addProxyOutputMarkRuleIpt(true, st.chainOut, st.setV6, st.mark, legacy)
 		}
@@ -881,4 +897,64 @@ func isLegacyIptBackend(be routeBackend) bool {
 		return ipt.legacy
 	}
 	return false
+}
+
+// addProxyDropUDPRuleNft drops UDP to the set's target set — the hard QUIC
+// policy (routing.quic=block on a TCP-only carrier). QUIC thus cannot leak
+// direct; the client falls back to TCP, which the tproxy rule carries.
+func addProxyDropUDPRuleNft(chain string, v6 bool, setName string, sources []string) {
+	emit := func(sn, src string) {
+		args := []string{"add", "rule", "inet", routeNftTable, chain}
+		if src != "" {
+			args = append(args, "iifname", fmt.Sprintf("%q", src))
+		}
+		if v6 {
+			args = append(args, "meta", "l4proto", "udp", "ip6", "daddr", "@"+sn, "drop")
+		} else {
+			args = append(args, "ip", "protocol", "udp", "ip", "daddr", "@"+sn, "drop")
+		}
+		runLogged("routing: add quic-drop rule "+chain, append([]string{"nft"}, args...)...)
+	}
+	for _, sn := range []string{setName, routeNftDynSet(setName)} {
+		if len(sources) == 0 {
+			emit(sn, "")
+			continue
+		}
+		for _, src := range sources {
+			emit(sn, src)
+		}
+	}
+}
+
+// addProxyDropUDPRuleIpt is the iptables fallback of addProxyDropUDPRuleNft.
+func addProxyDropUDPRuleIpt(v6 bool, chain, setName string, sources []string, legacy bool) {
+	cmd := backendIPTables
+	if v6 {
+		cmd = backendIP6Tables
+	}
+	if legacy {
+		if v6 {
+			cmd = backendIP6TablesLegacy
+		} else {
+			cmd = backendIPTablesLegacy
+		}
+	}
+	if !hasBinary(cmd) {
+		return
+	}
+	emit := func(src string) {
+		args := []string{cmd, "-w", "-t", "mangle", "-A", chain, "-p", "udp"}
+		if src != "" {
+			args = append(args, "-i", src)
+		}
+		args = append(args, "-m", "set", "--match-set", setName, "dst", "-j", "DROP")
+		runLogged("routing: add quic-drop rule "+chain, args...)
+	}
+	if len(sources) == 0 {
+		emit("")
+		return
+	}
+	for _, src := range sources {
+		emit(src)
+	}
 }
