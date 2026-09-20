@@ -386,6 +386,15 @@ func (r *Runtime) RestartNow(ctx context.Context) {
 func (r *Runtime) loop(ctx context.Context) {
 	ticker := time.NewTicker(superviseTick)
 	defer ticker.Stop()
+	// Provision the pool before the first supervision cycle. NewPool lands
+	// every account in StateProvisioning and only Bootstrap moves it
+	// forward; RotateIfDue deliberately skips Provisioning seats. Without
+	// this call a healthy account stays Provisioning forever and the pool
+	// reports blocked (field harness F3 finding; the daemon wiring had the
+	// same gap).
+	if err := r.pool.Bootstrap(ctx); err != nil {
+		r.noteFailure(classifyServiceErr(err))
+	}
 	r.tick(ctx)
 	for {
 		select {
@@ -926,6 +935,20 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 	r.atomicOK()
 	// F7b: the relay feeds the byte counters (up/down) + /metrics gauge.
 	return byteCountingConn{Conn: conn, rt: r}, nil
+}
+
+// ProbeExit runs the exit-verification probe through the CURRENT serving
+// session (field-harness seam). No live session => ErrNotListening. The
+// probe opens a data-plane CONNECT to the control host and is therefore a
+// live network action (consent rule).
+func (r *Runtime) ProbeExit(ctx context.Context) (fxvpn.ExitInfo, error) {
+	r.mu.Lock()
+	sess := r.session
+	r.mu.Unlock()
+	if sess == nil || !sess.IsAlive() {
+		return fxvpn.ExitInfo{}, ErrNotListening
+	}
+	return fxvpn.ProbeExit(ctx, sess)
 }
 
 // Status snapshots runtime state for the GUI/API (Дополнение 3 shapes).

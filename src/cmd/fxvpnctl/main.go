@@ -37,10 +37,19 @@ import (
 const usageText = `fxvpnctl - Firefox VPN reserve transport L0 onboarding
 
 usage:
+  # L0 onboarding (control plane only, never opens a tunnel)
   fxvpnctl login  --store PATH --email E [--password PW] [--label L] [--code NNNNNN]
   fxvpnctl import --store PATH --email E --refresh-token RT [--label L]
   fxvpnctl list   --store PATH
   fxvpnctl test   (--store PATH --email E | --refresh-token RT)
+
+  # field harness (E-FXVPN field prompt): network actions
+  fxvpnctl serverlist   [-store PATH] [-cache FILE]
+  fxvpnctl account-test [-store PATH] [--email E] [--code N] [--save-rt]
+  fxvpnctl harvest      --signed-in SIGNEDINUSER.json [--store PATH] [--label L] [--check]
+  fxvpnctl serve        [-store PATH] [-listen H:P] [--country DE] [--prefer-h3] [--socks5 H:P]
+  fxvpnctl status       [-store PATH] [location/transport flags]
+  fxvpnctl exit         [-store PATH] [location/transport flags]
 
 password env fallback: B4_FXVPN_PASSWORD
 exit codes: 0 ok, 1 error, 2 usage, 3 verification code required
@@ -61,6 +70,18 @@ func main() {
 		err = cmdList(os.Args[2:])
 	case "test":
 		err = cmdTest(os.Args[2:])
+	case "serverlist":
+		err = cmdServerlist(os.Args[2:])
+	case "account-test":
+		err = cmdAccountTest(os.Args[2:])
+	case "harvest":
+		err = cmdHarvest(os.Args[2:])
+	case "serve":
+		err = cmdServe(os.Args[2:])
+	case "status":
+		err = cmdStatus(os.Args[2:])
+	case "exit":
+		err = cmdExit(os.Args[2:])
 	case "-h", "--help", "help":
 		fmt.Print(usageText)
 		return
