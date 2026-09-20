@@ -535,6 +535,22 @@ export const TrafficRouting = ({
                   </B4Alert>
                 )}
               </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <B4TextField
+                  label={t("sets.routing.quicPolicy")}
+                  select
+                  value={routing.quic ?? "auto"}
+                  onChange={(e) => onChange("routing.quic", e.target.value)}
+                  helperText={t("sets.routing.quicPolicyHelper")}
+                >
+                  <MenuItem value="auto">
+                    {t("sets.routing.quicAuto")}
+                  </MenuItem>
+                  <MenuItem value="block">
+                    {t("sets.routing.quicBlock")}
+                  </MenuItem>
+                </B4TextField>
+              </Grid>
               <Grid size={{ xs: 12 }}>
                 <B4Hint>{t("sets.routing.howItWorksTunnel")}</B4Hint>
               </Grid>

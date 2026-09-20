@@ -668,6 +668,9 @@ export interface RoutingConfig {
   egress_interface: string;
   upstream: UpstreamProxyConfig;
   tunnel?: TunnelKind;
+  // QUIC policy for a TCP-only tunnel set: "auto" (default) or "block"
+  // (drop the set's targets' UDP so QUIC falls back to TCP -> tunnel).
+  quic?: string;
   fwmark: number;
   table: number;
   source_interfaces: string[];
