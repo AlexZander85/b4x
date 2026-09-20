@@ -153,3 +153,10 @@ REUSE (проверено):
   A (этот слой): пакет health + Prober через reserve.Carrier + POST /api/tunnels/measure + поле health в GET /api/tunnels + юниты (fake carrier).
   B: авто-супервизор (каденция opera) + per-kind метрики observability + persisted last-measure.
   C: UI (карточки, кнопка, рейтинг, рекомендация).
+
+## 9. Решения E-FXVPN (2026-09-20, поле b4x-auj)
+
+- **Masque (RFC 9298 CONNECT-UDP) — отложен, не реализуем (`bd b4x-d73`, GATED).** Ходит на тот же `*.m1.fastly-masque.net:2499`; префикс `23.235.42.0/24` заблокирован по IP на L3 (голый SYN → No route to host на :80/:443/:2499) — UDP не обходит IP-блэкхол; продакшн-список не отдаёт `protocols[]`/masque; UDP-эгресс уже есть у WARP/Proton. **Гейт возврата:** (а) `protocols[].name=="masque"` в serverlist И (б) конкретная нужда в UDP через Fastly.
+- **Маскировка эджа fxvpn (FX-M0..M4) не лечит IP-префиксный блок (`bd b4x-esc`, DECISION).** Контентная (SNI/JA3/JA4) против L3-блэкхола бесполезна; под носителем избыточна. В коде оставлена (включена, бесплатна), но ответ на РФ-блок — носитель. См. `PROJECT_DIRECTIVES.md` §7 питфолл 29.
+- **Рабочий путь fxvpn из РФ = вложение (§7.5)**, подтверждено полем: `nested=true`, `carrier=h2`, выход `loc=DE/BR`, 12/12 HTTP 200. Демон: `Options.Carrier` + `loop`-bootstrap.
+- Health-дашборд туннелей (§8) — только рекомендация; маршрутизация меняется явным promote.
