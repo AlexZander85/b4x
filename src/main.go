@@ -42,6 +42,7 @@ import (
 	"github.com/daniellavrushin/b4/tables"
 	"github.com/daniellavrushin/b4/torservice"
 	"github.com/daniellavrushin/b4/tproxy"
+	fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/validation"
 	"github.com/daniellavrushin/b4/warp"
@@ -946,12 +947,28 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// src/transport/fxvpn, assembly in fxvpservice). Zero goroutines and
 	// zero wire calls unless system.fxvpn.enabled=true — the default
 	// config keeps the section off. Canon: the proton/opera blocks above.
-	// The bootstrap-through-carrier seam stays nil until the selection
-	// trees learn the fxvpn kind (same posture as opera/proton); direct
-	// egress is the standalone path until then.
+	//
+	// Carrier-nesting / bootstrap-through-carrier (design §7.5): when the
+	// config asks for it, hand the runtime the highest base transport
+	// (MASQUE/AWG-WARP/H3) resolved at DIAL time — a carrier registered
+	// after this Build is still picked up. This is what makes fxvpn usable
+	// on a network that prefix-blocks the fastly-masque edge (field
+	// b4x-auj): the direct edge is blackholed, the nested path works.
 	var fxvpnEngine *fxvpservice.Runtime
-	if cfgPtr.Load().System.FxVPN.Enabled {
-		rt, err := fxvpservice.Build(cfgPtr.Load(), fxvpservice.Options{})
+	if fxvpnCfg := cfgPtr.Load().System.FxVPN; fxvpnCfg.Enabled {
+		var fxvpnOpts fxvpservice.Options
+		if fxvpnCfg.BootstrapThroughCarrier || fxvpnCfg.Masquerade.NestOnPortBlock {
+			// Identical underlying signatures: explicit conversion is the
+			// whole seam (no new import, no wrapper).
+			fxvpnOpts.Carrier = fxvpservice.DialFunc(operaservice.BaseCarrierDial())
+		}
+		// Observability parity with opera: pool/ladder events (including the
+		// fxvpn_nested_activated announcement — nesting is never silent,
+		// design §7.8.3) reach the daemon log.
+		fxvpnOpts.ExtraEvents = func(ev fxvpn.PoolEvent) {
+			log.Infof("[fxvpn] %s %s %s", ev.Type, ev.Label, ev.Detail)
+		}
+		rt, err := fxvpservice.Build(cfgPtr.Load(), fxvpnOpts)
 		if err != nil {
 			log.Errorf("[fxvpn] engine disabled this run: %v", err)
 		} else if err := rt.Start(appCtx); err != nil {
