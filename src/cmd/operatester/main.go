@@ -21,6 +21,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -28,6 +29,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -354,6 +356,87 @@ func httpHeadProbe(conn net.Conn, target string) (string, error) {
 	return string(buf[:n]), nil
 }
 
+// cmdTrace fetches a URL THROUGH the active node (TLS over the CONNECT
+// tunnel) and prints the response. It is the Phase C/D proof of non-RU egress:
+// https://www.cloudflare.com/cdn-cgi/trace returns ip=/loc= of the SurfEasy
+// exit. Verification is relaxed on purpose (diagnostic egress probe); the data
+// plane's own trust is proven separately by probe/VerifyConnection.
+func cmdTrace(args []string, d *deps) error {
+	fs := newFlagSet("trace", d)
+	path := fs.String("config", "", "path to config json (optional)")
+	rawURL := fs.String("url", "https://www.cloudflare.com/cdn-cgi/trace", "URL to fetch through the tunnel")
+	if err := fs.Parse(args); err != nil {
+		return usageErr(err)
+	}
+	u, err := url.Parse(*rawURL)
+	if err != nil || u.Host == "" {
+		return usageErr(fmt.Errorf("bad --url %q", *rawURL))
+	}
+	cfg, err := loadConfig(*path)
+	if err != nil {
+		return err
+	}
+	rt, err := d.build(cfg)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	if err := rt.Bootstrap(ctx); err != nil {
+		return err
+	}
+	entry := rt.ActiveEntry()
+	if entry.IP == "" {
+		return errors.New("no active node (bootstrap pending)")
+	}
+	host := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		if u.Scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	nd, err := rt.Client().NodeDialer(entry, "")
+	if err != nil {
+		return err
+	}
+	conn, err := nd.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if u.Scheme == "https" {
+		tconn := tls.Client(conn, &tls.Config{
+			ServerName:         host,
+			InsecureSkipVerify: true, // diagnostic egress probe; see doc comment
+		})
+		if err := tconn.HandshakeContext(ctx); err != nil {
+			return fmt.Errorf("tunnel TLS handshake: %w", err)
+		}
+		conn = tconn
+	}
+	pathQ := u.RequestURI()
+	if pathQ == "" {
+		pathQ = "/"
+	}
+	req := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: operatester/1.0\r\nConnection: close\r\n\r\n", pathQ, u.Host)
+	if _, err := io.WriteString(conn, req); err != nil {
+		return err
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(15 * time.Second))
+	body, _ := io.ReadAll(io.LimitReader(conn, 8192))
+	printJSON(d.stdout, map[string]any{
+		"url":   *rawURL,
+		"node":  entry.NetAddr(),
+		"tls":   u.Scheme == "https",
+		"bytes": len(body),
+		"body":  string(body),
+	})
+	return nil
+}
+
 func cmdRelay(args []string, d *deps) error {
 	fs := newFlagSet("relay", d)
 	path := fs.String("config", "", "path to config json (optional)")
@@ -650,6 +733,7 @@ var commands = map[string]func([]string, *deps) error{
 	"register":  cmdRegister,
 	"status":    cmdStatus,
 	"probe":     cmdProbe,
+	"trace":     cmdTrace,
 	"relay":     cmdRelay,
 	"watch":     cmdWatch,
 	"region":    cmdRegion,
@@ -704,6 +788,9 @@ Usage:
         CONNECT to the control target. --http implies --deep and additionally
         sends a HEAD through the tunnel awaiting HTTP response bytes.
         --fake-sni replaces the ClientHello SNI (empty suppresses it).
+  operatester trace     [--url https://www.cloudflare.com/cdn-cgi/trace] [--config c.json]
+        Fetch a URL through the active node (TLS over CONNECT) and print the
+        body — the loc=/ip= proof of non-RU egress for Fases C/D.
   operatester relay     --target host:port [--config c.json]
         Raw echo channel: stdin -> tunnel -> stdout (checksums). Drains until
         the peer closes or 8s idle; never half-closes the CONNECT tunnel.
