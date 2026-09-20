@@ -4,6 +4,7 @@ import {
   TunnelsMeasureResult,
   TunnelsOverview,
   TunnelsRestartResult,
+  TunnelsStartAllResult,
 } from "@models/tunnels";
 
 // Tunnels pane API (design TUNNELS_PANEL_DESIGN.md): the overview surface
@@ -23,6 +24,9 @@ export const tunnelsApi = {
         ? `/api/tunnels/measure?kind=${encodeURIComponent(kind)}`
         : "/api/tunnels/measure",
     ),
+  // Enable every tunnel section (config write). Engine startup needs a
+  // daemon restart; the UI follows up with systemApi.restart().
+  startAll: () => apiPost<TunnelsStartAllResult>("/api/tunnels/start"),
 };
 
 // Quick region/location switch on a RUNNING tunnel (validation + one

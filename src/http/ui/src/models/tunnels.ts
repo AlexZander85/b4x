@@ -47,6 +47,12 @@ export interface TunnelsMeasureResult {
   results: Record<string, TunnelHealth>;
 }
 
+export interface TunnelsStartAllResult {
+  success: boolean;
+  enabled: string[];
+  restart_required: boolean;
+}
+
 export interface ChainPreset {
   kind: string;
   outer: string;

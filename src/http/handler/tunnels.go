@@ -80,6 +80,7 @@ func (api *API) RegisterTunnelsApi() {
 	api.mux.HandleFunc("/api/tunnels", api.handleTunnelsOverview)
 	api.mux.HandleFunc("/api/tunnels/restart", api.handleTunnelsRestart)
 	api.mux.HandleFunc("/api/tunnels/measure", api.handleTunnelsMeasure)
+	api.mux.HandleFunc("/api/tunnels/start", api.handleTunnelsStart)
 	api.mux.HandleFunc("/api/warp/status", api.handleWarpStatus)
 	api.mux.HandleFunc("/api/awgwarp/status", api.handleAWGWarpStatus)
 	api.mux.HandleFunc("/api/nonru/status", api.handleNonRUStatus)
@@ -617,6 +618,62 @@ func (api *API) handleTunnelsMeasure(w http.ResponseWriter, r *http.Request) {
 			m.Kind, m.Available, m.Score, m.Verdict, m.TTFBms, m.ThroughputMbps)
 	}
 	sendResponse(w, map[string]interface{}{"results": results})
+}
+
+// @Summary Bring up every tunnel
+// @Description Enables every tunnel config section (masque, warp/awg, opera,
+// @Description fxvpn, proton, tor, nonru and the configured chains) and
+// @Description persists the config. Engine startup happens on the next daemon
+// @Description restart, which the UI triggers via POST /api/system/restart.
+// @Description High blast radius: an explicit operator action.
+// @Tags tunnels
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} APIError
+// @Security BearerAuth
+// @Router /tunnels/start [post]
+func (api *API) handleTunnelsStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "POST only"))
+		return
+	}
+	cur := api.cfgPtr.Load()
+	if cur == nil {
+		writeAPIError(w, tunnelsErr(http.StatusInternalServerError, "config", "config unavailable"))
+		return
+	}
+	next := cur.Clone()
+
+	enabled := make([]string, 0, 8)
+	next.System.Warp.Enabled = true
+	enabled = append(enabled, string(reserve.KindMasque))
+	next.System.Warp.AWG.Enabled = true
+	enabled = append(enabled, string(reserve.KindWarp))
+	next.System.Opera.Enabled = true
+	enabled = append(enabled, string(reserve.KindOpera))
+	next.System.FxVPN.Enabled = true
+	enabled = append(enabled, string(reserve.KindFxvpn))
+	next.System.Proton.Enabled = true
+	enabled = append(enabled, string(reserve.KindProton))
+	next.System.Tor.Enabled = true
+	enabled = append(enabled, string(reserve.KindTor))
+	for i := range next.System.Warp.Chains {
+		next.System.Warp.Chains[i].Enabled = true
+		enabled = append(enabled, "chain:"+next.System.Warp.Chains[i].Kind)
+	}
+	next.System.Warp.NonRU.Enabled = true
+	enabled = append(enabled, "nonru")
+
+	if err := api.saveAndPushConfig(next); err != nil {
+		writeAPIError(w, err)
+		return
+	}
+	log.Infof("[tunnels] start-all enabled=%v restart_required=true", enabled)
+	sendResponse(w, map[string]interface{}{
+		"success":          true,
+		"enabled":          enabled,
+		"restart_required": true,
+	})
 }
 
 // @Summary MASQUE-WARP engine status

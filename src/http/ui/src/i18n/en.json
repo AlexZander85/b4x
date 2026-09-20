@@ -2089,6 +2089,10 @@
     "loadError": "Failed to load tunnels",
     "summaryActive": "Active: {{count}}",
     "summaryAssigned": "Assigned sets: {{count}}",
+    "startAll": "Bring up all tunnels",
+    "startAllConfirm": "Confirm: enable all?",
+    "starting": "Starting...",
+    "startAllRestarting": "All tunnels enabled. b4 is restarting - the page reconnects shortly.",
     "registeredCarriers": "Registered carriers",
     "health": {
       "title": "Health & benchmark",

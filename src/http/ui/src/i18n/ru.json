@@ -2091,6 +2091,10 @@
     "loadError": "Не удалось загрузить туннели",
     "summaryActive": "Активно: {{count}}",
     "summaryAssigned": "Назначено сетов: {{count}}",
+    "startAll": "Поднять все туннели",
+    "startAllConfirm": "Подтвердить: включить все?",
+    "starting": "Запуск...",
+    "startAllRestarting": "Все туннели включены. b4 перезапускается — страница переподключится.",
     "registeredCarriers": "Зарегистрированные carriers",
     "health": {
       "title": "Здоровье и бенчмарк",

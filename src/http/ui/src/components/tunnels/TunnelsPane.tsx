@@ -1,4 +1,6 @@
-import { Box, Chip, Grid, Typography } from "@mui/material";
+import { Box, Button, Chip, Grid, Typography } from "@mui/material";
+import { systemApi } from "@api/settings";
+import { tunnelsApi } from "@api/tunnels";
 import { B4Alert, B4Badge, B4Section } from "@b4.elements";
 import { RestartIcon, TunnelsIcon } from "@b4.icons";
 import { colors } from "@design";
@@ -24,6 +26,33 @@ export function TunnelsPane() {
     measureTunnels,
   } = useTunnels();
   const [configureKind, setConfigureKind] = useState<TunnelKind | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [confirmStart, setConfirmStart] = useState(false);
+  const [startMsg, setStartMsg] = useState<string | null>(null);
+
+  // startAll enables every tunnel section and restarts b4 so the engines
+  // come up (two-step confirm: this is a high-blast-radius action).
+  const handleStartAll = async () => {
+    if (!confirmStart) {
+      setConfirmStart(true);
+      return;
+    }
+    try {
+      setStarting(true);
+      await tunnelsApi.startAll();
+      setStartMsg(t("tunnels.startAllRestarting"));
+      try {
+        await systemApi.restart();
+      } catch {
+        // the restart drops the connection; that is expected
+      }
+    } catch (err) {
+      setStartMsg(err instanceof Error ? err.message : String(err));
+    } finally {
+      setStarting(false);
+      setConfirmStart(false);
+    }
+  };
 
   if (loading && !overview) {
     return (
@@ -46,6 +75,12 @@ export function TunnelsPane() {
         </B4Alert>
       )}
 
+      {startMsg && (
+        <B4Alert severity={confirmStart ? "warning" : "info"} sx={{ mb: 1 }}>
+          {startMsg}
+        </B4Alert>
+      )}
+
       <B4Section
         title={t("tunnels.title")}
         description={t("tunnels.description")}
@@ -62,6 +97,21 @@ export function TunnelsPane() {
               color={assignedCount > 0 ? "secondary" : "default"}
               variant="outlined"
             />
+            <Button
+              size="small"
+              variant="contained"
+              color={confirmStart ? "warning" : "primary"}
+              disabled={starting}
+              onClick={() => {
+                handleStartAll().catch(() => {});
+              }}
+            >
+              {starting
+                ? t("tunnels.starting")
+                : confirmStart
+                  ? t("tunnels.startAllConfirm")
+                  : t("tunnels.startAll")}
+            </Button>
           </Box>
         }
       >
