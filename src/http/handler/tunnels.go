@@ -12,15 +12,19 @@ package handler
 //      GET  /api/warp/status                — MASQUE-WARP engine status (nil-safe)
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/daniellavrushin/b4/awgwarpservice"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/nonruservice"
 	"github.com/daniellavrushin/b4/reserve"
+	"github.com/daniellavrushin/b4/transport/health"
 	"github.com/daniellavrushin/b4/warpchainservice"
 	"github.com/daniellavrushin/b4/warpservice"
 )
@@ -75,6 +79,7 @@ func nonruRuntimeLoad() *nonruservice.Runtime { return nonruRuntime.Load() }
 func (api *API) RegisterTunnelsApi() {
 	api.mux.HandleFunc("/api/tunnels", api.handleTunnelsOverview)
 	api.mux.HandleFunc("/api/tunnels/restart", api.handleTunnelsRestart)
+	api.mux.HandleFunc("/api/tunnels/measure", api.handleTunnelsMeasure)
 	api.mux.HandleFunc("/api/warp/status", api.handleWarpStatus)
 	api.mux.HandleFunc("/api/awgwarp/status", api.handleAWGWarpStatus)
 	api.mux.HandleFunc("/api/nonru/status", api.handleNonRUStatus)
@@ -117,7 +122,15 @@ type tunnelsCard struct {
 	LocationValue     string `json:"location_value,omitempty"`
 	Restartable       bool   `json:"restartable"`
 	Note              string `json:"note,omitempty"`
+	// Health is the last measurement for this kind (design §8), if any.
+	// RECOMMENDATION only: it never changes which tunnel routes traffic.
+	Health *health.Metrics `json:"health,omitempty"`
 }
+
+// tunnelHealthCache stores the last manual measurement per tunnel kind.
+// Phase A triggers measurements explicitly (POST /api/tunnels/measure);
+// Phase B adds the automatic cadence.
+var tunnelHealthCache = health.NewCache()
 
 // tunnelsAssignment is one set routed through a tunnel.
 type tunnelsAssignment struct {
@@ -440,6 +453,15 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 		})
 	}
 
+	// Phase A: attach the last manual health measurement (if any) to each
+	// card. Recommendation only — this never changes routing (design §8).
+	for i := range cards {
+		if m, ok := tunnelHealthCache.Get(cards[i].Kind); ok {
+			mm := m
+			cards[i].Health = &mm
+		}
+	}
+
 	registeredKinds := make([]string, 0, len(registered))
 	for _, e := range reserve.List() {
 		registeredKinds = append(registeredKinds, string(e.Kind))
@@ -555,6 +577,46 @@ func (api *API) handleTunnelsRestart(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Infof("[tunnels] restart dispatched kind=%s", kind)
 	sendResponse(w, map[string]interface{}{"success": true, "kind": kind})
+}
+
+// @Summary Measure tunnel health (availability / latency / throughput)
+// @Description Runs one bounded probe THROUGH each requested reserve carrier
+// @Description (all registered kinds, or ?kind=<k>) and returns the metrics;
+// @Description results are cached and surface in GET /api/tunnels. This is a
+// @Description RECOMMENDATION/score surface — it never changes routing
+// @Description (design §8); promotion stays an explicit action.
+// @Tags tunnels
+// @Produce json
+// @Param kind query string false "one tunnel kind (default: all registered)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 405 {object} APIError
+// @Security BearerAuth
+// @Router /tunnels/measure [post]
+func (api *API) handleTunnelsMeasure(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIError(w, tunnelsErr(http.StatusMethodNotAllowed, "method", "POST only"))
+		return
+	}
+	kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+	p := health.New(health.DefaultConfig())
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
+
+	results := map[string]health.Metrics{}
+	for _, e := range reserve.List() {
+		if e.Carrier == nil {
+			continue
+		}
+		if kind != "" && string(e.Kind) != kind {
+			continue
+		}
+		m := p.Measure(ctx, e.Carrier)
+		tunnelHealthCache.Put(m)
+		results[string(e.Kind)] = m
+		log.Infof("[tunnels] health kind=%s available=%t score=%.1f verdict=%s ttfb_ms=%d thr_mbps=%.2f",
+			m.Kind, m.Available, m.Score, m.Verdict, m.TTFBms, m.ThroughputMbps)
+	}
+	sendResponse(w, map[string]interface{}{"results": results})
 }
 
 // @Summary MASQUE-WARP engine status

@@ -101,3 +101,55 @@ AWG-WARP режимы данных: `netstack` (умолчание — userspace
 Этап 2 (AWG-WARP + цепочки): `src/transport/wg/{enrollment.go,enrollment_test.go}` (WG-registration мост: POST с реальным curve25519 ключом, hex client_id → base64 reserved), `src/config/awgwarp.go` + `validation_awgwarp_test.go` (system.warp.awg + system.warp.chains[]: каталоги по слоям, разные edge, cap inner MTU 1200, коллизии слотов), `src/awgwarpservice/{service,carrier}.go` + тесты (supervisor-канон proton: once-per-boot регистрация, restart caps, carrier kind=warp UDP full-scope), `src/transport/nested/accessors.go` (InnerSession/InnerSupervisor снапшоты), `src/warpchainservice/{service,carrier}.go` + тесты (M+W: outer supervisor как plane; W+M: inner supervisor из движка; carriers masque+awg / awg+masque), `src/main.go` (wiring + child-first shutdown), `src/http/handler/tunnels.go` (живые карточки, chain-пресеты, restart warp|chains, /api/awgwarp/status).
 
 Фронтенд: `src/http/ui/src/{components/tunnels/*, api/tunnels.ts, hooks/useTunnels.ts, models/tunnels.ts}`, интеграция в `App.tsx`, `tsconfig.json`, `barrels/icons.ts`, `components/sets/routing/TrafficRouting.tsx`, `models/config.ts`, `i18n/{en,ru}.json` (этапы 1+2).
+
+## 8. Tunnel Health & Benchmark (design v1, 2026-09-20)
+
+Цель: единый слой измерения здоровья внешних туннелей (доступность/латентность/скорость/loss) и ранжирование по score; ручной и автоматический замер; отображение в админке.
+
+ПОЛИТИКА (подтверждена владельцем): авто-переприоритизация — ТОЛЬКО рекомендация/score в UI. Смена маршрутов (какой туннель реально выбран) — исключительно через явный promote/rollback (канон canary, src/fieldtest/promotion.go, src/runtimecontrol/*). Авто-замер не меняет routing молча.
+
+МОДЕЛЬ (новый пакет src/transport/health):
+  type Metrics struct { Kind; Available bool; RTTms; TTFBms; ThroughputMbps float64; LossPct float64; Bytes int64; Probes, Failures int; Score float64(0..100); Verdict("healthy|degraded|unavailable|poor"); Error; MeasuredAt time.Time }
+  type Prober interface { Measure(ctx, reserve.Carrier) Metrics }
+Общий, транспорт-агностичный: проба идёт через reserve.Carrier.DialStream — работает для любого kind (warp/masque/h3/opera/fxvpn/proton/tor/nonru/chains).
+
+ИЗМЕРЕНИЕ (одна проба, bounded):
+  - availability/latency: DialStream(TargetIP:443) + TLS-хендшейк до ServerName; TTFB = время до первого байта ответа на GET Path; RTT ~ время установления (dial+handshake).
+  - throughput: bounded download до MaxBytes (дефолт 64 KiB) → Mbps.
+  - loss: доля неудачных проб (failures/probes). ЧЕСТНО: это availability-приближение, не счётчик ретрансмитов на проводе.
+  Дефолты: TargetIP=1.0.0.1:443, ServerName=www.cloudflare.com, Path=/cdn-cgi/trace, Timeout=8s, Samples=1, MaxBytes=64KiB.
+
+СКОРИНГ (v1, калибруется): Score = 100*(0.40*successRatio + 0.35*latencyFactor + 0.25*throughputFactor);
+  latencyFactor = clamp(1 - (TTFBms-50)/950, 0, 1); throughputFactor = clamp(Mbps/10, 0, 1).
+  Verdict: healthy >= 70, degraded >= 40, poor < 40, unavailable если Available=false.
+
+КАДЕНЦИЯ: ручной замер — эндпоинт; авто-режим (фаза B) — супервизор по образцу opera.HealthConfig (cheap 60s / deep 5m), результат кладётся в per-kind кэш + метрики observability.
+
+API:
+  - GET  /api/tunnels              → в tunnelsCard добавляется "health": Metrics (из кэша, omitempty).
+  - POST /api/tunnels/measure      → замер по ?kind=<kind> или по всем зарегистрированным carrier'ам; ответ {"results": {kind: Metrics}}.
+  Роут монтируется в RegisterTunnelsApi (src/http/handler/tunnels.go:74-81), dispatch по образцу handleTunnelsRestart (:495).
+
+UI (фаза C): models/tunnels.ts + TunnelCard.tsx — колонки latency/throughput/loss/score/verdict, кнопка "Measure", сортировка по score, бейдж рекомендации "лучший". Тумблер авто-замера.
+
+REUSE (проверено):
+  - reserve.List()/Entry{Priority}/Kind — registry.go:59-64,195.
+  - opera.HealthConfig cheap/deep + HealthStatus (образец каденса) — transport/opera/health.go:79-128,243.
+  - ProbeTCP443RTT/RankCandidatesByRTT — transport/proton/latency.go:25,117.
+  - WarpScan/WarpScanHit{RTT}/WarpScanStats — transport/wg/warpscan.go:94,100,253 (cooldown/persist: seek.go,lastgood.go).
+  - ProbeOutcome{TTFB,ThroughputBps,Retransmissions}/ScoreOutcome/ScoreWeights — discovery/probe_outcome.go, adaptive.go:152,168.
+  - CandidateMetrics/GoodputBPS/Rank — fieldtest/optimizer.go:5,19.
+  - monitor.AxisState/Aggregate — monitor/assessment.go.
+  - MetricsRegistry.Set/Observe — observability/observability.go.
+  - fxvpn.ProbeExit — transport/fxvpn/exitprobe.go:46 (образец сквозной пробы).
+
+ОГРАНИЧЕНИЯ (honest boundaries):
+  - Квота fxvpn 50 ГиБ/мес → MaxBytes мал (64 KiB) и Samples=1 по умолчанию; никаких больших download-тестов через fxvpn.
+  - Замер идёт через туннель → трафик/нагрузка; не запускать все туннели одновременно без ограничения.
+  - loss — приближение по пробам, не счётчик TCP-ретрансмитов.
+  - score v1 — эвристика, калибровать полем.
+
+ФАЗЫ:
+  A (этот слой): пакет health + Prober через reserve.Carrier + POST /api/tunnels/measure + поле health в GET /api/tunnels + юниты (fake carrier).
+  B: авто-супервизор (каденция opera) + per-kind метрики observability + persisted last-measure.
+  C: UI (карточки, кнопка, рейтинг, рекомендация).
