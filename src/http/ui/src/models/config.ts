@@ -415,6 +415,10 @@ export interface WarpTunnelConfig {
   endpoint: string;
   defer_revalidation: boolean;
   masquerade: WarpMasqueradeConfig;
+  // Optional SOCKS5 egress for the MASQUE H2 control TCP. When set, the WARP
+  // egress country follows the proxy's country (b4x-rnn/w4c): CF sees the
+  // proxy IP and assigns a non-RU WARP exit. TCP only.
+  socks5?: string;
   awg?: WarpAWGConfig;
   chains?: WarpChainConfig[];
   // НЕ РФ experimental mode (ADR-WARP-6): a nested WARP session over the

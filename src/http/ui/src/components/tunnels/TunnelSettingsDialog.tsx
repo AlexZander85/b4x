@@ -76,7 +76,11 @@ function defaultsFor(kind: TunnelKind): unknown {
         refresh_interval_seconds: 0,
         ru_countries: [],
         fallback_to_base: false,
-      } satisfies WarpNonRUConfig;
+        // socks5 is a BASE system.warp field (viewed here because the НЕ РУ
+        // option is where the operator looks for a non-RU egress); it is
+        // stripped from the nonru section on save.
+        socks5: "",
+      } satisfies WarpNonRUConfig & { socks5: string };
     case "opera":
       return {
         enabled: false,
@@ -239,6 +243,13 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
           const dm = (defaultsFor("masque") as WarpTunnelConfig).masquerade;
           merged.masquerade = { ...dm, ...(m ?? {}) };
         }
+        if (kind === "nonru") {
+          // Pull the BASE system.warp.socks5 into the view: the НЕ РУ dialog is
+          // where the operator enters the non-RU egress proxy, but the value
+          // lives on the base warp section (that is what warpservice reads).
+          merged.socks5 =
+            (cfg.system[sectionKey] as WarpTunnelConfig | undefined)?.socks5 ?? "";
+        }
         setSection(merged);
       })
       .catch((err: unknown) => {
@@ -301,7 +312,11 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
       kind === "warp"
         ? (config.system[sectionKey] as WarpTunnelConfig | undefined)?.awg ?? defaultsFor("warp")
         : kind === "nonru"
-          ? (config.system[sectionKey] as WarpTunnelConfig | undefined)?.nonru ?? defaultsFor("nonru")
+          ? {
+              ...(((config.system[sectionKey] as WarpTunnelConfig | undefined)?.nonru ??
+                defaultsFor("nonru")) as Record<string, unknown>),
+              socks5: (config.system[sectionKey] as WarpTunnelConfig | undefined)?.socks5 ?? "",
+            }
           : config.system[sectionKey] ?? defaultsFor(kind ?? "masque");
     return JSON.stringify(section) !== JSON.stringify(original);
   }, [config, section, sectionKey, kind]);
@@ -328,17 +343,22 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
               },
             }
           : kind === "nonru"
-            ? {
-                ...config,
-                system: {
-                  ...config.system,
-                  warp: {
-                    ...(config.system.warp ?? {}),
-                    nonru: section as unknown as WarpNonRUConfig,
-                  } as WarpTunnelConfig,
-                },
-              }
-          : {
+            ? (() => {
+                // socks5 belongs to the BASE warp section, not to nonru.
+                const { socks5, ...nonruSection } = section as Record<string, unknown>;
+                return {
+                  ...config,
+                  system: {
+                    ...config.system,
+                    warp: {
+                      ...(config.system.warp ?? {}),
+                      socks5: typeof socks5 === "string" ? socks5 : "",
+                      nonru: nonruSection as unknown as WarpNonRUConfig,
+                    } as WarpTunnelConfig,
+                  },
+                };
+              })()
+            : {
               ...config,
               system: { ...config.system, [sectionKey]: section },
             };
@@ -580,6 +600,15 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
               <B4Alert severity="warning">
                 {t("tunnels.nonru.experimental")}
               </B4Alert>
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <B4TextField
+                label={t("tunnels.nonru.socks5")}
+                value={s("socks5")}
+                onChange={(e) => setField("socks5", e.target.value)}
+                helperText={t("tunnels.nonru.socks5Hint")}
+                placeholder="socks5://user:pass@host:port"
+              />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <B4TextField

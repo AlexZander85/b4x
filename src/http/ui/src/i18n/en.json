@@ -2294,6 +2294,8 @@
       "attestationTtl": "Attestation TTL (s)",
       "attestationTtlHint": "How long a geo attestation may serve the open route (0 = 120; at least 2x the refresh)",
       "refreshInterval": "Refresh interval (s)",
+      "socks5": "SOCKS5 proxy (non-RU egress)",
+      "socks5Hint": "host:port or socks5://user:pass@host:port — routes the MASQUE H2 control TCP through this proxy; Cloudflare then assigns a non-RU WARP egress (TCP only). Empty = direct.",
       "refreshIntervalHint": "Geo probe round period (0 = 60)",
       "ruCountries": "RU countries",
       "ruCountriesHint": "ISO-3166 alpha-2 codes classified as RU (empty = RU)",

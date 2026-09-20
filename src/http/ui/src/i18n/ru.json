@@ -2296,6 +2296,8 @@
       "attestationTtl": "TTL аттестации (сек)",
       "attestationTtlHint": "Сколько гео-аттестация может служить открытому маршруту (0 = 120; минимум 2x refresh)",
       "refreshInterval": "Интервал опроса (сек)",
+      "socks5": "SOCKS5-прокси (не-RU egress)",
+      "socks5Hint": "host:port или socks5://user:pass@host:port — проводит MASQUE-H2 через этот прокси; Cloudflare выдаёт не-RU WARP-egress (только TCP). Пусто = напрямую.",
       "refreshIntervalHint": "Период раунда гео-проб (0 = 60)",
       "ruCountries": "Страны РФ",
       "ruCountriesHint": "ISO-3166 alpha-2 коды, классифицируемые как РФ (пусто = RU)",
