@@ -416,8 +416,13 @@ func (r *Runtime) loop(ctx context.Context) {
 
 func (r *Runtime) tick(ctx context.Context) {
 	r.pool.RecycleDue()
-	if _, err := r.pool.RenewActivePassIfNeeded(ctx); err != nil {
+	if pass, err := r.pool.RenewActivePassIfNeeded(ctx); err != nil {
 		r.noteFailure(fxvpn.Classify(err))
+	} else if pass != nil {
+		// b4x-0rw8: the pool re-minted the proxy pass (2-min lead), but the
+		// LIVE session kept the old bearer — the data plane 401'd at expiry
+		// while the connection stayed up. Push the fresh pass in place.
+		r.applyLiveBearer("proxy pass renewed in place (renewal lead)")
 	}
 	r.pollQuotaIfDue(ctx)
 	swapped, err := r.pool.RotateIfDue(ctx)
@@ -455,8 +460,10 @@ func (r *Runtime) pollQuotaIfDue(ctx context.Context) {
 	if !due {
 		return
 	}
-	if _, err := r.pool.PollActiveQuota(ctx); err != nil {
+	if pass, err := r.pool.PollActiveQuota(ctx); err != nil {
 		r.noteFailure(fxvpn.Classify(err))
+	} else if pass != nil {
+		r.applyLiveBearer("proxy pass re-minted by quota poll")
 	}
 }
 
@@ -469,6 +476,15 @@ func (r *Runtime) pollQuotaIfDue(ctx context.Context) {
 // close would break exactly the streams the pre-emptive rotation exists to
 // protect.
 func (r *Runtime) applySoftSwap() {
+	r.applyLiveBearer("pre-emptive rotation applied in place; session rebuilds on next natural cycle")
+}
+
+// applyLiveBearer pushes the pool's current proxy pass into the LIVE session
+// in place (UpdateToken seam) so a renewed bearer takes effect on the serving
+// connection instead of only on the next rebuild. b4x-0rw8: without this the
+// live H2 session kept an expired pass, and the nested data plane 401'd at
+// expiry while the connection stayed alive (keepalive PING still answered).
+func (r *Runtime) applyLiveBearer(reason string) {
 	r.mu.Lock()
 	s := r.session
 	alive := s != nil && s.IsAlive()
@@ -484,8 +500,7 @@ func (r *Runtime) applySoftSwap() {
 		r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_session_bearer_rotate_failed", Detail: short(err)})
 		return
 	}
-	r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_session_bearer_rotated",
-		Detail: "pre-emptive rotation applied in place; session rebuilds on next natural cycle"})
+	r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_session_bearer_rotated", Detail: reason})
 }
 
 // ensureSession rebuilds the data-plane session when absent/dead. Pool
@@ -919,6 +934,12 @@ func (r *Runtime) verifyExit(ctx context.Context, sess fxvpn.TunnelOpener) {
 		r.exit.Error = err.Error()
 	} else {
 		r.exit.OK = true
+		// A recovered probe clears the stale failure class (b4x-79sd: the
+		// status must not keep reporting an exit-probe failure after it has
+		// healed).
+		if r.lastFailure == fxvpn.ClassExitProbeFailed {
+			r.lastFailure = ""
+		}
 	}
 	want := strings.ToUpper(strings.TrimSpace(r.cfg.Location.Country))
 	mismatch := err == nil && want != "" && want != "AUTO" && !strings.EqualFold(info.Country, want)

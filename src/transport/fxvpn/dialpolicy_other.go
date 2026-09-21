@@ -3,8 +3,8 @@
 package fxvpn
 
 import (
-        "errors"
-        "syscall"
+	"errors"
+	"syscall"
 )
 
 // applyControlPlatform: routing constraints are a Linux/Keenetic feature.
@@ -13,8 +13,8 @@ import (
 // policy (the preflight-fake bait) degrades to no-op here: the bait is
 // best-effort and its absence is honestly observable upstream.
 func applyControlPlatform(p DialPolicy, _ syscall.RawConn) error {
-        if p.Constrained() || p.RequireMark {
-                return errors.New("fxvpn: dial policy constraints unsupported on this platform")
-        }
-        return nil
+	if p.Constrained() || p.RequireMark {
+		return errors.New("fxvpn: dial policy constraints unsupported on this platform")
+	}
+	return nil
 }
