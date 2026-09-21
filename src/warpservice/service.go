@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/config"
+	"github.com/daniellavrushin/b4/internal/socks"
 	warp "github.com/daniellavrushin/b4/transport/warp"
 )
 
@@ -144,7 +145,7 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 		// b4x-rnn: force the MASQUE H2 control TCP through a SOCKS5 egress so
 		// Cloudflare assigns a non-RU WARP country. SOCKS5 is TCP-only, so the
 		// H3 (UDP) ladder is intentionally bypassed for this seam.
-		df, derr := socks5DialFunc(socksAddr)
+		df, derr := socks.DialFunc(socksAddr)
 		if derr != nil {
 			return nil, fmt.Errorf("system.warp.socks5: %w", derr)
 		}

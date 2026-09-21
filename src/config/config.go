@@ -294,6 +294,23 @@ var DefaultConfig = Config{
 			},
 		},
 
+		Vless: VLESSConfig{
+			Enabled:                 false,
+			Client:                  VLESSClientAuto,
+			Helper:                  VLESSHelperXray,
+			HelperManage:            boolPtr(true),
+			SocksAddr:               DefaultVLESSSocksAddr,
+			BundledSources:          boolPtr(true),
+			SubscriptionIntervalSec: DefaultVLESSSubscriptionIntervalSec,
+			IdentityPath:            DefaultVLESSIdentityPath,
+			ControlTarget:           DefaultVLESSControlTarget,
+			PreferNonRU:             boolPtr(true),
+			CountryDeny:             []string{"RU"},
+			MaxRestartsPerHour:      DefaultVLESSMaxRestartsPerHour,
+			SeekIntervalSec:         DefaultVLESSSeekIntervalSec,
+			SeekToleranceMs:         DefaultVLESSSeekToleranceMs,
+		},
+
 		FxVPN: FxVPNConfig{
 			Enabled:            false,
 			AccountsPath:       DefaultFxvpnAccountsPath,

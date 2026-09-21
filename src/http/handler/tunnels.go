@@ -286,6 +286,28 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	}
 	cards = append(cards, op)
 
+	// vless — VLESS(+REALITY) via an external helper's local SOCKS5
+	// (TCP-only; V1 carries config/nodes/status, the helper lifecycle is V2).
+	vl := tunnelsCard{
+		Kind:             string(reserve.KindVless),
+		Priority:         reserve.PriorityVless,
+		Transport:        "tcp-only",
+		SupportsUDP:      false,
+		HasConfigSection: true,
+		ConfigEnabled:    cfg.System.Vless.Enabled,
+		Restartable:      false, // helper supervisor/restart is V2
+	}
+	if rt := vlessRuntime.Load(); rt != nil {
+		st := rt.Status()
+		vl.CarrierRegistered = true
+		vl.Running = st.Running
+		vl.Listening = false // honest: V1 does not probe the helper's SOCKS port
+		if st.Running {
+			vl.State = "armed"
+		}
+	}
+	cards = append(cards, vl)
+
 	// fxvpn — Firefox VPN (TCP-only).
 	fx := tunnelsCard{
 		Kind:             string(reserve.KindFxvpn),

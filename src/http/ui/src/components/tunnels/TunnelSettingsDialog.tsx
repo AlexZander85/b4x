@@ -13,6 +13,7 @@ import {
   OperaTunnelConfig,
   ProtonTunnelConfig,
   TorTunnelConfig,
+  VlessTunnelConfig,
   TunnelKind,
   WarpAWGConfig,
   WarpNonRUConfig,
@@ -30,6 +31,7 @@ const CONFIG_SECTION: Record<string, keyof B4Config["system"]> = {
   warp: "warp", // the AWG-WARP branch lives in system.warp.awg
   nonru: "warp", // the НЕ РФ branch lives in system.warp.nonru
   opera: "opera",
+  vless: "vless",
   fxvpn: "fxvpn",
   proton: "proton",
   tor: "tor",
@@ -97,6 +99,31 @@ function defaultsFor(kind: TunnelKind): unknown {
           ttl_fake: false,
         },
       } satisfies OperaTunnelConfig;
+    case "vless":
+      return {
+        enabled: false,
+        client: "auto",
+        helper: "xray",
+        helper_path: "",
+        helper_manage: true,
+        socks_addr: "127.0.0.1:1081",
+        nodes: [],
+        bundled_sources: true,
+        subscriptions: [],
+        subscription_interval_sec: 21600,
+        node_cache_path: "",
+        identity_path: "",
+        control_target: "www.cloudflare.com",
+        prefer_nonru: true,
+        country_allow: [],
+        country_deny: ["RU"],
+        max_restarts_per_hour: 6,
+        seek_interval_sec: 300,
+        seek_tolerance_ms: 50,
+        pin_node: "",
+        udp: false,
+        mixed: false,
+      } satisfies VlessTunnelConfig;
     case "fxvpn":
       return {
         enabled: false,
@@ -777,6 +804,173 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
                 label={t("tunnels.opera.alpn")}
                 values={arr("masquerade.alpn")}
                 onChange={(v) => setField("masquerade.alpn", v)}
+              />
+            </Grid>
+          </Grid>
+        );
+      case "vless":
+        return (
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 12 }}>
+              <B4Switch
+                label={t("tunnels.fields.enabled")}
+                checked={b("enabled")}
+                onChange={(v) => setField("enabled", v)}
+                description={t("tunnels.fields.enabledDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4TextField
+                label={t("tunnels.vless.client")}
+                select
+                value={s("client", "auto")}
+                onChange={(e) => setField("client", e.target.value)}
+                helperText={t("tunnels.vless.clientHint")}
+              >
+                <MenuItem value="auto">auto</MenuItem>
+                <MenuItem value="in-process">in-process</MenuItem>
+                <MenuItem value="helper">helper</MenuItem>
+              </B4TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4TextField
+                label={t("tunnels.vless.helper")}
+                select
+                value={s("helper", "xray")}
+                onChange={(e) => setField("helper", e.target.value)}
+                helperText={t("tunnels.vless.helperHint")}
+              >
+                <MenuItem value="xray">xray</MenuItem>
+                <MenuItem value="sing-box">sing-box</MenuItem>
+                <MenuItem value="external">external</MenuItem>
+              </B4TextField>
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4TextField
+                label={t("tunnels.vless.helperPath")}
+                value={s("helper_path")}
+                onChange={(e) => setField("helper_path", e.target.value)}
+                helperText={t("tunnels.vless.helperPathHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4TextField
+                label={t("tunnels.vless.socksAddr")}
+                value={s("socks_addr", "127.0.0.1:1081")}
+                onChange={(e) => setField("socks_addr", e.target.value)}
+                helperText={t("tunnels.vless.socksAddrHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.vless.identityPath")}
+                value={s("identity_path")}
+                onChange={(e) => setField("identity_path", e.target.value)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4TextField
+                label={t("tunnels.vless.controlTarget")}
+                value={s("control_target", "www.cloudflare.com")}
+                onChange={(e) => setField("control_target", e.target.value)}
+                helperText={t("tunnels.vless.controlTargetHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4Switch
+                label={t("tunnels.vless.bundledSources")}
+                checked={b("bundled_sources", true)}
+                onChange={(v) => setField("bundled_sources", v)}
+                description={t("tunnels.vless.bundledSourcesDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4Switch
+                label={t("tunnels.vless.preferNonru")}
+                checked={b("prefer_nonru", true)}
+                onChange={(v) => setField("prefer_nonru", v)}
+                description={t("tunnels.vless.preferNonruDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4NumberField
+                label={t("tunnels.vless.subscriptionInterval")}
+                value={n("subscription_interval_sec", 21600)}
+                onChange={(v) => setField("subscription_interval_sec", v)}
+                min={60}
+                max={604800}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4NumberField
+                label={t("tunnels.vless.maxRestarts")}
+                value={n("max_restarts_per_hour", 6)}
+                onChange={(v) => setField("max_restarts_per_hour", v)}
+                min={0}
+                max={60}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4NumberField
+                label={t("tunnels.vless.seekInterval")}
+                value={n("seek_interval_sec", 300)}
+                onChange={(v) => setField("seek_interval_sec", v)}
+                min={30}
+                max={86400}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4NumberField
+                label={t("tunnels.vless.seekTolerance")}
+                value={n("seek_tolerance_ms", 50)}
+                onChange={(v) => setField("seek_tolerance_ms", v)}
+                min={0}
+                max={5000}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 4 }}>
+              <B4TextField
+                label={t("tunnels.vless.pinNode")}
+                value={s("pin_node")}
+                onChange={(e) => setField("pin_node", e.target.value)}
+                helperText={t("tunnels.vless.pinNodeHint")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4Switch
+                label={t("tunnels.vless.udp")}
+                checked={b("udp")}
+                onChange={(v) => setField("udp", v)}
+                description={t("tunnels.vless.udpDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <B4Switch
+                label={t("tunnels.vless.mixed")}
+                checked={b("mixed")}
+                onChange={(v) => setField("mixed", v)}
+                description={t("tunnels.vless.mixedDesc")}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <StringListField
+                label={t("tunnels.vless.nodes")}
+                values={arr("nodes")}
+                onChange={(v) => setField("nodes", v)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <StringListField
+                label={t("tunnels.vless.subscriptions")}
+                values={arr("subscriptions")}
+                onChange={(v) => setField("subscriptions", v)}
+              />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <StringListField
+                label={t("tunnels.vless.countryDeny")}
+                values={arr("country_deny")}
+                onChange={(v) => setField("country_deny", v)}
               />
             </Grid>
           </Grid>

@@ -52,6 +52,7 @@ const (
 	TunnelKindMasque = "masque" // MASQUE-WARP (IPv4/TCP through netstack v1)
 	TunnelKindH3     = "h3"     // MASQUE-WARP H3 nested (reserved; carrier pending)
 	TunnelKindOpera  = "opera"  // Opera VPN (TCP-only)
+	TunnelKindVless  = "vless"  // VLESS+REALITY via external helper SOCKS5 (TCP-only)
 	TunnelKindFxvpn  = "fxvpn"  // Firefox VPN (TCP-only)
 	TunnelKindProton = "proton" // Proton VPN AWG (UDP full-scope)
 	TunnelKindTor    = "tor"    // Tor reserve (TCP-only, .onion egress)
@@ -79,6 +80,7 @@ var RoutingTunnelKinds = []string{
 	TunnelKindMasque,
 	TunnelKindH3,
 	TunnelKindOpera,
+	TunnelKindVless,
 	TunnelKindFxvpn,
 	TunnelKindProton,
 	TunnelKindTor,
@@ -93,7 +95,7 @@ var RoutingTunnelKinds = []string{
 func IsRoutingTunnelKind(kind string) bool {
 	switch kind {
 	case TunnelKindWarp, TunnelKindMasque, TunnelKindH3,
-		TunnelKindOpera, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
+		TunnelKindOpera, TunnelKindVless, TunnelKindFxvpn, TunnelKindProton, TunnelKindTor,
 		TunnelKindChainMasqueAwg, TunnelKindChainAwgMasque, TunnelKindChainAwgAwg,
 		TunnelKindChainMasqueMasque, TunnelKindNonRU:
 		return true
@@ -416,6 +418,7 @@ type SystemConfig struct {
 	MTProto     MTProtoConfig       `json:"mtproto"`
 	Warp        WarpConfig          `json:"warp"`
 	Opera       OperaConfig         `json:"opera"`
+	Vless       VLESSConfig         `json:"vless"`
 	FxVPN       FxVPNConfig         `json:"fxvpn"`
 	Proton      ProtonConfig        `json:"proton"`
 	Tor         TorConfig           `json:"tor"`

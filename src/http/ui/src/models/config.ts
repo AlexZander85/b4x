@@ -363,6 +363,7 @@ export interface SystemConfig {
   memory_limit?: string;
   warp?: WarpTunnelConfig;
   opera?: OperaTunnelConfig;
+  vless?: VlessTunnelConfig;
   fxvpn?: FxVPNTunnelConfig;
   proton?: ProtonTunnelConfig;
   tor?: TorTunnelConfig;
@@ -457,6 +458,36 @@ export interface OperaTunnelConfig {
   fake_sni: string;
   control_target: string;
   masquerade: OperaMasqueradeConfig;
+}
+
+// VLESS(+REALITY) reserve (system.vless): a TCP-only carrier that dials the
+// local SOCKS5 inbound of an EXTERNAL helper (xray/sing-box) — b4x never
+// implements VLESS itself. V1 exposes inline nodes + subscriptions + status.
+export interface VlessTunnelConfig {
+  enabled: boolean;
+  // Who speaks VLESS (V4): "auto" (default) | "in-process" | "helper".
+  client: string;
+  // "xray" (default) | "sing-box" | "external".
+  helper: string;
+  helper_path: string;
+  helper_manage?: boolean;
+  socks_addr: string;
+  nodes: string[];
+  bundled_sources?: boolean;
+  subscriptions: string[];
+  subscription_interval_sec: number;
+  node_cache_path: string;
+  identity_path: string;
+  control_target: string;
+  prefer_nonru?: boolean;
+  country_allow: string[];
+  country_deny: string[];
+  max_restarts_per_hour: number;
+  seek_interval_sec: number;
+  seek_tolerance_ms: number;
+  pin_node: string;
+  udp: boolean;
+  mixed: boolean;
 }
 
 export interface FxVPNLocationConfig {
@@ -641,6 +672,7 @@ export type TunnelKind =
   | "masque"
   | "h3"
   | "opera"
+  | "vless"
   | "fxvpn"
   | "proton"
   | "tor"

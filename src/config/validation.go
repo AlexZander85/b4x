@@ -14,6 +14,7 @@ import (
 	"github.com/daniellavrushin/b4/engine"
 	"github.com/daniellavrushin/b4/log"
 	"github.com/daniellavrushin/b4/transport/tor"
+	vless "github.com/daniellavrushin/b4/transport/vless"
 	"github.com/daniellavrushin/b4/utils"
 )
 
@@ -77,6 +78,7 @@ func (c *Config) Validate() error {
 	c.validateWarpChains(v)
 	c.validateWarpNonRU(v)
 	c.validateOpera(v)
+	c.validateVLESS(v)
 	c.validateProton(v)
 	c.validateTor(v)
 	if v.hasErrors() {
@@ -620,6 +622,113 @@ func (c *Config) validateOpera(v *validator) {
 	if !filepath.IsAbs(o.IdentityPath) {
 		v.addf("system.opera.identity_path", "must_be_absolute", map[string]any{"path": o.IdentityPath}, "opera identity_path must be an absolute path (got: %q)", o.IdentityPath)
 	}
+}
+
+// validateVLESS checks the VLESS(+REALITY) reserve section (design §6/§8).
+// Structural fields are validated ALWAYS (even disabled — the warp/opera
+// canon: a typo cannot hide until enable day); enabled-only requirements
+// (absolute identity/helper paths) follow the opera shape.
+func (c *Config) validateVLESS(v *validator) {
+	o := c.System.Vless
+	switch strings.ToLower(strings.TrimSpace(o.Client)) {
+	case "", VLESSClientAuto, VLESSClientInProcess, VLESSClientHelper:
+	default:
+		v.addf("system.vless.client", "invalid_value", map[string]any{"client": o.Client},
+			"client must be auto|in-process|helper (got: %q)", o.Client)
+	}
+	if o.Helper != "" {
+		if _, err := vless.NormalizeHelper(o.Helper); err != nil {
+			v.addf("system.vless.helper", "invalid_value", map[string]any{"helper": o.Helper},
+				"helper must be xray|sing-box|external (got: %q)", o.Helper)
+		}
+	}
+	if o.SocksAddr != "" && !operaValidControlTarget(o.SocksAddr) {
+		v.addf("system.vless.socks_addr", "invalid_value", map[string]any{"addr": o.SocksAddr},
+			"socks_addr must be host:port (got: %q)", o.SocksAddr)
+	}
+	for i, sub := range o.Subscriptions {
+		if !vlessValidHTTPURL(sub) {
+			v.addf(fmt.Sprintf("system.vless.subscriptions[%d]", i), "invalid_value", map[string]any{"url": sub},
+				"subscription must be an http(s) URL (got: %q)", sub)
+		}
+	}
+	for i, line := range o.Nodes {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if _, err := vless.ParseAny(line); err != nil {
+			v.addf(fmt.Sprintf("system.vless.nodes[%d]", i), "invalid_value", map[string]any{"node": line},
+				"invalid vless node: %v", err)
+		}
+	}
+	for _, code := range append(append([]string{}, o.CountryAllow...), o.CountryDeny...) {
+		if !vlessCountryCode(code) {
+			v.addf("system.vless.country_allow", "invalid_value", map[string]any{"code": code},
+				"country code must be two letters (got: %q)", code)
+		}
+	}
+	if o.SeekIntervalSec < 0 {
+		v.addf("system.vless.seek_interval_sec", "invalid_value", map[string]any{"sec": o.SeekIntervalSec},
+			"seek_interval_sec must be >= 0 (got: %d)", o.SeekIntervalSec)
+	}
+	if o.Mixed {
+		h, _ := vless.NormalizeHelper(o.Helper)
+		if h != vless.HelperSingbox && h != vless.HelperExternal {
+			v.add("system.vless.mixed", "invalid_value",
+				"mixed inbound requires helper=sing-box (xray has no mixed protocol)", nil)
+		}
+	}
+	if o.PinNode != "" && !operaValidControlTarget(o.PinNode) {
+		v.addf("system.vless.pin_node", "invalid_value", map[string]any{"node": o.PinNode},
+			"pin_node must be host:port (got: %q)", o.PinNode)
+	}
+	if o.SeekToleranceMs < 0 {
+		v.addf("system.vless.seek_tolerance_ms", "invalid_value", map[string]any{"ms": o.SeekToleranceMs},
+			"seek_tolerance_ms must be >= 0 (got: %d)", o.SeekToleranceMs)
+	}
+	if o.SubscriptionIntervalSec != 0 && o.SubscriptionIntervalSec < 60 {
+		v.addf("system.vless.subscription_interval_sec", "invalid_value", map[string]any{"sec": o.SubscriptionIntervalSec},
+			"subscription_interval_sec must be >= 60 (got: %d)", o.SubscriptionIntervalSec)
+	}
+	if !o.Enabled {
+		return
+	}
+	if o.IdentityPath == "" {
+		v.add("system.vless.identity_path", "required", "identity_path must be set when vless is enabled", nil)
+		return
+	}
+	if !filepath.IsAbs(o.IdentityPath) {
+		v.addf("system.vless.identity_path", "must_be_absolute", map[string]any{"path": o.IdentityPath},
+			"vless identity_path must be an absolute path (got: %q)", o.IdentityPath)
+	}
+	if o.HelperPath != "" && !filepath.IsAbs(o.HelperPath) {
+		v.addf("system.vless.helper_path", "must_be_absolute", map[string]any{"path": o.HelperPath},
+			"vless helper_path must be an absolute path (got: %q)", o.HelperPath)
+	}
+}
+
+func vlessValidHTTPURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Host != ""
+}
+
+func vlessCountryCode(code string) bool {
+	c := strings.TrimSpace(code)
+	if len(c) != 2 {
+		return false
+	}
+	for _, r := range c {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') {
+			return false
+		}
+	}
+	return true
 }
 
 // validateProton checks the E-PROTON reserve section. The structural fields

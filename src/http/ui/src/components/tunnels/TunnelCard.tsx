@@ -18,6 +18,7 @@ const KIND_ICONS: Record<string, string> = {
   masque: "🪐",
   h3: "⚡",
   opera: "🎭",
+  vless: "🔗",
   fxvpn: "🦊",
   proton: "🔒",
   tor: "🧅",

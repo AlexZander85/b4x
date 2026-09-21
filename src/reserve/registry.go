@@ -38,6 +38,7 @@ const (
 	KindOpera  Kind = "opera"  // Opera VPN (TCP only)
 	KindFxvpn  Kind = "fxvpn"  // Firefox VPN (TCP only)
 	KindProton Kind = "proton" // Proton VPN AWG (UDP full-scope)
+	KindVless  Kind = "vless"  // VLESS+REALITY reserve via external helper SOCKS5 (TCP only)
 	KindTor    Kind = "tor"    // Tor reserve (TCP only, .onion egress)
 	// Nested chains (tunnels panel stage 2): the cross-transport compositions
 	// served by src/warpchainservice over transport/nested.
@@ -60,6 +61,11 @@ const (
 	PriorityMasque = 50
 	PriorityH3     = 40
 	PriorityOpera  = 30
+	// PriorityVless sits between opera (30) and fxvpn (20), design §12.2:
+	// REALITY is usually more robust/faster than FXVPN, but V1 nodes are
+	// untrusted public endpoints carried TCP-only, so it stays below the
+	// WARP family and below opera. A single constant changes the rank.
+	PriorityVless  = 25
 	PriorityFxvpn  = 20
 	PriorityProton = 10
 	// PriorityTor is strictly below EVERY other reserve (E-TOR design
@@ -230,6 +236,8 @@ func priorityOf(k Kind) int {
 		return PriorityH3
 	case KindOpera:
 		return PriorityOpera
+	case KindVless:
+		return PriorityVless
 	case KindFxvpn:
 		return PriorityFxvpn
 	case KindProton:

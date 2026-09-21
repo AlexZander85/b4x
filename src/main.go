@@ -45,6 +45,7 @@ import (
 	fxvpn "github.com/daniellavrushin/b4/transport/fxvpn"
 	b4tun "github.com/daniellavrushin/b4/tun"
 	"github.com/daniellavrushin/b4/validation"
+	"github.com/daniellavrushin/b4/vlessservice"
 	"github.com/daniellavrushin/b4/warp"
 	"github.com/daniellavrushin/b4/warpchainservice"
 	"github.com/daniellavrushin/b4/warpservice"
@@ -1015,6 +1016,39 @@ func runB4(cmd *cobra.Command, args []string) error {
 			reserve.PriorityTor)
 	}
 
+	// VLESS(+REALITY) reserve transport (design .ag/research/vless-tunnel-design.md;
+	// engine in src/transport/vless, assembly in vlessservice). Zero goroutines
+	// and zero wire calls unless system.vless.enabled=true — the default config
+	// keeps the section off. V1 is the TCP-only carrier: b4x dials the local
+	// SOCKS5 inbound of an EXTERNAL helper (xray/sing-box); the helper lifecycle
+	// (spawn/ready/restart) and seek/geo selection are V2. Canon: the opera
+	// block above (Register AFTER Start, Unregister BEFORE Stop).
+	var vlessEngine *vlessservice.Runtime
+	if cfgPtr.Load().System.Vless.Enabled {
+		// Bootstrap-through-carrier (design §4/§8): the in-process client dials
+		// the node through the active base transport when a direct egress is
+		// blocked. Resolved at dial time, so late-registered carriers count.
+		rt, err := vlessservice.Build(cfgPtr.Load(), vlessservice.Options{
+			Carrier: vlessservice.DialFunc(operaservice.BaseCarrierDial()),
+		})
+		if err != nil {
+			log.Errorf("[vless] engine disabled this run: %v", err)
+		} else if err := rt.Start(appCtx); err != nil {
+			log.Errorf("[vless] engine start failed: %v", err)
+		} else {
+			vlessEngine = rt
+			st := rt.Status()
+			log.Infof("[vless] engine started helper=%s socks=%s nodes=%d",
+				st.Helper, st.SocksAddr, st.NodeCount)
+		}
+	}
+	handler.SetVlessRuntime(vlessEngine) // nil-safe: the handler answers the disabled shape
+	if vlessEngine != nil {
+		reserve.Register(vlessEngine)
+		log.Infof("[vless] carrier registered kind=vless priority=%d udp=false",
+			reserve.PriorityVless)
+	}
+
 	// Tunnels pane seam: the reserve carriers registered above may serve
 	// routing.mode=tunnel sets that were fail-closed at boot (their engines
 	// start later than the first tproxy sync). One re-sync now wires every
@@ -1103,6 +1137,10 @@ func runB4(cmd *cobra.Command, args []string) error {
 	if torEngine != nil {
 		reserve.Unregister(reserve.KindTor) // trees see the stop immediately
 		torEngine.Stop()                    // graded ladder, PT proxy after tor
+	}
+	if vlessEngine != nil {
+		reserve.Unregister(reserve.KindVless) // trees see the stop immediately
+		vlessEngine.Stop()
 	}
 	if geoScheduler != nil {
 		geoScheduler.Stop()
