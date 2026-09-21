@@ -108,12 +108,15 @@ func (p *DoHProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 	body, err := b4dns.ResolveDoH(ctx, p.client(prepared), p.URL, query)
 	out.Latency = time.Since(start)
 	if err != nil {
-		out.Class = outcomeFromError(err)
+		out.Attribution = err.Error()
 		// Mid-handshake cut means the TLS stage never completed — stage
-		// attribution must reflect that, not the HTTP layer (§62).
-		if out.Class == dnspath.OutcomeTLSMidHandshakeReset {
+		// attribution must reflect that, not the HTTP layer (§62). tlsCutError
+		// also catches the io.EOF shape that outcomeFromError misses.
+		if tlsCutError(err) {
+			out.Class = dnspath.OutcomeTLSMidHandshakeReset
 			out.Stage = dnspath.StageTLS
 		} else {
+			out.Class = outcomeFromError(err)
 			out.Stage = dnspath.StageHTTP
 			if out.Class == dnspath.OutcomeInconclusive {
 				out.Class = dnspath.OutcomeHTTPStatusFailure

@@ -290,3 +290,55 @@ func TestDNSDiagnoseStoresArtifact(t *testing.T) {
 		t.Fatalf("unknown run id must 404, got %d", rec.Code)
 	}
 }
+
+func TestDNSStatusExposesQuarantineAndRevalidateReleases(t *testing.T) {
+	m := testManager(t)
+	SetDNSPathManager(m)
+	defer SetDNSPathManager(nil)
+	if !m.RecordPathFailure(dnspath.DNSPathDoT, dnspath.KindMidHandshakeReset) {
+		t.Fatal("expected dot to be quarantined after mid-handshake reset")
+	}
+	status := dnsStatusPayload(m)
+	quarantined, ok := status["quarantined_families"].([]dnspath.DNSPathFamily)
+	if !ok || len(quarantined) != 1 || quarantined[0] != dnspath.DNSPathDoT {
+		t.Fatalf("status quarantined_families = %#v", status["quarantined_families"])
+	}
+
+	api := &API{mux: http.NewServeMux()}
+	api.RegisterAdaptiveDNSApi()
+	req := httptest.NewRequest(http.MethodPost, "/api/dns/v1/revalidate", nil)
+	req.Header.Set("X-Config-Generation", "11")
+	req.Header.Set("X-Idempotency-Key", "rev-quarantine")
+	rec := httptest.NewRecorder()
+	api.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("revalidate must respond, got %d", rec.Code)
+	}
+	if m.IsFamilyQuarantined(dnspath.DNSPathDoT) {
+		t.Fatal("successful revalidate must release family quarantine")
+	}
+}
+
+func TestDNSStatusAndMetricsExposeDegradedMode(t *testing.T) {
+	m := testManager(t)
+	SetDNSPathManager(m)
+	defer SetDNSPathManager(nil)
+	m.SetDegradedReason("classic UDP/TCP only")
+
+	status := dnsStatusPayload(m)
+	if status["degraded_mode"] != true {
+		t.Fatalf("status must expose degraded_mode, got %#v", status["degraded_mode"])
+	}
+	if status["degraded_reason"] != "classic UDP/TCP only" {
+		t.Fatalf("status must expose degraded_reason, got %#v", status["degraded_reason"])
+	}
+	metrics := RenderDNSMetrics(m)
+	if !strings.Contains(metrics, `b4_dns_path_degraded{reason="classic UDP/TCP only"} 1`) {
+		t.Fatalf("metrics must expose degraded mode, got:\n%s", metrics)
+	}
+
+	m.SetDegradedReason("")
+	if _, ok := dnsStatusPayload(m)["degraded_mode"]; ok {
+		t.Fatal("cleared degraded mode must disappear from status")
+	}
+}

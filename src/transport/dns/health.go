@@ -86,6 +86,11 @@ type RecurrenceTracker struct {
 // (DPI family-filter signature: RST/EOF after TLS ClientHello).
 const KindMidHandshakeReset = "mid_handshake_reset"
 
+// KindEncryptedStall is the recurrence kind for an encrypted family whose every
+// probe stalled after ClientHello (silence until timeout) while classic DNS to
+// the same WAN still worked — the DoH/443 half of the same family filter (§58).
+const KindEncryptedStall = "encrypted_stall"
+
 func NewRecurrenceTracker(threshold int) *RecurrenceTracker {
 	if threshold <= 0 {
 		threshold = 3
@@ -94,7 +99,10 @@ func NewRecurrenceTracker(threshold int) *RecurrenceTracker {
 		records:       map[string]*FailureRecord{},
 		Threshold:     threshold,
 		FastThreshold: 1,
-		FastKinds:     map[string]bool{KindMidHandshakeReset: true},
+		FastKinds: map[string]bool{
+			KindMidHandshakeReset: true,
+			KindEncryptedStall:    true,
+		},
 	}
 }
 

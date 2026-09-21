@@ -132,9 +132,15 @@ func (p *DoTProvider) Probe(ctx context.Context, prepared dnspath.PreparedDNSPat
 	out.Latency = latency
 	out.Stage = stage
 	if err != nil {
-		if errors.Is(err, errDoTCert) {
+		out.Attribution = err.Error()
+		switch {
+		case errors.Is(err, errDoTCert):
 			out.Class = dnspath.OutcomeTLSCertFailure
-		} else {
+			out.Stage = dnspath.StageTLS
+		case tlsCutError(err):
+			out.Class = dnspath.OutcomeTLSMidHandshakeReset
+			out.Stage = dnspath.StageTLS
+		default:
 			out.Class = outcomeFromError(err)
 		}
 		return out, nil

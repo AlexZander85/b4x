@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/netip"
 	"strings"
 	"time"
@@ -113,6 +114,51 @@ func initAdaptiveDNS(cfg *config.Config) {
 		if err != nil {
 			return nil, err
 		}
+		// Field observability: expose the normalized outcome of every encrypted
+		// path probe so a wired-but-misclassified family cut is diagnosable from
+		// the b4 log (Attribution carries the underlying transport error).
+		for _, o := range diag.Outcomes {
+			if !o.PathID.Family.Encrypted() {
+				continue
+			}
+			log.Infof("adns probe family=%s case=%s attempt=%d class=%s stage=%s rcode=%d failure=%q answer=%q attribution=%q",
+				o.PathID.Family, o.QuerySuiteID, o.Attempt, o.Class, o.Stage, o.RCode, o.FailureCode, o.AnswerFingerprint, o.Attribution)
+		}
+		if len(diag.EncryptedFamiliesFiltered) > 0 {
+			log.Warnf("adaptive dns: encrypted families filtered mid-handshake: %v", diag.EncryptedFamiliesFiltered)
+		}
+		// Feed passive mid-handshake evidence into the recurrence tracker:
+		// the family is quarantined after the first RST/EOF (FastThreshold=1)
+		// while classic UDP/TCP paths to the same resolver stay eligible.
+		resetFamilies := map[dnspath.DNSPathFamily]bool{}
+		for _, o := range diag.Outcomes {
+			if o.Class == dnspath.OutcomeTLSMidHandshakeReset {
+				resetFamilies[o.PathID.Family] = true
+			}
+		}
+		filtered := make(map[dnspath.DNSPathFamily]bool, len(diag.EncryptedFamiliesFiltered))
+		for _, fam := range diag.EncryptedFamiliesFiltered {
+			filtered[fam] = true
+			// Distinguish a mid-handshake reset (RST/EOF) from a stall (silence
+			// until timeout); both are family-filtered and both quarantine after
+			// the first observation.
+			kind := dnspath.KindEncryptedStall
+			if resetFamilies[fam] {
+				kind = dnspath.KindMidHandshakeReset
+			}
+			if manager.RecordPathFailure(fam, kind) {
+				log.Warnf("adaptive dns: family %s quarantined (%s)", fam, kind)
+			}
+		}
+		// Evidence-based auto-recovery (§77): a family that was quarantined but
+		// is no longer filtered by this fresh diagnosis (block lifted) returns to
+		// eligibility without operator action.
+		for _, fam := range manager.QuarantinedFamilies() {
+			if !filtered[fam] {
+				manager.ClearPathFailure(fam, manager.QuarantineReason(fam))
+				log.Infof("adaptive dns: family %s recovered from quarantine", fam)
+			}
+		}
 		result := &handler.DNSDiagnoseResult{
 			PoisoningDetected: diag.PoisoningDetected,
 			InjectionDetected: diag.InjectionDetected,
@@ -138,6 +184,13 @@ func initAdaptiveDNS(cfg *config.Config) {
 				result.Explanation = append(result.Explanation, "profile prepared; source-scoped LAN canary is required before promotion")
 			} else {
 				result.Explanation = append(result.Explanation, "no path satisfied correctness, control and active policy gates")
+				// Surface the exact policy blocker instead of a generic failure:
+				// the strict no-log/no-filter requirements exclude native paths
+				// that carry no catalog trust claim (b4x-xrhd), which is easy to
+				// misread as a detector/network fault in the field.
+				if livePolicy.RequireNoLogClaim || livePolicy.RequireNoFilterClaim {
+					result.Explanation = append(result.Explanation, "strict policy requires no-log/no-filter provenance; native paths without a trusted resolver catalog stay ineligible until a proven resolver is provisioned or the requirement is relaxed")
+				}
 			}
 		}
 		if diag.InjectionDetected {
@@ -151,6 +204,26 @@ func initAdaptiveDNS(cfg *config.Config) {
 		}
 		if diag.Port53Blocked {
 			result.Explanation = append(result.Explanation, "classic port-53 failure corroborated by an independently validated encrypted path")
+		}
+		// Explicit degraded-mode marker (§ H): recomputed from the live
+		// quarantine state on EVERY diagnosis (not only a READY profile, so it
+		// can never go stale). When encrypted families are quarantined/unavailable
+		// and only classic UDP/TCP remains, this is logged and visible in
+		// status/metrics. The fallback floor is classic DNS, never "no DNS"
+		// (the NFQ gate then serves the system path).
+		var encQuarantined []dnspath.DNSPathFamily
+		for _, fam := range manager.QuarantinedFamilies() {
+			if fam.Encrypted() {
+				encQuarantined = append(encQuarantined, fam)
+			}
+		}
+		if len(encQuarantined) > 0 {
+			reason := fmt.Sprintf("encrypted families unavailable (%v); classic UDP/TCP only", encQuarantined)
+			manager.SetDegradedReason(reason)
+			log.Warnf("adaptive dns: degraded mode — %s", reason)
+			result.Explanation = append(result.Explanation, "degraded mode: "+reason)
+		} else {
+			manager.SetDegradedReason("")
 		}
 		return result, nil
 	})
@@ -255,7 +328,71 @@ func buildADNSReferenceProviders(cfg *config.Config, policy dnspath.AdaptivePoli
 			providers.NewTCPProvider(addr, 53, mark, adnsReferenceCatalog),
 		)
 	}
+	out = append(out, referenceEncryptedProviders(policy, cfg.System.Checker.ReferenceDNS, mark)...)
 	out = append(out, buildADNSManagedProviders(policy, cfg.System.Checker.ReferenceDomain)...)
+	return out
+}
+
+// adnsEncryptedResolver is a reviewed well-known public resolver that offers
+// both DoT and DoH. Bootstrap IPs are pinned so encrypted path bootstrap never
+// recursively depends on the system resolver being diagnosed (§47 rule 4).
+type adnsEncryptedResolver struct {
+	Host string
+	IPs  []string
+	DoH  string
+}
+
+// adnsKnownEncryptedResolvers is a deliberately small, static allowlist. It is
+// only used to derive native DoT/DoH candidates for reference-DNS addresses
+// the operator already configured; no name is ever resolved through the system
+// path just to build the candidate set.
+var adnsKnownEncryptedResolvers = []adnsEncryptedResolver{
+	{Host: "dns.google", IPs: []string{"8.8.8.8", "8.8.4.4"}, DoH: "https://dns.google/dns-query"},
+	{Host: "one.one.one.one", IPs: []string{"1.1.1.1", "1.0.0.1"}, DoH: "https://cloudflare-dns.com/dns-query"},
+	{Host: "dns.quad9.net", IPs: []string{"9.9.9.9", "149.112.112.112"}, DoH: "https://dns.quad9.net/dns-query"},
+}
+
+// referenceEncryptedProviders derives native DoT and DoH candidates from the
+// configured reference DNS addresses (addendum §36/§37). Without them the
+// diagnosis set is native-classic only, so encrypted-family filtering
+// (mid-handshake RST/EOF) can never be observed and the path controller can
+// never fail over to an encrypted family.
+func referenceEncryptedProviders(policy dnspath.AdaptivePolicy, refDNS []string, mark int) []dnspath.DNSPathProvider {
+	if !policy.AllowNativeEncrypted {
+		return nil
+	}
+	configured := map[string]bool{}
+	for _, raw := range refDNS {
+		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
+		if err != nil || !addr.IsValid() {
+			continue
+		}
+		configured[addr.String()] = true
+	}
+	var out []dnspath.DNSPathProvider
+	for _, r := range adnsKnownEncryptedResolvers {
+		bootstrap := make([]net.IP, 0, len(r.IPs))
+		matched := false
+		for _, ipText := range r.IPs {
+			ip := net.ParseIP(ipText)
+			if ip == nil || ip.To4() == nil {
+				continue
+			}
+			bootstrap = append(bootstrap, ip.To4())
+			if configured[ipText] {
+				matched = true
+			}
+		}
+		if !matched {
+			continue
+		}
+		if policy.AllowsFamily(dnspath.DNSPathDoT) {
+			out = append(out, providers.NewDoTProvider(r.Host, bootstrap, 853, mark, adnsReferenceCatalog))
+		}
+		if policy.AllowsFamily(dnspath.DNSPathDoH) {
+			out = append(out, providers.NewDoHProviderWithBootstrap(r.DoH, bootstrap, mark, adnsReferenceCatalog))
+		}
+	}
 	return out
 }
 

@@ -55,7 +55,14 @@ type Fixture struct {
 
 // StartUDP launches a UDP fixture on loopback and returns its address.
 func StartUDP(mode Mode) (*Fixture, string, error) {
-	addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
+	return StartUDPOn("127.0.0.1", mode)
+}
+
+// StartUDPOn launches a UDP fixture bound to a specific loopback address
+// (e.g. 127.0.0.2), so tests can give independent fixtures distinct resolver
+// identities while staying on the loopback interface.
+func StartUDPOn(host string, mode Mode) (*Fixture, string, error) {
+	addr, err := net.ResolveUDPAddr("udp", host+":0")
 	if err != nil {
 		return nil, "", err
 	}
@@ -71,7 +78,12 @@ func StartUDP(mode Mode) (*Fixture, string, error) {
 
 // StartTCP launches a TCP fixture on loopback.
 func StartTCP(mode Mode) (*Fixture, string, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+	return StartTCPOn("127.0.0.1", mode)
+}
+
+// StartTCPOn launches a TCP fixture bound to a specific loopback address.
+func StartTCPOn(host string, mode Mode) (*Fixture, string, error) {
+	l, err := net.Listen("tcp", host+":0")
 	if err != nil {
 		return nil, "", err
 	}

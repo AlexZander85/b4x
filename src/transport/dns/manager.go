@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -31,6 +32,17 @@ type Manager struct {
 	health   map[string]*DNSPathHealth
 	axes     map[HealthAxis]AxisState
 	recovery *RecoveryState
+
+	// recurrence aggregates passive path failures (§80) and drives family-scoped
+	// quarantine; quarantined/quarantineReason record the active quarantine.
+	recurrence       *RecurrenceTracker
+	quarantined      map[DNSPathFamily]bool
+	quarantineReason map[DNSPathFamily]string
+
+	// degradedReason is non-empty when adaptive DNS runs in an explicitly
+	// degraded posture (classic UDP/TCP only, no encrypted path). It is
+	// surfaced in status/metrics so the operator can see the degradation.
+	degradedReason string
 
 	generation uint64
 	epoch      string
@@ -80,16 +92,19 @@ func NewManager(mode DNSOperatingMode, policy AdaptivePolicy, generation uint64,
 		mode = DNSModeCurrent
 	}
 	return &Manager{
-		mode:       mode,
-		policy:     policy,
-		providers:  map[string]DNSPathProvider{},
-		prepared:   map[string]PreparedDNSPath{},
-		cache:      NewGenerationCache(1024, 60*time.Second),
-		health:     map[string]*DNSPathHealth{},
-		axes:       map[HealthAxis]AxisState{},
-		generation: generation,
-		epoch:      epoch,
-		networkCtx: networkCtx,
+		mode:             mode,
+		policy:           policy,
+		providers:        map[string]DNSPathProvider{},
+		prepared:         map[string]PreparedDNSPath{},
+		cache:            NewGenerationCache(1024, 60*time.Second),
+		health:           map[string]*DNSPathHealth{},
+		axes:             map[HealthAxis]AxisState{},
+		recurrence:       NewRecurrenceTracker(3),
+		quarantined:      map[DNSPathFamily]bool{},
+		quarantineReason: map[DNSPathFamily]string{},
+		generation:       generation,
+		epoch:            epoch,
+		networkCtx:       networkCtx,
 	}
 }
 
@@ -354,11 +369,15 @@ func (m *Manager) Resolve(ctx context.Context, q DNSQuery) (DNSResponse, error) 
 
 func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (DNSResponse, error) {
 	m.mu.RLock()
+	quarantined := m.quarantined[path.Family]
 	networkCtx := m.networkCtx
 	generation := m.generation
 	provider, ok := m.providers[path.Hash()]
 	prepared, pok := m.prepared[path.Hash()]
 	m.mu.RUnlock()
+	if quarantined {
+		return DNSResponse{}, fmt.Errorf("path family %s is quarantined", path.Family)
+	}
 	key := DNSCachePartitionKey{
 		NetworkContextID: networkCtx, ConfigGeneration: generation,
 		PathHash: path.Hash(), QueryNameHash: HashQName(q.Name), QType: q.QType,
@@ -412,6 +431,10 @@ func (m *Manager) resolveVia(ctx context.Context, path DNSPathID, q DNSQuery) (D
 
 func (m *Manager) pathReady(path DNSPathID) bool {
 	m.mu.RLock()
+	if m.quarantined[path.Family] {
+		m.mu.RUnlock()
+		return false
+	}
 	h, ok := m.health[path.Hash()]
 	m.mu.RUnlock()
 	if !ok || h == nil {
@@ -427,6 +450,115 @@ func (m *Manager) MarkPathHealth(path DNSPathID, h DNSPathHealth) {
 	cp := h
 	m.health[path.Hash()] = &cp
 	m.mu.Unlock()
+}
+
+// RecordPathFailure records one passive path failure observation and applies
+// family-scoped quarantine when the recurrence threshold is reached (§80).
+// Fast kinds — the DPI mid-handshake cut (KindMidHandshakeReset) — quarantine
+// after the FIRST observation (FastThreshold=1). Quarantine is family-scoped,
+// never resolver-wide, so plaintext UDP/TCP paths to the same resolver IPs stay
+// eligible (§80: "plaintext fallback to the same resolver IPs remains a valid
+// candidate"). The tracker itself never mutates bindings (ADR-ADNS-010).
+func (m *Manager) RecordPathFailure(family DNSPathFamily, kind string) bool {
+	m.mu.Lock()
+	triggered := m.recurrence.Record(family, kind, time.Now())
+	if triggered {
+		m.quarantined[family] = true
+		m.quarantineReason[family] = kind
+		m.axes[AxisTransport] = AxisDegraded
+	}
+	m.mu.Unlock()
+	if triggered {
+		m.trace("PATH_FAMILY_QUARANTINED", family)
+	}
+	return triggered
+}
+
+// SetDegradedReason records (or clears, with "") the explicit degraded-mode
+// marker for adaptive DNS. A non-empty reason is surfaced in status/metrics and
+// traced, so a fallback to classic-only DNS is visible to the operator.
+func (m *Manager) SetDegradedReason(reason string) {
+	m.mu.Lock()
+	changed := m.degradedReason != reason
+	m.degradedReason = reason
+	m.mu.Unlock()
+	if changed && reason != "" {
+		m.trace("DEGRADED_MODE", "")
+	}
+}
+
+// DegradedReason returns the current degraded-mode reason ("" when normal).
+func (m *Manager) DegradedReason() string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.degradedReason
+}
+
+// IsFamilyQuarantined reports whether a family is currently quarantined.
+func (m *Manager) IsFamilyQuarantined(family DNSPathFamily) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.quarantined[family]
+}
+
+// QuarantinedFamilies returns the currently quarantined families, sorted for
+// deterministic API/metrics rendering.
+func (m *Manager) QuarantinedFamilies() []DNSPathFamily {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]DNSPathFamily, 0, len(m.quarantined))
+	for f := range m.quarantined {
+		out = append(out, f)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
+}
+
+// QuarantineReason returns the failure kind that quarantined a family ("" when
+// the family is not quarantined).
+func (m *Manager) QuarantineReason(family DNSPathFamily) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.quarantineReason[family]
+}
+
+// ClearPathFailure resets recurrence and releases family quarantine after a
+// successful revalidation/recovery (§77/§80). It is the only path back to
+// eligibility for a quarantined family.
+func (m *Manager) ClearPathFailure(family DNSPathFamily, kind string) {
+	m.mu.Lock()
+	m.recurrence.Reset(family, kind)
+	delete(m.quarantined, family)
+	delete(m.quarantineReason, family)
+	if len(m.quarantined) == 0 && m.axes[AxisTransport] == AxisDegraded {
+		delete(m.axes, AxisTransport)
+	}
+	m.mu.Unlock()
+	m.trace("PATH_FAMILY_RELEASED", family)
+}
+
+// ReleaseAllQuarantines clears every family quarantine after a successful
+// revalidation/recovery (§77/§80) and reports what was released. Quarantine is
+// time/evidence-scoped, not permanent: the family must be able to return
+// automatically once the block is lifted.
+func (m *Manager) ReleaseAllQuarantines() []DNSPathFamily {
+	m.mu.Lock()
+	released := make([]DNSPathFamily, 0, len(m.quarantined))
+	for f := range m.quarantined {
+		m.recurrence.Reset(f, m.quarantineReason[f])
+		released = append(released, f)
+	}
+	m.quarantined = map[DNSPathFamily]bool{}
+	m.quarantineReason = map[DNSPathFamily]string{}
+	if m.axes[AxisTransport] == AxisDegraded {
+		delete(m.axes, AxisTransport)
+	}
+	m.mu.Unlock()
+	sort.Slice(released, func(i, j int) bool { return released[i] < released[j] })
+	for _, f := range released {
+		m.trace("PATH_FAMILY_RELEASED", f)
+	}
+	return released
 }
 
 // PreparePath prepares a provider for a profile generation.
@@ -527,6 +659,7 @@ func (m *Manager) HealthReport() HealthReport {
 	profile := m.profile
 	lastGoodProfile := m.lastGoodProfile
 	binding := m.active
+	quarantinedCount := len(m.quarantined)
 	m.mu.RUnlock()
 	activeProfile := profile
 	if binding != nil && !profileMatchesBinding(activeProfile, binding) && profileMatchesBinding(lastGoodProfile, binding) {
@@ -545,6 +678,11 @@ func (m *Manager) HealthReport() HealthReport {
 		axes[AxisFallback] = AxisDegraded
 	} else {
 		axes[AxisFallback] = AxisHealthy
+	}
+	// A quarantined family degrades transport health without masking a harder
+	// failure reported by monitoring.
+	if quarantinedCount > 0 && axes[AxisTransport] != AxisFailed {
+		axes[AxisTransport] = AxisDegraded
 	}
 	return ComposeHealth(axes)
 }

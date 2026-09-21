@@ -106,12 +106,22 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 			return
 		}
 	case "NXDOMAIN":
-		if meta.RCode != 3 {
-			out.Class = dnspath.OutcomeRCodeMismatch
-			out.FailureCode = "expected_nxdomain"
-			return
+		// RFC 2308 negative handling: NXDOMAIN (rcode 3) and NODATA (rcode 0)
+		// are both valid negatives when an authority SOA proves them. The
+		// canonical negative case must not fail merely because a target's
+		// "nonexistent.<target>" name is NODATA rather than NXDOMAIN (special-use
+		// / wildcard zones such as example.com do this), which otherwise makes
+		// the whole suite unsatisfiable and blocks every profile. A negative
+		// *without* SOA proof is still rejected (bare injection signature).
+		if meta.HasNegativeProof() {
+			if meta.RCode != 3 && meta.RCode != 0 {
+				out.Class = dnspath.OutcomeRCodeMismatch
+				out.FailureCode = "unexpected_negative_rcode"
+				return
+			}
+			break
 		}
-		if !meta.HasNegativeProof() {
+		if meta.RCode == 3 {
 			out.Class = dnspath.OutcomeAnswerConflict
 			if meta.Authoritative && meta.AuthorityCount == 0 {
 				out.FailureCode = "forged_nxdomain_aa_empty_authority"
@@ -120,6 +130,9 @@ func completeProbeEvidence(out *dnspath.DNSPathProbeOutcome, payload []byte, q d
 			}
 			return
 		}
+		out.Class = dnspath.OutcomeRCodeMismatch
+		out.FailureCode = "expected_negative"
+		return
 	case "SERVFAIL":
 		if meta.RCode != 2 {
 			out.Class = dnspath.OutcomeRCodeMismatch

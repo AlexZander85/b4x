@@ -258,7 +258,13 @@ func semanticOutcomeSignature(o dnspath.DNSPathProbeOutcome, caseID string) stri
 		// diversity to be waved through.
 		return exactOutcomeSignature(o)
 	case "NXDOMAIN":
-		return fmt.Sprintf("nxdomain|r=%d|soa=%t", o.RCode, negativeProof)
+		// A proved RFC 2308 negative is one control outcome: NXDOMAIN and
+		// NODATA (both SOA-proved) are the same semantic, so paths that return
+		// one vs the other are not treated as manipulating each other.
+		if negativeProof {
+			return "negative|soa=true"
+		}
+		return fmt.Sprintf("negative|soa=false|r=%d", o.RCode)
 	case "CNAME":
 		return fmt.Sprintf("positive-cname|r=%d|present=%t", o.RCode, o.CNAMEFingerprint != "")
 	case "HTTPS":
@@ -320,6 +326,20 @@ func classifyDiagnosisFlags(outcomes []dnspath.DNSPathProbeOutcome, paths map[st
 		}
 		if st.MidHandshake && id.Family.Encrypted() {
 			filteredSet[id.Family] = true
+		}
+	}
+	// An encrypted family whose every probe stalled while classic DNS to the
+	// same WAN still works is the DoH/443 half of the family filter: silence
+	// until timeout after ClientHello (§58). Treat it like the mid-handshake
+	// cut so the family is quarantined fast instead of only after the generic
+	// recurrence threshold. Requires a passing classic corroborator, so a
+	// generic WAN outage never quarantines an encrypted family.
+	if classicPass {
+		for hash, st := range stats {
+			id := paths[hash]
+			if id.Family.Encrypted() && st.Pass == 0 && st.Timeouts >= attempts {
+				filteredSet[id.Family] = true
+			}
 		}
 	}
 	port53Blocked = classicPaths > 0 && classicBlocked == classicPaths && encryptedPass

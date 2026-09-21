@@ -187,6 +187,13 @@ func dnsStatusPayload(m *dnspath.Manager) map[string]any {
 		"rollback_ready":     m.LastGood() != nil,
 		"axes":               health.Axes,
 	}
+	if quarantined := m.QuarantinedFamilies(); len(quarantined) > 0 {
+		payload["quarantined_families"] = quarantined
+	}
+	if reason := m.DegradedReason(); reason != "" {
+		payload["degraded_mode"] = true
+		payload["degraded_reason"] = reason
+	}
 	if p := m.Profile(); p != nil {
 		payload["profile_id"] = p.ProfileID
 		payload["diagnosis"] = map[string]any{
@@ -283,15 +290,20 @@ func (api *API) handleDNSRevalidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := m.Profile()
+	// An explicit operator revalidation is the manual recovery action (§77):
+	// release family quarantine even before a profile exists, so a family cut
+	// during a diagnostic run cannot stay quarantined until restart. Any still
+	// blocked family is re-quarantined by the next diagnosis.
+	released := m.ReleaseAllQuarantines()
 	if p == nil {
-		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": "no profile"})
+		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": "no profile", "released_families": released})
 		return
 	}
 	if err := p.Validated(time.Now()); err != nil {
-		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": err.Error()})
+		writeDNSJSON(w, map[string]any{"revalidated": false, "reason": err.Error(), "released_families": released})
 		return
 	}
-	writeDNSJSON(w, map[string]any{"revalidated": true, "profile_id": p.ProfileID})
+	writeDNSJSON(w, map[string]any{"revalidated": true, "profile_id": p.ProfileID, "released_families": released})
 }
 
 func (api *API) handleDNSCanary(w http.ResponseWriter, r *http.Request) {
@@ -434,6 +446,9 @@ func RenderDNSMetrics(m *dnspath.Manager) string {
 	if p := m.Profile(); p != nil {
 		state := p.Status
 		fmt.Fprintf(&b, "b4_dns_path_profile_state{state=%q} 1\n", state)
+	}
+	if reason := m.DegradedReason(); reason != "" {
+		fmt.Fprintf(&b, "b4_dns_path_degraded{reason=%q} 1\n", reason)
 	}
 	return b.String()
 }
