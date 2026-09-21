@@ -8,16 +8,29 @@ import (
 // bundledSources is the curated list of public aggregator raw endpoints used
 // when system.vless.bundled_sources is on (default). It is OUR short list of
 // public upstreams (design §3.2 rail: not a copy of any collector's source
-// file). Every entry was HTTP-verified reachable at implementation time; a
-// dead upstream is skipped by the fetcher, never fatal.
+// file) — public URLs only, no code borrowed.
+//
+// Curated by measured VLESS yield (2026-09-21), which is why the three
+// highest-volume sources lead:
+//
+//	iboxz           317 vless   (vless-only, curated)
+//	0xRadikal      6284 vless   (widest pool)
+//	barry-far      6068 vless   (freshest)
+//	peasoft          40 vless
+//	Pawdroid          3 vless
+//	ALIILAPRO       500 vless
+//
+// Dropped as dead or duplicate: mahdibland (0 vless — the aggregator no longer
+// ships VLESS), ts-sf/fly (0), freefq/free (0), and Epodonios (its
+// Splitted-By-Protocol pool is a byte-identical mirror of barry-far). A dead or
+// broken upstream is skipped by the fetcher, never fatal.
 var bundledSources = []string{
-	"https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge.txt",
-	"https://raw.githubusercontent.com/Epodonios/v2ray-configs/main/All_Configs_Sub.txt",
+	"https://iboxz.github.io/free-v2ray-collector/main/vless.txt",
+	"https://raw.githubusercontent.com/0xRadikal/Free-v2ray-Configs/main/protocols/vless.txt",
+	"https://raw.githubusercontent.com/barry-far/V2ray-Config/main/Splitted-By-Protocol/vless.txt",
 	"https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list.txt",
 	"https://raw.githubusercontent.com/Pawdroid/Free-servers/main/sub",
 	"https://raw.githubusercontent.com/ALIILAPRO/v2rayNG-Config/main/server.txt",
-	"https://raw.githubusercontent.com/ts-sf/fly/main/v2",
-	"https://raw.githubusercontent.com/freefq/free/master/v2",
 }
 
 // BundledSources returns a copy of the curated aggregator list.

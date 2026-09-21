@@ -74,8 +74,18 @@ type Runtime struct {
 	// helper is the supervised external helper process (V2). nil when the
 	// helper is not managed (external operator / missing binary).
 	helper *vless.Helper
+	// helperKind is the helper dialect (for renderability checks; b4x-d0fw).
+	helperKind vless.HelperKind
 	// selector probes candidates and picks the active node (V2 seek + loc).
 	selector *vless.Selector
+	// stats is the persistent per-node outcome memory (b4x-d0fw).
+	stats *vless.StatsStore
+
+	// helperMu serialises render+start/restart of the managed helper.
+	helperMu sync.Mutex
+	// renderMu guards rendered, the identity of the node the helper last ran.
+	renderMu sync.Mutex
+	rendered string
 
 	mu          sync.RWMutex
 	inline      []vless.Node
@@ -163,6 +173,9 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		}
 	}
 
+	statsPath := filepath.Join(filepath.Dir(vc.EffectiveNodeCachePath()), "stats.json")
+	statsStore, _ := vless.LoadStats(statsPath) // missing/corrupt -> empty, never fatal
+
 	rt := &Runtime{
 		cfg:         vc,
 		socksDial:   socksDial,
@@ -170,6 +183,8 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		httpClient:  opts.HTTPClient,
 		ring:        newEventRing(64),
 		helper:      helperProc,
+		helperKind:  helper,
+		stats:       statsStore,
 		inline:      inline,
 		fetched:     fetched,
 		sourceState: bySource,
@@ -191,7 +206,9 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		MaxParallel:  4,
 		Pin:          vc.PinNode,
 	}, prober)
+	rt.selector.Stats = statsStore
 	rt.selector.OnChange = rt.onActiveChange
+	rt.selector.OnReady = rt.onActiveChange
 	rt.ring.push("info", "assembled", fmt.Sprintf("client=%s helper=%s socks=%s nodes=%d sources=%d",
 		mode, helper, vc.SocksAddr, len(nodes), len(sources)))
 	if vc.ManageHelper() && helper != vless.HelperExternal && helperProc == nil {
@@ -213,26 +230,59 @@ func helperBinaryName(kind vless.HelperKind) string {
 	}
 }
 
-// ensureHelper renders the helper config from the first renderable node,
-// spawns the helper and waits for its SOCKS5 inbound. Safe to call repeatedly
-// (Start is idempotent while running).
+// ensureHelper renders the helper config and spawns the helper on the
+// selector's chosen node (or the first renderable one before the first probe),
+// then waits for its SOCKS5 inbound. Safe to call repeatedly (idempotent).
 func (r *Runtime) ensureHelper(ctx context.Context) {
 	if r.helper == nil {
 		return
 	}
-	rendered := false
-	for _, n := range r.allNodes() {
-		if err := r.helper.RenderWrite(n); err != nil {
-			continue
-		}
-		rendered = true
-		break
-	}
-	if !rendered {
+	node, ok := r.helperNode()
+	if !ok {
 		r.ring.push("warn", "helper_config", "no helper-renderable node")
 		return
 	}
-	if err := r.helper.Start(ctx); err != nil {
+	r.applyHelperNode(ctx, node)
+}
+
+// helperNode picks the node the managed helper should run: the selector's
+// active choice when one exists, otherwise the first renderable candidate.
+func (r *Runtime) helperNode() (vless.Node, bool) {
+	if r.selector != nil {
+		if a, ok := r.selector.Active(); ok {
+			return a, true
+		}
+	}
+	for _, n := range r.allNodes() {
+		if _, err := vless.RenderWith(r.helperKind, n, vless.RenderOptions{SocksAddr: r.cfg.SocksAddr}); err == nil {
+			return n, true
+		}
+	}
+	return vless.Node{}, false
+}
+
+// applyHelperNode renders n and (re)starts the managed helper on it. A repeat
+// for the node the helper already runs is a no-op.
+func (r *Runtime) applyHelperNode(ctx context.Context, n vless.Node) {
+	r.helperMu.Lock()
+	defer r.helperMu.Unlock()
+	if r.helper == nil {
+		return
+	}
+	if r.renderedIdentity() == n.Identity() && r.helper.Status().Running {
+		return
+	}
+	if err := r.helper.RenderWrite(n); err != nil {
+		r.ring.push("warn", "helper_config", err.Error())
+		return
+	}
+	r.setRenderedIdentity(n.Identity())
+	if r.helper.Status().Running {
+		if err := r.helper.Restart(ctx); err != nil {
+			r.ring.push("warn", "helper_restart", err.Error())
+			return
+		}
+	} else if err := r.helper.Start(ctx); err != nil {
 		r.ring.push("warn", "helper_start", err.Error())
 		return
 	}
@@ -241,6 +291,18 @@ func (r *Runtime) ensureHelper(ctx context.Context) {
 		return
 	}
 	r.ring.push("info", "helper_ready", r.cfg.SocksAddr)
+}
+
+func (r *Runtime) renderedIdentity() string {
+	r.renderMu.Lock()
+	defer r.renderMu.Unlock()
+	return r.rendered
+}
+
+func (r *Runtime) setRenderedIdentity(id string) {
+	r.renderMu.Lock()
+	r.rendered = id
+	r.renderMu.Unlock()
 }
 
 func redactAll(in []string) []string {
@@ -290,7 +352,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 // that node would actually be dialed with (in-process when capable, else the
 // helper's SOCKS5).
 func (r *Runtime) streamToNode(ctx context.Context, n vless.Node, target netip.AddrPort) (net.Conn, error) {
-	if r.modeFor(r.allNodes()) != config.VLESSClientHelper && vless.SupportsInProcess(n) {
+	// Probe the candidate ITSELF. The in-process client carries raw/tcp, ws and
+	// httpupgrade, so the selector ranks those candidates directly even when the
+	// carrier ships traffic through the external helper (b4x-d0fw): otherwise
+	// every probe would ride the active helper node and rank nothing.
+	if vless.SupportsInProcess(n) {
 		return (&vless.Dialer{Node: n, Base: r.base}).Dial(ctx, target)
 	}
 	if r.socksDial == nil {
@@ -321,17 +387,7 @@ func (r *Runtime) onActiveChange(n vless.Node) {
 	if r.helper == nil {
 		return
 	}
-	go func() {
-		if err := r.helper.RenderWrite(n); err != nil {
-			r.ring.push("warn", "helper_rotate_render", err.Error())
-			return
-		}
-		if err := r.helper.Restart(context.Background()); err != nil {
-			r.ring.push("warn", "helper_rotate_restart", err.Error())
-			return
-		}
-		r.ring.push("info", "helper_rotated", activeAddr(&n))
-	}()
+	go r.applyHelperNode(context.Background(), n)
 }
 
 // Stop tears the runtime down (no-op before Start).

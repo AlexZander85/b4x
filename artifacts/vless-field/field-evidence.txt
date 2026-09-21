@@ -1,0 +1,30 @@
+### b4 vless/tunnel lines ###
+2026/09/21 10:42:39.733737 [ERROR] tproxy: tunnel carrier "vless" is not registered for set "vless-tunnel" (engine disabled, failed to start, or not wired); the set stays fail-closed until it registers
+2026/09/21 10:42:43.833733 [INFO] [vless] engine started helper=xray socks=127.0.0.1:1081 nodes=5
+2026/09/21 10:42:43.833858 [INFO] [vless] carrier registered kind=vless priority=25 udp=false
+2026/09/21 10:42:43.834108 [INFO] tproxy: listening on 0.0.0.0:46759 (v4) for set "vless-tunnel" -> 127.0.0.1:0
+2026/09/21 10:42:43.834388 [INFO] tproxy: listening on [::]:46759 (v6) for set "vless-tunnel" -> 127.0.0.1:0
+2026/09/21 10:50:38.123945 [ERROR] tproxy: tunnel carrier "vless" is not registered for set "vless-tunnel" (engine disabled, failed to start, or not wired); the set stays fail-closed until it registers
+2026/09/21 10:50:39.269360 [INFO] [vless] engine started helper=xray socks=127.0.0.1:1081 nodes=5
+2026/09/21 10:50:39.269985 [INFO] [vless] carrier registered kind=vless priority=25 udp=false
+2026/09/21 10:50:39.270241 [INFO] tproxy: listening on 0.0.0.0:54235 (v4) for set "vless-tunnel" -> 127.0.0.1:0
+2026/09/21 10:50:39.270414 [INFO] tproxy: listening on [::]:54235 (v6) for set "vless-tunnel" -> 127.0.0.1:0
+2026/09/21 10:50:58.933051 [INFO] TCP 192.168.1.40:56911 тЖТ 1.0.0.1:443 sni-set=vless-tunnel [tunnel:vless]
+2026/09/21 10:50:58.937694 [TRACE] tproxy: tunnel dial OK set="vless-tunnel" 1.0.0.1:443
+2026/09/21 10:50:59.778555 [TRACE] tproxy: pipe client->upstream copied 658 bytes
+2026/09/21 10:51:01.903113 [TRACE] tproxy: pipe upstream->client copied 3948 bytes
+
+### F1 trace raw ###
+      "port": 1081,
+            "address": "212.64.210.109",
+            "port": 443,
+                "flow": "xtls-rprx-vision",
+          "publicKey": "nilJ07r1KZ0-KhmRNYeICXGhM9HeG9uxnRaqjYz3fWg",
+          "serverName": "tr.responsiblecare.uk",
+
+### helper log ###
+2026/09/21 10:55:39.310847 from tcp:127.0.0.1:56752 accepted tcp:1.1.1.1:443
+2026/09/21 10:55:43.776740 from tcp:127.0.0.1:56758 accepted tcp:1.1.1.1:443
+2026/09/21 10:59:11.988389 from tcp:127.0.0.1:56770 accepted tcp:1.1.1.1:443
+2026/09/21 10:59:23.231465 from tcp:127.0.0.1:56776 accepted tcp:1.1.1.1:443
+2026/09/21 10:59:31.834487 from tcp:127.0.0.1:56786 accepted tcp:1.1.1.1:443

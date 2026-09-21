@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -129,10 +130,25 @@ func decodeShortID(s string) ([]byte, error) {
 	return b, nil
 }
 
+// parseRealityPublicKey decodes the node's REALITY public key. The public
+// corpus (and Xray itself) encodes it as unpadded base64url of 32 bytes —
+// reference: infra/conf/transport_security.go decodes `publicKey` with
+// base64.RawURLEncoding and requires len == 32. A 32-byte hex value is still
+// accepted for our own fixtures and for older hand-written configs.
 func parseRealityPublicKey(s string) (*ecdh.PublicKey, error) {
-	raw, err := hex.DecodeString(strings.TrimSpace(s))
-	if err != nil {
-		return nil, fmt.Errorf("vless: reality: public key must be hex: %w", err)
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return nil, errors.New("vless: reality: empty public key")
+	}
+	var raw []byte
+	if b, err := base64.RawURLEncoding.DecodeString(v); err == nil && len(b) == 32 {
+		raw = b
+	} else if b, err := base64.StdEncoding.DecodeString(v); err == nil && len(b) == 32 {
+		raw = b
+	} else if b, err := hex.DecodeString(strings.TrimPrefix(strings.ToLower(v), "0x")); err == nil && len(b) == 32 {
+		raw = b
+	} else {
+		return nil, fmt.Errorf("vless: reality: public key must be base64url/base64 (32 bytes) or 64-char hex")
 	}
 	pub, err := ecdh.X25519().NewPublicKey(raw)
 	if err != nil {
