@@ -80,6 +80,7 @@ type Runtime struct {
 	mu          sync.RWMutex
 	inline      []vless.Node
 	fetched     []vless.Node
+	sourceState map[string]vless.SourceState
 	sourcesRaw  []string
 	sourcesRed  []string
 	lastRefresh time.Time
@@ -105,13 +106,16 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		parsed, _ := vless.ParseMany(vc.Nodes)
 		inline = parsed
 	}
-	// Last-good online asset (offline startup parity).
+	// Last-good online asset (offline startup parity), including the per-source
+	// ETag/Last-Modified state for the next conditional GET.
 	var fetched []vless.Node
+	var bySource map[string]vless.SourceState
 	if cache, cerr := vless.LoadNodeCache(vc.EffectiveNodeCachePath()); cerr != nil {
 		// A corrupt cache is not fatal: start empty and let refresh rebuild it.
 		fetched = nil
 	} else if cache != nil {
 		fetched = cache.Nodes
+		bySource = cache.BySource
 	}
 	nodes := vless.MergeNodes(inline, fetched)
 
@@ -160,15 +164,16 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	}
 
 	rt := &Runtime{
-		cfg:        vc,
-		socksDial:  socksDial,
-		base:       opts.Carrier,
-		httpClient: opts.HTTPClient,
-		ring:       newEventRing(64),
-		helper:     helperProc,
-		inline:     inline,
-		fetched:    fetched,
-		sourcesRaw: sources,
+		cfg:         vc,
+		socksDial:   socksDial,
+		base:        opts.Carrier,
+		httpClient:  opts.HTTPClient,
+		ring:        newEventRing(64),
+		helper:      helperProc,
+		inline:      inline,
+		fetched:     fetched,
+		sourceState: bySource,
+		sourcesRaw:  sources,
 	}
 	rt.sourcesRed = redactAll(sources)
 	prober := &vless.Prober{
@@ -381,14 +386,15 @@ func (r *Runtime) RefreshOnce(ctx context.Context) error {
 }
 
 func (r *Runtime) refreshOnce(ctx context.Context, sources []string) error {
-	rep := vless.Refresh(ctx, r.httpClientOrDefault(), sources, vless.MaxNodes)
+	rep := vless.RefreshWithState(ctx, r.httpClientOrDefault(), sources, r.sourceStateSnapshot(), vless.MaxNodes)
 	r.mu.Lock()
 	r.fetched = rep.Nodes
+	r.sourceState = rep.BySource
 	r.lastRefresh = rep.UpdatedAt
 	r.lastErr = vless.SummarizeFailed(rep.Failed)
 	r.mu.Unlock()
 
-	cache := &vless.NodeCache{Nodes: rep.Nodes, Sources: rep.Sources, UpdatedAt: rep.UpdatedAt}
+	cache := &vless.NodeCache{Nodes: rep.Nodes, Sources: rep.Sources, BySource: rep.BySource, UpdatedAt: rep.UpdatedAt}
 	if err := cache.Save(r.cfg.EffectiveNodeCachePath()); err != nil {
 		r.ring.push("warn", "cache_save", err.Error())
 	}
@@ -412,6 +418,21 @@ func (r *Runtime) lastErrString() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.lastErr
+}
+
+// sourceStateSnapshot copies the per-source ETag/Last-Modified state for the
+// conditional GET.
+func (r *Runtime) sourceStateSnapshot() map[string]vless.SourceState {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if len(r.sourceState) == 0 {
+		return nil
+	}
+	out := make(map[string]vless.SourceState, len(r.sourceState))
+	for k, v := range r.sourceState {
+		out[k] = v
+	}
+	return out
 }
 
 // httpClientOrDefault returns the subscription HTTP client: an injected one
@@ -528,16 +549,20 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 		return nil, ErrVlessSelfLoop
 	}
 	if r.modeFor(nodes) == config.VLESSClientInProcess {
-		n := r.pickInProcess(nodes)
-		if n == nil {
+		if n := r.pickInProcess(nodes); n != nil {
+			conn, err := (&vless.Dialer{Node: *n, Base: r.base}).Dial(ctx, addr)
+			if err == nil {
+				return conn, nil
+			}
+			r.ring.push("warn", "dial_fail", "in-process "+activeAddr(n)+": "+err.Error())
+			if r.socksDial == nil {
+				return nil, err
+			}
+			// Never silent: log the fallback, then try the helper's SOCKS5.
+			r.ring.push("info", "dial_fallback", "helper SOCKS5 after in-process failure")
+		} else if r.socksDial == nil {
 			return nil, errors.New("vlessservice: no in-process node available")
 		}
-		conn, err := (&vless.Dialer{Node: *n, Base: r.base}).Dial(ctx, addr)
-		if err != nil {
-			r.ring.push("warn", "dial_fail", err.Error())
-			return nil, err
-		}
-		return conn, nil
 	}
 	if r.socksDial == nil {
 		return nil, errors.New("vlessservice: no dialer configured")

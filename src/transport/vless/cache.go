@@ -12,10 +12,20 @@ import (
 // fetched node set, persisted next to the identity slot with 0600 so a restart
 // or an outage still has nodes to dial. It never contains secrets beyond what
 // a public node link already carries, but it is still operator data.
+// SourceState is the per-source last-good state: the validators for the next
+// conditional GET plus the nodes that source produced (so a 304 or a transient
+// fetch failure keeps them).
+type SourceState struct {
+	ETag    string `json:"etag,omitempty"`
+	LastMod string `json:"last_modified,omitempty"`
+	Nodes   []Node `json:"nodes,omitempty"`
+}
+
 type NodeCache struct {
-	Nodes     []Node    `json:"nodes"`
-	Sources   []string  `json:"sources,omitempty"` // redacted
-	UpdatedAt time.Time `json:"updated_at"`
+	Nodes     []Node                 `json:"nodes"`
+	Sources   []string               `json:"sources,omitempty"` // redacted
+	BySource  map[string]SourceState `json:"by_source,omitempty"`
+	UpdatedAt time.Time              `json:"updated_at"`
 }
 
 // LoadNodeCache reads the cache. A missing file returns (nil, nil) — the

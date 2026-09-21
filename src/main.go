@@ -1045,8 +1045,8 @@ func runB4(cmd *cobra.Command, args []string) error {
 	handler.SetVlessRuntime(vlessEngine) // nil-safe: the handler answers the disabled shape
 	if vlessEngine != nil {
 		reserve.Register(vlessEngine)
-		log.Infof("[vless] carrier registered kind=vless priority=%d udp=false",
-			reserve.PriorityVless)
+		log.Infof("[vless] carrier registered kind=vless priority=%d udp=%t",
+			reserve.PriorityVless, vlessEngine.SupportsUDP())
 	}
 
 	// Tunnels pane seam: the reserve carriers registered above may serve

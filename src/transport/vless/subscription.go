@@ -16,31 +16,49 @@ const MaxSubscriptionBytes = 16 << 20
 // Fetch downloads one subscription body within ctx. Non-2xx and oversized
 // bodies are errors; the caller decides whether to skip the source.
 func Fetch(ctx context.Context, client *http.Client, rawURL string) ([]byte, error) {
+	body, _, _, _, err := FetchConditional(ctx, client, rawURL, "", "")
+	return body, err
+}
+
+// FetchConditional performs a conditional GET (design §8/§12): with a stored
+// ETag/Last-Modified it sends If-None-Match/If-Modified-Since, and a 304
+// answers (nil, etag, lastMod, true, nil) so the caller keeps its last-good
+// nodes instead of re-downloading and re-parsing the whole list.
+func FetchConditional(ctx context.Context, client *http.Client, rawURL, etag, lastMod string) (body []byte, newETag, newLastMod string, notModified bool, err error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("vless: subscription request: %w", err)
+		return nil, "", "", false, fmt.Errorf("vless: subscription request: %w", err)
 	}
 	req.Header.Set("User-Agent", "b4x-vless/1")
 	req.Header.Set("Accept", "*/*")
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
+	if lastMod != "" {
+		req.Header.Set("If-Modified-Since", lastMod)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("vless: subscription fetch: %w", err)
+		return nil, "", "", false, fmt.Errorf("vless: subscription fetch: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("vless: subscription http %d", resp.StatusCode)
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, etag, lastMod, true, nil
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxSubscriptionBytes+1))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", "", false, fmt.Errorf("vless: subscription http %d", resp.StatusCode)
+	}
+	body, err = io.ReadAll(io.LimitReader(resp.Body, MaxSubscriptionBytes+1))
 	if err != nil {
-		return nil, fmt.Errorf("vless: subscription read: %w", err)
+		return nil, "", "", false, fmt.Errorf("vless: subscription read: %w", err)
 	}
 	if len(body) > MaxSubscriptionBytes {
-		return nil, fmt.Errorf("vless: subscription exceeds %d bytes", MaxSubscriptionBytes)
+		return nil, "", "", false, fmt.Errorf("vless: subscription exceeds %d bytes", MaxSubscriptionBytes)
 	}
-	return body, nil
+	return body, resp.Header.Get("ETag"), resp.Header.Get("Last-Modified"), false, nil
 }
 
 // DecodeBody normalizes a subscription body into one entry per line. It

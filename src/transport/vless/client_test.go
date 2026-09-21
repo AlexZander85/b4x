@@ -368,21 +368,24 @@ func TestEncodeFlowAddon(t *testing.T) {
 }
 
 func TestSupportsInProcess(t *testing.T) {
+	const tu = "11111111-1111-1111-1111-111111111111"
 	cases := []struct {
 		node Node
 		want bool
 	}{
-		{Node{Transport: TransportTCP, Security: SecurityNone}, true},
-		{Node{Transport: TransportTCP, Security: SecurityTLS}, true},
-		{Node{Transport: TransportTCP, Security: SecurityReality}, true},
-		{Node{Transport: TransportWS, Security: SecurityTLS}, true},
-		{Node{Transport: TransportHTTPUpgrade, Security: SecurityReality}, true},
-		{Node{Transport: TransportTCP, Security: SecurityReality, Flow: FlowVision}, true}, // vision framing implemented
-		{Node{Transport: TransportTCP, Security: SecurityReality, Flow: "xtls-rprx-other"}, false},
-		{Node{Transport: TransportGRPC, Security: SecurityTLS}, false},
-		{Node{Transport: TransportXHTTP, Security: SecurityTLS}, false},
-		{Node{Transport: TransportKCP, Security: SecurityTLS}, false},
-		{Node{Transport: TransportQUIC, Security: SecurityTLS}, false},
+		{Node{UUID: tu, Transport: TransportTCP, Security: SecurityNone}, true},
+		{Node{UUID: tu, Transport: TransportTCP, Security: SecurityTLS}, true},
+		{Node{UUID: tu, Transport: TransportTCP, Security: SecurityReality}, true},
+		{Node{UUID: tu, Transport: TransportWS, Security: SecurityTLS}, true},
+		{Node{UUID: tu, Transport: TransportHTTPUpgrade, Security: SecurityReality}, true},
+		{Node{UUID: tu, Transport: TransportTCP, Security: SecurityReality, Flow: FlowVision}, true}, // vision framing implemented
+		{Node{UUID: tu, Transport: TransportTCP, Security: SecurityReality, Flow: "xtls-rprx-other"}, false},
+		{Node{UUID: tu, Transport: TransportGRPC, Security: SecurityTLS}, false},
+		{Node{UUID: tu, Transport: TransportXHTTP, Security: SecurityTLS}, false},
+		{Node{UUID: tu, Transport: TransportKCP, Security: SecurityTLS}, false},
+		{Node{UUID: tu, Transport: TransportQUIC, Security: SecurityTLS}, false},
+		// A non-UUID id (the corpus has 30-char logins) must stay on the helper.
+		{Node{UUID: "some-30-char-login-id", Transport: TransportTCP, Security: SecurityTLS}, false},
 	}
 	for _, c := range cases {
 		if got := SupportsInProcess(c.node); got != c.want {

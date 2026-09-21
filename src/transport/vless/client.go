@@ -56,10 +56,16 @@ func SupportsInProcess(n Node) bool {
 	}
 	switch n.Security {
 	case SecurityNone, SecurityTLS, SecurityReality:
-		return true
 	default:
 		return false
 	}
+	if _, err := ParseUUID(n.UUID); err != nil {
+		// The public corpus contains nodes whose id is not a 16-byte UUID
+		// (e.g. a 30-char login). The in-process client needs a real UUID, so
+		// such a node must stay on the helper path.
+		return false
+	}
+	return true
 }
 
 // ParseUUID parses the VLESS user id (32 hex chars, dash-separated allowed).
@@ -266,10 +272,10 @@ func clientHelloID(fp string) utls.ClientHelloID {
 // flow == "xtls-rprx-vision" (proxy/vless/encoding/addons.go, EncodeHeaderAddons),
 // i.e. the bytes are `0x0A <len> <flow>`. An empty flow yields no addons.
 //
-// NOTE: this is only the HANDSHAKE half of XTLS Vision. The body framing after
-// the VLESS response (proxy.NewVisionWriter: inner-TLS padding + splice) is a
-// separate, publicly undocumented byte protocol and is NOT implemented here —
-// in-process stays fail-closed for flow nodes (see SupportsInProcess).
+// This is the request-header half of XTLS Vision; the body framing (padding +
+// splice) is implemented in vision.go and wired by Dial, so in-process now
+// carries flow=xtls-rprx-vision (interop-verified against Xray, see
+// vision_interop_test.go and artifacts/vless-vision-interop/).
 func encodeFlowAddon(flow string) []byte {
 	if flow == "" {
 		return nil

@@ -1,0 +1,47 @@
+=== RUN   TestVisionInteropXray
+=== RUN   TestVisionInteropXray/plain
+Xray 26.9.9 (Xray, Penetrates Everything.) Custom (go1.27.0 linux/amd64)
+A unified platform for anti-censorship.
+2026/09/21 07:21:37.234830 [Info] infra/conf/serial: Reading config: &{Name:/tmp/TestVisionInteropXrayplain3334119995/001/xray.json Format:json}
+2026/09/21 07:21:37.239396 [Debug] app/log: Logger started
+2026/09/21 07:21:37.240127 [Debug] app/proxyman/inbound: creating stream worker on 127.0.0.1:35187
+2026/09/21 07:21:37.243555 [Info] transport/internet/tcp: listening tcp on 127.0.0.1:35187
+2026/09/21 07:21:37.293187 [Warning] core: Xray 26.9.9 started
+2026/09/21 07:21:37.322226 [Info] [4192843090] app/proxyman/inbound: connection ends > EOF
+2026/09/21 07:21:37.324377 [Info] [584870394] proxy/vless/inbound: firstLen = 26
+2026/09/21 07:21:37.324406 [Info] [584870394] proxy/vless/inbound: received request for tcp:127.0.0.1:38377
+2026/09/21 07:21:37.324415 [Info] [584870394] app/dispatcher: default route for tcp:127.0.0.1:38377
+2026/09/21 07:21:37.324419 [Info] [584870394] transport/internet/tcp: dialing TCP to tcp:127.0.0.1:38377
+2026/09/21 07:21:37.324423 [Debug] [584870394] transport/internet: dialing to tcp:127.0.0.1:38377
+2026/09/21 07:21:37.324522 from 127.0.0.1:55358 accepted tcp:127.0.0.1:38377
+2026/09/21 07:21:37.324796 [Info] [584870394] proxy/freedom: connection opened to tcp:127.0.0.1:38377, local endpoint 127.0.0.1:32896, remote endpoint 127.0.0.1:38377
+2026/09/21 07:21:37.325159 [Debug] [584870394] proxy: CopyRawConn (maybe) readv
+=== RUN   TestVisionInteropXray/vision
+Xray 26.9.9 (Xray, Penetrates Everything.) Custom (go1.27.0 linux/amd64)
+A unified platform for anti-censorship.
+2026/09/21 07:21:37.454090 [Info] infra/conf/serial: Reading config: &{Name:/tmp/TestVisionInteropXrayvision3049201290/001/xray.json Format:json}
+2026/09/21 07:21:37.457799 [Debug] app/log: Logger started
+2026/09/21 07:21:37.458529 [Debug] app/proxyman/inbound: creating stream worker on 127.0.0.1:44329
+2026/09/21 07:21:37.460989 [Info] transport/internet/tcp: listening tcp on 127.0.0.1:44329
+2026/09/21 07:21:37.473566 [Warning] core: Xray 26.9.9 started
+2026/09/21 07:21:37.539186 [Info] [147314995] app/proxyman/inbound: connection ends > EOF
+2026/09/21 07:21:37.541416 [Info] [2656561119] proxy/vless/inbound: firstLen = 44
+2026/09/21 07:21:37.541461 [Info] [2656561119] proxy/vless/inbound: received request for tcp:127.0.0.1:35571
+2026/09/21 07:21:37.541469 [Info] [2656561119] app/dispatcher: default route for tcp:127.0.0.1:35571
+2026/09/21 07:21:37.541473 [Info] [2656561119] transport/internet/tcp: dialing TCP to tcp:127.0.0.1:35571
+2026/09/21 07:21:37.541476 [Debug] [2656561119] transport/internet: dialing to tcp:127.0.0.1:35571
+2026/09/21 07:21:37.541571 from 127.0.0.1:50526 accepted tcp:127.0.0.1:35571
+2026/09/21 07:21:37.541718 [Info] [2656561119] proxy/freedom: connection opened to tcp:127.0.0.1:35571, local endpoint 127.0.0.1:42054, remote endpoint 127.0.0.1:35571
+2026/09/21 07:21:37.542329 [Debug] [2656561119] proxy: Xtls Unpadding new block, content 0 padding 1012 command 0
+2026/09/21 07:21:37.542348 [Debug] [2656561119] proxy: Xtls Unpadding new block, content 1479 padding 107 command 0
+2026/09/21 07:21:37.542352 [Debug] [2656561119] proxy: XtlsFilterTls found tls client hello! 1479
+2026/09/21 07:21:37.543566 [Debug] [2656561119] proxy: XtlsFilterTls found tls 1.3! 2472 TLS_AES_128_GCM_SHA256
+2026/09/21 07:21:37.543586 [Debug] [2656561119] proxy: XtlsPadding 2472 222 0
+2026/09/21 07:21:37.543855 [Debug] [2656561119] proxy: Xtls Unpadding new block, content 64 padding 1307 command 0
+2026/09/21 07:21:37.543986 [Debug] [2656561119] proxy: Xtls Unpadding new block, content 118 padding 951 command 1
+2026/09/21 07:21:37.544166 [Debug] [2656561119] proxy: XtlsPadding 156 1183 2
+--- PASS: TestVisionInteropXray (0.44s)
+    --- PASS: TestVisionInteropXray/plain (0.22s)
+    --- PASS: TestVisionInteropXray/vision (0.22s)
+PASS
+ok  	github.com/daniellavrushin/b4/transport/vless	0.443s

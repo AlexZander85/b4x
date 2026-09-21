@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -334,6 +335,48 @@ func TestRefreshOncePopulatesNodesAndCache(t *testing.T) {
 	}
 	if st := rt2.Status(); st.NodeCount != 1 {
 		t.Fatalf("offline cache node_count=%d want 1", st.NodeCount)
+	}
+}
+
+// TestDialStreamFallsBackToHelper: an in-process dial that fails must fall back
+// to the helper's SOCKS5 (never silent, but never a hard stop either).
+func TestDialStreamFallsBackToHelper(t *testing.T) {
+	echo := startEcho(t)
+	socksAddr := startFakeSOCKS5(t)
+	deadPort := freeTCPPort(t) // nobody listens here
+
+	cfg := config.NewConfig()
+	off := false
+	cfg.System.Vless.BundledSources = &off
+	cfg.System.Vless.Client = "in-process"
+	cfg.System.Vless.SocksAddr = socksAddr
+	cfg.System.Vless.Nodes = []string{
+		// 127.0.0.2 (not the echo's 127.0.0.1) so the self-loop guard does not
+		// trigger; nothing listens there, so the in-process dial fails fast.
+		fmt.Sprintf("vless://11111111-1111-1111-1111-111111111111@127.0.0.2:%d?type=tcp&security=none#dead", deadPort),
+	}
+	// Build constructs the helper SOCKS dialer from SocksAddr (the fake SOCKS5
+	// server), so the fallback has somewhere to go.
+	rt, err := Build(&cfg, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	conn, err := rt.DialStream(context.Background(), netip.MustParseAddrPort(echo))
+	if err != nil {
+		t.Fatalf("fallback dial: %v", err)
+	}
+	defer conn.Close()
+	want := []byte("fallback-ok")
+	if _, err := conn.Write(want); err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	got := make([]byte, len(want))
+	if _, err := io.ReadFull(conn, got); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Fatalf("echo=%q want %q", got, want)
 	}
 }
 

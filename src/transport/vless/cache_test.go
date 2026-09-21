@@ -8,9 +8,83 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
+
+func TestRefreshWithStateConditional(t *testing.T) {
+	body := base64.StdEncoding.EncodeToString([]byte(realityURI + "\n"))
+	var mu sync.Mutex
+	fetches, lastINM := 0, ""
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		fetches++
+		inm := r.Header.Get("If-None-Match")
+		if inm != "" {
+			lastINM = inm
+		}
+		mu.Unlock()
+		if inm == `"v1"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"v1"`)
+		_, _ = io.WriteString(w, body)
+	}))
+	defer srv.Close()
+
+	rep1 := RefreshWithState(context.Background(), srv.Client(), []string{srv.URL}, nil, 0)
+	if len(rep1.Nodes) != 1 {
+		t.Fatalf("first refresh nodes=%d want 1", len(rep1.Nodes))
+	}
+	key := sourceKey(srv.URL)
+	if rep1.BySource[key].ETag != `"v1"` {
+		t.Fatalf("etag not stored: %+v", rep1.BySource[key])
+	}
+
+	rep2 := RefreshWithState(context.Background(), srv.Client(), []string{srv.URL}, rep1.BySource, 0)
+	if len(rep2.Nodes) != 1 {
+		t.Fatalf("304 must retain last-good nodes, got %d", len(rep2.Nodes))
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if fetches != 2 || lastINM != `"v1"` {
+		t.Fatalf("conditional GET not sent: fetches=%d If-None-Match=%q", fetches, lastINM)
+	}
+}
+
+func TestRefreshWithStateKeepsLastGoodOnFailure(t *testing.T) {
+	body := base64.StdEncoding.EncodeToString([]byte(wsURI + "\n"))
+	fail := false
+	var mu sync.Mutex
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		f := fail
+		mu.Unlock()
+		if f {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		_, _ = io.WriteString(w, body)
+	}))
+	defer srv.Close()
+
+	rep1 := RefreshWithState(context.Background(), srv.Client(), []string{srv.URL}, nil, 0)
+	if len(rep1.Nodes) != 1 {
+		t.Fatalf("first refresh nodes=%d want 1", len(rep1.Nodes))
+	}
+	mu.Lock()
+	fail = true
+	mu.Unlock()
+	rep2 := RefreshWithState(context.Background(), srv.Client(), []string{srv.URL}, rep1.BySource, 0)
+	if len(rep2.Nodes) != 1 {
+		t.Fatalf("failed source must keep last-good nodes, got %d", len(rep2.Nodes))
+	}
+	if len(rep2.Failed) != 1 {
+		t.Fatalf("failure not recorded: %v", rep2.Failed)
+	}
+}
 
 func TestNodeCacheRoundTrip(t *testing.T) {
 	dir := t.TempDir()
