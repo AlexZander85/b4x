@@ -9,7 +9,10 @@
 package fxvpn
 
 import (
+	"context"
 	"errors"
+	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -102,6 +105,15 @@ func (l *Ladder) H3Allowed() bool {
 // ClassifyDialError maps a session-dial error onto its stable class string
 // ("" when unclassified). It unwraps the typed wrappers raised by DialH3 and
 // the H2 negotiation sentinel.
+//
+// Robustness (field b4x-3pmi): the type-only switch missed wrapped timeouts
+// (quic-go's *IdleTimeoutError/*HandshakeTimeoutError surface through several
+// wrappers, and TCP dial timeouts are plain *net.OpError). A handshake that
+// did not complete in time is the SAME blackhole symptom as the sentinel, so
+// any timeout — net.Error.Timeout() or context deadline — is classified as
+// "udp-egress-blocked". Without this the ladder never fell back H3->H2 and
+// the nest detector never armed (the direct :2499 edge block exhausted the
+// restart budget instead of activating carrier nesting).
 func ClassifyDialError(err error) string {
 	switch {
 	case errors.Is(err, errUDPEgressBlocked):
@@ -110,7 +122,30 @@ func ClassifyDialError(err error) string {
 		return "h3-negotiation-failed"
 	case errors.Is(err, errH2Unavailable):
 		return "h2-unavailable"
-	default:
-		return ""
 	}
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		return "udp-egress-blocked"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "udp-egress-blocked"
+	}
+	// L3 reachability of the edge (field b4x-3pmi): ICMP host/net-unreachable
+	// and TCP resets/refusals are the same block symptom as a blackhole
+	// timeout; without this they showed up as "unclassified" in the
+	// fxvpn_dial_failed diagnostic even though the nest detector (which also
+	// checks the message) still tripped.
+	msg := err.Error()
+	for _, s := range []string{
+		"no route to host",
+		"network is unreachable",
+		"host unreachable",
+		"connection refused",
+		"connection reset",
+	} {
+		if strings.Contains(msg, s) {
+			return "udp-egress-blocked"
+		}
+	}
+	return ""
 }

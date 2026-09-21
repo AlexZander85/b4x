@@ -177,6 +177,9 @@ type Runtime struct {
 	dialOK      uint64
 	dialFail    uint64
 
+	dialFailStreak int       // consecutive data-plane failures (b4x-79sd)
+	lastExitProbe  time.Time // periodic exit re-verification (b4x-79sd)
+
 	quotaPollInterval time.Duration
 	lastQuotaPoll     time.Time
 
@@ -435,7 +438,8 @@ func (r *Runtime) tick(ctx context.Context) {
 	if startNested {
 		r.announceNested()
 	}
-	r.probeDirect(ctx) // hourly last-good return probe (§7.5)
+	r.probeDirect(ctx)    // hourly last-good return probe (§7.5)
+	r.probeExitIfDue(ctx) // periodic exit re-verification (b4x-79sd)
 	r.exportPoolMetrics()
 }
 
@@ -538,6 +542,11 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
 		// F8: consecutive dial failures degrade the node; after the
 		// threshold the candidate selection rotates to the next server.
 		r.strikeNode(net.JoinHostPort(host, strconv.Itoa(port)))
+		// Diagnostic (field b4x-3pmi): the exact dial error was previously
+		// invisible (only generic node_degraded fired), which is why the
+		// detector gap could not be attributed. Emit class + error text.
+		r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_dial_failed",
+			Detail: "class=" + dialClass(serr) + " err=" + short(serr)})
 		r.onDialFailure(serr)
 		return serr
 	}
@@ -733,8 +742,11 @@ func (r *Runtime) announceNested() {
 }
 
 // portBlockSuspicion classifies one dial failure as a potential :2499
-// block: QUIC handshake blackholes (udp-egress-blocked) and TCP
-// timeouts/resets. Account-level verdicts never count.
+// block: QUIC handshake blackholes (udp-egress-blocked), TCP
+// timeouts/resets, and the L3 reachability failures the field sees on a
+// prefix-blocked edge (ICMP host/net-unreachable — field b4x-3pmi: the real
+// Fastly-masque block surfaces as "no route to host", which the old
+// timeout/reset-only check ignored). Account-level verdicts never count.
 func portBlockSuspicion(err error) bool {
 	if err == nil {
 		return false
@@ -742,12 +754,26 @@ func portBlockSuspicion(err error) bool {
 	if fxvpn.ClassifyDialError(err) == "udp-egress-blocked" {
 		return true
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {
 		return true
 	}
 	msg := err.Error()
-	return strings.Contains(msg, "connection reset") || strings.Contains(msg, "connection refused")
+	for _, s := range []string{
+		"connection reset",
+		"connection refused",
+		"no route to host",
+		"network is unreachable",
+		"host unreachable",
+	} {
+		if strings.Contains(msg, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // probeDirect is the hourly last-good return probe (§7.5): while nested,
@@ -793,6 +819,29 @@ func (r *Runtime) probeDirect(ctx context.Context) {
 	r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_nested_released",
 		Detail: "direct path verified; carrier nesting released"})
 	r.persistLadderState()
+}
+
+// exitProbeInterval is the periodic exit re-verification cadence (b4x-79sd):
+// the one-shot check at session establishment left status green while the
+// nested data plane had died. Five minutes bounds staleness without loading
+// the edge (each probe is one control-host CONNECT).
+const exitProbeInterval = 5 * time.Minute
+
+// probeExitIfDue re-runs the exit verification on a live session so a dead
+// data path turns the reported exit red instead of staying frozen green.
+func (r *Runtime) probeExitIfDue(ctx context.Context) {
+	r.mu.Lock()
+	s := r.session
+	alive := s != nil && s.IsAlive()
+	due := time.Since(r.lastExitProbe) >= exitProbeInterval
+	if due {
+		r.lastExitProbe = time.Now()
+	}
+	r.mu.Unlock()
+	if !due || !alive {
+		return
+	}
+	r.verifyExit(ctx, s)
 }
 
 // ladderStateFile persists the last-good rung (§7.5 last-good canon): a
@@ -930,11 +979,51 @@ func (r *Runtime) DialStream(ctx context.Context, addr netip.AddrPort) (net.Conn
 	if err != nil {
 		r.recordDial(false)
 		r.noteFailure(classifyServiceErr(err))
+		r.strikeDataPlane()
 		return nil, err
 	}
+	r.clearDataPlane()
 	r.atomicOK()
 	// F7b: the relay feeds the byte counters (up/down) + /metrics gauge.
 	return byteCountingConn{Conn: conn, rt: r}, nil
+}
+
+// dataPlaneStrikeThreshold is the number of consecutive OpenTunnel failures
+// after which the serving session is recycled for a rebuild (b4x-79sd).
+const dataPlaneStrikeThreshold = 3
+
+// strikeDataPlane counts consecutive data-plane (OpenTunnel) failures. After
+// the threshold the session is dropped so the supervisor rebuilds it — the
+// alternative was a session whose IsAlive() stayed true (keepalive PINGs to
+// the proxy edge still answered) while new streams failed, leaving status
+// green over a dead data path.
+func (r *Runtime) strikeDataPlane() {
+	r.mu.Lock()
+	r.dialFailStreak++
+	trip := r.dialFailStreak >= dataPlaneStrikeThreshold
+	if trip {
+		r.dialFailStreak = 0
+	}
+	sess := r.session
+	if trip {
+		r.session = nil
+		r.sessionHost = ""
+		r.carrier = ""
+	}
+	r.mu.Unlock()
+	if !trip || sess == nil {
+		return
+	}
+	_ = sess.Close()
+	r.appendEvent(fxvpn.PoolEvent{Type: "fxvpn_session_dataplane_dead",
+		Detail: "consecutive data-plane failures; session recycled for rebuild"})
+}
+
+// clearDataPlane resets the consecutive-failure streak after a good stream.
+func (r *Runtime) clearDataPlane() {
+	r.mu.Lock()
+	r.dialFailStreak = 0
+	r.mu.Unlock()
 }
 
 // ProbeExit runs the exit-verification probe through the CURRENT serving
@@ -1300,4 +1389,13 @@ func short(err error) string {
 		return s[:200]
 	}
 	return s
+}
+
+// dialClass is the ladder class string for a dial error ("unclassified" when
+// the classifier has no mapping) — used by the fxvpn_dial_failed diagnostic.
+func dialClass(err error) string {
+	if c := fxvpn.ClassifyDialError(err); c != "" {
+		return c
+	}
+	return "unclassified"
 }
