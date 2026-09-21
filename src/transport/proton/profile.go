@@ -156,7 +156,10 @@ func IssueProfiles(cands []Candidate, ladder []string, sniPool []string,
 		if needsRuntimeI1(id) {
 			sni := nextSNI()
 			p.SNI = sni
-			p.I1 = BuildQuicInitial(sni, r)
+			// FIELD 2026-09-20: pin the field-proven blob (marker 0x44d0).
+			// The quici1.Build-generated shape (0x44d1) is dropped by the
+			// network; this exact blob completes with the same key/peer.
+			p.I1 = FieldInitial()
 		}
 		out = append(out, p)
 	}

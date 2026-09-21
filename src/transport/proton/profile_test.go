@@ -112,12 +112,17 @@ func TestIssueProfilesLastGood(t *testing.T) {
 	}
 }
 
-// TestIssueProfilesEmptyPool: an empty pool yields empty I1/SNI on the
-// runtime family — the explicit "no obfuscation" contract, not a stub.
+// TestIssueProfilesEmptyPool: the I1 is now the PINNED field blob (marker
+// 0x44d0), independent of the SNI pool — an empty pool must still carry it
+// (FIELD 2026-09-20: the generated shape is dropped by the network). The SNI
+// bookkeeping stays empty without a pool.
 func TestIssueProfilesEmptyPool(t *testing.T) {
 	cands := []Candidate{{Node: Node{Name: "NL", EntryIP: "1.2.3.4"}, Port: 443}}
 	p := IssueProfiles(cands, []string{"proton-quic"}, nil, newXorshift(3), nil)
-	if p[0].SNI != "" || p[0].I1 != "" {
-		t.Fatalf("empty pool must give empty I1/SNI: %+v", p[0])
+	if p[0].I1 != FieldInitial() {
+		t.Fatalf("runtime family must carry the pinned field blob, got %q", p[0].I1)
+	}
+	if p[0].SNI != "" {
+		t.Fatalf("empty pool must give empty SNI, got %q", p[0].SNI)
 	}
 }

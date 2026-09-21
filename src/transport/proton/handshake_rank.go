@@ -39,6 +39,9 @@ type HandshakeSample struct {
 	RTT        time.Duration
 	OK         bool
 	CookieSeen bool
+	// SourcePort — ЛОКАЛЬНЫЙ порт, чья инициация получила ответ (0 когда
+	// ok=false). Закрепляется за узлом как ListenPort туннеля (Nova canon).
+	SourcePort int
 }
 
 // CandidateKey рендерит дедупликационный ключ пары (адрес, порт).
@@ -46,8 +49,11 @@ func CandidateKey(cand Candidate) string {
 	return net.JoinHostPort(cand.Node.EntryIP, strconv.Itoa(int(cand.Port)))
 }
 
-// ProbeHandshakeBatch параллельно опрашивает кандидатов handshake-пробами.
-// Возвращает сэмплы по ключам CandidateKey; кандмы без адреса пропускаются.
+// ProbeHandshakeBatch опрашивает кандидатов handshake-пробами. Пробы РАЗНЫХ
+// хостов идут параллельно; пробы ОДНОГО хоста (несколько node-портов) —
+// ПОСЛЕДОВАТЕЛЬНО: WireGuard дропает инициации одного пира, пришедшие в
+// пределах ~20 мс (Nova MAX_WORKERS/one-worker-per-host canon). Возвращает
+// сэмплы по ключам CandidateKey; кандидаты без адреса пропускаются.
 // privateKeyB64 пустой => пустой результат (пробер не вооружён — TCP-режим).
 func ProbeHandshakeBatch(ctx context.Context, privateKeyB64 string,
 	cands []Candidate, cfg ProbeHandshakeConfig) map[string]HandshakeSample {
@@ -57,12 +63,11 @@ func ProbeHandshakeBatch(ctx context.Context, privateKeyB64 string,
 		return out
 	}
 
-	// Дедуп по (ip, port) с сохранением первого вхождения.
-	type job struct {
-		cand Candidate
-	}
+	// Дедуп по (ip, port) с сохранением первого вхождения + группировка по
+	// host (порядок групп — первый appearance).
 	seen := make(map[string]struct{}, len(cands))
-	jobs := make([]job, 0, len(cands))
+	hostIndex := make(map[string]int)
+	var groups [][]Candidate
 	for _, cand := range cands {
 		if cand.Node.EntryIP == "" || cand.Node.PeerPubKey == "" {
 			continue
@@ -72,37 +77,53 @@ func ProbeHandshakeBatch(ctx context.Context, privateKeyB64 string,
 			continue
 		}
 		seen[key] = struct{}{}
-		jobs = append(jobs, job{cand: cand})
+		host := cand.Node.EntryIP
+		gi, ok := hostIndex[host]
+		if !ok {
+			gi = len(groups)
+			hostIndex[host] = gi
+			groups = append(groups, nil)
+		}
+		groups[gi] = append(groups[gi], cand)
 	}
-	if len(jobs) == 0 {
+	if len(groups) == 0 {
 		return out
 	}
 
 	parallel := DefaultHandshakeProbeParallel
-	if len(jobs) < parallel {
-		parallel = len(jobs)
+	if len(groups) < parallel {
+		parallel = len(groups)
 	}
 
 	var mu sync.Mutex
 	var wg sync.WaitGroup
-	in := make(chan job)
+	in := make(chan []Candidate)
 	wg.Add(parallel)
 	for i := 0; i < parallel; i++ {
 		go func() {
 			defer wg.Done()
-			for j := range in {
-				res := probeOneCandidate(ctx, privateKeyB64, j.cand, cfg)
-				mu.Lock()
-				out[CandidateKey(j.cand)] = res
-				mu.Unlock()
+			for group := range in {
+				for _, cand := range group {
+					// yield seam: stop dispatching once a session start needs the key
+					if cfg.Stop != nil && cfg.Stop() {
+						return
+					}
+					res := probeOneCandidate(ctx, privateKeyB64, cand, cfg)
+					mu.Lock()
+					out[CandidateKey(cand)] = res
+					mu.Unlock()
+				}
 			}
 		}()
 	}
 	go func() {
 		defer close(in)
-		for _, j := range jobs {
+		for _, group := range groups {
+			if cfg.Stop != nil && cfg.Stop() {
+				return
+			}
 			select {
-			case in <- j:
+			case in <- group:
 			case <-ctx.Done():
 				return
 			}
@@ -121,7 +142,7 @@ func probeOneCandidate(ctx context.Context, privateKeyB64 string,
 		return HandshakeSample{}
 	}
 	res := ProbeHandshakeRTT(ctx, privateKeyB64, cand.Node.PeerPubKey, addr, cfg)
-	return HandshakeSample{RTT: res.RTT, OK: res.OK, CookieSeen: res.CookieSeen}
+	return HandshakeSample{RTT: res.RTT, OK: res.OK, CookieSeen: res.CookieSeen, SourcePort: res.SourcePort}
 }
 
 // MergeProbeRanking сводит handshake-сэмплы и TCP-замеры в узлы:
@@ -131,19 +152,28 @@ func probeOneCandidate(ctx context.Context, privateKeyB64 string,
 func MergeProbeRanking(nodes []Node, hs map[string]HandshakeSample,
 	tcpRTTs map[string]time.Duration, ports []uint16) []Node {
 
-	// Лучший handshake-сэмпл по адресу (по опрошенным портам).
-	bestHS := make(map[string]HandshakeSample, len(hs))
+	// Лучший handshake-сэмпл по адресу (по опрошенным node-портам); вместе с
+	// ним — NODE-порт, на котором ответил лучший сэмпл (для пина пары).
+	type bestSample struct {
+		sample HandshakeSample
+		port   uint16
+	}
+	bestHS := make(map[string]bestSample, len(hs))
 	for key, s := range hs {
 		if !s.OK {
 			continue
 		}
-		host, _, err := net.SplitHostPort(key)
+		host, portStr, err := net.SplitHostPort(key)
 		if err != nil || host == "" {
 			continue
 		}
+		port, perr := strconv.Atoi(portStr)
+		if perr != nil || port <= 0 || port > 65535 {
+			continue
+		}
 		cur, exists := bestHS[host]
-		if !exists || s.RTT < cur.RTT {
-			bestHS[host] = s
+		if !exists || s.RTT < cur.sample.RTT {
+			bestHS[host] = bestSample{sample: s, port: uint16(port)}
 		}
 	}
 
@@ -153,9 +183,11 @@ func MergeProbeRanking(nodes []Node, hs map[string]HandshakeSample,
 		if ip == "" {
 			continue
 		}
-		if s, ok := bestHS[ip]; ok {
-			out[i].RTT = s.RTT
+		if b, ok := bestHS[ip]; ok {
+			out[i].RTT = b.sample.RTT
 			out[i].RTTSource = RTTSourceHandshake
+			out[i].PinPort = uint16(b.sample.SourcePort)
+			out[i].PinNodePort = b.port
 			continue
 		}
 		if rtt, ok := tcpRTTs[ip]; ok && rtt > 0 {

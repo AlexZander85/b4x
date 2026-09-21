@@ -119,9 +119,16 @@ type SessionConfig struct {
 	Endpoint     string // "host:port" of the edge
 	ListenFwMark uint32
 	SockOpts     SocketOptions
-	Tunnel       TunnelConfig
-	Health       HealthConfig
-	Callbacks    SessionCallbacks
+	// ListenPort, when non-zero, binds the device's UDP sockets to that LOCAL
+	// port (IpcSet listen_port) instead of a kernel-assigned one. E-PROTON
+	// port pinning (field 2026-09-20, Nova canon): a Proton node answers a
+	// GIVEN (local port, node port) pair deterministically, so the tunnel must
+	// reuse the local port the pre-start handshake probe answered from; a
+	// random port failed about one start in three.
+	ListenPort uint16
+	Tunnel     TunnelConfig
+	Health     HealthConfig
+	Callbacks  SessionCallbacks
 	// MaxGenerations bounds restart cycles: 0 (default) = unlimited;
 	// 1 = single-shot establishment (seek-ladder attempts).
 	MaxGenerations int
@@ -581,10 +588,23 @@ func (s *Session) setState(st SessionState) {
 	s.mu.Unlock()
 }
 
+// LocalPort reports the local UDP port the live generation bound (0 before
+// establishment). E-PROTON port pinning (Nova canon) reads it on a seek win:
+// the port that carried the successful handshake is the one to reuse.
+func (s *Session) LocalPort() uint16 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bind == nil {
+		return 0
+	}
+	return s.bind.ActualPort()
+}
+
 // buildIPC renders the IpcSet string from identity+profile+endpoint.
 func (s *Session) buildIPC() (string, error) {
 	c := Config{
 		PrivateKey: s.cfg.Ident.PrivateKey,
+		ListenPort: s.cfg.ListenPort,
 		FWMark:     s.cfg.ListenFwMark,
 		Profile:    s.cfg.Profile,
 		Peers: []PeerConfig{{

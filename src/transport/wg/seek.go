@@ -156,6 +156,33 @@ type SeekerConfig struct {
 	// strikes are unchanged.
 	Source CandidateSource
 
+	// PeerKeyFor returns the peer static public key for a candidate. A node
+	// list of DISTINCT peers (E-PROTON: every Proton free node has its own
+	// key) needs this: Base.Ident carries ONE PeerPublicKey, and without the
+	// override every candidate after the first would handshake against the
+	// wrong static (mac1 mismatch -> the peer silently drops). nil => the
+	// historical single-peer behavior (Base.Ident.PeerPublicKey for all).
+	PeerKeyFor func(netip.AddrPort) ([32]byte, bool)
+
+	// ProfilePrep, when non-nil, mutates the per-attempt profile right before
+	// the single-shot session is built. E-PROTON needs it: the catalog stores
+	// the proton-quic template with an EMPTY InitPacket (the I1 is generated
+	// at runtime), so without this the seek probes with a BARE WireGuard
+	// handshake — no QUIC-Initial cover — and the obfuscation that makes the
+	// tunnel survive is lost during discovery. The service injects the
+	// candidate's runtime I1 (and junk) here.
+	ProfilePrep func(addr netip.AddrPort, prof *Profile)
+
+	// PinPortFor, when non-nil, returns the LOCAL UDP port to bind for the
+	// attempt (E-PROTON port pinning, Nova canon): the probe answered from
+	// that port and the tunnel must reuse it. 0 = kernel-assigned.
+	PinPortFor func(addr netip.AddrPort) uint16
+
+	// OnWin fires once when a candidate wins with the LOCAL UDP port its
+	// session bound (0 when unknown). E-PROTON pins that port for the address
+	// (Nova canon: a (local port, node port) pair answers deterministically).
+	OnWin func(addr netip.AddrPort, localPort uint16)
+
 	// AllowOutOfCatalog is a TESTS-ONLY escape (loopback fake edges bind
 	// outside the endpoint catalog). Production MUST leave it false: with
 	// the gate on, every candidate AND the last-good entry are validated
@@ -404,6 +431,12 @@ func (s *Seeker) Seek(ctx context.Context) (SeekResult, error) {
 			if s.cfg.Target == TargetCfWarp && !tpl.FieldLibrary {
 				DiversifyJunkFor(cand, &prof)
 			}
+			// E-PROTON: inject the candidate's runtime I1 (QUIC-Initial cover)
+			// and junk into the probe profile — the discovery phase must carry
+			// the SAME first packet the issued session would.
+			if s.cfg.ProfilePrep != nil {
+				s.cfg.ProfilePrep(cand, &prof)
+			}
 
 			outcome := s.attempt(candCtx, cand, prof)
 			switch {
@@ -461,6 +494,22 @@ func (s *Seeker) attempt(ctx context.Context, cand netip.AddrPort, prof Profile)
 	sc := s.cfg.Base
 	sc.Profile = prof
 	sc.Endpoint = cand.String()
+	// E-PROTON per-node peer keys: clone the base identity and swap the peer
+	// static for THIS candidate. Without it the whole ladder would handshake
+	// against Base.Ident.PeerPublicKey (the first candidate's node) and every
+	// other peer would drop the initiation silently (mac1 covers the
+	// responder static).
+	if s.cfg.PeerKeyFor != nil && sc.Ident != nil {
+		if peer, ok := s.cfg.PeerKeyFor(cand); ok {
+			idCopy := *sc.Ident
+			idCopy.PeerPublicKey = Key(peer)
+			sc.Ident = &idCopy
+		}
+	}
+	// E-PROTON port pinning: reuse the local port the probe answered from.
+	if s.cfg.PinPortFor != nil {
+		sc.ListenPort = s.cfg.PinPortFor(cand)
+	}
 	sc.MaxGenerations = 1
 	sc.Health.HandshakeTimeout = s.cfg.HandshakeTimeout
 	sc.Health.RestartBackoff = 50 * time.Millisecond
@@ -507,6 +556,9 @@ func (s *Seeker) attempt(ctx context.Context, cand netip.AddrPort, prof Profile)
 			s.emit(rec)
 			return attemptOutcome{fail: newFailure(ClassStallRX, "attempt-budget", actx.Err())}
 		case <-estCh:
+			if s.cfg.OnWin != nil {
+				s.cfg.OnWin(cand, sess.LocalPort())
+			}
 			return attemptOutcome{won: true}
 		case f := <-lostCh:
 			return attemptOutcome{fail: &f}

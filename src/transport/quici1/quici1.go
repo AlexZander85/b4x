@@ -265,8 +265,15 @@ func Build(sni string, r io.Reader) string {
                 r = cryptoRandReader{}
         }
 
-        dcid := make([]byte, DCIDSize)
-        if _, err := io.ReadFull(r, dcid); err != nil {
+        // FIELD 2026-09-20: the WORKING Initial shape (Nova's ProtonQuicInitial
+        // and the cf-field-i1 field blob) carries a ZERO-length DCID and puts the
+        // 8 random bytes into the SCID — the DCIL/SCIL byte is 0x08, the length
+        // varint renders 0x44d0. The previous DCIL=8 shape (0x44d1, "c1 00000001
+        // 80 …") is DROPPED by the network (pitfall 15): same keys, same peer, the
+        // reference client completes and b4 does not. Keep the 8 random bytes as
+        // the Source Connection ID.
+        scid := make([]byte, DCIDSize)
+        if _, err := io.ReadFull(r, scid); err != nil {
                 return ""
         }
         chRandom := make([]byte, 32)
@@ -275,7 +282,7 @@ func Build(sni string, r io.Reader) string {
         }
 
         pkn := []byte{0x00} // packet number 0, 1 byte
-        hello := quicClientHello(host, chRandom, dcid, r)
+        hello := quicClientHello(host, chRandom, scid, r)
         // CRYPTO frame: type 0x06, offset 0, length, data.
         payload := []byte{0x06}
         payload = append(payload, quicVarInt(0)...)
@@ -309,17 +316,18 @@ func Build(sni string, r io.Reader) string {
         remainder := uint64(len(pkn) + len(payload) + padding + tagLen)
 
         // RFC 9000 long header: 0xC0 (form 1, fixed 1, Initial, reserved 0,
-        // PKN len 1 byte), version 1, DCIL=8/SCIL=0 in ONE byte (0x80), DCID,
+        // PKN len 1 byte), version 1, DCIL=0/SCIL=8 in ONE byte (0x08), SCID,
         // empty token, Length, PKN.
-        header := []byte{0xC0, 0x00, 0x00, 0x00, 0x01, 0x80}
-        header = append(header, dcid...)
+        header := []byte{0xC0, 0x00, 0x00, 0x00, 0x01, 0x08}
+        header = append(header, scid...)
         header = append(header, 0x00) // token length: empty
         header = append(header, quicVarInt(remainder)...)
         header = append(header, pkn...)
 
-        // RFC 9001 §5.2 keys: initial secret = HKDF-Extract(salt, DCID).
+        // RFC 9001 §5.2 keys: initial secret = HKDF-Extract(salt, DCID). The
+        // working shape has an EMPTY DCID, so the extract runs over no material —
+        // exactly the field blob / Nova schedule.
         mac := hmac.New(sha256.New, quicInitialSalt)
-        mac.Write(dcid)
         initialSecret := mac.Sum(nil)
         clientSecret, err := quicExpandLabel(initialSecret, 32, "client in")
         if err != nil {

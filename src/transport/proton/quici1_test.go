@@ -71,9 +71,10 @@ func TestQuicInitialGoldenShape(t *testing.T) {
         if !bytes.Equal(raw[1:5], []byte{0x00, 0x00, 0x00, 0x01}) {
                 t.Fatalf("version = %x, want 00000001", raw[1:5])
         }
-        // DCIL=8 (high nibble), SCIL=0 (low nibble) — RFC 9000 §17.2.
-        if raw[5] != 0x80 {
-                t.Fatalf("DCIL/SCIL byte = %02x, want 0x80", raw[5])
+        // FIELD 2026-09-20 working shape: DCIL=0 (high nibble), SCIL=8 (low
+        // nibble) — the 8 random bytes ride in the SCID (Nova/field-blob shape).
+        if raw[5] != 0x08 {
+                t.Fatalf("DCIL/SCIL byte = %02x, want 0x08 (field shape)", raw[5])
         }
 
         // Determinism: the same seed produces the same packet byte-for-byte.
@@ -99,8 +100,9 @@ func TestQuicInitialDecryptsPerRFC9001(t *testing.T) {
         }
 
         // --- key schedule (RFC 9001 §5.2) -----------------------------------
+        // The working shape carries an EMPTY DCID, so the extract runs over no
+        // material (the field blob / Nova schedule).
         mac := hmac.New(sha256.New, quicInitialSalt)
-        mac.Write(raw[6:14]) // DCID (8 bytes per DCIL=8)
         initialSecret := mac.Sum(nil)
         label := func(secret []byte, l string, n int) []byte {
                 full := []byte("tls13 " + l)
@@ -119,12 +121,13 @@ func TestQuicInitialDecryptsPerRFC9001(t *testing.T) {
         hp := label(clientSecret, "quic hp", 16)
 
         // --- header layout (RFC 9000 §17.2) ---------------------------------
-        // flags(1) ver(4) DCILSCIL(1) DCID(8) token_len(1) Length(varInt) PKN.
+        // flags(1) ver(4) DCILSCIL(1) DCID(0) SCID(8) token_len(1) Length PKN.
         dcLen := int(raw[5] >> 4)
-        if dcLen != 8 {
-                t.Fatalf("DCIL = %d", dcLen)
+        scLen := int(raw[5] & 0x0f)
+        if dcLen != 0 || scLen != 8 {
+                t.Fatalf("DCIL/SCIL = %d/%d, want 0/8", dcLen, scLen)
         }
-        dcEnd := 6 + dcLen
+        dcEnd := 6 + dcLen + scLen
         if raw[dcEnd] != 0x00 {
                 t.Fatalf("token length = %02x, want empty", raw[dcEnd])
         }

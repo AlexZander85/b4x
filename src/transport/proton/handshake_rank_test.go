@@ -230,3 +230,25 @@ func sampleKeys(m map[string]HandshakeSample) []string {
 }
 
 var _ = rand.New // keep import if helpers change
+
+// TestMergeProbeRankingPinsBestNodePort pins the b4x-077 follow-up: when a host
+// answered on several node-ports, the rank keeps the best (lowest RTT) pair and
+// records BOTH the node port and the local source port for the tunnel.
+func TestMergeProbeRankingPinsBestNodePort(t *testing.T) {
+	nodes := []Node{{Name: "N", EntryIP: "1.2.3.4"}}
+	hs := map[string]HandshakeSample{
+		"1.2.3.4:443":   {OK: true, RTT: 50 * time.Millisecond, SourcePort: 1111},
+		"1.2.3.4:1224":  {OK: true, RTT: 20 * time.Millisecond, SourcePort: 2222},
+		"1.2.3.4:51820": {OK: false},
+	}
+	out := MergeProbeRanking(nodes, hs, nil, []uint16{443, 1224, 51820})
+	if len(out) != 1 {
+		t.Fatalf("nodes = %d, want 1", len(out))
+	}
+	if out[0].PinNodePort != 1224 || out[0].PinPort != 2222 {
+		t.Fatalf("pin = node:%d local:%d, want 1224/2222", out[0].PinNodePort, out[0].PinPort)
+	}
+	if out[0].RTTSource != RTTSourceHandshake || out[0].RTT != 20*time.Millisecond {
+		t.Fatalf("rtt/source = %v/%s, want 20ms/handshake", out[0].RTT, out[0].RTTSource)
+	}
+}

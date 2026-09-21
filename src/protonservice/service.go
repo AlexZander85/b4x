@@ -30,10 +30,9 @@ package protonservice
 
 import (
         "context"
-        cryptorand "crypto/rand"
+        "encoding/base64"
         "errors"
         "fmt"
-        "math/rand"
         "net"
         "net/netip"
         "strings"
@@ -184,6 +183,75 @@ type Options struct {
 // Event is one service-level taxonomy trace (name + class + detail).
 type protonEvent = proton.Event
 
+// keyGate serializes the identity key between the rank probe and a
+// live/starting session (Nova canon, b4x-077): a completed Proton handshake
+// IS a session — the newest one takes the server over and the older tunnel
+// goes silent ~16 s later — so the probe must never handshake a node with the
+// key a live tunnel uses, and an in-flight probe must yield the key when a
+// session start needs it.
+type keyGate struct {
+        mu      sync.Mutex
+        probing bool
+        stop    chan struct{}
+}
+
+// begin reserves the key for a probe. ok=false means "do not probe" (a probe
+// is already in flight, or the caller gated it out). stop reports whether the
+// probe must abandon the key now.
+func (g *keyGate) begin() (stop func() bool, ok bool) {
+        g.mu.Lock()
+        defer g.mu.Unlock()
+        if g.probing {
+                return nil, false
+        }
+        g.probing = true
+        g.stop = make(chan struct{})
+        ch := g.stop
+        return func() bool {
+                select {
+                case <-ch:
+                        return true
+                default:
+                        return false
+                }
+        }, true
+}
+
+// end releases the key after the probe tier.
+func (g *keyGate) end() {
+        g.mu.Lock()
+        g.probing = false
+        g.stop = nil
+        g.mu.Unlock()
+}
+
+// yield stops an in-flight probe and waits (bounded) for it to give the key
+// up — a session start must not handshake until the probe released it.
+func (g *keyGate) yield(timeout time.Duration) {
+        g.mu.Lock()
+        ch := g.stop
+        g.mu.Unlock()
+        if ch == nil {
+                return
+        }
+        select {
+        case <-ch:
+        default:
+                close(ch)
+        }
+        deadline := time.Now().Add(timeout)
+        for {
+                g.mu.Lock()
+                p := g.probing
+                g.mu.Unlock()
+                if !p || time.Now().After(deadline) {
+                        return
+                }
+                time.Sleep(10 * time.Millisecond)
+        }
+}
+
+// Runtime is the proton reserve engine state.
 type Runtime struct {
         cfg      config.ProtonConfig
         opts     Options
@@ -199,6 +267,14 @@ type Runtime struct {
         now      func() time.Time
 
         guard restartGuard
+
+        // gate serializes the identity key between the rank probe and the session
+        // (b4x-077 yield seam).
+        gate keyGate
+        // keyBusy is true while a seek/establish is handshaking with the identity
+        // key: the rank probe must be refused then too (it would take the session
+        // over), not only while a live session exists.
+        keyBusy atomic.Bool
 
         // registeredThisBoot is the red-line gate: at most ONE registration per
         // boot (Reissue sets it aside explicitly by owner action).
@@ -307,9 +383,9 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
                 r.appendEvent(proton.Event{Name: event, Detail: source})
         }
         // Параллельный опрос (Фаза 3): handshake-ярус ранжирования вооружается
-        // ключом идентичности + прелюдией движка (proton-quic: I1 = случайный
-        // SNI из пула, Jc=0). Ключ не покидает замыкание; проба идёт прямым
-        // UDP-путём, тем же ключом, которым поднимался бы туннель.
+        // ключом идентичности + прелюдией движка (proton-quic: I1 = полевой blob
+        // 0x44d0, Jc). Ключ не покидает замыкание; проба идёт прямым UDP-путём,
+        // тем же ключом, которым поднимался бы туннель.
         list.HandshakeKey = func() (string, string, bool) {
                 id, err := r.idStore.Load()
                 if err != nil || id == nil {
@@ -320,14 +396,33 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
                         return "", "", false
                 }
                 kp := proton.DeriveKeyPair(seed)
-                pool := proton.DefaultSNIPool()
-                if len(pool) == 0 {
-                        return kp.WGPrivateKeyB64, "", true
-                }
-                sni := pool[rand.Intn(len(pool))]
-                return kp.WGPrivateKeyB64, proton.BuildQuicInitial(sni, cryptorand.Reader), true
+                return kp.WGPrivateKeyB64, proton.FieldInitial(), true
         }
         r.list = list
+
+        // Port pinning store (Nova canon): the local port a node answered the
+        // handshake probe from, persisted so the tunnel reuses it across
+        // re-issues (a random local port failed ~1 start in 3).
+        if pins, perr := proton.NewPortPinStore(proton.SiblingPath(identityPath, "ports.json")); perr != nil {
+                return nil, fmt.Errorf("protonservice: pin store: %w", perr)
+        } else {
+                list.Pins = pins
+        }
+
+        // Yield seam (b4x-077): the rank probe must not handshake a node with the
+        // key of a live session (it would take the tunnel over). Refuse the probe
+        // while a session exists; a probe already in flight stops when a session
+        // start asks for the key.
+        list.HandshakeBegin = func() (func() bool, bool) {
+                r.mu.Lock()
+                live := r.sess != nil
+                r.mu.Unlock()
+                if live || r.keyBusy.Load() {
+                        return nil, false
+                }
+                return r.gate.begin()
+        }
+        list.HandshakeEnd = r.gate.end
 
         if pc.Obfuscation.PreferredProfile != "" {
                 // The config head pin is validated in config; unknown ids fall back
@@ -621,6 +716,10 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
         if !r.cfg.Enabled {
                 return nil
         }
+        // Yield the identity key from any in-flight rank probe before touching the
+        // node list / starting a session (b4x-077): the probe and the tunnel must
+        // never handshake one key at once.
+        r.gate.yield(2 * time.Second)
         r.mu.Lock()
         sess := r.sess
         alive := sess != nil && sessionAlive(sess)
@@ -652,6 +751,39 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
         // Seek ladder (design §3.5): last-good first, then the config/optional
         // preferred profile, then the proton ladder.
         ladder := protonLadderIDs(r.cfg.Obfuscation)
+        // From here the seek/establish handshakes with the identity key: block
+        // the rank probe (b4x-077) until this cycle finishes — a probe with the
+        // same key would take the session over.
+        r.keyBusy.Store(true)
+        defer r.keyBusy.Store(false)
+        // E-PROTON: issue the runtime QUIC-Initial I1 for EVERY seek candidate
+        // up front. The catalog's proton-quic template carries an empty
+        // InitPacket, so without this the discovery probes leave as a BARE
+        // WireGuard handshake — no I1 cover — and the network drops them while
+        // the obfuscated session would pass (field: Nova always sends I1+junk).
+        issued := proton.IssueProfiles(cands, ladder, r.sniPoolForIssue(), crandReader{},
+                &wgLastGoodView{store: r.lastGoodFor()})
+        i1ByAddr := make(map[netip.AddrPort]string, len(issued))
+        for _, p := range issued {
+                if p.I1 != "" {
+                        i1ByAddr[p.AddrPort()] = p.I1
+                }
+        }
+        // Port pinning (Nova canon): the local port each candidate answered
+        // from, so the seek reuses it. The store is authoritative (a win from
+        // THIS run is recorded before the next seek).
+        pinByAddr := make(map[netip.AddrPort]uint16, len(cands))
+        for _, c := range cands {
+                if r.list != nil && r.list.Pins != nil {
+                        if p := r.list.Pins.Get(c.Node.EntryIP); p != 0 {
+                                pinByAddr[c.AddrPort()] = p
+                                continue
+                        }
+                }
+                if c.Node.PinPort != 0 {
+                        pinByAddr[c.AddrPort()] = c.Node.PinPort
+                }
+        }
         ident, err := r.currentIdentity()
         if err != nil {
                 return err
@@ -667,9 +799,35 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
                 Candidates: candidateAddrs(cands),
                 Target:     twg.TargetProton,
                 LadderIDs:  ladder,
-                Store:      r.lastGoodFor(),
-                Strikes:    r.strikes,
-                Source:     protonNodeSource(cands),
+                // E-PROTON: every Proton free node has its OWN static key; the
+                // seeker must handshake each candidate against its own peer
+                // static (Base.Ident carries only one).
+                PeerKeyFor: peerKeysFor(cands),
+                // E-PROTON: carry the candidate's runtime I1 into the probe so
+                // the seek sends the obfuscated first packet (not a bare WG
+                // handshake the network drops).
+                ProfilePrep: func(ap netip.AddrPort, prof *twg.Profile) {
+                        if i1 := i1ByAddr[ap]; i1 != "" {
+                                prof.InitPacket[0] = i1
+                        }
+                },
+                // FIELD 2026-09-20: the Proton gate probe targets are
+                // unreachable through the free edge — a completed handshake
+                // wins the seek (the final session's exit probe validates the
+                // data plane).
+                GateRoundTrips: twg.GateSkip,
+                // Nova canon: bind the local port the probe answered from.
+                PinPortFor: func(ap netip.AddrPort) uint16 { return pinByAddr[ap] },
+                // Nova canon: pin the local port a winning handshake used, so
+                // the next session/rebuild reuses the pair that worked.
+                OnWin: func(ap netip.AddrPort, localPort uint16) {
+                        if r.list != nil && r.list.Pins != nil && localPort != 0 {
+                                r.list.Pins.Set(ap.Addr().String(), localPort)
+                        }
+                },
+                Store:   r.lastGoodFor(),
+                Strikes: r.strikes,
+                Source:  protonNodeSource(cands),
                 OnEvent: func(rec twg.AttemptRecord) {
                         r.appendEvent(proton.Event{Name: "proton_profile_seek",
                                 Class: string(rec.Outcome), Detail: rec.Endpoint.String() + " " + rec.Profile})
@@ -725,6 +883,27 @@ func (r *Runtime) ensureSession(ctx context.Context) error {
         return nil
 }
 
+// peerKeysFor builds the per-candidate peer-static lookup the seeker needs
+// (E-PROTON review: every free node has its own X25519 static). Candidates
+// with a malformed key are omitted; the seeker then falls back to
+// Base.Ident for that one candidate.
+func peerKeysFor(cands []proton.Candidate) func(netip.AddrPort) ([32]byte, bool) {
+        m := make(map[netip.AddrPort][32]byte, len(cands))
+        for _, c := range cands {
+                raw, err := base64.StdEncoding.DecodeString(c.Node.PeerPubKey)
+                if err != nil || len(raw) != 32 {
+                        continue
+                }
+                var k [32]byte
+                copy(k[:], raw)
+                m[c.AddrPort()] = k
+        }
+        return func(ap netip.AddrPort) ([32]byte, bool) {
+                k, ok := m[ap]
+                return k, ok
+        }
+}
+
 // sessionBase is the shared SessionConfig skeleton (identity/endpoint/
 // profile overridden per session).
 func (r *Runtime) sessionBase() twg.SessionConfig {
@@ -732,10 +911,22 @@ func (r *Runtime) sessionBase() twg.SessionConfig {
                 Tunnel: twg.TunnelConfig{
                         Mode: twg.ModeNetstack,
                         // The Proton topology constants (design §1.8): the client sits at
-                        // 10.2.0.2; the gate's DNS probe targets 8.8.8.8 through it.
+                        // 10.2.0.2; the trust gate's DNS probe targets the Proton resolver
+                        // 10.2.0.1, NOT 8.8.8.8 (FIELD 2026-09-20: an external resolver is
+                        // not reachable through the free edge, so the gate stalled with
+                        // wg-stall-rx on every candidate whose handshake had succeeded).
                         Addresses: []netip.Addr{netip.MustParseAddr(proton.ProtonTunnelV4)},
-                        DNS:       []netip.Addr{netip.MustParseAddr("8.8.8.8")},
+                        DNS:       []netip.Addr{netip.MustParseAddr(proton.ProtonTunnelDNSV4)},
                         MTU:       r.cfg.EffectiveMTU(),
+                },
+                // FIELD 2026-09-20: the trust gate probes its OWN DNSServer (default
+                // 8.8.8.8) / the E2E trace host 1.1.1.1:443 — NEITHER is reachable
+                // through the Proton free edge, so every correctly-handshaken
+                // candidate died as wg-stall-rx. Skip the gate for Proton: liveness
+                // is carried by the completed Noise handshake + the observed data
+                // plane + the exit verification probe (design §6).
+                Health: twg.HealthConfig{
+                        Gate: twg.TrustGate{RoundTrips: twg.GateSkip},
                 },
                 MaxGenerations: 1,
         }
@@ -792,6 +983,13 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
         }
 
         node := prof.Node
+        // Nova canon: prefer the pinned local port (store over the snapshot).
+        pinPort := prof.Node.PinPort
+        if r.list != nil && r.list.Pins != nil {
+                if p := r.list.Pins.Get(prof.Node.EntryIP); p != 0 {
+                        pinPort = p
+                }
+        }
         r.mu.Lock()
         defer r.mu.Unlock()
         // s is captured by the OnEstablished closure; callbacks only fire
@@ -801,6 +999,9 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
                 Ident:    wgid,
                 Profile:  profile,
                 Endpoint: prof.AddrPort().String(),
+                // Nova canon: bind the local port the handshake probe answered from.
+                ListenPort: pinPort,
+
                 SockOpts: twg.SocketOptions{},
                 Tunnel: twg.TunnelConfig{
                         Mode:          tunMode,
@@ -848,7 +1049,11 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
                                 if kernelMode {
                                         return twg.TrustGate{RoundTrips: twg.GateSkip}
                                 }
-                                return twg.TrustGate{RoundTrips: 2}
+                                // Proton: the gate's probe targets (8.8.8.8 / 1.1.1.1:443)
+                                // are unreachable through the free edge, so the gate is
+                                // skipped here too — the completed handshake + exit probe
+                                // carry liveness (see sessionBase).
+                                return twg.TrustGate{RoundTrips: twg.GateSkip}
                         }(),
                 },
                 Callbacks: twg.SessionCallbacks{
@@ -885,7 +1090,9 @@ func (r *Runtime) buildSession(ident *proton.Identity, prof proton.ProtonProfile
                         if slot != 0 || i1SNI == "" {
                                 return ""
                         }
-                        return proton.BuildQuicInitial(i1SNI, crandReader{})
+                        // FIELD 2026-09-20: the field-proven blob (0x44d0), not the
+                        // runtime-generated shape the network drops.
+                        return proton.FieldInitial()
                 },
         })
         return s, err

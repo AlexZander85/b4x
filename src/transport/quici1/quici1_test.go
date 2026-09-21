@@ -39,14 +39,22 @@ func (r *xorshift) Read(p []byte) (int, error) {
 // frame -> ClientHello.
 type decryptedInitial struct {
         dcid []byte
+        scid []byte // the 8 random bytes of the working shape (empty DCID)
         ch   []byte // full ClientHello handshake message
 }
 
 func decryptInitial(t *testing.T, packet []byte) decryptedInitial {
         t.Helper()
 
+        // FIELD 2026-09-20 working shape: ZERO-length DCID, the 8 random bytes
+        // live in the SCID (DCIL/SCIL byte 0x08). The key schedule extracts over
+        // the empty DCID — exactly the field blob / Nova schedule.
+        dcil := int(packet[5] >> 4)
+        scil := int(packet[5] & 0x0f)
+        dcid := append([]byte{}, packet[6:6+dcil]...)
+        scid := append([]byte{}, packet[6+dcil:6+dcil+scil]...)
         mac := hmac.New(sha256.New, InitialSalt)
-        mac.Write(packet[6:14])
+        mac.Write(dcid)
         initialSecret := mac.Sum(nil)
         label := func(secret []byte, l string, n int) []byte {
                 full := []byte("tls13 " + l)
@@ -64,11 +72,10 @@ func decryptInitial(t *testing.T, packet []byte) decryptedInitial {
         iv := label(clientSecret, "quic iv", 12)
         hp := label(clientSecret, "quic hp", 16)
 
-        if packet[5]>>4 != 8 {
-                t.Fatalf("DCIL = %d, want 8", packet[5]>>4)
+        if dcil != 0 || scil != 8 {
+                t.Fatalf("DCIL/SCIL = %d/%d, want 0/8 (field shape)", dcil, scil)
         }
-        dcid := append([]byte{}, packet[6:14]...)
-        dcEnd := 14
+        dcEnd := 6 + dcil + scil
         if packet[dcEnd] != 0x00 {
                 t.Fatalf("token length = %02x, want empty", packet[dcEnd])
         }
@@ -130,7 +137,7 @@ func decryptInitial(t *testing.T, packet []byte) decryptedInitial {
         if ch[0] != 0x01 {
                 t.Fatalf("handshake type %02x, want ClientHello", ch[0])
         }
-        return decryptedInitial{dcid: dcid, ch: ch}
+        return decryptedInitial{dcid: dcid, scid: scid, ch: ch}
 }
 
 // tlsExtension is one parsed TLS extension.
@@ -290,8 +297,8 @@ func TestEnrichedInitialGoldenShape(t *testing.T) {
         }
         if scid, ok := qtp[qtpInitialSourceConnectionID]; !ok {
                 t.Fatal("initial_source_connection_id missing — the RFC 9368 spec violation the review flagged")
-        } else if !bytes.Equal(scid, dec.dcid) {
-                t.Fatalf("SCID = % x, want the packet DCID % x", scid, dec.dcid)
+        } else if !bytes.Equal(scid, dec.scid) {
+                t.Fatalf("SCID = % x, want the packet SCID % x", scid, dec.scid)
         }
         if v, _ := readQUICVarInt(qtp[qtpInitialMaxData]); v != 1572864 {
                 t.Fatalf("initial_max_data = %d, want 1572864", v)

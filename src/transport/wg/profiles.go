@@ -118,7 +118,7 @@ type ProfileTemplate struct {
         // (profiles_loader.go): their junk triple is part of a MEASURED shape —
         // per-endpoint diversification (DiversifyJunkFor) must never touch them.
         FieldLibrary bool
-        build         func() Profile
+        build        func() Profile
 }
 
 // Build renders the template into a validated Profile instance.
@@ -280,13 +280,14 @@ func defaultCatalog() []ProfileTemplate {
                         RuntimeI1: true,
                         Comment: "PREFERRED Proton family (live-verified Nova lineage): a REAL " +
                                 "QUIC v1 Initial (RFC 9001, 1250 B) generated at runtime from the " +
-                                "SNI pool + Jc=0 — the I1 IS the first packet (review P4: the old " +
-                                "Jc=3 junk 1..3 B was itself a DPI signature — no real protocol " +
-                                "sends sub-4-byte UDP datagrams to 443; the catalog " +
-                                "keeps the I1 empty — the service fills InitPacket[0] before IpcSet",
+                                "SNI pool + plausible 40..70 B junk (Jc=4). FIELD 2026-09-20: the " +
+                                "review-P4 Jc=0 shape was dropped by the network while the " +
+                                "reference client (Nova/wireproxy-awg) always sends I1 + junk and " +
+                                "completes; the catalog keeps the I1 empty — the service fills " +
+                                "InitPacket[0] before IpcSet",
                         build: func() Profile {
                                 return Profile{
-                                        JunkCount: 0,
+                                        JunkCount: 4, JunkMin: 40, JunkMax: 70,
                                         // I1 arrives at runtime (RuntimeI1); empty here is valid.
                                 }
                         },
@@ -356,20 +357,20 @@ func defaultCatalog() []ProfileTemplate {
 // path on this network, so the single carrier leads vanilla; the nested W+W
 // composition keeps its junk-active default).
 func DefaultJunkActiveCfWarp() (Profile, string, error) {
-	ladder, err := LadderFor(TargetCfWarp, "")
-	if err != nil {
-		return Profile{}, "", err
-	}
-	for _, tpl := range ladder {
-		p, berr := tpl.Build()
-		if berr != nil {
-			continue
-		}
-		if p.JunkCount > 0 {
-			return p, tpl.ID, nil
-		}
-	}
-	return Profile{}, "", fmt.Errorf("transportwg: no junk-active profile in the cf-warp ladder")
+        ladder, err := LadderFor(TargetCfWarp, "")
+        if err != nil {
+                return Profile{}, "", err
+        }
+        for _, tpl := range ladder {
+                p, berr := tpl.Build()
+                if berr != nil {
+                        continue
+                }
+                if p.JunkCount > 0 {
+                        return p, tpl.ID, nil
+                }
+        }
+        return Profile{}, "", fmt.Errorf("transportwg: no junk-active profile in the cf-warp ladder")
 }
 
 // Lookup returns the catalog entry by ID.
@@ -461,7 +462,7 @@ func CatalogIDs() []string {
 // Junk avoids passive WireGuard fingerprinting but breaks the data path here,
 // so it is demoted behind vanilla-off; a seek ladder may still try it.
 var cfWarpLadderOrder = []string{
-	"vanilla-off", "quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive",
+        "vanilla-off", "quic-a", "quic-b", "sip-invite", "crlf-light", "crlf-aggressive",
 }
 
 // protonLadderOrder is the E-PROTON ladder (design 3.5): the QUIC-Initial

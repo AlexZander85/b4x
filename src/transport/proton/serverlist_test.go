@@ -347,14 +347,14 @@ func TestValidateLocation(t *testing.T) {
 
 func TestFreeNodesFiltering(t *testing.T) {
 	body := `{"Code":1000,"LogicalServers":[` +
-		// free + online + valid physical + one extra physical (deduped)
-		`{"Name":"NL-1","Tier":0,"Status":1,"ExitCountry":"NL","Load":5,"Servers":[` +
+		// free + valid physical + one extra physical (deduped). FIELD
+		// 2026-09-20: the live v2 shape carries NO logical Status (the
+		// StatusReference object replaced it) — it must still be admitted.
+		`{"Name":"NL-1","Tier":0,"ExitCountry":"NL","Load":5,"Servers":[` +
 		`{"EntryIP":"1.1.1.1","X25519PublicKey":"k1","Status":1},{"EntryIP":"1.1.1.2","X25519PublicKey":"k2","Status":1}]},` +
-		// paid -> filtered
+		// paid -> filtered by Tier
 		`{"Name":"PAID","Tier":2,"Status":1,"Servers":[{"EntryIP":"2.2.2.2","X25519PublicKey":"k3","Status":1}]},` +
-		// offline logical -> filtered
-		`{"Name":"DEAD","Tier":0,"Status":0,"Servers":[{"EntryIP":"3.3.3.3","X25519PublicKey":"k4","Status":1}]},` +
-		// free but physical offline -> filtered
+		// free but physical offline/invalid -> filtered by the physical gate
 		`{"Name":"NOPHY","Tier":0,"Status":1,"Servers":[{"EntryIP":"","X25519PublicKey":"","Status":0}]}` +
 		`]}`
 	var resp LogicalsResponse

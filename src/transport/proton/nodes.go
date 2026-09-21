@@ -52,6 +52,15 @@ type Node struct {
 	// RTTSource marks which probe produced RTT ("" | "tcp" |
 	// "handshake"); the queue sort is tiered on it.
 	RTTSource string `json:"-"`
+	// PinPort is the LOCAL UDP port the pre-start handshake probe answered
+	// from for this address (0 = unknown). The tunnel binds it (Nova canon:
+	// a (local port, node port) pair answers deterministically, a random
+	// local port failed ~1 start in 3).
+	PinPort uint16 `json:"-"`
+	// PinNodePort is the NODE port that answered the best handshake sample
+	// (0 = unknown). The queue prefers it for this address so the session
+	// targets the (node port, local port) pair that actually answered.
+	PinNodePort uint16 `json:"-"`
 }
 
 // AddrPort renders the node onto the WG endpoint for port.
@@ -324,6 +333,11 @@ func (q *Queue) CandidatesOrdered(loc Location, om *OutcomeMemory) []Candidate {
 	pairs := make([]candidatePair, 0, len(selected)*2)
 	for i, n := range selected {
 		primary := q.ports[(q.rr-len(selected)+i)%len(q.ports)]
+		// Nova canon: a node with a pinned (node port, local port) pair leads
+		// with the node port that actually answered the probe.
+		if n.PinNodePort != 0 {
+			primary = n.PinNodePort
+		}
 		p := candidatePair{cand: Candidate{Node: n, Port: primary}}
 		if idx := countrySeen[strings.ToUpper(n.Country)]; idx < countryTopCount && len(q.ports) > 1 {
 			for k := 1; k < portFallbacksPerNode; k++ {
@@ -419,7 +433,14 @@ func FreeNodes(resp *LogicalsResponse) []Node {
 	}
 	out := make([]Node, 0, len(resp.LogicalServers))
 	for _, l := range resp.LogicalServers {
-		if l.Tier != 0 || l.Status != 1 {
+		// FIELD 2026-09-20: the v2 logicals schema dropped the integer
+		// `Status` field (it now carries a `StatusReference` object), so the
+		// old `l.Status != 1` gate rejected EVERY live node — the client fell
+		// back to the stale asset even though the API answered 200 (event
+		// proton-no-nodes asset). Keep the Tier gate and rely on the physical
+		// filter below (Status==1 + a real EntryIP + a 32-byte key) as the
+		// serving test; the v1 shape still passes through it unchanged.
+		if l.Tier != 0 {
 			continue
 		}
 		for _, p := range l.Servers {

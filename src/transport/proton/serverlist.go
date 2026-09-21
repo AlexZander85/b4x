@@ -41,6 +41,13 @@ const (
 	ServerlistJitter = 0.22
 )
 
+// rankProbePortsPerNode is how many head ports of the catalog the handshake
+// tier probes per node (Nova canon: probe the node's REAL ports, not one
+// rotated pick). Probes of one host run SEQUENTIALLY (probe handshake_rank),
+// different hosts in parallel; the budget is deliberately tight so the first
+// fetch is not delayed (field 2026-09-20).
+const rankProbePortsPerNode = 2
+
 // Node sources (the source= label of proton_nodes_refreshed).
 const (
 	SourceLiveV2   = "live-v2"
@@ -84,6 +91,16 @@ type ServerlistCache struct {
 	// (or a nil hook) degrades to the TCP-only ranking of PR #4. The hook
 	// runs OFF the cache mutex and must stay cheap (key derivation only).
 	HandshakeKey func() (privateKeyB64, i1 string, ok bool)
+	// HandshakeBegin is the yield gate around the handshake tier: it returns
+	// (stop, ok). ok=false refuses the probe entirely (a session is live with
+	// this key); stop ends an in-flight probe when a session start needs the
+	// key (Nova canon: a check yields the key to a waiting start).
+	HandshakeBegin func() (stop func() bool, ok bool)
+	// HandshakeEnd releases the gate after the tier (pair with HandshakeBegin).
+	HandshakeEnd func()
+	// Pins persists the LOCAL port a node answered the handshake probe from
+	// (Nova canon): reused by the tunnel and preferred on re-issues.
+	Pins *PortPinStore
 
 	mu          sync.Mutex
 	cur         *cachedServerlist
@@ -246,9 +263,19 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	if len(sc.RankPorts) > 0 {
 		ports = append([]uint16(nil), sc.RankPorts...)
 	}
-	handshakeCands := make([]Candidate, 0, len(nodes))
-	for i, n := range nodes {
-		handshakeCands = append(handshakeCands, Candidate{Node: n, Port: ports[i%len(ports)]})
+	// Candidate node-ports of the handshake tier: the measured-best head of
+	// the catalog (Nova canon — probe the node's REAL ports, not one rotated
+	// pick). The per-host probe stops at the first answering port, so a live
+	// node costs one probe; a silent one is bounded by the head length.
+	probePorts := ports
+	if len(probePorts) > rankProbePortsPerNode {
+		probePorts = probePorts[:rankProbePortsPerNode]
+	}
+	handshakeCands := make([]Candidate, 0, len(nodes)*len(probePorts))
+	for _, n := range nodes {
+		for _, p := range probePorts {
+			handshakeCands = append(handshakeCands, Candidate{Node: n, Port: p})
+		}
 	}
 	tcpCands := make([]Candidate, 0, len(nodes))
 	for _, n := range nodes {
@@ -267,6 +294,18 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 	if hook != nil {
 		privB64, i1, armed = hook()
 	}
+	// Yield seam (Nova canon): never probe a Proton node with the identity key
+	// of a live/starting session (the newest handshake takes the session over
+	// and the tunnel goes silent). HandshakeBegin refuses while a session is
+	// live; the returned predicate lets a waiting session start stop the probe.
+	var probeStop func() bool
+	if armed && sc.HandshakeBegin != nil {
+		var ok bool
+		probeStop, ok = sc.HandshakeBegin()
+		if !ok {
+			armed = false
+		}
+	}
 	var hs map[string]HandshakeSample
 	var tcpRTTs map[string]time.Duration
 	var wg sync.WaitGroup
@@ -275,7 +314,17 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 		go func() {
 			defer wg.Done()
 			hs = ProbeHandshakeBatch(ctx, privB64, handshakeCands,
-				ProbeHandshakeConfig{Timeout: DefaultHandshakeProbeTimeout, I1: i1})
+				// FIELD 2026-09-20: the probe must carry the SAME cover the
+				// tunnel does (I1 + the proton-quic junk) — a bare/garbage
+				// first datagram is dropped and the node reads as dead.
+				ProbeHandshakeConfig{
+					Timeout:        1000 * time.Millisecond,
+					Attempts:       2,
+					AttemptTimeout: 300 * time.Millisecond,
+					I1:             i1,
+					JunkCount:      4, JunkMin: 40, JunkMax: 70,
+					Stop: probeStop,
+				})
 		}()
 	}
 	wg.Add(1)
@@ -284,8 +333,26 @@ func (sc *ServerlistCache) rankCurrentLocked(ctx context.Context) {
 		tcpRTTs = ProbeTCP443RTT(ctx, tcpCands, dial)
 	}()
 	wg.Wait()
+	if armed && sc.HandshakeEnd != nil {
+		sc.HandshakeEnd()
+	}
 
 	nodes = MergeProbeRanking(nodes, hs, tcpRTTs, ports)
+
+	// Port pinning (Nova canon): persist the local port a node answered from,
+	// and apply the stored pin to nodes this batch could not re-measure —
+	// a node that worked keeps the port that worked across re-issues.
+	if sc.Pins != nil {
+		for i := range nodes {
+			if nodes[i].PinPort > 0 {
+				sc.Pins.Set(nodes[i].EntryIP, nodes[i].PinPort)
+				continue
+			}
+			if p := sc.Pins.Get(nodes[i].EntryIP); p != 0 {
+				nodes[i].PinPort = p
+			}
+		}
+	}
 
 	sc.mu.Lock()
 	if sc.cur == nil || !sc.cur.FetchedAt.Equal(generation) || sc.cur.Source != source {

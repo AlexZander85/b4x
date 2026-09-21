@@ -30,6 +30,12 @@ const (
 	ProtonTunnelDNSV6 = "2a07:b944::2:1"
 )
 
+// FieldInitial returns the field-proven QUIC-Initial bait (the exact
+// cf-field-i1 blob, marker 0x44d0) the Proton I1 is pinned to. FIELD
+// 2026-09-20: the quici1.Build-generated shape (0x44d1) is dropped by the
+// network while this blob completes with the same key/peer.
+func FieldInitial() string { return twg.FieldInitialBlob }
+
 // WGIdentity projects the stored identity + the chosen node onto the engine
 // identity. AssignedV4/V6 come from the certificate response when the API
 // provided them, otherwise the fixed Proton constants.

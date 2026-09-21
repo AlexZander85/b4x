@@ -136,8 +136,10 @@ func TestProtonJunkSizesPlausible(t *testing.T) {
 	}
 }
 
-// TestProtonQuicIsCleanI1 pins the P4 recommendation: the preferred rung
-// ships Jc=0 (pure I1) — no sub-signature junk in front of the flow.
+// TestProtonQuicIsCleanI1 pins the field-corrected preferred rung: pure
+// runtime I1 PLUS plausible-size junk (Jc=4, 40..70 B, the measured Nova
+// shape). FIELD 2026-09-20: the review-P4 Jc=0 shape was silently dropped by
+// the network while Nova's client (I1 + junk) completes.
 func TestProtonQuicIsCleanI1(t *testing.T) {
 	tpl, err := LookupProfile("proton-quic")
 	if err != nil {
@@ -147,8 +149,8 @@ func TestProtonQuicIsCleanI1(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.JunkCount != 0 {
-		t.Fatalf("proton-quic JunkCount = %d, want 0 (review P4)", p.JunkCount)
+	if p.JunkCount != 4 || p.JunkMin < 40 || p.JunkMax > 70 {
+		t.Fatalf("proton-quic junk = jc=%d %d..%d, want jc=4 40..70 (field 2026-09-20)", p.JunkCount, p.JunkMin, p.JunkMax)
 	}
 	if !tpl.RuntimeI1 {
 		t.Fatal("proton-quic must keep RuntimeI1 (the I1 is generated at runtime)")
