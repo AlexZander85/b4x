@@ -184,7 +184,8 @@ type snowflakeEndpoint struct {
 	cfg     sflib.ClientConfig
 }
 
-func (e *snowflakeEndpoint) Dial(dial func(addr string) (net.Conn, error)) (net.Conn, error) {
+func (e *snowflakeEndpoint) Dial(address string, dial func(addr string) (net.Conn, error)) (net.Conn, error) {
+	_ = address // snowflake rendezvouses; the bridge address is a decoration
 	t, err := e.adapter.client(e.key, func() (*sflib.Transport, error) {
 		return sflib.NewSnowflakeClient(e.cfg)
 	})

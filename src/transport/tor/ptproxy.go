@@ -50,7 +50,10 @@ const (
 // through the provided protected dialer (the CONNECT target is passed for
 // transports that dial it — webtunnel/snowflake resolve their own path).
 type PTEndpoint interface {
-	Dial(dial func(addr string) (net.Conn, error)) (net.Conn, error)
+	// Dial opens the tunnel. address is the bridge endpoint from the tor
+	// CONNECT request (obfs4/vanilla dial it; webtunnel's is a decoration
+	// and snowflake rendezvouses instead). dial is the protected dialer.
+	Dial(address string, dial func(addr string) (net.Conn, error)) (net.Conn, error)
 }
 
 // TransportFactory parses one transport's bridge arguments into an
@@ -140,9 +143,12 @@ type lyrebirdEndpoint struct {
 	parsed  interface{}
 }
 
-func (e *lyrebirdEndpoint) Dial(dial func(addr string) (net.Conn, error)) (net.Conn, error) {
-	return e.factory.Dial("tcp", "", func(network, address string) (net.Conn, error) {
-		return dial(address)
+func (e *lyrebirdEndpoint) Dial(address string, dial func(addr string) (net.Conn, error)) (net.Conn, error) {
+	// The bridge address MUST reach the factory: obfs4 dials exactly this
+	// target (a "" address yields "missing port in address" and every
+	// handshake fails — b4x obfs4/vanilla entry bug).
+	return e.factory.Dial("tcp", address, func(network, addr string) (net.Conn, error) {
+		return dial(addr)
 	}, e.parsed)
 }
 
@@ -157,6 +163,8 @@ type PTProxy struct {
 	cancel   context.CancelFunc
 	conns    sync.WaitGroup
 	count    atomic.Int64
+	live     *liveConnSet
+	stopOnce sync.Once
 }
 
 // NewPTProxy binds 127.0.0.1:0 and starts accepting.
@@ -170,6 +178,7 @@ func NewPTProxy(registry *PTRegistry, bridges func() []Bridge, dial EgressDialFu
 		bridges:  bridges,
 		dial:     dial,
 		listener: ln,
+		live:     newLiveConnSet(),
 	}
 	p.ctx, p.cancel = context.WithCancel(context.Background())
 	go p.acceptLoop()
@@ -182,15 +191,24 @@ func (p *PTProxy) Addr() string { return p.listener.Addr().String() }
 // LoopAddr reports the listener for the egress dialer self-loop guard.
 func (p *PTProxy) LoopAddr() string { return p.Addr() }
 
-// Stop closes the listener and drains live pipes.
+// Stop closes the listener and drains live pipes. Bounded (b4x-62dl):
+// in-flight conns are force-closed first so a stuck PT stream cannot hold
+// daemon shutdown hostage.
 func (p *PTProxy) Stop() {
-	if p.cancel != nil {
-		p.cancel()
-	}
-	if p.listener != nil {
-		_ = p.listener.Close()
-	}
-	p.conns.Wait()
+	p.stopOnce.Do(func() {
+		if p.cancel != nil {
+			p.cancel()
+		}
+		if p.listener != nil {
+			_ = p.listener.Close()
+		}
+		if p.live != nil {
+			p.live.closeAll()
+		}
+		if !drainBounded(&p.conns, bridgeStopGrace) {
+			log.Tracef("[tor] pt proxy drain timed out after %s; abandoning stuck pipes", bridgeStopGrace)
+		}
+	})
 }
 
 func (p *PTProxy) acceptLoop() {
@@ -223,6 +241,10 @@ func (p *PTProxy) acceptLoop() {
 
 func (p *PTProxy) handleConn(conn net.Conn) {
 	defer conn.Close()
+	if p.live != nil {
+		p.live.add(conn)
+		defer p.live.remove(conn)
+	}
 	if err := conn.SetDeadline(time.Now().Add(PTProxyHandshakeTO)); err != nil {
 		return
 	}
@@ -409,7 +431,7 @@ func (p *PTProxy) handleConnect(conn net.Conn, args map[string]string) error {
 		return fmt.Errorf("parse args: %w", err)
 	}
 
-	remote, err := endpoint.Dial(func(addr string) (net.Conn, error) {
+	remote, err := endpoint.Dial(bridge.AddrPort, func(addr string) (net.Conn, error) {
 		return p.protectedDial(addr)
 	})
 	if err != nil {
@@ -417,6 +439,10 @@ func (p *PTProxy) handleConnect(conn net.Conn, args map[string]string) error {
 		return fmt.Errorf("endpoint dial: %w", err)
 	}
 	defer remote.Close()
+	if p.live != nil {
+		p.live.add(remote)
+		defer p.live.remove(remote)
+	}
 	if err := ptReply(conn, 0x00); err != nil {
 		return err
 	}

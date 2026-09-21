@@ -153,9 +153,11 @@ func (f *fakeFactory) ParseArgs(args map[string]string) (PTEndpoint, error) {
 type fakeEndpoint struct {
 	fail     bool
 	lastDial string
+	lastAddr string
 }
 
-func (e *fakeEndpoint) Dial(dial func(addr string) (net.Conn, error)) (net.Conn, error) {
+func (e *fakeEndpoint) Dial(address string, dial func(addr string) (net.Conn, error)) (net.Conn, error) {
+	e.lastAddr = address
 	if e.fail {
 		return nil, errors.New("dead bridge")
 	}
@@ -282,6 +284,11 @@ func TestPTProxyHappyPathCarriesArgs(t *testing.T) {
 	}
 	if factory.lastArgs["cert"] != validObfs4Cert() || factory.lastArgs["iat-mode"] != "0" {
 		t.Fatalf("args through RFC1929 = %v", factory.lastArgs)
+	}
+	// The bridge endpoint must reach the transport factory: obfs4 dials
+	// exactly this target (a "" address fails every handshake).
+	if endpoint.lastAddr != "45.66.35.35:443" {
+		t.Fatalf("bridge address to endpoint = %q, want 45.66.35.35:443", endpoint.lastAddr)
 	}
 	if _, err := conn.Write([]byte("ping")); err != nil {
 		t.Fatalf("write: %v", err)

@@ -14,7 +14,7 @@ import (
 
 func (r *Runtime) ensureBridges(ctx context.Context) {
 	r.mu.Lock()
-	if r.state == StateBinaryMissing || r.collecting || r.retiring {
+	if r.state == StateBinaryMissing || r.retiring {
 		r.mu.Unlock()
 		return
 	}
@@ -39,6 +39,14 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 		return
 	}
 
+	// Nova canon: keep the network bridge list fresh even when builtin
+	// snowflake alone could satisfy the mixed set — otherwise webtunnel/
+	// obfs4 heads are never collected and auto degrades to snowflake-only.
+	// The conveyor is freshness/pause-gated and runs in the background.
+	if r.collector != nil && r.collector.ShouldCollect(r.cfg.Bridges.CollectURLs) {
+		r.startCollect(ctx)
+	}
+
 	set, ok := r.assembleSet(entry)
 	if ok {
 		r.mu.Lock()
@@ -54,6 +62,14 @@ func (r *Runtime) ensureBridges(ctx context.Context) {
 	if r.state == StateStarting || r.state == StateBridgesWait {
 		r.state = StateBridgesWait
 	}
+	r.mu.Unlock()
+	r.startCollect(ctx)
+}
+
+// startCollect runs one conveyor pass in the background (idempotent while a
+// pass is already in flight).
+func (r *Runtime) startCollect(ctx context.Context) {
+	r.mu.Lock()
 	if r.collecting {
 		r.mu.Unlock()
 		return
@@ -210,7 +226,11 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 	}
 	entry := r.currentEntry()
 	set := append([]tor.Bridge(nil), r.activeSet...)
+	binaryPath := r.binaryPath
 	r.mu.Unlock()
+	if binaryPath == "" {
+		binaryPath = r.cfg.EffectiveBinaryPath()
+	}
 
 	res := r.resourceSnapshot()
 	if res.FDLimit > 0 && res.FDLimit < 512 {
@@ -248,7 +268,7 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 			return h, nil
 		}
 	}
-	proc, err := spawn(ctx, r.cfg.EffectiveBinaryPath(), torrcPath, dataPath)
+	proc, err := spawn(ctx, binaryPath, torrcPath, dataPath)
 	if err != nil {
 		r.mu.Lock()
 		r.state = StateBinaryMissing
@@ -275,7 +295,7 @@ func (r *Runtime) ensureProcess(ctx context.Context) {
 		go func() {
 			vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			if v, err := tor.DetectTorVersion(vctx, r.cfg.EffectiveBinaryPath()); err == nil && v != "" {
+			if v, err := tor.DetectTorVersion(vctx, binaryPath); err == nil && v != "" {
 				r.mu.Lock()
 				r.version = v
 				r.mu.Unlock()
@@ -309,6 +329,29 @@ func (r *Runtime) torrcInput(entry string, set []tor.Bridge) tor.TorrcInput {
 	return in
 }
 
+// bootstrapConfig resolves the watcher windows. An explicit Options.Bootstrap
+// (tests / embedded callers) wins verbatim; otherwise the production
+// defaults apply, with system.tor.bootstrap_timeout_sec wired as the hard
+// cap and the stall window scaled to 3/4 of it (b4x-p19d: a slow-but-live
+// bootstrap through a censored carrier was retired at the flat 150 s
+// default before it could finish).
+func (r *Runtime) bootstrapConfig() tor.BootstrapConfig {
+	if r.opts.Bootstrap.PollInterval != 0 {
+		return r.opts.Bootstrap
+	}
+	bcfg := tor.DefaultBootstrapConfig()
+	if secs := r.cfg.EffectiveBootstrapTimeoutSec(); secs > 0 {
+		hard := time.Duration(secs) * time.Second
+		if hard > bcfg.HardCap {
+			bcfg.HardCap = hard
+		}
+		if scaled := hard * 3 / 4; scaled > bcfg.StallWindow {
+			bcfg.StallWindow = scaled
+		}
+	}
+	return bcfg
+}
+
 func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	r.mu.Lock()
 	proc := r.proc
@@ -339,10 +382,7 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 			r.mu.Unlock()
 		}
 	}
-	bcfg := r.opts.Bootstrap
-	if bcfg.PollInterval == 0 {
-		bcfg = tor.DefaultBootstrapConfig()
-	}
+	bcfg := r.bootstrapConfig()
 	started := r.opts.Now()
 	final, err := tor.BootstrapWatchCfg(ctx, ctl, ladderEntryName(entry), bcfg, r.opts.Now, func(ph tor.BootstrapPhase) {
 		r.mu.Lock()
@@ -362,6 +402,13 @@ func (r *Runtime) ensureBootstrap(ctx context.Context) {
 	r.mu.Lock()
 	r.state = StateEstablished
 	r.bootstrap = final
+	// b4x-ffmp: give the fresh circuits one full interval before the first
+	// liveness probe, so an immediately-after-bootstrap dial does not count
+	// as a failure and trigger the rotate/teardown storm.
+	r.lastLiveness = r.opts.Now()
+	r.livenessFails = 0
+	r.livenessDeadSince = time.Time{}
+	r.newnymSent = false
 	r.mu.Unlock()
 	r.recordEntryWon(entry, elapsed)
 }
@@ -425,15 +472,36 @@ func (r *Runtime) ensureLiveness(ctx context.Context) {
 
 	probe := r.opts.LivenessProbe
 	if probe == nil {
-		probe = func(ctx context.Context, socksAddr string) error {
-			cctx, cancel := context.WithTimeout(ctx, 12*time.Second)
-			defer cancel()
-			conn, err := socksDialUpstream(cctx, socksAddr, "1.1.1.1", 443)
-			if err != nil {
-				return err
+		dial := r.opts.LivenessDial
+		if dial == nil {
+			dial = func(ctx context.Context, socksAddr, host string, port int) error {
+				cctx, cancel := context.WithTimeout(ctx, livenessProbeTimeout)
+				defer cancel()
+				conn, err := socksDialUpstream(cctx, socksAddr, host, port)
+				if err != nil {
+					return err
+				}
+				return conn.Close()
 			}
-			_ = conn.Close()
-			return nil
+		}
+		probe = func(ctx context.Context, socksAddr string) error {
+			pctx, cancel := context.WithTimeout(ctx, livenessProbeBudget)
+			defer cancel()
+			var lastErr error
+			for _, tgt := range livenessProbeTargets {
+				if pctx.Err() != nil {
+					break
+				}
+				if err := dial(pctx, socksAddr, tgt.host, tgt.port); err != nil {
+					lastErr = err
+					continue
+				}
+				return nil
+			}
+			if lastErr == nil {
+				lastErr = context.DeadlineExceeded
+			}
+			return lastErr
 		}
 	}
 	if err := probe(ctx, socks); err == nil {

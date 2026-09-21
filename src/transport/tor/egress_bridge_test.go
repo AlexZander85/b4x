@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -345,5 +346,89 @@ func TestEgressBridgeLoopGuardIntegration(t *testing.T) {
 	err = socksConnectBridge(t, conn, b.Username(), b.Password(), "127.0.0.1", uint16(srvPort(t, b.listener)))
 	if err != errConnectRefused {
 		t.Fatalf("self-loop dial err = %v, want refused", err)
+	}
+}
+
+// b4x-62dl: a stuck egress pipe must not block Stop forever.
+func TestEgressBridgeStopUnblocksStuckPipe(t *testing.T) {
+	defer verifyNoLeaks(t)
+	// silent upstream: accepts, never writes, never closes until released.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := make(chan struct{})
+	defer close(release)
+	defer ln.Close()
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				<-release
+				_ = c.Close()
+			}()
+		}
+	}()
+	port := uint16(srvPort(t, ln))
+
+	d := newTestBridgeDialer(t)
+	b, err := NewEgressBridge(d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := net.Dial("tcp", b.Addr())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+	if err := socksConnectBridge(t, conn, b.Username(), b.Password(), "127.0.0.1", port); err != nil {
+		t.Fatalf("connect: %v", err)
+	}
+	// The pipe is now live against a silent, non-closing upstream: without
+	// the bounded drain, Stop would block on conns.Wait() forever.
+	_ = conn.SetDeadline(time.Time{})
+	stopped := make(chan struct{})
+	go func() {
+		b.Stop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("EgressBridge.Stop blocked on a stuck pipe")
+	}
+}
+
+func TestDrainBoundedAndLiveConnSet(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	if drainBounded(&wg, 30*time.Millisecond) {
+		t.Fatal("drain must report timeout while wg is pending")
+	}
+	wg.Done()
+	if !drainBounded(&wg, time.Second) {
+		t.Fatal("drain must finish once wg completes")
+	}
+
+	// closeAll force-closes every tracked conn exactly once.
+	a, b := net.Pipe()
+	defer a.Close()
+	set := newLiveConnSet()
+	set.add(a)
+	set.add(b)
+	closed := make(chan struct{})
+	go func() {
+		_, _ = a.Read(make([]byte, 1))
+		close(closed)
+	}()
+	set.closeAll()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("closeAll did not unblock the blocked reader")
 	}
 }

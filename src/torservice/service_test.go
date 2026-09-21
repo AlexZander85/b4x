@@ -451,6 +451,25 @@ func TestTorDisabledBuildRefused(t *testing.T) {
 	}
 }
 
+// b4x-p19d: system.tor.bootstrap_timeout_sec must actually bound the hard
+// cap, and the stall window must scale with it instead of the flat 150 s.
+func TestTorBootstrapConfigHonorsTimeout(t *testing.T) {
+	cleanupLeaksAfterStop(t)
+	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "obfs4"}})
+	if got := bed.rt.bootstrapConfig(); got.HardCap != bed.rt.opts.Bootstrap.HardCap || got.StallWindow != bed.rt.opts.Bootstrap.StallWindow {
+		t.Fatalf("explicit Options.Bootstrap must win verbatim: %+v", got)
+	}
+	bed.rt.opts.Bootstrap = tor.BootstrapConfig{}
+	bed.rt.cfg.BootstrapTimeoutSec = 600
+	got := bed.rt.bootstrapConfig()
+	if got.HardCap != 600*time.Second {
+		t.Fatalf("hard cap = %s, want 600s", got.HardCap)
+	}
+	if got.StallWindow != 450*time.Second {
+		t.Fatalf("stall window = %s, want 450s", got.StallWindow)
+	}
+}
+
 func TestTorTorrcFileWritten(t *testing.T) {
 	cleanupLeaksAfterStop(t)
 	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "obfs4"}})
@@ -463,5 +482,107 @@ func TestTorTorrcFileWritten(t *testing.T) {
 	doc := string(raw)
 	if !strings.Contains(doc, "ClientOnly 1") || !strings.Contains(doc, fmt.Sprintf("__OwningControllerProcess %d", os.Getpid())) {
 		t.Fatalf("torrc content wrong:\n%s", doc)
+	}
+}
+
+// b4x-do17: autodetect must fall through to the Entware /opt/sbin/tor
+// location; an explicit binary_path pins exactly one candidate honestly.
+func TestResolveTorBinaryAutodetect(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "tor")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(dir, "missing-tor")
+	old := torBinarySearchPaths
+	torBinarySearchPaths = []string{missing, bin}
+	defer func() { torBinarySearchPaths = old }()
+
+	got, ok := resolveTorBinary(&config.TorConfig{})
+	if !ok || got != bin {
+		t.Fatalf("autodetect resolve=%q ok=%t, want %q", got, ok, bin)
+	}
+	exp := filepath.Join(dir, "nope")
+	got, ok = resolveTorBinary(&config.TorConfig{BinaryPath: exp})
+	if ok || got != exp {
+		t.Fatalf("explicit missing resolve=%q ok=%t, want honest failure", got, ok)
+	}
+	got, ok = resolveTorBinary(&config.TorConfig{BinaryPath: bin})
+	if !ok || got != bin {
+		t.Fatalf("explicit existing resolve=%q ok=%t", got, ok)
+	}
+}
+
+func TestBuildBinaryMissingWhenNoCandidate(t *testing.T) {
+	old := torBinarySearchPaths
+	torBinarySearchPaths = []string{filepath.Join(t.TempDir(), "nope")}
+	defer func() { torBinarySearchPaths = old }()
+
+	cfg := config.NewConfig()
+	cfg.System.Tor = config.TorConfig{
+		Enabled: true, DataPath: t.TempDir(),
+		Entry: config.TorEntryConfig{Mode: config.TorEntryDirect},
+	}
+	rt, err := Build(&cfg, Options{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if rt.state != StateBinaryMissing {
+		t.Fatalf("state=%s, want %s", rt.state, StateBinaryMissing)
+	}
+}
+
+// b4x-ffmp: the first liveness probe must wait a full interval after
+// establishment (no immediate post-bootstrap false failure).
+func TestTorLivenessGraceAfterEstablish(t *testing.T) {
+	cleanupLeaksAfterStop(t)
+	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "obfs4"}})
+	bed.storeBridges(obfs4Line)
+	bed.ensure()
+	if bed.state() != StateEstablished {
+		t.Fatalf("state=%s", bed.state())
+	}
+	var calls int
+	bed.rt.opts.LivenessProbe = func(ctx context.Context, socksAddr string) error {
+		calls++
+		return nil
+	}
+	bed.ensure()
+	if calls != 0 {
+		t.Fatalf("post-establish grace violated: %d probe calls", calls)
+	}
+}
+
+// b4x-ffmp: a blocked first target must not fail the probe when a later
+// target succeeds.
+func TestTorLivenessMultiTargetFallback(t *testing.T) {
+	cleanupLeaksAfterStop(t)
+	bed := newRuntimeTestBed(t, config.TorConfig{Entry: config.TorEntryConfig{Mode: "obfs4"}})
+	bed.storeBridges(obfs4Line)
+	bed.ensure()
+
+	var tried []string
+	bed.rt.opts.LivenessProbe = nil
+	bed.rt.opts.LivenessDial = func(ctx context.Context, socksAddr, host string, port int) error {
+		tried = append(tried, fmt.Sprintf("%s:%d", host, port))
+		if host == "1.1.1.1" {
+			return errors.New("blocked")
+		}
+		return nil
+	}
+	bed.rt.mu.Lock()
+	bed.rt.lastLiveness = time.Now().Add(-2 * livenessInterval)
+	bed.rt.livenessFails = 0
+	bed.rt.mu.Unlock()
+
+	bed.ensure()
+	if len(tried) != 2 || tried[0] != "1.1.1.1:443" || tried[1] != "8.8.8.8:443" {
+		t.Fatalf("targets tried = %v", tried)
+	}
+	bed.rt.mu.Lock()
+	fails := bed.rt.livenessFails
+	bed.rt.mu.Unlock()
+	if fails != 0 {
+		t.Fatalf("successful fallback counted a failure: %d", fails)
 	}
 }

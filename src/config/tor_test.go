@@ -359,6 +359,32 @@ func TestTorEffectiveOverridesAndClamps(t *testing.T) {
 	}
 }
 
+// b4x-do17: the autodetect chain must include the Entware /opt/sbin/tor
+// location, and an explicit binary_path must pin exactly one candidate.
+func TestTorBinaryCandidates(t *testing.T) {
+	var zero TorConfig
+	got := zero.BinaryCandidates()
+	if len(got) != len(DefaultTorBinaryCandidates) || got[0] != "/opt/bin/tor" {
+		t.Fatalf("default candidates = %v", got)
+	}
+	if got[1] != "/opt/sbin/tor" {
+		t.Fatalf("Entware /opt/sbin/tor must be in the chain: %v", got)
+	}
+	// the returned slice must be a copy (no shared-backing mutation)
+	got[0] = "/mutated"
+	if DefaultTorBinaryCandidates[0] != "/opt/bin/tor" {
+		t.Fatal("BinaryCandidates must not expose the default slice backing")
+	}
+	override := TorConfig{BinaryPath: "/usr/local/bin/tor"}
+	if c := override.BinaryCandidates(); len(c) != 1 || c[0] != "/usr/local/bin/tor" {
+		t.Fatalf("explicit override candidates = %v", c)
+	}
+	var nilCfg *TorConfig
+	if c := nilCfg.BinaryCandidates(); len(c) != len(DefaultTorBinaryCandidates) {
+		t.Fatalf("nil receiver candidates = %v", c)
+	}
+}
+
 func TestTorNilReceiverSafety(t *testing.T) {
 	// torservice projects status through Effective* on nil-safe shapes;
 	// the config helpers must not panic on a nil pointer.

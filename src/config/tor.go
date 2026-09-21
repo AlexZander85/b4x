@@ -198,12 +198,35 @@ func (t *TorConfig) EffectiveRaceWindow() int {
 	return t.Entry.RaceWindow
 }
 
-// EffectiveBinaryPath resolves the tor executable autodetect chain.
+// DefaultTorBinaryCandidates is the autodetect chain for the C-Tor
+// executable when system.tor.binary_path is unset. Entware on Keenetic
+// installs tor as /opt/sbin/tor, not /opt/bin/tor (b4x-do17), so both must
+// be probed before the common distro locations.
+var DefaultTorBinaryCandidates = []string{
+	"/opt/bin/tor",
+	"/opt/sbin/tor",
+	"/usr/sbin/tor",
+	"/usr/bin/tor",
+}
+
+// BinaryCandidates resolves the executable search list: an explicit
+// binary_path pins exactly one candidate; otherwise the default chain is
+// returned in priority order. Nil-safe.
+func (t *TorConfig) BinaryCandidates() []string {
+	if t != nil && t.BinaryPath != "" {
+		return []string{t.BinaryPath}
+	}
+	return append([]string(nil), DefaultTorBinaryCandidates...)
+}
+
+// EffectiveBinaryPath resolves the tor executable autodetect chain. It is
+// the FIRST candidate only (the caller stats the list via
+// BinaryCandidates); kept for compatibility and status projection.
 func (t *TorConfig) EffectiveBinaryPath() string {
 	if t != nil && t.BinaryPath != "" {
 		return t.BinaryPath
 	}
-	return "/opt/bin/tor"
+	return DefaultTorBinaryCandidates[0]
 }
 
 // EffectiveDataPath resolves the state slot.

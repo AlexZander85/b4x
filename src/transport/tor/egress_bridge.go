@@ -38,6 +38,61 @@ const (
 	egressBridgeTimeout  = 30 * time.Second
 )
 
+// bridgeStopGrace bounds the post-cancel drain of in-flight pipes (b4x-62dl):
+// a stuck carrier/egress stream must never block daemon shutdown forever.
+const bridgeStopGrace = 3 * time.Second
+
+// liveConnSet tracks in-flight connections so a Stop can force-close them
+// instead of waiting on io.Copy that may never return (b4x-62dl).
+type liveConnSet struct {
+	mu sync.Mutex
+	m  map[net.Conn]struct{}
+}
+
+func newLiveConnSet() *liveConnSet { return &liveConnSet{m: map[net.Conn]struct{}{}} }
+
+func (s *liveConnSet) add(c net.Conn) {
+	s.mu.Lock()
+	s.m[c] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *liveConnSet) remove(c net.Conn) {
+	s.mu.Lock()
+	delete(s.m, c)
+	s.mu.Unlock()
+}
+
+func (s *liveConnSet) closeAll() {
+	s.mu.Lock()
+	conns := make([]net.Conn, 0, len(s.m))
+	for c := range s.m {
+		conns = append(conns, c)
+	}
+	s.mu.Unlock()
+	for _, c := range conns {
+		_ = c.Close()
+	}
+}
+
+// drainBounded waits for wg at most grace; it reports whether the drain
+// finished. Callers force-close tracked conns before calling it.
+func drainBounded(wg *sync.WaitGroup, grace time.Duration) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	timer := time.NewTimer(grace)
+	defer timer.Stop()
+	select {
+	case <-done:
+		return true
+	case <-timer.C:
+		return false
+	}
+}
+
 // BridgeTargets supplies the active vanilla-bridge endpoint set for class
 // attribution (nil → everything is ClassRelayDir).
 type BridgeTargets func() []string
@@ -55,6 +110,8 @@ type EgressBridge struct {
 	cancel    context.CancelFunc
 	conns     sync.WaitGroup
 	connCount atomic.Int64
+	live      *liveConnSet
+	stopOnce  sync.Once
 }
 
 // NewEgressBridge binds 127.0.0.1:0 and generates the per-start random
@@ -81,6 +138,7 @@ func NewEgressBridge(dialer *Dialer, targets BridgeTargets) (*EgressBridge, erro
 		listener: ln,
 		username: user,
 		password: pass,
+		live:     newLiveConnSet(),
 	}
 	b.ctx, b.cancel = context.WithCancel(context.Background())
 	go b.acceptLoop()
@@ -102,15 +160,24 @@ func (b *EgressBridge) Creds() string { return b.username + ":" + b.password }
 // LoopAddr reports the listener for the dialer's self-loop guard.
 func (b *EgressBridge) LoopAddr() string { return b.Addr() }
 
-// Stop closes the listener and drains the live pipes.
+// Stop closes the listener and drains the live pipes. The drain is BOUNDED
+// (b4x-62dl): in-flight conns are force-closed first so a stuck egress
+// stream cannot hold daemon shutdown hostage.
 func (b *EgressBridge) Stop() {
-	if b.cancel != nil {
-		b.cancel()
-	}
-	if b.listener != nil {
-		_ = b.listener.Close()
-	}
-	b.conns.Wait()
+	b.stopOnce.Do(func() {
+		if b.cancel != nil {
+			b.cancel()
+		}
+		if b.listener != nil {
+			_ = b.listener.Close()
+		}
+		if b.live != nil {
+			b.live.closeAll()
+		}
+		if !drainBounded(&b.conns, bridgeStopGrace) {
+			log.Tracef("[tor] egress bridge drain timed out after %s; abandoning stuck pipes", bridgeStopGrace)
+		}
+	})
 }
 
 func (b *EgressBridge) acceptLoop() {
@@ -143,6 +210,10 @@ func (b *EgressBridge) acceptLoop() {
 
 func (b *EgressBridge) handleConn(conn net.Conn) {
 	defer conn.Close()
+	if b.live != nil {
+		b.live.add(conn)
+		defer b.live.remove(conn)
+	}
 	if err := conn.SetDeadline(time.Now().Add(egressBridgeTimeout)); err != nil {
 		return
 	}
@@ -250,6 +321,10 @@ func (b *EgressBridge) handleConnect(conn net.Conn) error {
 		return fmt.Errorf("dial %s:%d: %w", host, port, err)
 	}
 	defer remote.Close()
+	if b.live != nil {
+		b.live.add(remote)
+		defer b.live.remove(remote)
+	}
 	if err := b.reply(conn, 0x00); err != nil {
 		return err
 	}

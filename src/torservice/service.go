@@ -10,8 +10,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,11 @@ const (
 	livenessNEWNYMAfter = 2
 	livenessTeardownAt  = 4
 	livenessGrace       = 30 * time.Second
+	// livenessProbeTimeout bounds one target dial; livenessProbeBudget
+	// bounds the whole multi-target probe (b4x-ffmp: a single Cloudflare
+	// target produced false failures — try several before counting one).
+	livenessProbeTimeout = 8 * time.Second
+	livenessProbeBudget  = 15 * time.Second
 
 	exitProbeInterval = 30 * time.Minute
 
@@ -44,6 +51,23 @@ const (
 
 var LadderOrder = []string{ladderWebtunnel, ladderObfs4, ladderSnowflake, ladderVanilla}
 
+// livenessTarget is one TCP-connect probe target reached THROUGH tor.
+type livenessTarget struct {
+	host string
+	port int
+}
+
+// livenessProbeTargets are tried in order; the first successful CONNECT
+// proves the exit can open streams. Diversity avoids treating one blocked
+// destination (e.g. Cloudflare resetting Tor exits) as "tor is dead"
+// (b4x-ffmp).
+var livenessProbeTargets = []livenessTarget{
+	{host: "1.1.1.1", port: 443},
+	{host: "8.8.8.8", port: 443},
+	{host: "9.9.9.9", port: 443},
+	{host: "1.1.1.1", port: 80},
+}
+
 type ProcessController interface {
 	PID() int
 	Death() <-chan tor.ProcessDeath
@@ -55,6 +79,7 @@ type Options struct {
 	Spawn            func(ctx context.Context, binaryPath, torrcPath, dataPath string) (ProcessController, error)
 	DialControl      func(ctx context.Context, network, addr string) (tor.ControlClient, error)
 	LivenessProbe    func(ctx context.Context, socksAddr string) error
+	LivenessDial     func(ctx context.Context, socksAddr, host string, port int) error
 	ExitProbe        func(ctx context.Context, socksAddr string) (ExitInfo, error)
 	Resolve          tor.ResolveFunc
 	SuperviseTick    time.Duration
@@ -153,6 +178,7 @@ type Runtime struct {
 	ptProxy      *tor.PTProxy
 	snowflake    *torsnowflake.SnowflakeAdapter
 	hostResolve  tor.ResolveFunc
+	binaryPath   string // resolved C-Tor executable (b4x-do17)
 
 	mu                sync.Mutex
 	ctx               context.Context
@@ -206,8 +232,19 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	if opts.SuperviseTick <= 0 {
 		opts.SuperviseTick = superviseTick
 	}
+	if opts.LivenessDial == nil {
+		opts.LivenessDial = func(ctx context.Context, socksAddr, host string, port int) error {
+			cctx, cancel := context.WithTimeout(ctx, livenessProbeTimeout)
+			defer cancel()
+			conn, err := socksDialUpstream(cctx, socksAddr, host, port)
+			if err != nil {
+				return err
+			}
+			return conn.Close()
+		}
+	}
 	dataPath := tc.EffectiveDataPath()
-	binaryPath := tc.EffectiveBinaryPath()
+	binaryPath, binaryOK := resolveTorBinary(&tc)
 
 	store := tor.NewBridgesStore(dataPath)
 	entryMem := tor.NewEntryMemory(dataPath)
@@ -216,6 +253,7 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 		opts:        opts,
 		store:       store,
 		entryMem:    entryMem,
+		binaryPath:  binaryPath,
 		state:       StateIdle,
 		strikes:     map[string]int{},
 		strikeUntil: map[string]time.Time{},
@@ -236,19 +274,67 @@ func Build(cfg *config.Config, opts Options) (*Runtime, error) {
 	dial := func(ctx context.Context, class tor.ConnClass, host string, port uint16) (net.Conn, error) {
 		return r.dialer.Dial(ctx, class, host, port)
 	}
+	// The bridge conveyor rides the SAME egress dialer as everything else
+	// (Nova walks its egresses when the direct path is blocked): direct
+	// first, carrier fallback. ClassBootstrapSrc keeps the anti-loop shape.
+	collectorHTTP := &http.Client{
+		Timeout: tor.MirrorRaceCap,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				host, portStr, err := net.SplitHostPort(addr)
+				if err != nil {
+					return nil, err
+				}
+				port := 0
+				if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+					return nil, err
+				}
+				return dial(ctx, tor.ClassBootstrapSrc, host, uint16(port))
+			},
+		},
+	}
 	if opts.CollectorFactory != nil {
 		r.collector = opts.CollectorFactory(store, dial, opts.Now)
 	} else {
-		r.collector = tor.NewCollector(tor.CollectorOptions{Store: store, Dial: dial, Now: opts.Now})
+		r.collector = tor.NewCollector(tor.CollectorOptions{Store: store, Dial: dial, Client: collectorHTTP, Now: opts.Now})
 	}
 
 	if opts.Spawn == nil {
-		if _, err := os.Stat(binaryPath); err != nil {
+		if !binaryOK {
 			r.state = StateBinaryMissing
-			r.hint = "opkg install tor (Entware) or set system.tor.binary_path"
+			r.hint = "opkg install tor (Entware) or set system.tor.binary_path (looked in " + strings.Join(torBinarySearchPaths, ", ") + ")"
 		}
 	}
 	return r, nil
+}
+
+// torBinarySearchPaths is the autodetect chain used when
+// system.tor.binary_path is unset. It is a package seam so tests can point
+// it at temp dirs (b4x-do17).
+var torBinarySearchPaths = config.DefaultTorBinaryCandidates
+
+// resolveTorBinary picks the C-Tor executable: an explicit binary_path
+// pins exactly one candidate; otherwise the first EXISTING path of the
+// autodetect chain wins. It reports whether the returned path exists.
+func resolveTorBinary(tc *config.TorConfig) (string, bool) {
+	if tc != nil && tc.BinaryPath != "" {
+		return tc.BinaryPath, fileExists(tc.BinaryPath)
+	}
+	cands := torBinarySearchPaths
+	if len(cands) == 0 {
+		cands = config.DefaultTorBinaryCandidates
+	}
+	for _, p := range cands {
+		if fileExists(p) {
+			return p, true
+		}
+	}
+	return cands[0], false
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }
 
 func torDoHResolve(now func() time.Time) tor.ResolveFunc {

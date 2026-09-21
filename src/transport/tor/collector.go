@@ -44,13 +44,19 @@ const DefaultMoatURL = "https://bridges.torproject.org/moat/circumvention/settin
 // OnionHopCollectorFiles are the per-transport tested-line files.
 var OnionHopCollectorFiles = []string{"obfs4_tested.txt", "webtunnel_tested.txt", "vanilla_tested.txt"}
 
-// DefaultMirrorBases are the four OnionHop mirrors ({file} expands to the
-// file name; a template without {file} gets "<base>/<file>" appended).
+// DefaultMirrorBases are the collector mirrors ({file} expands to the file
+// name; a template without {file} gets "<base>/<file>" appended). The
+// OnionHop project moved to center2055/OnionHop-Bridges-Collector (path
+// bridge/, not bridges/); Delta-Kronecker is the independent fallback pool
+// (obfs4 only). Verified live from the router 2026-09-21: all four OnionHop
+// mirrors and the Delta jsDelivr mirror answer 200 with real lines.
 var DefaultMirrorBases = []string{
-	"https://raw.githubusercontent.com/OnionHop/Bridges-Collector/main/bridges/{file}",
-	"https://onionhop.github.io/Bridges-Collector/bridges/{file}",
-	"https://cdn.jsdelivr.net/gh/OnionHop/Bridges-Collector@main/bridges/{file}",
-	"https://cdn.statically.io/gh/OnionHop/Bridges-Collector/main/bridges/{file}",
+	"https://raw.githubusercontent.com/center2055/OnionHop-Bridges-Collector/main/bridge/{file}",
+	"https://center2055.github.io/OnionHop-Bridges-Collector/bridge/{file}",
+	"https://cdn.jsdelivr.net/gh/center2055/OnionHop-Bridges-Collector@main/bridge/{file}",
+	"https://cdn.statically.io/gh/center2055/OnionHop-Bridges-Collector@main/bridge/{file}",
+	"https://raw.githubusercontent.com/Delta-Kronecker/Tor-Bridges-Collector/main/bridge/{file}",
+	"https://cdn.jsdelivr.net/gh/Delta-Kronecker/Tor-Bridges-Collector@main/bridge/{file}",
 }
 
 // moatSettings mirrors one entry of the Moat circumvention response.

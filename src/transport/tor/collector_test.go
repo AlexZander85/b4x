@@ -444,3 +444,20 @@ func quoteList(lines []string) string {
 	}
 	return b.String()
 }
+
+// The mirror list must point at the LIVE collectors (b4x-dun field: the
+// old OnionHop/Bridges-Collector/bridges/ path returned 404 everywhere).
+func TestDefaultMirrorBasesCurrent(t *testing.T) {
+	joined := strings.Join(DefaultMirrorBases, " ")
+	for _, want := range []string{
+		"center2055/OnionHop-Bridges-Collector/main/bridge/",
+		"Delta-Kronecker/Tor-Bridges-Collector/main/bridge/",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("mirror %q missing from %v", want, DefaultMirrorBases)
+		}
+	}
+	if strings.Contains(joined, "/bridges/") {
+		t.Fatalf("stale OnionHop /bridges/ path present: %v", DefaultMirrorBases)
+	}
+}
