@@ -91,9 +91,23 @@ func TestControlAuthenticateAndCookieHex(t *testing.T) {
 	}
 }
 
+func TestUnquoteControlValue(t *testing.T) {
+	cases := map[string]string{
+		`"127.0.0.1:9050"`:        "127.0.0.1:9050",
+		`127.0.0.1:9050`:          "127.0.0.1:9050",
+		`PROGRESS=25 SUMMARY="x"`: `PROGRESS=25 SUMMARY="x"`,
+		`""`:                      "",
+	}
+	for in, want := range cases {
+		if got := unquoteControlValue(in); got != want {
+			t.Errorf("unquoteControlValue(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestControlGetInfoSingleAndMultiline(t *testing.T) {
 	srv := newFakeControl(t, map[string][]string{
-		"GETINFO net/listeners/socks": {"250-net/listeners/socks=127.0.0.1:9050", "250 OK"},
+		"GETINFO net/listeners/socks": {"250-net/listeners/socks=\"127.0.0.1:9050\"", "250 OK"},
 		"GETINFO traffic/read traffic/written": {
 			"250+traffic/read=", "12345", ".", "250-traffic/written=67890", "250 OK",
 		},

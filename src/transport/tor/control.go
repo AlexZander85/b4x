@@ -117,10 +117,24 @@ func (c *realControlClient) GetInfo(keys ...string) (map[string]string, error) {
 			continue
 		}
 		if eq := strings.IndexByte(rest, '='); eq > 0 && code == controlReplyOK {
-			out[rest[:eq]] = rest[eq+1:]
+			out[rest[:eq]] = unquoteControlValue(rest[eq+1:])
 		}
 	}
 	return out, nil
+}
+
+// unquoteControlValue strips the surrounding double quotes tor puts around
+// certain GETINFO values. Real tor answers, e.g.,
+// `250-net/listeners/socks="127.0.0.1:9050"`; without this the quoted form
+// leaks into Runtime.socksAddr and net.SplitHostPort yields a host with a
+// leading quote, breaking the tor carrier dial (field b4x-v83x). Only a
+// fully-quoted value is unquoted, so embedded quotes (e.g. a SUMMARY="...")
+// value are preserved.
+func unquoteControlValue(v string) string {
+	if len(v) >= 2 && v[0] == '"' && v[len(v)-1] == '"' {
+		return v[1 : len(v)-1]
+	}
+	return v
 }
 
 func (c *realControlClient) Signal(s string) error {
