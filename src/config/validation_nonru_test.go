@@ -30,6 +30,29 @@ func TestNonRUValidSectionPasses(t *testing.T) {
 	}
 }
 
+// Field 2026-09-22: nonru riding the same base MASQUE plane as a SOCKS5 egress
+// (or as a tunnel=masque routed set) silently breaks the base data path.
+func TestNonRURejectsSocks5Base(t *testing.T) {
+	c := nonruValidBase()
+	c.System.Warp.Socks5 = "socks5://u:p@127.0.0.1:1080"
+	if err := c.Validate(); err == nil {
+		t.Fatal("nonru + system.warp.socks5 must fail validation (base-plane contention)")
+	}
+}
+
+func TestNonRURejectsMasqueRoutedSet(t *testing.T) {
+	c := nonruValidBase()
+	c.Sets = []*SetConfig{{
+		Id:      "s1",
+		Name:    "canary",
+		Enabled: true,
+		Routing: RoutingConfig{Enabled: true, Mode: RoutingModeTunnel, Tunnel: TunnelKindMasque},
+	}}
+	if err := c.Validate(); err == nil {
+		t.Fatal("nonru + a tunnel=masque set must fail validation (base-plane contention)")
+	}
+}
+
 func TestNonRUEndpointGates(t *testing.T) {
 	c := nonruValidBase()
 	baseAt, err := c.System.Warp.EffectiveEndpoint()
