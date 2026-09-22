@@ -6,8 +6,8 @@ import { UpdateModal } from "./UpdateDialog";
 import { useGitHubRelease, dismissVersion } from "@hooks/useGitHubRelease";
 import { useTranslation } from "react-i18next";
 
-const REPO = "DanielLavrushin/b4";
-const REPO_URL = "https://github.com/daniellavrushin/b4";
+const REPO = "AlexZander85/b4x";
+const REPO_URL = "https://github.com/AlexZander85/b4x";
 
 export default function Version() {
   const { t } = useTranslation();

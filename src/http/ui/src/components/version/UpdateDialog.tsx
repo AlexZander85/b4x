@@ -353,7 +353,7 @@ export const UpdateModal = ({
         <Button
           variant="outlined"
           startIcon={<DescriptionIcon />}
-          href={`https://github.com/DanielLavrushin/b4/blob/main/${changelogFile}`}
+          href={`https://github.com/AlexZander85/b4x/blob/main/${changelogFile}`}
           target="_blank"
           disabled={isUpdating}
         >
