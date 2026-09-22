@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/daniellavrushin/b4/capture/ppe"
+	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/detector"
 	"github.com/daniellavrushin/b4/monitor"
 )
@@ -52,6 +53,8 @@ type Runtime struct {
 	parity    *monitor.ShadowParityTracker
 	cfg       RuntimeConfig
 	inputs    *synthesisInputStore
+
+	configProvider func() *config.Config
 
 	stop   chan struct{}
 	wg     sync.WaitGroup
@@ -374,6 +377,41 @@ func (rt *Runtime) project(req monitor.DiagnosticRequest, profile detector.Block
 	// Retain the ABD outcome for this scope so a later bounded synthesis run can
 	// be gated from real evidence (AFS preflight) without re-deriving it.
 	rt.inputs.put(SynthesisInputs{Scope: scope, Assessment: assessment, Profile: profile, UpdatedAt: now})
+	rt.maybeOpenAdaptiveSynthesis(scope, assessment, now)
+}
+
+// SetConfigProvider binds the live config accessor so the monitoring runtime can
+// evaluate the AFS opt-in when a persistent regression is qualified. Without a
+// provider the autonomous trigger stays disabled (the operator API remains the
+// only entry point).
+func (rt *Runtime) SetConfigProvider(provider func() *config.Config) {
+	if rt == nil {
+		return
+	}
+	rt.configProvider = provider
+}
+
+// maybeOpenAdaptiveSynthesis opens the Monitoring-owned AFS lifecycle when the
+// scope shows a qualified persistent regression and the config opt-in allows it.
+// A single transient failure never qualifies (the correlator owns the recurrence
+// check); opening an already-owned scope is rejected by the lifecycle and is
+// intentionally ignored here.
+func (rt *Runtime) maybeOpenAdaptiveSynthesis(scope monitor.MonitorScopeKey, assessment monitor.MonitorAssessment, now time.Time) {
+	if rt == nil || rt.configProvider == nil {
+		return
+	}
+	cfg := rt.configProvider()
+	if cfg == nil || !cfg.AdaptiveSynthesisAllowed(scope.ServiceProfileID) {
+		return
+	}
+	if !rt.PersistentRegressionQualified(scope) {
+		return
+	}
+	deadline := now.Add(cfg.Automation.AdaptiveStrategySynthesis.RunTimeout)
+	if !deadline.After(now) {
+		deadline = now.Add(5 * time.Minute)
+	}
+	_ = rt.OpenAdaptiveSynthesis(assessment, "afs/"+scope.ServiceProfileID+"/"+assessment.AssessmentID, true, deadline, now)
 }
 
 // ShadowParity returns the last shadow parity evidence for the scope and

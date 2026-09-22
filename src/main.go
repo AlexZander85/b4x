@@ -727,6 +727,7 @@ func runB4(cmd *cobra.Command, args []string) error {
 	monitoringRT := monitoring.NewRuntime(monitoring.DefaultConfig())
 	monitoringRT.Start()
 	handler.SetMonitoringRuntime(monitoringRT)
+	monitoringRT.SetConfigProvider(func() *config.Config { return cfgPtr.Load() })
 
 	// WARP base-transport lifecycle controller (FB-02 WARP section): owns the
 	// built-in WARP/MASQUE enrollment -> TUN -> routing lifecycle and the ten
