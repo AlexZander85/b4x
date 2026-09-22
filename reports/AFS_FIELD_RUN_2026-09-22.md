@@ -64,3 +64,16 @@ cleanly with no reboot.
 
 Second router/VM as a stand, or an explicitly approved destructive capture
 perturbation. No production change is left in place.
+
+## Pitfalls & findings
+
+**Pitfalls (field):**
+1. **Test instance with the LIVE config hangs shutdown → watchdog reboot.** `S99b4 stop` / `killall b4` (SIGTERM) did not finish within 3s; `S99b4 start` then skipped (pidof saw the live pid); the SoC watchdog (`mt_wdt ... software reset`) reset the router. Recorded as pitfall 31 in `PROJECT_DIRECTIVES.md`. Safe procedure: `killall -9`, wait for empty `pidof b4`, then `S99b4 start` separately, verify sha/md5 + `S99b4 selfcheck`.
+2. **Isolated method impossible: b4 single-instance `flock`.** A second instance (`b4.exp-*`, even with a minimal config and `--skip-tables`) dies with `another b4 instance is already running (pid ...)`. There is no bypass flag.
+3. **`--skip-tables` removes the packet path.** It skips iptables/nft setup (and `RoutingClearAll` on shutdown would wipe the live routing), so it cannot be combined with live traffic.
+
+**Findings (design):**
+1. The AFS autonomous cycle triggers only on a **capture-visibility block** (`monitoring.observePpeBlocked`). `IngestFailure` has **no production caller**, and `/api/monitor/v1` stays empty on a healthy router → `SynthesisInputs` is never retained → §76 correctly fails closed (`no retained ABD inputs`).
+2. Every `EnsureRequired`/`Degrade` path is gated by `offload_policy == "exclude"` (forbidden), `system.tables.skip_setup` (removes the packet path), or PPE rule loss (perturbation). There is no non-destructive way to induce a visibility block.
+3. Consequence: Gates B–F cannot be field-proven on the live router; they are covered by the focused Go/CI suite. `AUTONOMOUS_DPI_ADAPTATION_READY` stays `BLOCKED_BY_TARGET_EVIDENCE`.
+
