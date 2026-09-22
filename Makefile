@@ -12,7 +12,12 @@ OUT_DIR := ./out
 # Build flags
 CGO_ENABLED ?= 0
 LDFLAGS := -s -w -X main.Version=$(VERSION) -X main.Commit=$(VERSION_COMMIT) -X main.Date=$(VERSION_DATE)
-BUILDFLAGS := -trimpath
+# Build tags. l5ppe = the L5 PPE handshake-window layer (hardware offload /
+# acceleration): it is opt-in in the source (l5ppe_on.go / l5ppe_off.go), and
+# every production build MUST include it or the PPE window is silently absent.
+# Override with `make TAGS=` for a tag-less build.
+TAGS ?= l5ppe
+BUILDFLAGS := -trimpath -tags $(TAGS)
 
 # Linux architectures
 LINUX_ARCHS := 386 amd64 arm64 armv5 armv6 armv7 \
