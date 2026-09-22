@@ -28,6 +28,7 @@ interface TunnelSettingsDialogProps {
 
 const CONFIG_SECTION: Record<string, keyof B4Config["system"]> = {
   masque: "warp",
+  h3: "warp", // the H3 kind is an alias of the base MASQUE carrier
   warp: "warp", // the AWG-WARP branch lives in system.warp.awg
   nonru: "warp", // the НЕ РФ branch lives in system.warp.nonru
   opera: "opera",

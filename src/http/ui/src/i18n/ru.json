@@ -2151,7 +2151,7 @@
     "kind": {
       "warp": "AWG WARP",
       "masque": "MASQUE WARP",
-      "h3": "WARP H3 (вложенный)",
+      "h3": "WARP H3 (MASQUE)",
       "opera": "Opera VPN",
       "vless": "VLESS / REALITY",
       "fxvpn": "Firefox VPN",
@@ -2161,7 +2161,7 @@
     "kindDesc": {
       "warp": "Amnezia-WireGuard поверх WG-edge Cloudflare WARP. Резервный carrier с UDP full-scope (kind=warp).",
       "masque": "Cloudflare WARP через MASQUE (CONNECT-IP). IPv4/TCP-carrier с uTLS-маскарадом.",
-      "h3": "Зарезервированный вид для H3-nested WARP-транспорта.",
+      "h3": "Cloudflare WARP поверх HTTP/3 (H3-first леддер, H2 fallback) — тот же carrier, что MASQUE. Routable через routing.tunnel=h3.",
       "opera": "Резерв Opera/SurfEasy. Только TCP, мегарегионы EU/AS/AM с ротацией нод.",
       "vless": "Резерв VLESS(+REALITY). Только TCP: b4x диалает локальный SOCKS5 внешнего хелпера xray/sing-box.",
       "fxvpn": "Резерв Firefox VPN. Только TCP, локации country/city/host, сессии с приоритетом H3.",

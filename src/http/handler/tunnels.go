@@ -256,7 +256,7 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 		Priority:         reserve.PriorityH3,
 		Transport:        "udp-full-scope",
 		SupportsUDP:      true,
-		HasConfigSection: false,
+		HasConfigSection: true, // configured through the base system.warp section
 		ConfigEnabled:    cfg.System.Warp.Enabled,
 		Restartable:      false, // supervisor-owned lifecycle (same as masque)
 	}
