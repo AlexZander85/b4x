@@ -48,3 +48,35 @@ export const tunnelLocationApi = {
   fxvpnLocation: (req: LocationSwitchRequest) =>
     apiPut<unknown>("/api/fxvpn/location", req),
 };
+
+// Available locations (countries → cities → hosts) for the country/city/host
+// dropdowns. Both surfaces answer only while the engine is wired (proton needs
+// its cached catalog, fxvpn its serverlist); the UI falls back to a free-text
+// field when the list is unavailable.
+export interface LocationHost {
+  name?: string;
+  hostname?: string;
+  entry_ip?: string;
+}
+
+export interface LocationCity {
+  name?: string;
+  code?: string;
+  hosts?: LocationHost[];
+}
+
+export interface LocationCountry {
+  code: string;
+  name?: string;
+  cities?: LocationCity[];
+}
+
+export interface LocationsView {
+  fetched_at?: string;
+  countries: LocationCountry[];
+}
+
+export const tunnelLocationsApi = {
+  proton: () => apiGet<LocationsView>("/api/proton/locations"),
+  fxvpn: () => apiGet<LocationsView>("/api/fxvpn/locations"),
+};

@@ -5,7 +5,7 @@ import { B4TextField } from "@b4.fields";
 import { SaveIcon, TunnelsIcon } from "@b4.icons";
 import { useTranslation } from "react-i18next";
 import { configApi } from "@api/settings";
-import { tunnelLocationApi } from "@api/tunnels";
+import { tunnelLocationApi, tunnelLocationsApi } from "@api/tunnels";
 import { useSnackbar } from "@context/SnackbarProvider";
 import {
   B4Config,
@@ -212,6 +212,11 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
   const [section, setSection] = useState<Record<string, unknown> | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Available locations for the proton/fxvpn country/city/host dropdowns
+  // (null = not fetched / engine not wired -> free-text fallback).
+  const [locationCountries, setLocationCountries] = useState<
+    { code: string; name?: string; cities?: { name?: string; code?: string; hosts?: { name?: string; hostname?: string }[] }[] }[] | null
+  >(null);
 
   const sectionKey = kind ? CONFIG_SECTION[kind] : null;
   const open = kind !== null && sectionKey !== null;
@@ -296,6 +301,50 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
         setLoading(false);
       });
   }, [open, kind, sectionKey]);
+
+  // Load the available proton/fxvpn locations for the country/city/host
+  // dropdowns. Both endpoints answer only while the engine is wired (proton
+  // needs its cached catalog, fxvpn its serverlist); on failure the form keeps
+  // the free-text fields.
+  useEffect(() => {
+    if (!open || (kind !== "proton" && kind !== "fxvpn")) {
+      setLocationCountries(null);
+      return;
+    }
+    let cancelled = false;
+    const fetchLocations =
+      kind === "proton" ? tunnelLocationsApi.proton : tunnelLocationsApi.fxvpn;
+    fetchLocations()
+      .then((view) => {
+        if (!cancelled) setLocationCountries(view.countries ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setLocationCountries(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, kind]);
+
+  const citiesFor = useCallback(
+    (country: string) =>
+      (locationCountries ?? []).find((c) => c.code === country)?.cities ?? [],
+    [locationCountries],
+  );
+  const hostsFor = useCallback(
+    (country: string, city?: string) => {
+      const cities = citiesFor(country);
+      const list = city
+        ? cities.filter((c) => (c.name ?? c.code) === city)
+        : cities;
+      const names = list
+        .flatMap((c) => c.hosts ?? [])
+        .map((h) => h.name ?? h.hostname ?? "")
+        .filter(Boolean);
+      return Array.from(new Set(names));
+    },
+    [citiesFor],
+  );
 
   // dot-path setter over the local section copy
   const setField = useCallback(
@@ -1008,25 +1057,70 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
               </B4TextField>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <B4TextField
-                label={t("tunnels.fields.country")}
-                value={s("location.country")}
-                onChange={(e) => setField("location.country", e.target.value)}
-              />
+              {locationCountries && locationCountries.length > 0 ? (
+                <B4TextField
+                  label={t("tunnels.fields.country")}
+                  select
+                  value={s("location.country")}
+                  onChange={(e) => setField("location.country", e.target.value)}
+                >
+                  {locationCountries.map((c) => (
+                    <MenuItem key={c.code} value={c.code}>
+                      {c.name ? `${c.code} — ${c.name}` : c.code}
+                    </MenuItem>
+                  ))}
+                </B4TextField>
+              ) : (
+                <B4TextField
+                  label={t("tunnels.fields.country")}
+                  value={s("location.country")}
+                  onChange={(e) => setField("location.country", e.target.value)}
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <B4TextField
-                label={t("tunnels.fields.city")}
-                value={s("location.city")}
-                onChange={(e) => setField("location.city", e.target.value)}
-              />
+              {citiesFor(s("location.country")).length > 0 ? (
+                <B4TextField
+                  label={t("tunnels.fields.city")}
+                  select
+                  value={s("location.city")}
+                  onChange={(e) => setField("location.city", e.target.value)}
+                >
+                  {citiesFor(s("location.country")).map((ct) => (
+                    <MenuItem key={ct.code ?? ct.name} value={ct.name ?? ct.code ?? ""}>
+                      {ct.name ?? ct.code}
+                    </MenuItem>
+                  ))}
+                </B4TextField>
+              ) : (
+                <B4TextField
+                  label={t("tunnels.fields.city")}
+                  value={s("location.city")}
+                  onChange={(e) => setField("location.city", e.target.value)}
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <B4TextField
-                label={t("tunnels.fields.host")}
-                value={s("location.host")}
-                onChange={(e) => setField("location.host", e.target.value)}
-              />
+              {hostsFor(s("location.country"), s("location.city")).length > 0 ? (
+                <B4TextField
+                  label={t("tunnels.fields.host")}
+                  select
+                  value={s("location.host")}
+                  onChange={(e) => setField("location.host", e.target.value)}
+                >
+                  {hostsFor(s("location.country"), s("location.city")).map((h) => (
+                    <MenuItem key={h} value={h}>
+                      {h}
+                    </MenuItem>
+                  ))}
+                </B4TextField>
+              ) : (
+                <B4TextField
+                  label={t("tunnels.fields.host")}
+                  value={s("location.host")}
+                  onChange={(e) => setField("location.host", e.target.value)}
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <B4TextField
@@ -1139,19 +1233,50 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
               </B4TextField>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <B4TextField
-                label={t("tunnels.fields.country")}
-                value={s("location.country")}
-                onChange={(e) => setField("location.country", e.target.value)}
-                helperText={t("tunnels.proton.countryHint")}
-              />
+              {locationCountries && locationCountries.length > 0 ? (
+                <B4TextField
+                  label={t("tunnels.fields.country")}
+                  select
+                  value={s("location.country")}
+                  onChange={(e) => setField("location.country", e.target.value)}
+                  helperText={t("tunnels.proton.countryHint")}
+                >
+                  {locationCountries.map((c) => (
+                    <MenuItem key={c.code} value={c.code}>
+                      {c.name ? `${c.code} — ${c.name}` : c.code}
+                    </MenuItem>
+                  ))}
+                </B4TextField>
+              ) : (
+                <B4TextField
+                  label={t("tunnels.fields.country")}
+                  value={s("location.country")}
+                  onChange={(e) => setField("location.country", e.target.value)}
+                  helperText={t("tunnels.proton.countryHint")}
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
-              <B4TextField
-                label={t("tunnels.fields.host")}
-                value={s("location.host")}
-                onChange={(e) => setField("location.host", e.target.value)}
-              />
+              {hostsFor(s("location.country")).length > 0 ? (
+                <B4TextField
+                  label={t("tunnels.fields.host")}
+                  select
+                  value={s("location.host")}
+                  onChange={(e) => setField("location.host", e.target.value)}
+                >
+                  {hostsFor(s("location.country")).map((h) => (
+                    <MenuItem key={h} value={h}>
+                      {h}
+                    </MenuItem>
+                  ))}
+                </B4TextField>
+              ) : (
+                <B4TextField
+                  label={t("tunnels.fields.host")}
+                  value={s("location.host")}
+                  onChange={(e) => setField("location.host", e.target.value)}
+                />
+              )}
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <B4TextField
