@@ -333,6 +333,7 @@ docker run --rm --dns 8.8.8.8
 - Discovery не подбирает стратегии руками в этой кампании. Сначала классификатор должен увидеть flow.
 - **НЕ РФ: галка `nonru` (UI) = мастер-выключатель.** ON + `system.warp.socks5` → базовый MASQUE идёт через прокси (не-РФ); OFF → прокси инертен (базовый MASQUE RU), даже если прокси введён. Вложенный nonru-движок не используется; `routing.tunnel=nonru` алиасится в `masque`.
 - **Сборка ВСЕГДА с `-tags l5ppe`** (иначе PPE-окно/аппаратное ускорение молча отсутствует — это opt-in в исходнике). Makefile: `TAGS ?= l5ppe`. Проверка: в бинаре `grep -c '\[l5ppe\]'` > 0; на роутере `iptables -t mangle -S | grep B4_PPE`. `B4_PPE_PRE/FWD` + `connskip 30 -j PPE` на `b4_managed_devices` — окно рукопожатия на CPU, bulk в железо.
+- **Логи/трассировка — ТОЛЬКО на флешку** (`--log-dir=$USB/b4/log`, `/tmp` = tmpfs = RAM). Trace-лог десятки МБ; `--log-dir=/tmp` забьёт RAM и уронит роутер. Диагностику на роутере (`opkg`/iptables) удалять только с `opkg whatdepends` (пример: `zoneinfo-asia` тянет `opt-ndmsv2`).
 
 ---
 
