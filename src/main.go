@@ -855,27 +855,15 @@ func runB4(cmd *cobra.Command, args []string) error {
 	// kind=nonru on a fresh PASS_NON_RU attestation and revoke it on every
 	// §62.5 close reason (the reserve registry IS the route).
 	var nonruEngine *nonruservice.Runtime
-	if cfgPtr.Load().System.Warp.NonRU.Enabled {
-		if warpEngine == nil {
-			log.Errorf("[nonru] engine disabled this run: the base warp runtime is absent (ADR-WARP-6)")
-		} else {
-			rt, err := nonruservice.Build(cfgPtr.Load(), warpEngine, nonruservice.Options{
-				OnEvent: func(ev nonruservice.Event) {
-					log.Infof("[nonru] %s %s", ev.Name, ev.Detail)
-				},
-			})
-			if err != nil {
-				log.Errorf("[nonru] engine disabled this run: %v", err)
-			} else if err := rt.Start(appCtx); err != nil {
-				log.Errorf("[nonru] engine start failed: %v", err)
-			} else {
-				nonruEngine = rt
-				st := rt.Status()
-				log.Infof("[nonru] engine started state=%s oracle=%t (gate=probing, carrier registered only on a fresh non-RU attestation)",
-					st.State, st.OracleLoaded)
-			}
-		}
-	}
+	// b4x (field 2026-09-22): the НЕ РФ checkbox now means the NON-RU MASTER
+	// SWITCH for the base MASQUE carrier (system.warp.socks5 gated on
+	// system.warp.nonru.enabled in warpservice), NOT the experimental nested
+	// composition. The nested M+M engine is intentionally NOT started: it
+	// composed over the SAME base warp plane and reset the base carrier's data
+	// path (`connection reset by peer`) while its geo-gate never opened — a
+	// silent half-dead data plane. The checkbox + proxy now lives entirely in
+	// warpservice; the handler keeps answering the disabled shape.
+	_ = warpEngine
 	handler.SetNonRURuntime(nonruEngine) // nil-safe: the handler answers the disabled shape
 
 	// E-PROTON reserve transport (design v2; control plane in

@@ -179,6 +179,15 @@ func (c *Config) Validate() error {
 				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", setIdx), "unknown_tunnel_kind", map[string]any{"set": set.Name, "kind": set.Routing.Tunnel, "supported": RoutingTunnelKinds}, "set %q: unknown tunnel kind %q (supported: %v)", set.Name, set.Routing.Tunnel, RoutingTunnelKinds)
 				return v.result()
 			}
+			// b4x (field 2026-09-22): the НЕ РФ routing kind now rides the base
+			// MASQUE carrier — the non-RU egress is the master switch
+			// (system.warp.nonru.enabled + system.warp.socks5, applied inside
+			// warpservice), not a standalone nested carrier. Alias tunnel=nonru
+			// to masque so existing nonru sets keep routing instead of failing
+			// closed on a carrier that is no longer registered.
+			if set.Routing.Tunnel == TunnelKindNonRU {
+				set.Routing.Tunnel = TunnelKindMasque
+			}
 			// Kernel-mode AWG-WARP serves the PBR field layer only:
 			// there is no userspace carrier for the tproxy sets to
 			// dial through — the honest cross-field rejection
@@ -1165,26 +1174,14 @@ func (c *Config) validateWarpNonRU(v *validator) {
 		v.add("system.warp.nonru.enabled", "conflict", "nonru requires the base warp (system.warp.enabled=true): base WARP not ACTIVE makes the nested mode ineligible (ADR-WARP-6)", nil)
 	}
 
-	// Field 2026-09-22: an enabled nonru composes a nested MASQUE over the SAME
-	// base warp plane that the standalone MASQUE carrier uses. Running both makes
-	// the base plane's data path reset (`connection reset by peer`) while the
-	// nonru gate also never opens - a silent half-dead data plane. Reject the two
-	// configurations that produced that breakage instead of shipping it: a
-	// SOCKS5-driven base, and a set routed through the standalone MASQUE carrier.
-	if nr.Enabled {
-		if c.System.Warp.EffectiveSocks5() != "" {
-			v.add("system.warp.nonru.enabled", "conflict",
-				"nonru + system.warp.socks5: the nested nonru mode rides the same base MASQUE plane as the SOCKS5 egress and resets its data path (field 2026-09-22). For non-RU WARP use system.warp.socks5 with a routing set (routing.mode=tunnel, routing.tunnel=masque) and disable nonru.", nil)
-		}
-		for i, s := range c.Sets {
-			if s == nil || !s.Enabled || !s.Routing.Enabled {
-				continue
-			}
-			if s.Routing.Mode == RoutingModeTunnel && s.Routing.Tunnel == TunnelKindMasque {
-				v.addf(fmt.Sprintf("sets[%d].routing.tunnel", i), "conflict", map[string]any{"set": s.Name},
-					"set %q routes via tunnel=masque while nonru is enabled: the nonru nested mode contends the base MASQUE carrier (field 2026-09-22). Use tunnel=nonru, or disable nonru and use system.warp.socks5 + tunnel=masque.", s.Name)
-			}
-		}
+	// Field 2026-09-22: the НЕ РФ checkbox is the NON-RU MASTER SWITCH for the
+	// base MASQUE carrier — it makes system.warp.socks5 take effect. Ticking it
+	// WITHOUT a proxy is a config lie (the mode would silently do nothing), so
+	// it is rejected. The runtime no longer runs the experimental nested
+	// composition (it contended the base plane; its gate never opened).
+	if nr.Enabled && c.System.Warp.EffectiveSocks5() == "" {
+		v.add("system.warp.nonru.enabled", "invalid_value",
+			"nonru.enabled is the non-RU master switch for the base MASQUE carrier: it requires system.warp.socks5 (a non-RU SOCKS5 proxy). Enter the proxy in the НЕ РУ dialog, or untick the checkbox.", nil)
 	}
 
 	baseEp, baseEpErr := c.System.Warp.EffectiveEndpoint()

@@ -12,6 +12,8 @@ func nonruValidBase() *Config {
 	c.System.Warp.Enabled = true
 	c.System.Warp.IdentityPath = "/opt/etc/b4/warp/identity.json"
 	c.System.Warp.NonRU.Enabled = true
+	// The НЕ РФ checkbox is the non-RU master switch and requires the proxy.
+	c.System.Warp.Socks5 = "socks5://user:pass@203.0.113.9:1080"
 	return &c
 }
 
@@ -30,17 +32,18 @@ func TestNonRUValidSectionPasses(t *testing.T) {
 	}
 }
 
-// Field 2026-09-22: nonru riding the same base MASQUE plane as a SOCKS5 egress
-// (or as a tunnel=masque routed set) silently breaks the base data path.
-func TestNonRURejectsSocks5Base(t *testing.T) {
+// Field 2026-09-22: nonru is the non-RU MASTER SWITCH for the base MASQUE
+// carrier -> it requires system.warp.socks5, and the socks5 + masque-routed
+// set combination is the intended, valid non-RU path.
+func TestNonRURequiresSocks5(t *testing.T) {
 	c := nonruValidBase()
-	c.System.Warp.Socks5 = "socks5://u:p@127.0.0.1:1080"
+	c.System.Warp.Socks5 = ""
 	if err := c.Validate(); err == nil {
-		t.Fatal("nonru + system.warp.socks5 must fail validation (base-plane contention)")
+		t.Fatal("nonru.enabled without system.warp.socks5 must fail validation (master switch needs the proxy)")
 	}
 }
 
-func TestNonRURejectsMasqueRoutedSet(t *testing.T) {
+func TestNonRUSocks5AndMasqueSetAllowed(t *testing.T) {
 	c := nonruValidBase()
 	c.Sets = []*SetConfig{{
 		Id:      "s1",
@@ -48,8 +51,24 @@ func TestNonRURejectsMasqueRoutedSet(t *testing.T) {
 		Enabled: true,
 		Routing: RoutingConfig{Enabled: true, Mode: RoutingModeTunnel, Tunnel: TunnelKindMasque},
 	}}
-	if err := c.Validate(); err == nil {
-		t.Fatal("nonru + a tunnel=masque set must fail validation (base-plane contention)")
+	if err := c.Validate(); err != nil {
+		t.Fatalf("nonru + socks5 + tunnel=masque set must validate (intended non-RU path): %v", err)
+	}
+}
+
+func TestNonRURoutingKindAliasesToMasque(t *testing.T) {
+	c := nonruValidBase()
+	c.Sets = []*SetConfig{{
+		Id:      "s1",
+		Name:    "canary",
+		Enabled: true,
+		Routing: RoutingConfig{Enabled: true, Mode: RoutingModeTunnel, Tunnel: TunnelKindNonRU},
+	}}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("tunnel=nonru must validate: %v", err)
+	}
+	if c.Sets[0].Routing.Tunnel != TunnelKindMasque {
+		t.Fatalf("tunnel=nonru must alias to masque (base non-RU carrier), got %q", c.Sets[0].Routing.Tunnel)
 	}
 }
 

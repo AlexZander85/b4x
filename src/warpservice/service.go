@@ -141,6 +141,15 @@ func BuildWithHTTP(cfg *config.Config, sink func(Event), enrollmentHTTP *http.Cl
 	if env := strings.TrimSpace(os.Getenv("B4_WARP_SOCKS5")); env != "" {
 		socksAddr = env
 	}
+	// b4x (field 2026-09-22): the SOCKS5 egress is the NON-RU MASTER SWITCH. It
+	// applies ONLY when the operator ticked the НЕ РФ checkbox
+	// (system.warp.nonru.enabled=true); a proxy entered with the checkbox off is
+	// stored but INERT, so the base MASQUE carrier stays direct (RU). This is
+	// what the UI dialog promises: "checkbox + proxy = non-RU, no checkbox =
+	// no non-RU even with a proxy".
+	if !cfg.System.Warp.NonRU.Enabled {
+		socksAddr = ""
+	}
 	if socksAddr != "" {
 		// b4x-rnn: force the MASQUE H2 control TCP through a SOCKS5 egress so
 		// Cloudflare assigns a non-RU WARP country. SOCKS5 is TCP-only, so the
