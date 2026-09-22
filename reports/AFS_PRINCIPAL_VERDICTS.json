@@ -1,11 +1,24 @@
 {
   "schema": "afs-principal-verdicts-v1",
-  "branch": "agent/afs-addendum-v1",
+  "branch": "agent/classifier-v2.3-capture-envelope",
   "base": "agent/classifier-v2.3-capture-envelope",
   "last_code_validation": {
     "ci_run": 35088580460,
     "result": "PASS",
     "packages": ["config", "detector", "discovery", "monitor", "observability", "runtimecontrol", "validation"]
+  },
+  "field_validation": {
+    "date": "2026-09-22",
+    "task": "b4x-x43",
+    "router": "live Keenetic",
+    "l0": "GREEN",
+    "gate_a": "PASS_FIELD",
+    "gate_a_evidence": "off: status enabled=false, S76 allowed=true -> 403, revert -> 200; on: status enabled=true, S76 allowed+authorized+targets -> 409 no retained ABD inputs (fail-closed), allowed=false -> 202",
+    "promote_rollback": "PASS_FIELD",
+    "gates_b_to_f": "CODE_VALIDATED_CI",
+    "gates_b_to_f_note": "not safely field-reachable: the AFS cycle triggers only on a capture-visibility block, whose only sources require forbidden offload_policy=exclude or a destructive capture perturbation; a healthy router emits none",
+    "restore_point": "b4.restore-20260922 (5627c147) + b4.restore-20260922.json (e629da1e)",
+    "live_left_intact": true
   },
   "verdicts": {
     "BEHAVIORAL_FINGERPRINT_BOUNDED_READY": {
@@ -26,9 +39,9 @@
     "AUTONOMOUS_DPI_ADAPTATION_READY": {
       "verdict": "BLOCKED_BY_TARGET_EVIDENCE",
       "evidence_level": "IMPLEMENTED_AND_LAB_VALIDATED_ONLY",
-      "basis": "transactional promotion, Monitoring recurrence lifecycle, and forwarded-client canary guards are implemented, but no real Keenetic + forwarded Android target run has been captured"
+      "basis": "transactional promotion, Monitoring recurrence lifecycle, and forwarded-client canary guards are implemented; a real target run with a qualified persistent regression has not been captured (see field_validation)"
     }
   },
-  "release_status": "IMPLEMENTED / LAB_VALIDATED / BLOCKED_BY_TARGET_EVIDENCE",
+  "release_status": "IMPLEMENTED / LAB_VALIDATED / GATE_A_FIELD_PASS / BLOCKED_BY_TARGET_EVIDENCE",
   "production_ready": false
 }
