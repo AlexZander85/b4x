@@ -66,6 +66,18 @@ var (
 	currentLogLevel = log.LevelInfo
 )
 
+// kindAlias re-exposes a reserve.Carrier under a second kind. The MASQUE
+// carrier uses it to answer as kind=h3: the warpservice ladder is H3-first
+// (QUIC/H3, H2 fallback), so tunnel=h3 and tunnel=masque ride the SAME carrier.
+// This turns the previously-reserved "h3" registry kind into a real, routable
+// alias instead of a dead placeholder.
+type kindAlias struct {
+	reserve.Carrier
+	kind reserve.Kind
+}
+
+func (a kindAlias) Kind() reserve.Kind { return a.kind }
+
 var rootCmd = &cobra.Command{
 	Use:           "b4",
 	Short:         "B4 network packet processor",
@@ -767,6 +779,13 @@ func runB4(cmd *cobra.Command, args []string) error {
 		reserve.Register(warpMasqueCarrier)
 		log.Infof("[warp] carrier registered kind=masque priority=%d udp=false (netstack v1: IPv4/TCP only)",
 			reserve.PriorityMasque)
+		// The warpservice ladder is H3-FIRST, so the same carrier also answers
+		// as kind=h3: a set routed via routing.tunnel=h3 rides this carrier and
+		// negotiates H3 when the edge allows (H2 fallback otherwise). This makes
+		// the reserved "h3" kind genuinely routable instead of a dead entry.
+		reserve.Register(kindAlias{Carrier: warpMasqueCarrier, kind: reserve.KindH3})
+		log.Infof("[warp] carrier registered kind=h3 priority=%d (alias of masque, H3-first ladder)",
+			reserve.PriorityH3)
 	}
 
 	// AWG-WARP transport (tunnels panel stage 2; engine in transport/wg,

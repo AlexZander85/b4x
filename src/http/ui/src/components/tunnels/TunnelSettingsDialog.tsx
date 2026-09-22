@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, Button, CircularProgress, Grid, MenuItem, Stack } from "@mui/material";
 import { B4Alert, B4Dialog, B4NumberField, B4Switch } from "@b4.elements";
 import { B4TextField } from "@b4.fields";
@@ -215,6 +215,14 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
   const sectionKey = kind ? CONFIG_SECTION[kind] : null;
   const open = kind !== null && sectionKey !== null;
 
+  // onClose/showError come from the parent, which re-renders on the 5s
+  // tunnels poll; keeping them in refs stops the load effect from re-running
+  // (and resetting the form) on every poll tick.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const showErrorRef = useRef(showError);
+  showErrorRef.current = showError;
+
   useEffect(() => {
     if (!open || !kind || !sectionKey) {
       setConfig(null);
@@ -280,13 +288,13 @@ export function TunnelSettingsDialog({ kind, onClose }: TunnelSettingsDialogProp
         setSection(merged);
       })
       .catch((err: unknown) => {
-        showError(err instanceof Error ? err.message : "load failed");
-        onClose();
+        showErrorRef.current(err instanceof Error ? err.message : "load failed");
+        onCloseRef.current();
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [open, kind, sectionKey, onClose, showError]);
+  }, [open, kind, sectionKey]);
 
   // dot-path setter over the local section copy
   const setField = useCallback(

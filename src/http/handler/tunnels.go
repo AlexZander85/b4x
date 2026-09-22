@@ -247,17 +247,29 @@ func (api *API) sendTunnelsOverview(w http.ResponseWriter, cfg *config.Config) {
 	}
 	cards = append(cards, mq)
 
-	// h3 — MASQUE-WARP H3 nested (reserved kind; catalog-only today).
-	cards = append(cards, tunnelsCard{
+	// h3 — the H3-first MASQUE-WARP transport. It is the SAME carrier as
+	// kind=masque (the warpservice ladder negotiates H3 first, H2 fallback), so
+	// this card mirrors the masque engine state and reports the alias carrier
+	// that main registers under kind=h3. It is routable via routing.tunnel=h3.
+	h3 := tunnelsCard{
 		Kind:             string(reserve.KindH3),
 		Priority:         reserve.PriorityH3,
 		Transport:        "udp-full-scope",
 		SupportsUDP:      true,
 		HasConfigSection: false,
-		ConfigEnabled:    false,
-		Restartable:      false,
-		Note:             "h3_reserved_note",
-	})
+		ConfigEnabled:    cfg.System.Warp.Enabled,
+		Restartable:      false, // supervisor-owned lifecycle (same as masque)
+	}
+	if rt := warpServiceRuntime.Load(); rt != nil {
+		snap := rt.Status()
+		h3.CarrierRegistered = true
+		h3.Running = true
+		h3.State = string(snap.Status.State)
+		h3.Listening = snap.Status.RouteHeld
+	} else if cfg.System.Warp.Enabled {
+		h3.Note = "engine_enabled_not_running"
+	}
+	cards = append(cards, h3)
 
 	// opera — Opera VPN (TCP-only).
 	op := tunnelsCard{
