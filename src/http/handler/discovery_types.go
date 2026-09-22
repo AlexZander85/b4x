@@ -4,11 +4,19 @@ import "github.com/daniellavrushin/b4/monitor"
 
 // DiscoveryAdaptiveSynthesisRequest is the AFS §76 run-request extension. The
 // server denies Allowed=true whenever the global opt-in is off; it never
-// silently accepts the field.
+// silently accepts the field. Authorized is the operator's explicit assertion
+// that the listed targets are permitted for bounded active testing and that
+// catalog escalation is exhausted (the run never fabricates those guarantees).
 type DiscoveryAdaptiveSynthesisRequest struct {
 	Allowed       bool   `json:"allowed"`
+	Authorized    bool   `json:"authorized,omitempty"`
 	Trigger       string `json:"trigger,omitempty"`
 	MaxCandidates uint16 `json:"max_candidates,omitempty"`
+
+	ReferenceURL          string `json:"reference_url,omitempty"`
+	TargetURL             string `json:"target_url,omitempty"`
+	SameServiceControlURL string `json:"same_service_control_url,omitempty"`
+	UnrelatedControlURL   string `json:"unrelated_control_url,omitempty"`
 }
 
 type DiscoveryRequest struct {

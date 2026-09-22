@@ -3,10 +3,13 @@ package discovery
 import (
 	"context"
 	"errors"
+	"sort"
 	"time"
 
+	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/detector"
+	"github.com/daniellavrushin/b4/monitor"
 )
 
 // AutomaticSynthesisInput is the fully-projected input for one bounded
@@ -133,4 +136,45 @@ func RunAutomaticSynthesis(
 	}
 	out.Result = result
 	return out, nil
+}
+
+// AutomaticBehavioralMutations derives the bounded behavioral probe catalog
+// from the automatic-safe grammar-v1 operators. Each operator yields one
+// mutation using its first registered finite parameter value; external-param
+// operators (safe fake) still probe their finite mode domain.
+func AutomaticBehavioralMutations() []detector.BehavioralProbeMutation {
+	grammar := AutomaticStrategyGrammarV1()
+	mutations := make([]detector.BehavioralProbeMutation, 0, len(grammar.Operators))
+	for _, op := range grammar.Operators {
+		if !op.AutomaticSafe || len(op.ParameterDomain) == 0 {
+			continue
+		}
+		params := make(map[string]string, len(op.ParameterDomain))
+		for name, domain := range op.ParameterDomain {
+			if len(domain) == 0 {
+				continue
+			}
+			params[name] = domain[0]
+		}
+		mutations = append(mutations, detector.BehavioralProbeMutation{
+			ProbeID: string(op.Family),
+			Family:  op.Family,
+			Params:  params,
+		})
+	}
+	sort.SliceStable(mutations, func(i, j int) bool { return mutations[i].ProbeID < mutations[j].ProbeID })
+	return mutations
+}
+
+// AutomaticSynthesisActionContext builds the base action context for automatic
+// synthesis. No payload is required: the synthesized/behavioral plan compiler
+// replaces Input with the real packet observed on the nfq path.
+func AutomaticSynthesisActionContext(scope monitor.MonitorScopeKey) SynthesisActionContext {
+	return SynthesisActionContext{
+		Confidence:          80,
+		TCPPhase:            "complete-reassembled-clienthello",
+		CompleteClientHello: true,
+		ConfigGen:           scope.ConfigGeneration,
+		Budgets:             action.DefaultActionBudgets(),
+	}
 }

@@ -114,3 +114,42 @@ func TestRunAutomaticSynthesisFailsClosedWithoutBehavioralRunner(t *testing.T) {
 		t.Fatal("missing behavioral runner must fail closed")
 	}
 }
+
+func TestAutomaticBehavioralMutationsCoverGrammar(t *testing.T) {
+	grammar := AutomaticStrategyGrammarV1()
+	mutations := AutomaticBehavioralMutations()
+	if len(mutations) == 0 {
+		t.Fatal("no behavioral mutations derived from the grammar")
+	}
+	byFamily := map[detector.StrategyOperatorFamily]detector.BehavioralProbeMutation{}
+	for _, m := range mutations {
+		if !m.Valid() {
+			t.Fatalf("invalid mutation: %+v", m)
+		}
+		byFamily[m.Family] = m
+	}
+	for _, op := range grammar.Operators {
+		if !op.AutomaticSafe || len(op.ParameterDomain) == 0 {
+			continue
+		}
+		if _, ok := byFamily[op.Family]; !ok {
+			t.Fatalf("no behavioral mutation for automatic operator %s", op.Family)
+		}
+	}
+	for i := 1; i < len(mutations); i++ {
+		if mutations[i-1].ProbeID > mutations[i].ProbeID {
+			t.Fatal("behavioral mutations must be deterministically ordered")
+		}
+	}
+}
+
+func TestAutomaticSynthesisActionContext(t *testing.T) {
+	scope := gateTestScope()
+	ctx := AutomaticSynthesisActionContext(scope)
+	if ctx.ConfigGen != scope.ConfigGeneration {
+		t.Fatalf("config generation not wired: %+v", ctx)
+	}
+	if ctx.TCPPhase == "" || ctx.Budgets == (action.ActionBudgets{}) {
+		t.Fatalf("action context incomplete: %+v", ctx)
+	}
+}
