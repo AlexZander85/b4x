@@ -20,7 +20,7 @@ interface UseGitHubReleaseResult {
   setIncludePrerelease: (include: boolean) => void;
 }
 
-const GITHUB_REPO = "DanielLavrushin/b4";
+const GITHUB_REPO = "AlexZander85/b4x";
 const GITHUB_API_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases?per_page=25`;
 const DISMISSED_VERSIONS_KEY = "b4_dismissed_versions";
 const INCLUDE_PRERELEASE_KEY = "b4_include_prerelease";

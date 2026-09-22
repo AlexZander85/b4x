@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const GITHUB_REPO = "DanielLavrushin/b4";
+const GITHUB_REPO = "AlexZander85/b4x";
 
 const changelogUrl = (file: string) =>
   `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${file}`;
