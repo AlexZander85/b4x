@@ -319,6 +319,8 @@ docker run --rm --dns 8.8.8.8
 
 31. **Тест-инстанс b4 с ЖИВЫМ конфигом на Keenetic → watchdog software reset (ребут роутера).** Поле 22.09 (AFS Gate A): `S99b4 stop` → `nohup <тест-бинарь под именем b4> --config=<копия live>` → опрос API. `killall b4` (SIGTERM) НЕ завершил b4 за 3 с (graceful shutdown завис на разборе packet-path), `S99b4 start` увидел живой `pidof b4` и **пропустил** запуск → тест-инстанс продолжал работать; через ~20 мин `mt_wdt ... SoC power status: software reset` перезагрузил роутер (uptime сброшен), live поднялся автостартом на буте (`--config=/opt/etc/b4/b4.json`). Урок: **не запускать тест-инстанс b4 с живым конфигом** (он поднимает тот же NFQUEUE/PPE/routing, а shutdown может зависнуть); для полевой проверки API — либо минимальный изолированный конфиг без packet-path, либо не трогать живой. Если запускали: убивать `killall -9 b4`, дождаться пустого `pidof b4` ДО `S99b4 start`, `S99b4 start` отдельным вызовом, сверить sha `5627c147`/md5 `e629da1e` + `S99b4 selfcheck`.
 
+32. **Не-РФ WARP включается ТОЛЬКО так: `system.warp.socks5 = <не-РФ SOCKS5>` + scoped-сет `routing.mode=tunnel, routing.tunnel=masque`. Галочку `nonru` НЕ ставить.** Поле 22.09: `nonru` (nested M+M) композится над ТОЙ ЖЕ base-warp плоскостью, что и standalone-MASQUE, и роняет её data-path (даже без routing-сета), при этом её geo-гейт не открывается — «тихий полудохлый» data-plane (`tls: read tcp 172.16.0.2:…: connection reset by peer`). Chains (`masque+masque`) сами по себе ОК (проверено). Причина прежних ложных «0 байт/RST» — одновременный `nonru`; `b4x-6ht1` закрыт как false positive. Проверенные прокси владельца (10 МБ `proof.ovh.net`): **GB `31.59.20.176:6754` — сырая 5.13 / WARP 3.80 МБ/с (LHR) — лучший**; PT `84.247.60.125:6095` — 3.96 / 3.14 (LIS); DE `31.58.9.4:6077` — 1.38 / **0 (данные не идут)**. Гейт не-РФ: trace через `tunnel=masque` = `loc≠RU` (`ip=104.28.192.58 colo=LHR loc=GB warp=on`). Валидатор (`cc7b4b88`, `config/validation.go:validateWarpNonRU`) теперь ОТКЛОНЯЕТ `nonru.enabled` вместе с `system.warp.socks5` или с включённым `tunnel=masque`-сетом (400 с понятным текстом), чтобы скрытый развал не повторялся.
+
 ---
 
 ## 8. Инварианты
@@ -329,6 +331,7 @@ docker run --rm --dns 8.8.8.8
 - ТСПУ: тихий дроп TCP по SNI `youtube*`, без RST. QUIC/UDP 443 часто проходит.
 - PPE не маскирует SNI. PPE только оставляет рукопожатие на CPU.
 - Discovery не подбирает стратегии руками в этой кампании. Сначала классификатор должен увидеть flow.
+- **Не-РФ WARP: только `system.warp.socks5` + scoped-сет `routing.mode=tunnel, tunnel=masque`.** `nonru` НЕ включать (nested M+M контендит base-MASQUE и роняет его data-path; валидатор теперь отклоняет nonru с прокси/`tunnel=masque`-сетом).
 
 ---
 
