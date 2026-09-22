@@ -317,6 +317,8 @@ docker run --rm --dns 8.8.8.8
 
 30. **`fxvpservice.Runtime.loop` (и демонская проводка `main.go:953`) не вызывали `pool.Bootstrap` — fxvpn-пул навсегда `provisioning`/`blocked`.** `NewPool` заводит аккаунты в `StateProvisioning`, а `RotateIfDue` такие места намеренно пропускает: переводит в `active` только `pool.Bootstrap()`. Поле дало `pool_blocked=true` при полностью здоровом аккаунте (refresh+Guardian ок, quota 50 ГиБ). Фикс: в `loop` вызвать `r.pool.Bootstrap(ctx)` перед первым `tick` (проверить и демонскую проводку).
 
+31. **Тест-инстанс b4 с ЖИВЫМ конфигом на Keenetic → watchdog software reset (ребут роутера).** Поле 22.09 (AFS Gate A): `S99b4 stop` → `nohup <тест-бинарь под именем b4> --config=<копия live>` → опрос API. `killall b4` (SIGTERM) НЕ завершил b4 за 3 с (graceful shutdown завис на разборе packet-path), `S99b4 start` увидел живой `pidof b4` и **пропустил** запуск → тест-инстанс продолжал работать; через ~20 мин `mt_wdt ... SoC power status: software reset` перезагрузил роутер (uptime сброшен), live поднялся автостартом на буте (`--config=/opt/etc/b4/b4.json`). Урок: **не запускать тест-инстанс b4 с живым конфигом** (он поднимает тот же NFQUEUE/PPE/routing, а shutdown может зависнуть); для полевой проверки API — либо минимальный изолированный конфиг без packet-path, либо не трогать живой. Если запускали: убивать `killall -9 b4`, дождаться пустого `pidof b4` ДО `S99b4 start`, `S99b4 start` отдельным вызовом, сверить sha `5627c147`/md5 `e629da1e` + `S99b4 selfcheck`.
+
 ---
 
 ## 8. Инварианты
