@@ -359,3 +359,69 @@ v1 `69b18178`: RST по ECH-детекту — механика точна, UX �
 **rexmit:** каждый 0x16 инжектится; хвост не-0x16 — accept. holdpath для неполного ECH остаётся.
 
 Правила агента: `AGENTS.md`. Карта YouTube: `YOUTUBE_DATAPLANE.md`. Стартовый промпт: `.ag/prompts/SESSION_START.md`. Как говорить с агентом: `B4X_FIELD_VALIDATION_AGENT_PACK/AGENT_CONTRACT.md`.
+
+---
+
+## 10. НОВОМУ АГЕНТУ — операционная карта (актуально 2026-09-23)
+
+> Цель раздела: вникнуть за 5 минут, чтобы настраивать владельцу сеты/туннели и программу на роутере. **Живой sha/cfg/fd всегда в верхних строках `.ag/summaries/state_packet.md`** — он важнее этого текста по конкретике.
+
+### 10.1 Доступ и секреты
+- **SSH:** `192.168.1.1:222`, user `root`, пароль — в `B4X_FIELD_VALIDATION_AGENT_PACK/B4X_ROUTER_ACCESS_CREDENTIALS.md` (файл с секретами, не растаскивать). Запуск команд: `python "$env:TEMP\opencode\rrun.py" '<sh>'` (docker+sshpass, §6).
+- **B4 API + админка:** `http://192.168.1.1:7000`. Авторизация — **Bearer-токен, НЕ basic auth**: `POST /api/auth/login {"username":"admin","password":"<из credentials.md>"}` → `{"token":"…"}`; далее заголовок `Authorization: Bearer <token>`. **Токен сбрасывается на каждом рестарте b4.** Авторизованный роут `/api/config` требует токен.
+- **SOCKS5-прокси владельца для не-РФ** (user `apgfpofr`, пароль `3wikf8xs6t7y`): GB `31.59.20.176:6754` (**лучший**, ~3.8 МБ/с), PT `84.247.60.125:6095`, DE `31.58.9.4:6077` (**WARP-данные не идут**). Формат для b4: `socks5://apgfpofr:3wikf8xs6t7y@<host>:<port>`.
+
+### 10.2 Раскладка: что где
+- **Роутер `/opt`** (внутренняя ubi, **98 МБ**, ~32 МБ свободно): **бинарь** `/opt/sbin/b4` и **конфиг+секреты** `/opt/etc/b4/` (настоящая папка, НЕ симлинк).
+- **Флешка `$F`** = `/tmp/mnt/37fdc502-d92b-dd01-3075-c402d92bdd01` (27 ГБ): **логи** `$F/b4/log/`, кэш adblock `$F/b4/adblock/` (симлинк из `/opt/etc/b4/adblock`), fallback-бинарь `$F/bin/b4` (= live), откатные `$F/bin/b4.pre-*`/`b4.restore-*`.
+- В `/opt/etc/b4/` **локально**: `b4.json` + `warp/` (identity.json MASQUE, identity_wg.json AWG, identity_wg_nocf.json, identity-nonru.json + 2 chain-слота), `proton/`, `opera/`, `fxvpn/accounts.json` (Firefox), `ppe-window.enabled`. Крупные данные — **симлинками на флешку** (`geoip.dat`, `tor/`, `vless/`, `discovery_history.json`, `detector_history.json`, `discovery_cache.json`, `captures/`).
+
+### 10.3 Сборка и деплой (только так)
+- **Сборка ВСЕГДА с `-tags l5ppe`** (иначе PPE/ускорение молча отсутствует). Makefile: `TAGS ?= l5ppe`. arm64 через docker (vendor):
+  `docker run --rm -e CGO_ENABLED=0 -e GOOS=linux -e GOARCH=arm64 -e GOFLAGS=-mod=vendor --mount type=bind,source=D:\b4x,target=/src --mount type=bind,source=C:\Users\AlexZander\go\pkg\mod,target=/go/pkg/mod -w /src/src golang:1.25.3-alpine go build -tags l5ppe -trimpath -ldflags "-s -w -X main.Version=1.0.0" -o ../out/linux-arm64/b4 .`
+- **Бинарь деплоить только через base64**: локально `base64` → `ssh_cat.py <b64> <remote.b64>` → на роутере `base64 -d > /opt/sbin/b4 && chmod +x`. (`ssh_cat` без base64 портит бинарь.)
+- **UI** (`src/http/ui`) правится → `pnpm install --frozen-lockfile && pnpm build` (dist embed'ится в Go через `//go:embed ui/dist/*`) → затем Go-сборка.
+- **Промоут:** `S99b4 stop` (дождаться пустого `pidof b4`) → `cp` бинаря в `/opt/sbin/b4` → `S99b4 start` (отдельными SSH-вызовами). **Restore point обязателен** (`$F/bin/b4.pre-<слой>` + копия `b4.json`). **Тест-инстанс с ЖИВЫМ конфигом не запускать** (§7 п.31 → watchdog-ребут).
+
+### 10.4 Как настраивать сеты и туннели (основная работа)
+- **UI «Sets»** — `Targets` (домены/`sni_domains`, IP, geosite/geoip-категории), `TCP/UDP` (faking/fragmentation), `DNS` (per-set `doh_url`/`target_dns` для обхода DNS-подмены), `Routing` (`mode=tunnel` + `tunnel=<kind>`).
+- **UI «Tunnels»** — включение/настройка транспортов, `Measure` (здоровье/скорость), назначение сет→туннель.
+- **Всё доступно API-скриптом**: `GET /api/config` → правка JSON → `PUT /api/config` (канонический сериализатор Go; пустой `web_server.password` восстанавливается из текущего, §7 п.23). Локальные хелперы: `D:\b4x\out\b4api.py` (login/getconfig/tunnels/measure), `tunnelset.py`, `speedtest.py`, `setchain.py`, `setmasq.py`, `nonru.py`.
+- **Живые сеты**: `combo-timestamp` (`211bf07f`, youtubei/API), `youtube-video` (`9b31cb9b`, fake UDP, googlevideo), `youtube-ui`, `telegram` (`mode=mtproto-ws`), `instagram`, `warp-tunnel` (`.40`, `tunnel=warp`). **Gmail/News не ломать** (изоляция, L6).
+- Три сета YouTube (API / `googlevideo` / UI) — классификатор обязан повесить flow на нужный **до backoff Кронета**.
+
+### 10.5 Туннели — что работает и как включать
+| kind | Как включить | Выход | Заметки |
+|---|---|---|---|
+| `warp` (AWG-WARP, UDP) | `system.warp.awg.enabled=true` | RU | быстрый ~6.5 МБ/с |
+| `masque` (WARP H2/H3) | `system.warp.enabled=true` | RU, либо **НЕ-РФ** при галке nonru+прокси | TCP-netstack ~1 МБ/с |
+| **НЕ-РФ WARP** | **галка «НЕ РУ» (`system.warp.nonru.enabled=true`) + `system.warp.socks5=<прокси>` + сет `routing.mode=tunnel, tunnel=masque`** | GB/PT/DE | **галка = мастер-выключатель**: без неё прокси инертен; `tunnel=nonru` алиасится в `masque`. Проверка: `loc≠RU` |
+| `opera` | `system.opera.enabled=true` + `/api/opera/region {EU/AM/AS}` | EU/AM | ~5.9 МБ/с EU (скачет) |
+| `proton` (AWG) | `system.proton.enabled=true` + **`obfuscation.enabled=true`** + `location` | PL/RO/… | без обфускации идёт `proton-vanilla` — в РФ НЕ работает |
+| `fxvpn` (Firefox) | `system.fxvpn.enabled=true` + `accounts_path=/opt/etc/b4/fxvpn/accounts.json` + `bootstrap_through_carrier=true` | BR | вложен в H2-носитель |
+| `tor` | `system.tor.enabled=true` | FRA | b4 поднимает свой tor (системный `S35tor` отключён) |
+| `vless` | `system.vless.enabled=true` + `helper=sing-box` (`/opt/usr/sbin/sing-box`) | free-ноды | для UX нужна своя нода |
+| ~~`nonru` nested~~ | ❌ НЕ включать | — | ломает base-plane; валидатор отклоняет `nonru`+socks5 |
+
+### 10.6 Ускорение: PPE
+- PPE — это Keenetic per-flow hardware offload: b4 держит рукопожатие на CPU (`connskip 30 -j PPE` на `b4_managed_devices` = `.152`+`.40`), bulk уходит в железо. **Работает только в сборке с `-tags l5ppe`** (`src/l5ppe.go`, `maybeStartL5PPE`; self-heal 55 с).
+- Проверка: `iptables -t mangle -L B4_PPE_PRE -n -v` (счётчики растут). Эталон z2k **удалён** с роутера; **не держать два PPE одновременно** (порядок джампов).
+
+### 10.7 Логи
+- `S99b4`: `--log-dir=$USB/b4/log --verbose=trace`; ротация `b4.log`+`b4.log.1`. **`/tmp` = tmpfs(RAM) — лог туда НЕ писать** (переполнит память и уронит роутер, §8).
+
+### 10.8 UI-нюансы (что уже сделано)
+- `/classifier` — форковая консоль **classifier-v2.3** (ветка `agent/classifier-v2.3-capture-envelope`); рендерится (в `src/http/ui/src/index.tsx` добавлен `QueryClientProvider`).
+- Вкладка **Ad-Block** — живая (`RegisterAdBlockApi` добавлен в `src/http/handler/common.go`); включена, 3 базовых списка (AdGuard base + AdGuard RU + StevenBlack), кэш `$F/b4/adblock`, refresh 24 ч, действие `drop`.
+- Баннер обновлений и ссылки в сайдбаре указывают на **форк `AlexZander85/b4x`**, не на апстрим (меняли `useGitHubRelease`/`useLocalizedChangelog`/`version/Version.tsx`/`UpdateDialog.tsx`).
+
+### 10.9 Быстрые грабли (полный список — §7)
+1. НЕ тестировать тест-инстансом с живым конфигом (→ ребут, §7.31).
+2. Сборка без `-tags l5ppe` = нет PPE.
+3. Бинарь — только base64 (§7.12).
+4. `S99b4 stop` → ждать пустой `pidof`; `S99b4 start` — отдельным вызовом (§7.13).
+5. НЕ `offload_policy=exclude`, НЕ `sni_mutation`, НЕ google `/16`.
+6. Прокси без галки nonru инертен — это не баг.
+7. `opkg remove`/удаление файлов — только с проверкой зависимостей (`opkg whatdepends`; пример: `zoneinfo-asia` тянет `opt-ndmsv2`).
+8. Логи — на флешку, не в `/tmp`.
+9. Панель z2k (`:8088`) удалена; системный `tor` (`:9050`) отключён — это норма текущего состояния.
