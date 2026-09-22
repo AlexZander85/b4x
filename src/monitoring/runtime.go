@@ -51,11 +51,12 @@ type Runtime struct {
 	projector *monitor.MonitorAPIProjection
 	parity    *monitor.ShadowParityTracker
 	cfg       RuntimeConfig
+	inputs    *synthesisInputStore
 
-	stop     chan struct{}
-	wg       sync.WaitGroup
-	ctx      context.Context
-	cancel   context.CancelFunc
+	stop   chan struct{}
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	unsubscribe func()
 }
@@ -91,6 +92,7 @@ func NewRuntime(cfg RuntimeConfig) *Runtime {
 		projector: monitor.NewMonitorAPIProjection(),
 		parity:    monitor.NewShadowParityTracker(),
 		cfg:       cfg,
+		inputs:    newSynthesisInputStore(),
 	}
 }
 
@@ -369,6 +371,9 @@ func (rt *Runtime) project(req monitor.DiagnosticRequest, profile detector.Block
 	if req.Reason == string(monitor.SourceControlFailure) {
 		rt.parity.Observe(scope, "failing", assessment, now)
 	}
+	// Retain the ABD outcome for this scope so a later bounded synthesis run can
+	// be gated from real evidence (AFS preflight) without re-deriving it.
+	rt.inputs.put(SynthesisInputs{Scope: scope, Assessment: assessment, Profile: profile, UpdatedAt: now})
 }
 
 // ShadowParity returns the last shadow parity evidence for the scope and
