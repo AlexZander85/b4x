@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/daniellavrushin/b4/config"
 	"github.com/daniellavrushin/b4/discovery"
@@ -109,6 +110,46 @@ func (api *API) handleStartDiscovery(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Errorf("Failed to decode discovery request: %v", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// AFS §76: the server denies adaptive_synthesis.allowed=true whenever the
+	// global opt-in is off (service-profile policy can only narrow it). The
+	// field is never silently ignored.
+	if req.AdaptiveSynthesis != nil && req.AdaptiveSynthesis.Allowed {
+		profileID := ""
+		if req.Scope != nil {
+			profileID = req.Scope.ServiceProfileID
+		}
+		cfg := api.getCfg()
+		if cfg == nil || !cfg.AdaptiveSynthesisAllowed(profileID) {
+			writeJsonError(w, http.StatusForbidden, "adaptive strategy synthesis is disabled")
+			return
+		}
+		if req.Scope == nil || !req.Scope.Valid() {
+			writeJsonError(w, http.StatusBadRequest, "adaptive strategy synthesis requires a valid scope")
+			return
+		}
+		gate := discovery.SynthesisGateInput{
+			UserOptIn:               true,
+			CurrentConfigGeneration: req.Scope.ConfigGeneration,
+			Now:                     time.Now().UTC(),
+		}
+		if globalMonitoring != nil {
+			gate.PersistentRegressionQualified = globalMonitoring.PersistentRegressionQualified(*req.Scope)
+		}
+		if err := discovery.CheckAutomaticSynthesisGate(gate); err != nil {
+			// The bounded run is owned by the monitor -> ABD -> behavioral cycle.
+			// Until that cycle supplies a fresh profile/prior/behavioral evidence
+			// (and the subsystem flags), the server fails closed with the exact
+			// preflight reason instead of fabricating inputs.
+			writeJsonError(w, http.StatusConflict, err.Error())
+			return
+		}
+		// Prerequisites satisfied: the bounded executor is ProductionSynthesisRunners,
+		// but the monitoring cycle does not yet persist the gate inputs, so the run
+		// cannot be started from this endpoint.
+		writeJsonError(w, http.StatusNotImplemented, "adaptive strategy synthesis run executor is not wired to the monitoring cycle yet")
 		return
 	}
 

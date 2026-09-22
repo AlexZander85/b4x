@@ -202,6 +202,7 @@ func (api *API) RegisterEndpoints(mux *http.ServeMux, cfgPtr *atomic.Pointer[con
 	api.RegisterValidationAPI()
 	api.RegisterPrometheusAPI()
 	api.RegisterMonitorAPI()
+	api.RegisterSynthesisAPI()
 	api.RegisterServiceProfileAPI()
 	api.RegisterFieldTestAPI()
 	api.RegisterFxvpnApi()

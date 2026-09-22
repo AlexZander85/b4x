@@ -8,6 +8,15 @@ import (
 	"github.com/daniellavrushin/b4/monitor"
 )
 
+// AdaptiveSynthesisStatus returns the read-only AFS lifecycle projection for
+// the scope. It never mutates configuration or starts a run.
+func (rt *Runtime) AdaptiveSynthesisStatus(scope monitor.MonitorScopeKey) (monitor.AdaptiveSynthesisStatus, bool) {
+	if rt == nil || rt.projector == nil {
+		return monitor.AdaptiveSynthesisStatus{}, false
+	}
+	return rt.projector.Correlator().AdaptiveSynthesisStatus(scope)
+}
+
 // SetAdaptiveSynthesisEnabled reuses the production Monitoring projection as
 // the live opt-in/cancel surface. Turning the setting off cancels lifecycle
 // ownership but performs no configuration mutation itself.

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -284,4 +285,26 @@ func (dh *DiscoveryHistory) RemoveDomain(domain string) {
 			return
 		}
 	}
+}
+
+// QuarantineSynthesizedWinnersForScope invalidates every persisted synthesized
+// winner whose exact Monitor scope matches. It is the operator revert-to-catalog
+// path (AFS §73): after revert the record stays for audit but is never reusable.
+// It performs no promotion or configuration mutation and is idempotent.
+func (dh *DiscoveryHistory) QuarantineSynthesizedWinnersForScope(scope monitor.MonitorScopeKey, reason string, now time.Time) int {
+	if dh == nil || !scope.Valid() || strings.TrimSpace(reason) == "" || now.IsZero() {
+		return 0
+	}
+	dh.mu.Lock()
+	defer dh.mu.Unlock()
+	count := 0
+	for i := range dh.SynthesizedWinners {
+		winner := &dh.SynthesizedWinners[i]
+		if winner.Compatibility.Scope == scope && winner.QuarantinedAt.IsZero() {
+			winner.QuarantinedAt = now
+			winner.QuarantineReason = reason
+			count++
+		}
+	}
+	return count
 }

@@ -41,6 +41,9 @@ type runtimeCanaryRequest struct {
 type runtimePrepareRequest struct {
 	Candidate runtimeCandidatePatch `json:"candidate"`
 	Canary    runtimeCanaryRequest  `json:"canary"`
+	// Synthesized is the optional AFS promotion proof (AFS §57). It is evidence
+	// metadata only; runtimecontrol still owns the single promotion path.
+	Synthesized *runtimecontrol.SynthesizedPromotionProof `json:"synthesized,omitempty"`
 }
 
 type runtimeReasonRequest struct {
@@ -164,7 +167,7 @@ func (api *API) handleRuntimeControlPrepare(w http.ResponseWriter, r *http.Reque
 		writeJsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	result, err := manager.Prepare(r.Context(), candidate, runtimecontrol.ApplyRequest{Canary: spec})
+	result, err := manager.Prepare(r.Context(), candidate, runtimecontrol.ApplyRequest{Canary: spec, Synthesized: request.Synthesized})
 	if err != nil {
 		writeRuntimeControlError(w, err)
 		return

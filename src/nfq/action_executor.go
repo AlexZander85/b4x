@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"net"
+	"time"
 
 	"github.com/daniellavrushin/b4/action"
 	"github.com/daniellavrushin/b4/log"
@@ -67,14 +68,24 @@ func (w *Worker) executeActionPlan(ctx context.Context, raw []byte, dst net.IP, 
 	}
 	seq := binary.BigEndian.Uint32(raw[ipHdrLen+4 : ipHdrLen+8])
 
-	plan, err := action.Plan(action.PlanInput{
+	planInput := action.PlanInput{
 		BaseSequence:  seq,
 		Payload:       payload,
 		MTU:           1500,
 		IPHeaderLen:   ipHdrLen,
 		TCPHeaderLen:  tcpHdrLen,
 		ProcessedMark: w.actionMark,
-	})
+	}
+	plan, err := action.Plan(planInput)
+	// AFS synthesized probe override (default-off): while armed for this exact
+	// destination, the candidate's compiled plan replaces the configured plan.
+	// Absent/expired/compile-failure always leaves the configured plan above in
+	// place, so normal traffic is never affected.
+	if compiler, ok := activeSynthesisCompiler(dst, time.Now()); ok {
+		if compiled, compileErr := compiler(planInput); compileErr == nil && compiled.Valid {
+			plan, err = compiled, nil
+		}
+	}
 	if err != nil || !plan.Valid {
 		log.Tracef("action plan unavailable for %s injection: %v (plan.Valid=%t) - legacy send", netAddr(dst, v6), err, plan.Valid)
 		return false
